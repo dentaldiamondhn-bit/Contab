@@ -780,9 +780,9 @@ export default function AccountingBooks() {
               </Card>
               
               <LibroPartidas 
-                partidas={filteredTransactions} 
+                partidas={filteredTransactions as any} 
                 key={`partidas-${searchTerm}-${selectedVoucherType}-${selectedYear}-${selectedMonth}-${selectedDay}`}
-                onEditPartida={(partida) => handleEditTransaction(partida)}
+                onEditPartida={(partida) => handleEditTransaction(partida as any)}
                 onDeletePartida={(partidaId) => {
                   if (confirm("¿Está seguro de eliminar esta partida? Esta acción no se puede deshacer.")) {
                     console.log("Eliminando partida:", partidaId);

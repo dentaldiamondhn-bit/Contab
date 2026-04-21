@@ -5,10 +5,10 @@ const prisma = new PrismaClient();
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: companyId } = params;
+    const { id: companyId } = await params;
     
     // Check if table exists by attempting a raw query first
     try {
@@ -18,10 +18,10 @@ export async function GET(
       return NextResponse.json([]);
     }
     
-    const authorizations = await prisma.cAIAuthorization.findMany({
+    const authorizations = await (prisma as any).cAIAuthorization?.findMany({
       where: { companyId },
       orderBy: { createdAt: 'desc' }
-    });
+    }) || [];
 
     return NextResponse.json(authorizations);
   } catch (error) {
@@ -35,10 +35,10 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: companyId } = params;
+    const { id: companyId } = await params;
     const body = await request.json();
     
     const { codigo, tipoDocumento, rangoInicial, rangoFinal, fechaLimite } = body;
@@ -60,7 +60,7 @@ export async function POST(
       );
     }
 
-    const authorization = await prisma.cAIAuthorization.create({
+    const authorization = await (prisma as any).cAIAuthorization?.create({
       data: {
         companyId,
         codigo,
@@ -89,7 +89,7 @@ export async function POST(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
@@ -110,7 +110,7 @@ export async function PUT(
     if (fechaLimite) updateData.fechaLimite = new Date(fechaLimite);
     if (estado) updateData.estado = estado;
 
-    const authorization = await prisma.cAIAuthorization.update({
+    const authorization = await (prisma as any).cAIAuthorization?.update({
       where: { id },
       data: updateData
     });
@@ -131,7 +131,7 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { searchParams } = new URL(request.url);
@@ -144,7 +144,7 @@ export async function DELETE(
       );
     }
 
-    await prisma.cAIAuthorization.delete({
+    await (prisma as any).cAIAuthorization?.delete({
       where: { id: authorizationId }
     });
 

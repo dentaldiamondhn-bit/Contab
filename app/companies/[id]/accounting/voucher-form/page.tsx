@@ -154,14 +154,14 @@ export default function VoucherFormPage() {
   // Seleccionar cuenta
   const selectAccount = (index: number, type: 'debit' | 'credit', account: any) => {
     const detail = voucherDetails[index];
-    updateDetailLine(index, 'accountCode', account.code);
-    updateDetailLine(index, 'accountName', account.name);
+    updateDetailLine(String(index), 'accountCode', account.code);
+    updateDetailLine(String(index), 'accountName', account.name);
     
     // Si es débito, limpiar crédito y viceversa
     if (type === 'debit') {
-      updateDetailLine(index, 'credit', 0);
+      updateDetailLine(String(index), 'credit', 0);
     } else {
-      updateDetailLine(index, 'debit', 0);
+      updateDetailLine(String(index), 'debit', 0);
     }
     
     setShowAccountSelector(null);

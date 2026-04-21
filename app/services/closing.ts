@@ -3,7 +3,7 @@ import { PrismaClient } from '@prisma/client';
 import { closeBooks } from '@/lib/period-lock-middleware';
 
 export async function performYearEndClosing(year: number, equityAccountId: String, closedBy: string) {
-  return await db.$transaction(async (tx: PrismaClient) => {
+  return await (db as any).$transaction(async (tx: any) => {
     // VALIDATION 1: Prevent Duplicate Closures
     const existingClosing = await tx.transaction.findFirst({
       where: {

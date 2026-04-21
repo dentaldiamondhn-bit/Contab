@@ -61,7 +61,7 @@ export default function BankExcelImporter({ onImportComplete, selectedBank }: Ba
             currency: 'HNL'
           },
           validation: { valid: [], invalid: [], errors: [] },
-          errors: [importResult.error || 'Import failed']
+          errors: [(importResult as any).error || 'Import failed']
         });
       }
     } catch (error) {

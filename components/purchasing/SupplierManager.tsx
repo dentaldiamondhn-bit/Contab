@@ -16,7 +16,8 @@ import {
   TrendingUp,
   AlertCircle,
   CheckCircle,
-  Clock
+  Clock,
+  Download
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
@@ -92,7 +93,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar proveedores
       const { data, error } = await supabase
@@ -152,7 +153,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
 
       if (editingSupplier) {
         // Actualizar proveedor existente
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Supplier')
           .update(supplierData)
           .eq('id', editingSupplier.id);
@@ -161,7 +162,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
         alert("Proveedor actualizado exitosamente");
       } else {
         // Crear nuevo proveedor
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Supplier')
           .insert(supplierData);
 
@@ -202,7 +203,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
       const newBalance = payable.amount - newPaidAmount;
 
       // Actualizar cuenta por pagar
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('AccountPayable')
         .update({
           paidAmount: newPaidAmount,
@@ -215,7 +216,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
       if (error) throw error;
 
       // Crear transacción de pago
-      const { data: transactionData, error: transactionError } = await supabase.rpc('create_accounting_transaction', {
+      const { data: transactionData, error: transactionError } = await (supabase as any).rpc('create_accounting_transaction', {
         p_tenant_id: tenantId,
         p_date: new Date().toISOString().split('T')[0],
         p_description: `Pago de factura ${payable.invoice?.invoiceNumber || ''}`,

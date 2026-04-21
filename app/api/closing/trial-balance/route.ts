@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     }
 
     // Get trial balance for the specified year
-    const accounts = await db.account.findMany({
+    const accounts = await (db as any).account.findMany({
       where: {
         entries: {
           some: {

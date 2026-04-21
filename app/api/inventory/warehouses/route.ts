@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
 
     const supabase = createSupabaseClient();
 
-    const { data: warehouse, error } = await supabase
+    const { data: warehouse, error } = await (supabase as any)
       .from("warehouse")
       .insert({
         tenant_id: "1",

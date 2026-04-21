@@ -168,8 +168,8 @@ export default function MultiCurrencyPage() {
                       <div className="flex items-center">
                         <DollarSign className="h-4 w-4 mr-1" />
                         {transaction.currency === 'USD' 
-                          ? transaction.hnlEquivalent.toLocaleString() + ' HNL'
-                          : transaction.usdEquivalent.toLocaleString() + ' USD'
+                          ? (transaction.hnlEquivalent?.toLocaleString() || '0') + ' HNL'
+                          : (transaction.usdEquivalent?.toLocaleString() || '0') + ' USD'
                         }
                       </div>
                     </td>

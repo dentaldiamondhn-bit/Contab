@@ -78,14 +78,14 @@ export async function GET(request: Request) {
     }
 
     // Check if the year is already closed
-    const closingRecord = await db.bookClosing.findFirst({
+    const closingRecord = await (db as any).bookClosing?.findFirst({
       where: {
         period: year,
         periodType: 'YEARLY'
       }
     });
 
-    const globalSettings = await db.globalSettings.findFirst();
+    const globalSettings = await (db as any).globalSettings?.findFirst();
     const lastClosedDate = globalSettings?.lastClosedDate;
 
     return NextResponse.json({

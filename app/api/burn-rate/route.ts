@@ -35,7 +35,7 @@ export async function GET(request: Request) {
     }
 
     // Get transactions for the period
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where: {
         date: {
           gte: startDate,

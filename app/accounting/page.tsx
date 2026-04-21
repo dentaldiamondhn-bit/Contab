@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { ExcelBooksUploaderWithFiles } from "@/components/accounting/ExcelBooksUploaderWithFiles";
+import { ExcelBooksUploader } from "@/components/accounting/ExcelBooksUploader";
 
 export default function AccountingPage() {
   const { currentTenant } = useTenant();
@@ -263,7 +263,7 @@ export default function AccountingPage() {
         <CardContent>
           <div className="space-y-4">
             <div className="p-4 bg-white rounded-lg border border-blue-200">
-              <ExcelBooksUploaderWithFiles tenantId={currentTenant?.id || '1'} />
+              <ExcelBooksUploader tenantId={currentTenant?.id || '1'} />
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">

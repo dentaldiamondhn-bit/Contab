@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { createTransaction } from "@/lib/actions/transaction";
 
 // Helper para obtener tenantId del request
 async function getTenantFromRequest(request: NextRequest) {
@@ -30,7 +31,7 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseClient();
     
     // Obtener transacciones usando la nueva función
-    const { data: transactions, error } = await supabase
+    const { data: transactions, error } = await (supabase as any)
       .rpc('get_transactions_with_entries', {
         p_tenant_id: tenant.id === '1' ? 'tenant_001' : tenant.id, // Convertir 1 a tenant_001
         p_start_date: searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : null,

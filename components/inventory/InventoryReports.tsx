@@ -68,7 +68,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar productos
       const { data, error } = await supabase
@@ -79,17 +79,17 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
 
       if (error) throw error;
 
-      const productList = data || [];
+      const productList = (data || []) as any[];
       setProducts(productList);
 
       // Calcular estadísticas
       const totalProducts = productList.length;
-      const totalValue = productList.reduce((sum, product) => sum + (product.currentStock * product.unitCost), 0);
-      const lowStockItems = productList.filter(product => product.currentStock <= product.minStock && product.currentStock > 0).length;
-      const outOfStockItems = productList.filter(product => product.currentStock === 0).length;
+      const totalValue = productList.reduce((sum: number, product: any) => sum + (product.currentStock * product.unitCost), 0);
+      const lowStockItems = productList.filter((product: any) => product.currentStock <= product.minStock && product.currentStock > 0).length;
+      const outOfStockItems = productList.filter((product: any) => product.currentStock === 0).length;
 
       // Top categorías
-      const categoryStats = productList.reduce((acc, product) => {
+      const categoryStats = productList.reduce((acc: any, product: any) => {
         if (!acc[product.category]) {
           acc[product.category] = { count: 0, value: 0 };
         }
@@ -99,7 +99,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
       }, {} as Record<string, { count: number; value: number }>);
 
       const topCategories = Object.entries(categoryStats)
-        .map(([category, stats]) => ({
+        .map(([category, stats]: [string, any]) => ({
           name: category,
           count: stats.count,
           value: stats.value
@@ -154,7 +154,6 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
             product.currentStock === 0 ? 'Sin Stock' : 
             product.currentStock <= product.minStock ? 'Stock Bajo' : 'Normal'
           ])
-        ].join('\n')
         ].join('\n');
         break;
 
@@ -177,7 +176,6 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
             (data.value / 100).toFixed(2),
             ((data.value / stats.totalValue) * 100).toFixed(2) + '%'
           ])
-        ].join('\n')
         ].join('\n');
         break;
 
@@ -201,7 +199,6 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
               recommendation
             ];
           })
-        ].join('\n')
         ].join('\n');
         break;
     }
@@ -506,7 +503,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
                     <span>Aumentar niveles de stock para evitar faltantes</span>
                   </li>
                 )}
-                <stats.totalValue > 1000000 && (
+                {stats.totalValue > 1000000 && (
                   <li className="flex items-start">
                     <Package className="h-4 w-4 mr-2 text-purple-500 mt-0.5" />
                     <span>Considerar seguro de inventario para productos de alto valor</span>

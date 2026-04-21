@@ -67,7 +67,7 @@ export default function DETExportManager() {
       const [periods, stats] = await Promise.all([
         getAvailablePeriods(),
         getAvailablePeriods().then(periods => 
-          periods.length > 0 ? getDETExportStatistics(periods[periods[0]]) : null
+          periods.length > 0 ? getDETExportStatistics(periods[0]) : null
         ),
       ]);
       

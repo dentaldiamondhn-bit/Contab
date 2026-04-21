@@ -13,7 +13,7 @@ export async function GET(request: NextRequest) {
       .eq("tenant_id", "1") // Hardcoded por ahora
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .single() as { data: any, error: any };
     
     if (error) {
       console.error("Error fetching CAI:", error);
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
     const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
     // Obtener el último número de factura usado
-    const { data: invoices } = await supabase
+    const { data: invoices } = await (supabase as any)
       .from("invoice")
       .select("invoice_number")
       .order("created_at", { ascending: false })
@@ -47,11 +47,11 @@ export async function GET(request: NextRequest) {
     // Encontrar el número más alto usado
     if (invoices && invoices.length > 0) {
       const numbers = invoices
-        .map(inv => {
+        .map((inv: any) => {
           const parts = inv.invoice_number?.split('-');
           return parts && parts.length === 4 ? parseInt(parts[3]) : 0;
         })
-        .filter(n => !isNaN(n) && n > 0);
+        .filter((n: any) => !isNaN(n) && n > 0);
       
       if (numbers.length > 0) {
         const maxNumber = Math.max(...numbers);
@@ -92,13 +92,13 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseClient();
     
     // Desactivar CAIs anteriores
-    await supabase
+    await (supabase as any)
       .from("cai")
       .update({ status: 'inactive' })
       .eq("tenant_id", "1");
     
     // Crear nuevo CAI
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("cai")
       .insert({
         cai,

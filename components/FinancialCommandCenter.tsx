@@ -177,7 +177,10 @@ export default function FinancialCommandCenter() {
             )}
             {change !== undefined && (
               <div className="flex items-center mt-2">
-                {getChangeIndicator(change, change * 0.9).icon}
+                {(() => {
+                  const IndicatorIcon = getChangeIndicator(change, change * 0.9).icon as any;
+                  return <IndicatorIcon className="w-3 h-3" />;
+                })()}
                 <span className={`ml-1 text-xs font-medium ${getChangeIndicator(change, change * 0.9).color}`}>
                   {formatPercent(getChangeIndicator(change, change * 0.9).value)}
                 </span>

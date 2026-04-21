@@ -46,7 +46,7 @@ export default function IncomeStatement({ tenantId }: IncomeStatementProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar datos del estado de resultados
       const { data, error } = await supabase
@@ -58,13 +58,14 @@ export default function IncomeStatement({ tenantId }: IncomeStatementProps) {
       setIncomeData(data || []);
 
       // Calcular resúmenes
-      const totalIngresos = data
-        ?.filter(item => item.categoria === 'INGRESOS')
-        ?.reduce((sum, item) => sum + item.monto, 0) || 0;
+      const dataItems = data as any[];
+      const totalIngresos = dataItems
+        ?.filter((item: any) => item.categoria === 'INGRESOS')
+        ?.reduce((sum: number, item: any) => sum + item.monto, 0) || 0;
 
-      const totalGastos = data
-        ?.filter(item => item.categoria === 'GASTOS')
-        ?.reduce((sum, item) => sum + item.monto, 0) || 0;
+      const totalGastos = dataItems
+        ?.filter((item: any) => item.categoria === 'GASTOS')
+        ?.reduce((sum: number, item: any) => sum + item.monto, 0) || 0;
 
       const utilidadNeta = totalIngresos - totalGastos;
       const margenUtilidad = totalIngresos > 0 ? (utilidadNeta / totalIngresos) * 100 : 0;

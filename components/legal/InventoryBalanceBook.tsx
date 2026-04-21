@@ -41,7 +41,7 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar datos del libro de inventarios y balances
       // Este es un reporte que combina activos, pasivos y patrimonio

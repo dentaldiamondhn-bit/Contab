@@ -217,7 +217,7 @@ export default function CashFlowProjectionChart({
     return null;
   };
 
-  const HealthIcon = healthStatus.icon;
+  const HealthIcon = healthStatus.icon as any;
 
   if (compact) {
     return (

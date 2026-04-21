@@ -45,7 +45,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [showReconciliationForm, setShowReconciliationForm] = useState(false);
+  const [showReconciliationForm, setShowReconciliationForm] = useState<string | null>(null);
   const [editingReconciliation, setEditingReconciliation] = useState<Reconciliation | null>(null);
   const [reconciliationForm, setReconciliationForm] = useState({
     bankAccountId: "",
@@ -65,7 +65,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar conciliaciones bancarias
       const { data, error } = await supabase
@@ -110,7 +110,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
 
       if (editingReconciliation) {
         // Actualizar conciliación existente
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Reconciliation')
           .update(reconciliationData)
           .eq('id', editingReconciliation.id);
@@ -119,7 +119,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
         alert("Conciliación actualizada exitosamente");
       } else {
         // Crear nueva conciliación
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Reconciliation')
           .insert(reconciliationData);
 
@@ -136,7 +136,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
         notes: ""
       });
       setEditingReconciliation(null);
-      setShowReconciliationForm(false);
+      setShowReconciliationForm(null);
       loadReconciliations();
     } catch (error: any) {
       console.error("Error saving reconciliation:", error);
@@ -340,7 +340,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
 
       {/* Botón de Nueva Conciliación */}
       <div className="flex justify-center">
-        <Button onClick={() => setShowReconciliationForm(true)}>
+        <Button onClick={() => setShowReconciliationForm('new')}>
           <Plus className="h-4 w-4 mr-2" />
           Nueva Conciliación
         </Button>
@@ -440,7 +440,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
                                   bookBalance: rec.bookBalance / 100,
                                   notes: rec.notes || ''
                                 });
-                                setShowReconciliationForm(true);
+                                setShowReconciliationForm(rec.id);
                               }}
                             >
                               Editar
@@ -527,7 +527,6 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
                   required
                 />
               </div>
-            </div>
             <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="notes">Notas</Label>
                 <Input
@@ -537,12 +536,11 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
                   placeholder="Notas adicionales de la conciliación"
                 />
               </div>
-            </div>
             <div className="flex justify-end space-x-3 pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={() => {
-                  setShowReconciliationForm(false);
+                  setShowReconciliationForm(null);
                   setEditingReconciliation(null);
                   setReconciliationForm({
                     bankAccountId: "",

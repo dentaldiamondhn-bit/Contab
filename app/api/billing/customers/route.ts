@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
     
     const supabase = createSupabaseClient();
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("customer")
       .insert({
         rtn,

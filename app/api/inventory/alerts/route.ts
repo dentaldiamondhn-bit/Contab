@@ -33,8 +33,8 @@ export async function GET(request: NextRequest) {
     }
 
     // Contar por tipo
-    const lowStockCount = alerts?.filter((a) => a.alert_type === "low_stock").length || 0;
-    const expiringCount = alerts?.filter((a) => a.alert_type === "expiring").length || 0;
+    const lowStockCount = (alerts as any[])?.filter((a) => a.alert_type === "low_stock").length || 0;
+    const expiringCount = (alerts as any[])?.filter((a) => a.alert_type === "expiring").length || 0;
 
     return NextResponse.json({
       alerts: alerts || [],

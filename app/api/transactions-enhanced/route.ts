@@ -18,10 +18,10 @@ export async function POST(request: Request) {
 
       case 'getWithHistory':
         const transactionId = data.transactionId;
-        const transaction = await TransactionService.getTransactionWithHistory(transactionId);
+        const transactionWithHistory = await TransactionService.getTransactionWithHistory(transactionId);
         return NextResponse.json({
           success: true,
-          transaction
+          transaction: transactionWithHistory
         });
 
       case 'getFiltered':
@@ -39,7 +39,8 @@ export async function POST(request: Request) {
         });
 
       case 'revalueate':
-        const revaluation = await TransactionService.revalueateTransactions(data);
+        const { startDate, endDate, targetCurrency } = data;
+        const revaluation = await TransactionService.revalueateTransactions(new Date(startDate), new Date(endDate), targetCurrency || 'HNL');
         return NextResponse.json({
           success: true,
           revaluation
@@ -85,12 +86,12 @@ export async function GET(request: Request) {
         });
 
       case 'historicalRates':
-        const fromCurrency = searchParams.get('from') || 'USD';
-        const toCurrency = searchParams.get('to') || 'HNL';
+        const histFromCurrency = searchParams.get('from') || 'USD';
+        const histToCurrency = searchParams.get('to') || 'HNL';
         const startDate = new Date(searchParams.get('startDate') || Date.now() - 30 * 24 * 60 * 60 * 1000);
         const endDate = new Date(searchParams.get('endDate') || Date.now());
         
-        const rates = await ExchangeRateService.getHistoricalRates(fromCurrency, toCurrency, startDate, endDate);
+        const rates = await ExchangeRateService.getHistoricalRates(histFromCurrency, histToCurrency, startDate, endDate);
         return NextResponse.json({
           success: true,
           rates
@@ -101,7 +102,7 @@ export async function GET(request: Request) {
         const rateData = [
           { from: 'USD', to: 'HNL', rate: await ExchangeRateService.getCurrentRate('USD', 'HNL') },
           { from: 'EUR', to: 'HNL', rate: await ExchangeRateService.getCurrentRate('EUR', 'HNL') },
-          { from: 'GBP', to: 'HNL', rate: await ExchangeRate.getCurrentRate('GBP', 'HNL') }
+          { from: 'GBP', to: 'HNL', rate: await ExchangeRateService.getCurrentRate('GBP', 'HNL') }
         ];
         
         return NextResponse.json({
@@ -110,11 +111,10 @@ export async function GET(request: Request) {
         });
     }
   } catch (error) {
-      console.error('Error in enhanced transaction service GET:', error);
-      return NextResponse.json(
-        { error: 'Failed to process request' },
-        { status: 500 }
-      );
-    }
+    console.error('Error in enhanced transaction service GET:', error);
+    return NextResponse.json(
+      { error: 'Failed to process request' },
+      { status: 500 }
+    );
   }
 }

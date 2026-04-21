@@ -4,9 +4,9 @@ import { db } from "@/lib/db";
 
 export async function createTransactionBatch(transactions: any[]) {
   try {
-    await db.$transaction(
+    await (db as any).$transaction(
       transactions.map((tx) => 
-        db.transaction.create({
+        (db as any).transaction.create({
           data: {
             description: tx.description,
             date: tx.date,

@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseClient();
     
     // Crear la factura
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: invoice, error: invoiceError } = await (supabase as any)
       .from("invoice")
       .insert({
         invoice_number: invoiceData.invoiceNumber,
@@ -71,7 +71,7 @@ export async function POST(request: NextRequest) {
     
     // Actualizar el número del CAI
     const nextNumber = parseInt(invoiceData.invoiceNumber.split('-')[3]) + 1;
-    await supabase
+    await (supabase as any)
       .from("cai")
       .update({ current_number: nextNumber })
       .eq("cai", invoiceData.cai);
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Convertir centavos a lempiras
-    const formattedInvoices = invoices?.map(invoice => ({
+    const formattedInvoices = invoices?.map((invoice: any) => ({
       ...invoice,
       subtotal: invoice.subtotal / 100,
       tax_15: invoice.tax_15 / 100,

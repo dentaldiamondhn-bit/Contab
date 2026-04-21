@@ -136,7 +136,7 @@ export default function PurchaseOrdersPage() {
       const res = await fetch(`/api/suppliers?companyId=${companyId}`);
       if (res.ok) {
         const data = await res.json();
-        setSuppliers(data.filter((s: Supplier) => s.supplier_type === 'merchandise'));
+        setSuppliers(data.filter((s: any) => s.supplier_type === 'merchandise'));
       }
     } catch (error) {
       console.error('Error loading suppliers:', error);

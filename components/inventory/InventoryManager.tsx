@@ -94,7 +94,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar productos
       const { data, error } = await supabase
@@ -158,7 +158,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
 
       if (editingProduct) {
         // Actualizar producto existente
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Product')
           .update(productData)
           .eq('id', editingProduct.id);
@@ -167,7 +167,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
         alert("Producto actualizado exitosamente");
       } else {
         // Crear nuevo producto
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('Product')
           .insert(productData);
 
@@ -210,7 +210,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
       const totalCost = Math.round(transactionForm.quantity * transactionForm.unitCost * 100);
       
       // Crear transacción de inventario
-      const { error: transactionError } = await supabase
+      const { error: transactionError } = await (supabase as any)
         .from('InventoryTransaction')
         .insert({
           tenantId,
@@ -230,7 +230,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
         ? product.currentStock + transactionForm.quantity
         : product.currentStock - transactionForm.quantity;
 
-      const { error: stockError } = await supabase
+      const { error: stockError } = await (supabase as any)
         .from('Product')
         .update({ currentStock: newStock })
         .eq('id', transactionForm.productId);
@@ -238,7 +238,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
       if (stockError) throw stockError;
 
       // Crear asiento contable para la transacción
-      const { error: accountingError } = await supabase.rpc('create_accounting_transaction', {
+      const { error: accountingError } = await (supabase as any).rpc('create_accounting_transaction', {
         p_tenant_id: tenantId,
         p_date: new Date().toISOString().split('T')[0],
         p_description: `${transactionForm.transactionType === 'IN' ? 'Entrada' : 'Salida'} de inventario: ${product.name}`,

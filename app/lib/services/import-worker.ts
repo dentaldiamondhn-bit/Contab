@@ -30,7 +30,7 @@ export async function processImportInBatches(
 
   // Check for existing transactions to prevent duplicates
   console.log('Checking for existing transactions...');
-  const existingTransactions = await db.transaction.findMany({
+  const existingTransactions = await (db as any).transaction.findMany({
     select: {
       date: true,
       description: true,

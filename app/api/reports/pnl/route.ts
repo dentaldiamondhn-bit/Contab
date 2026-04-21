@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const data = await db.account.findMany({
+    const data = await (db as any).account.findMany({
       where: {
         type: { in: [AccountType.REVENUE, AccountType.EXPENSE] }
       },

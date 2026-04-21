@@ -11,7 +11,7 @@ export async function GET(request: Request) {
     }
 
     // Get adjusting entries for the specified year
-    const adjustingEntries = await db.transaction.findMany({
+    const adjustingEntries = await (db as any).transaction.findMany({
       where: {
         type: 'AJUSTE',
         date: {
@@ -55,7 +55,7 @@ export async function POST(request: Request) {
     }
 
     // Get the next voucher number for AJUSTE type
-    const lastVoucher = await db.transaction.findFirst({
+    const lastVoucher = await (db as any).transaction.findFirst({
       where: { type: 'AJUSTE' },
       orderBy: { voucherNumber: 'desc' }
     });
@@ -63,7 +63,7 @@ export async function POST(request: Request) {
     const nextVoucherNumber = (lastVoucher?.voucherNumber || 0) + 1;
 
     // Create the adjusting entry transaction
-    const transaction = await db.transaction.create({
+    const transaction = await (db as any).transaction.create({
       data: {
         date: new Date(date),
         description,
@@ -71,7 +71,6 @@ export async function POST(request: Request) {
         voucherNumber: nextVoucherNumber,
         currency: 'HNL',
         exchangeRate: 1.0,
-        functionalCurrency: 'HNL',
         totalAmount: BigInt(0),
         functionalAmount: BigInt(0),
         entries: {

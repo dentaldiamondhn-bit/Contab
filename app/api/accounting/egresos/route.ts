@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
       query = query.lte("date", endDate.toISOString());
     }
     
-    const { data: egresos, error } = await query.order("date", { ascending: true });
+    const { data: egresos, error } = await query.order("date", { ascending: true }) as { data: any[], error: any };
     
     console.log("🔍 DEBUG - Egresos query result:", { 
       count: egresos?.length || 0, 
@@ -83,12 +83,12 @@ export async function GET(request: NextRequest) {
       });
       
       // Only include transactions that have valid JournalEntry records with Account data
-      const validEntries = egreso.JournalEntry?.filter(entry => 
+      const validEntries = egreso.JournalEntry?.filter((entry: any) => 
         entry && 
         entry.Account && 
         entry.Account.code && 
         entry.Account.name
-      ).map(entry => ({
+      ).map((entry: any) => ({
         ...entry,
         account: entry.Account // Flatten the Account relation
       })) || [];

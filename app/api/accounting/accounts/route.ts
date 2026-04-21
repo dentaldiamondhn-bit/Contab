@@ -28,7 +28,7 @@ export async function GET(request: NextRequest) {
     const supabase = createSupabaseClient();
     
     // Obtener cuentas usando la función específica
-    const { data: accounts, error } = await supabase
+    const { data: accounts, error } = await (supabase as any)
       .rpc('get_accounts_by_tenant', {
         p_tenant_id: tenant.id === '1' ? 'tenant_001' : tenant.id
       });

@@ -600,14 +600,14 @@ export default function InventoryPage() {
                 </thead>
                 <tbody className="divide-y">
                   {movements.map((movement) => {
-                    const product = products.find(p => p.id === movement.product_id);
+                    const product = products.find((p: any) => p.id === (movement as any).product_id);
                     return (
                     <tr key={movement.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm">
                         {new Date(movement.created_at).toLocaleDateString()}
                       </td>
                       <td className="px-4 py-3 text-sm">
-                        <div className="font-medium">{product?.name || 'Producto #' + movement.product_id?.slice(0, 8)}</div>
+                        <div className="font-medium">{product?.name || 'Producto #' + (movement as any).product_id?.slice(0, 8)}</div>
                         <div className="text-gray-500 text-xs">{product?.code || '-'}</div>
                       </td>
                       <td className="px-4 py-3 text-center">

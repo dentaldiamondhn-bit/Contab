@@ -153,8 +153,8 @@ async function seedWithholding() {
     console.log(`   Total: ${totalWithholdings}`);
     console.log(`   Pendientes: ${pendingWithholdings}`);
     console.log(`   Pagadas: ${paidWithholdings}`);
-    console.log(`   Monto total: L ${Number(totalAmount._sum.amount || 0) / 100).toFixed(2)}`);
-    console.log(`   Total retenido: L ${Number(totalWithheld._sum.withholdingAmount || 0) / 100).toFixed(2)}`);
+    console.log(`   Monto total: L ${(Number(totalAmount._sum.amount || 0) / 100).toFixed(2)}`);
+    console.log(`   Total retenido: L ${(Number(totalWithheld._sum.withholdingAmount || 0) / 100).toFixed(2)}`);
 
     // Show breakdown by type
     const type1Percent = await prisma.withholding.findMany({ where: { type: 'PROFESSIONAL_SERVICES_1%' } });

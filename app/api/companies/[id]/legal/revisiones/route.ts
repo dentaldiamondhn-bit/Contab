@@ -8,9 +8,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const companyId = params.id;
+  const { id: companyId } = await params;
   const { searchParams } = new URL(request.url);
   const anio = searchParams.get('anio') || '2026';
   
@@ -81,9 +81,9 @@ export async function GET(
 
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
-  const companyId = params.id;
+  const { id: companyId } = await params;
   console.log('🚀 API POST llamado:', `/api/companies/${companyId}/legal/revisiones`);
   
   try {

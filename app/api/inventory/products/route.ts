@@ -104,7 +104,7 @@ export async function PATCH(request: NextRequest) {
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 
-    const { data: product, error } = await supabase
+    const { data: product, error } = await (supabase as any)
       .from("product")
       .update(updateData)
       .eq("id", id)
@@ -173,8 +173,8 @@ export async function POST(request: NextRequest) {
         .single();
 
       let nextNumber = 1;
-      if (lastProduct?.code) {
-        const match = lastProduct.code.match(/PROD-(\d+)/);
+      if ((lastProduct as any)?.code) {
+        const match = (lastProduct as any)?.code?.match(/PROD-(\d+)/);
         if (match) {
           nextNumber = parseInt(match[1]) + 1;
         }
@@ -183,7 +183,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar si el código ya existe
-    const { data: existing } = await supabase
+    const { data: existing } = await (supabase as any)
       .from("product")
       .select("id")
       .eq("code", code)
@@ -197,7 +197,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: product, error } = await supabase
+    const { data: product, error } = await (supabase as any)
       .from("product")
       .insert({
         tenant_id: "1",
@@ -229,9 +229,9 @@ export async function POST(request: NextRequest) {
 
     // Si tiene stock inicial, crear movimiento de entrada
     if (currentStock > 0 && currentCost) {
-      await supabase.from("inventory_movement").insert({
+      await (supabase as any).from("inventory_movement").insert({
         tenant_id: "1",
-        product_id: product.id,
+        product_id: (product as any).id,
         warehouse_id: warehouseId,
         movement_type: "IN",
         movement_reason: "initial_stock",

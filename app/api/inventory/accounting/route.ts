@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       // Si faltante: Debe Gastos / Haber Inventario
       const { adjustmentId, adjustmentNumber, adjustmentType, totalDifference } = data;
 
-      let journalEntries = [];
+      let journalEntries: any[] = [];
 
       if (adjustmentType === 'surplus') {
         // Sobrante

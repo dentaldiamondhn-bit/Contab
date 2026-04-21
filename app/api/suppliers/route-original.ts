@@ -174,7 +174,7 @@ export async function PATCH(request: Request) {
     const body = await request.json();
     const { id, ...updates } = body;
 
-    const index = global.mockSuppliers!.findIndex(s => s.id === id);
+    const index = (global as any).mockSuppliers?.findIndex((s: any) => s.id === id) ?? -1;
     if (index === -1) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
@@ -195,7 +195,7 @@ export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
-    const index = global.mockSuppliers!.findIndex(s => s.id === id);
+    const index = (global as any).mockSuppliers?.findIndex((s: any) => s.id === id) ?? -1;
     if (index === -1) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }
