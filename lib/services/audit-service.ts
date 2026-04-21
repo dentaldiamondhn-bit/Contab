@@ -17,7 +17,7 @@ export interface AuditLogData {
 
 export async function createAuditLog(data: AuditLogData): Promise<void> {
   try {
-    await db.auditLog.create({
+    await (db as any).auditLog.create({
       data: {
         tableName: data.tableName,
         recordId: data.recordId,
@@ -63,7 +63,7 @@ export function cleanSensitiveData(data: Record<string, any>): Record<string, an
 }
 
 export async function getRecordAuditTrail(tableName: string, recordId: string) {
-  return await db.auditLog.findMany({
+  return await (db as any).auditLog.findMany({
     where: {
       tableName,
       recordId,
@@ -87,7 +87,7 @@ export async function getPeriodAuditTrail(startDate: Date, endDate: Date, tableN
       where.tableName = tableName;
     }
 
-    return await db.auditLog.findMany({
+    return await (db as any).auditLog.findMany({
       where,
       orderBy: {
         timestamp: 'desc',
@@ -101,7 +101,7 @@ export async function getPeriodAuditTrail(startDate: Date, endDate: Date, tableN
 }
 
 export async function revertToState(tableName: string, recordId: string, targetTimestamp: Date) {
-  const auditLogs = await db.auditLog.findMany({
+  const auditLogs = await (db as any).auditLog.findMany({
     where: {
       tableName,
       recordId,

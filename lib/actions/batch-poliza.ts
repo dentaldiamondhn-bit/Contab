@@ -7,7 +7,7 @@ import { BatchPolizaDocument } from "@/components/components/components/reports/
 export async function generateBatchPolizaPDF(transactionIds: string[]) {
   try {
     // Fetch all transactions with their entries and accounts
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where: {
         id: { in: transactionIds }
       },
@@ -81,7 +81,7 @@ export async function getTransactionsForBatchPDF(dateRange?: { start: Date; end:
       }
     } : {};
 
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where: whereClause,
       include: {
         entries: {

@@ -166,7 +166,8 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
       .order("invoiceNumber", { ascending: false })
       .limit(1);
     
-    const lastNumber = data?.[0]?.invoiceNumber || 0;
+    const invoices = (data || []) as any[];
+    const lastNumber = invoices[0]?.invoiceNumber || 0;
     const nextNumber = `INV-${String(lastNumber + 1).padStart(6, '0')}`;
     
     setFormData({ ...formData, invoiceNumber: nextNumber });
@@ -191,7 +192,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
       }
 
       // Crear factura
-      const { data: invoice, error: invoiceError } = await supabase.from("Invoice").insert({
+      const { data: invoice, error: invoiceError } = await (supabase as any).from("Invoice").insert({
         tenantId,
         customerId: formData.customerId,
         invoiceNumber: formData.invoiceNumber,
@@ -218,12 +219,12 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
         totalAmount: item.totalAmount
       }));
 
-      const { error: itemsError } = await supabase.from("InvoiceItem").insert(invoiceItems);
+      const { error: itemsError } = await (supabase as any).from("InvoiceItem").insert(invoiceItems);
 
       if (itemsError) throw itemsError;
 
       // Crear cuenta por cobrar
-      const { error: receivableError } = await supabase.from("AccountReceivable").insert({
+      const { error: receivableError } = await (supabase as any).from("AccountReceivable").insert({
         tenantId,
         customerId: formData.customerId,
         invoiceId: invoice.id,

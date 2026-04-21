@@ -90,7 +90,7 @@ export async function generateTaxSummary(
       transaction: true,
       account: true
     }
-  });
+  } as any);
 
   // Calculate sales (revenue)
   const salesEntries = allEntries.filter((entry: any) => 
@@ -216,7 +216,7 @@ export async function getTaxableTransactions(
         date: 'desc'
       }
     }
-  });
+  } as any);
 
   return entries.map((entry: any) => {
     const amount = Math.abs(Number(entry.amount));

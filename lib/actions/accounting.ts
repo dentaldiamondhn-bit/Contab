@@ -95,10 +95,7 @@ export async function createTransaction(data: CreateTransactionData & { tenantId
         voucherNumber,
         currency: data.currency,
         exchangeRate: exchangeRate,
-        functionalCurrency: "HNL",
         totalAmount: Math.round(totalAmount * 100), // Convertir a centavos
-        functionalAmount: Math.round(functionalAmount * 100),
-        originalTotal: Math.round(totalAmount * 100),
         clienteRTN: data.clienteRTN,
         proveedorRTN: data.proveedorRTN,
         tenantId: data.tenantId, // Agregar tenantId
@@ -121,27 +118,7 @@ export async function createTransaction(data: CreateTransactionData & { tenantId
             exchangeRate: exchangeRate,
             transactionId: transaction.id,
             accountId: entry.accountId,
-          },
-        });
-      })
-    );
-
-    // Crear registros históricos de moneda
-    await Promise.all(
-      journalEntries.map(async (journalEntry: any) => {
-        const originalEntry = data.entries.find(e => e.accountId === journalEntry.accountId);
-        return db.currencyHistory.create({
-          data: {
-            transactionId: transaction.id,
-            journalEntryId: journalEntry.id,
-            date: data.date,
-            originalCurrency: data.currency,
-            originalAmount: Math.abs(journalEntry.originalAmount),
-            functionalCurrency: "HNL",
-            functionalAmount: Math.abs(journalEntry.amount),
-            exchangeRate: exchangeRate,
-            exchangeSource: "BANCO CENTRAL",
-            valuationMethod: "SPOT",
+            tenantId: data.tenantId,
           },
         });
       })
@@ -199,7 +176,7 @@ export async function getTransactions(filters: {
       };
     }
 
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where,
       include: {
         entries: {
@@ -285,7 +262,7 @@ export async function getAccounts(tenantId: string) {
   }
 
   try {
-    const accounts = await db.account.findMany({
+    const accounts = await (db as any).account.findMany({
       where: {
         tenantId: tenantId, // Filtrar por tenant
       },
@@ -320,7 +297,7 @@ export async function getTrialBalance(startDate?: Date, endDate?: Date) {
       if (endDate) where.date.lte = endDate;
     }
 
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where,
       include: {
         entries: {
@@ -396,7 +373,7 @@ export async function getGeneralLedger(accountId: string, startDate?: Date, endD
       if (endDate) where.date.lte = endDate;
     }
 
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where,
       include: {
         entries: {
@@ -430,7 +407,7 @@ export async function deleteTransaction(transactionId: string) {
 
   try {
     // Verificar que la transacción exista
-    const transaction = await db.transaction.findUnique({
+    const transaction = await (db as any).transaction.findUnique({
       where: { id: transactionId },
     });
 
@@ -439,7 +416,7 @@ export async function deleteTransaction(transactionId: string) {
     }
 
     // Eliminar en cascada (las entradas y historiales se eliminarán automáticamente)
-    await db.transaction.delete({
+    await (db as any).transaction.delete({
       where: { id: transactionId },
     });
 

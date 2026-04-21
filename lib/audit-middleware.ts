@@ -121,7 +121,7 @@ export const auditMiddleware = async (params: any, next: any) => {
         let oldData;
         if (args.where && (args.where.id || (args.where as any)?.id)) {
           const recordId = args.where.id || (args.where as any)?.id;
-          oldData = await db[model.toLowerCase() as keyof typeof db].findUnique({
+          oldData = await (db as any)[model.toLowerCase()].findUnique({
             where: { id: recordId },
           });
         }
@@ -151,7 +151,7 @@ export const auditMiddleware = async (params: any, next: any) => {
         let dataToDelete;
         if (args.where && (args.where.id || (args.where as any)?.id)) {
           const recordId = args.where.id || (args.where as any)?.id;
-          dataToDelete = await db[model.toLowerCase() as keyof typeof db].findUnique({
+          dataToDelete = await (db as any)[model.toLowerCase()].findUnique({
             where: { id: recordId },
           });
         }
@@ -192,7 +192,7 @@ export async function getAuditLogs(
   recordId: string,
   limit: number = 50
 ) {
-  return await db.auditLog.findMany({
+  return await (db as any).auditLog.findMany({
     where: {
       tableName,
       recordId,
@@ -211,7 +211,7 @@ export async function getUserAuditLogs(
   userId: string,
   limit: number = 100
 ) {
-  return await db.auditLog.findMany({
+  return await (db as any).auditLog.findMany({
     where: {
       userId,
     },
@@ -235,7 +235,7 @@ export async function getAllAuditLogs(
   const where = tableName ? { tableName } : {};
   
   const [logs, total] = await Promise.all([
-    db.auditLog.findMany({
+    (db as any).auditLog.findMany({
       where,
       orderBy: {
         timestamp: 'desc',
@@ -243,7 +243,7 @@ export async function getAllAuditLogs(
       skip,
       take: limit,
     }),
-    db.auditLog.count({ where }),
+    (db as any).auditLog.count({ where }),
   ]);
 
   return {

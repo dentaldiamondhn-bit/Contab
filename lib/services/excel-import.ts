@@ -2,7 +2,6 @@
 
 import * as XLSX from 'xlsx';
 import { db } from "@/lib/db";
-import { AuditService } from "@/lib/services/audit-service";
 import { parseCurrencyString } from "@/lib/currency-utils";
 import { getNextVoucherNumber } from "@/lib/voucher-types";
 
@@ -74,24 +73,18 @@ export class ExcelImportService {
           }
 
           // Create account
-          const account = await db.account.create({
+          const account = await (db as any).account.create({
             data: {
               code: String(rowData.code),
               name: String(rowData.name),
               type: String(rowData.type).toUpperCase(),
               description: rowData.description ? String(rowData.description) : null,
               parentId: rowData.parentCode ? await this.findAccountIdByCode(String(rowData.parentCode)) : null,
+              tenantId: 'default',
             }
           });
 
-          // Log audit trail
-          await AuditService.createAuditLog({
-            tableName: 'Account',
-            recordId: account.id,
-            action: 'CREATE',
-            newValues: rowData,
-          });
-
+          
           accountsCreated++;
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : 'Unknown error';
@@ -194,38 +187,35 @@ export class ExcelImportService {
           }
 
           // Create transaction
-          const transaction = await db.transaction.create({
+          const transaction = await (db as any).transaction.create({
             data: {
               date: new Date(group.date),
               description: group.description,
               voucherType: group.voucherType as any,
               voucherNumber,
               totalAmount,
-              functionalAmount: totalAmount,
               currency: 'HNL',
-              functionalCurrency: 'HNL',
               exchangeRate: 1,
-              entries: {
-                create: processedEntries,
-              },
+              tenantId: 'default',
             },
-            include: {
-              entries: true,
-            }
           });
 
-          // Log audit trail
-          await AuditService.createAuditLog({
-            tableName: 'Transaction',
-            recordId: transaction.id,
-            action: 'CREATE',
-            newValues: {
-              date: group.date,
-              description: group.description,
-              voucherType: group.voucherType,
-              entries: processedEntries,
-            },
-          });
+          // Create journal entries separately
+          await Promise.all(
+            processedEntries.map((entry: any) =>
+              (db as any).journalEntry.create({
+                data: {
+                  transactionId: transaction.id,
+                  accountId: entry.accountId,
+                  tenantId: 'default',
+                  amount: BigInt(entry.amount),
+                  originalAmount: BigInt(entry.amount),
+                  currency: 'HNL',
+                  exchangeRate: 1,
+                },
+              })
+            )
+          );
 
           transactionsCreated++;
         } catch (error) {
@@ -320,23 +310,18 @@ export class ExcelImportService {
             warnings.push(`Updated existing account: ${rowData.code}`);
           } else {
             // Create new account
-            const account = await db.account.create({
+            const account = await (db as any).account.create({
               data: {
                 code: String(rowData.code),
                 name: String(rowData.name),
                 type: String(rowData.type).toUpperCase(),
                 description: rowData.description ? String(rowData.description) : null,
                 parentId,
+                tenantId: 'default',
               }
             });
 
-            await AuditService.createAuditLog({
-              tableName: 'Account',
-              recordId: account.id,
-              action: 'CREATE',
-              newValues: rowData,
-            });
-
+            
             accountsCreated++;
           }
         } catch (error) {

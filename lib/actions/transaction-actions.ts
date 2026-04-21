@@ -2,7 +2,7 @@
 // Acciones de servidor para crear transacciones con validación contable
 
 import { validateTransaction, prepareTransaction, validateEntry } from '@/lib/accounting-utils';
-import { prisma } from '@/lib/prisma';
+const dbClient = require('@/lib/db').db as any;
 import { auth } from '@/lib/auth';
 
 export interface CreateTransactionRequest {
@@ -32,7 +32,7 @@ export async function createTransaction(data: CreateTransactionRequest) {
     }
 
     // Obtener el tenant del usuario
-    const profile = await prisma.profile.findUnique({
+    const profile = await dbClient.profile.findUnique({
       where: { id: session.user.id },
       include: { tenant: true }
     });
@@ -56,7 +56,7 @@ export async function createTransaction(data: CreateTransactionRequest) {
     const preparedTransaction = prepareTransaction(transactionData);
 
     // Crear transacción y partidas en una transacción de base de datos
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await dbClient.$transaction(async (tx: any) => {
       // Crear la transacción principal
       const transaction = await tx.transaction.create({
         data: {
@@ -110,7 +110,7 @@ export async function createTransaction(data: CreateTransactionRequest) {
  * Obtiene el siguiente número de voucher disponible
  */
 async function getNextVoucherNumber(tenantId: string, voucherType: string): Promise<number> {
-  const lastTransaction = await prisma.transaction.findFirst({
+  const lastTransaction = await dbClient.transaction.findFirst({
     where: {
       tenant_id: tenantId,
       voucher_type: voucherType
@@ -147,13 +147,13 @@ export async function validateTransactionEntries(entries: { account_id: string; 
 export async function getTrialBalance(tenantId: string) {
   try {
     // Obtener todas las cuentas del tenant
-    const accounts = await prisma.account.findMany({
+    const accounts = await dbClient.account.findMany({
       where: { tenant_id: tenantId },
       orderBy: { code: 'asc' }
     });
 
     // Obtener todas las partidas del tenant
-    const entries = await prisma.journalEntry.findMany({
+    const entries = await dbClient.journalEntry.findMany({
       where: { tenant_id: tenantId },
       include: {
         account: {
@@ -168,10 +168,10 @@ export async function getTrialBalance(tenantId: string) {
     });
 
     // Calcular balances por cuenta
-    const trialBalance = accounts.map(account => {
-      const accountEntries = entries.filter(e => e.account_id === account.id);
-      const totalDebit = accountEntries.reduce((sum, e) => sum + e.debit, 0);
-      const totalCredit = accountEntries.reduce((sum, e) => sum + e.credit, 0);
+    const trialBalance = accounts.map((account: any) => {
+      const accountEntries = entries.filter((e: any) => e.account_id === account.id);
+      const totalDebit = accountEntries.reduce((sum: number, e: any) => sum + e.debit, 0);
+      const totalCredit = accountEntries.reduce((sum: number, e: any) => sum + e.credit, 0);
       const balance = totalDebit - totalCredit;
 
       // Determinar si el saldo va al debe o al haber según el tipo de cuenta
@@ -200,7 +200,7 @@ export async function getTrialBalance(tenantId: string) {
 
     // Calcular totales
     const totals = trialBalance.reduce(
-      (acc, account) => ({
+      (acc: { total_debit: number; total_credit: number }, account: any) => ({
         total_debit: acc.total_debit + account.debit,
         total_credit: acc.total_credit + account.credit
       }),

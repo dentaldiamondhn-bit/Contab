@@ -8,7 +8,7 @@ export class ExchangeRateService {
   static async getCurrentRate(fromCurrency: string, toCurrency: string): Promise<number> {
     try {
       // Try to get the most recent rate
-      const latestRate = await db.exchangeRate.findFirst({
+      const latestRate = await (db as any).exchangeRate.findFirst({
         where: {
           fromCurrency,
           toCurrency,
@@ -41,7 +41,7 @@ export class ExchangeRateService {
     source: string = 'MANUAL'
   ): Promise<void> {
     try {
-      await db.exchangeRate.create({
+      await (db as any).exchangeRate.create({
         data: {
           fromCurrency,
           toCurrency,
@@ -87,7 +87,7 @@ export class ExchangeRateService {
     endDate: Date
   ): Promise<Array<{ date: Date; rate: number; source: string }>> {
     try {
-      const rates = await db.exchangeRate.findMany({
+      const rates = await (db as any).exchangeRate.findMany({
         where: {
           fromCurrency,
           toCurrency,
@@ -175,7 +175,7 @@ export class ExchangeRateService {
   ): Promise<{ rate: number; source: string }> {
     try {
       // Try to get exact rate for the date
-      const exactRate = await db.exchangeRate.findFirst({
+      const exactRate = await (db as any).exchangeRate.findFirst({
         where: {
           fromCurrency,
           toCurrency,
@@ -195,7 +195,7 @@ export class ExchangeRateService {
       }
 
       // If no exact rate, get the most recent rate before the date
-      const previousRate = await db.exchangeRate.findFirst({
+      const previousRate = await (db as any).exchangeRate.findFirst({
         where: {
           fromCurrency,
           toCurrency,
@@ -257,7 +257,7 @@ export class ExchangeRateService {
         valuationMethod: 'TRANSACTION_DATE'
       }));
 
-      await db.currencyHistory.createMany({
+      await (db as any).currencyHistory.createMany({
         data: historyRecords
       });
 
@@ -302,7 +302,7 @@ export class ExchangeRateService {
         whereClause.originalCurrency = currency;
       }
 
-      const history = await db.currencyHistory.findMany({
+      const history = await (db as any).currencyHistory.findMany({
         where: whereClause,
         orderBy: {
           date: 'desc'

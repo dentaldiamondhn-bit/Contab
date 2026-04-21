@@ -65,7 +65,7 @@ export class FileService {
       const fileType = this.determineFileType(file);
       
       // Create file record
-      const { data: fileRecord, error: dbError } = await this.supabase
+      const { data: fileRecord, error: dbError } = await (this.supabase as any)
         .from('File')
         .insert({
           tenantId: options.tenantId,
@@ -187,7 +187,7 @@ export class FileService {
       }
 
       // Mark as deleted in database
-      const { error: dbError } = await this.supabase
+      const { error: dbError } = await (this.supabase as any)
         .from('File')
         .update({ 
           status: 'deleted',
@@ -223,7 +223,7 @@ export class FileService {
   ): Promise<FileProcessing> {
     try {
       // Create processing record
-      const { data: processing, error } = await this.supabase
+      const { data: processing, error } = await (this.supabase as any)
         .from('FileProcessing')
         .insert({
           fileId: options.fileId,

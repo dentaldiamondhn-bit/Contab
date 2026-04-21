@@ -7,8 +7,8 @@ export async function createBankWithAccount(bankName: string, currency: 'HNL' | 
     const parentCode = currency === 'HNL' ? '1101' : '1102';
     
     // Ensure parent account exists
-    const parentAccount = await db.account.upsert({
-      where: { code: parentCode },
+    const parentAccount = await (db as any).account.upsert({
+      where: { code_tenantId: { code: parentCode, tenantId: 'default' } },
       update: {},
       create: {
         code: parentCode,
@@ -36,7 +36,7 @@ export async function createBankWithAccount(bankName: string, currency: 'HNL' | 
     const accountName = currency === 'HNL' ? `${bankName} Lempiras` : `${bankName} USD`;
 
     // Create the accounting account
-    const newAccount = await db.account.create({
+    const newAccount = await (db as any).account.create({
       data: {
         code: accountCode,
         name: accountName,
@@ -44,6 +44,7 @@ export async function createBankWithAccount(bankName: string, currency: 'HNL' | 
         description: `Cuenta bancaria en ${bankName} (${currency})`,
         isActive: true,
         parentId: parentAccount.id,
+        tenantId: 'default',
       }
     });
 
@@ -53,7 +54,7 @@ export async function createBankWithAccount(bankName: string, currency: 'HNL' | 
       .substring(0, 8);
 
     // Create the bank record linked to the account
-    const newBank = await db.bank.create({
+    const newBank = await (db as any).bank.create({
       data: {
         name: bankName,
         identifier,
@@ -84,7 +85,7 @@ export async function createBankWithAccount(bankName: string, currency: 'HNL' | 
 // Helper function to get bank account by bank identifier
 export async function getBankAccountByIdentifier(identifier: string) {
   try {
-    const bank = await db.bank.findUnique({
+    const bank = await (db as any).bank.findUnique({
       where: { identifier },
       include: {
         account: {
@@ -144,13 +145,13 @@ export async function reconcileBankStatement(
 
     for (const entry of statementData) {
       // Create a journal entry for each bank statement line
-      const journalEntry = await db.journalEntry.create({
+      const journalEntry = await (db as any).journalEntry.create({
         data: {
           amount: entry.amount,
           description: entry.description,
           reference: entry.reference || `BANK-${bank.identifier}-${Date.now()}`,
           accountId: bank.accountId,
-          transactionId: null, // Can be linked to a transaction later
+          transactionId: undefined, // Can be linked to a transaction later
           createdAt: entry.date,
           updatedAt: new Date(),
         }

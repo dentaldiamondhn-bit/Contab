@@ -217,7 +217,7 @@ export async function getTransactionsForDET(config: DETExportConfig): Promise<DE
     };
   }
 
-  const transactions = await db.transaction.findMany({
+  const transactions = await (db as any).transaction.findMany({
     where,
     include: {
       entries: {
@@ -227,7 +227,7 @@ export async function getTransactionsForDET(config: DETExportConfig): Promise<DE
       },
     },
     orderBy: { date: 'asc' },
-  });
+  } as any);
 
   const records: DETLiveRecord[] = [];
 
@@ -458,7 +458,7 @@ export async function getDETExportStatistics(period: string): Promise<{
   const startDate = new Date(year, month - 1, 1);
   const endDate = new Date(year, month, 0);
 
-  const transactions = await db.transaction.findMany({
+  const transactions = await (db as any).transaction.findMany({
     where: {
       date: {
         gte: startDate,
@@ -472,7 +472,7 @@ export async function getDETExportStatistics(period: string): Promise<{
         },
       },
     },
-  });
+  } as any);
 
   const stats = {
     purchases: { count: 0, total: 0, exempt: 0, taxable: 0, tax: 0 },

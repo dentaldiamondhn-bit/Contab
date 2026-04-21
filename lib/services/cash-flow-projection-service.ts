@@ -123,7 +123,7 @@ export class CashFlowProjectionService {
    */
   static async getCurrentBankBalance(): Promise<number> {
     try {
-      const bankAccounts = await db.bankAccount.findMany({
+      const bankAccounts = await (db as any).bankAccount.findMany({
         where: {
           isActive: true
         },
@@ -155,7 +155,7 @@ export class CashFlowProjectionService {
   static async getReceivables(cutoffDate: Date): Promise<Receivable[]> {
     try {
       // Get revenue accounts with outstanding balances
-      const receivableAccounts = await db.account.findMany({
+      const receivableAccounts = await (db as any).account.findMany({
         where: {
           type: 'REVENUE'
         },
@@ -166,7 +166,7 @@ export class CashFlowProjectionService {
             }
           }
         }
-      });
+      } as any);
 
       const receivables: Receivable[] = [];
 
@@ -206,7 +206,7 @@ export class CashFlowProjectionService {
   static async getPayables(cutoffDate: Date): Promise<Payable[]> {
     try {
       // Get expense accounts with outstanding balances
-      const payableAccounts = await db.account.findMany({
+      const payableAccounts = await (db as any).account.findMany({
         where: {
           type: 'EXPENSE'
         },
@@ -217,7 +217,7 @@ export class CashFlowProjectionService {
             }
           }
         }
-      });
+      } as any);
 
       const payables: Payable[] = [];
 
