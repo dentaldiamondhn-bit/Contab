@@ -109,7 +109,7 @@ export default function FinancialReports({ tenantId }: FinancialReportsProps) {
   const loadFinancialMetrics = async () => {
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Calcular fechas del período
       const now = new Date();

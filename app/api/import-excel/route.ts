@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
         { 
           error: 'Unable to detect bank format. Please check if the Excel file contains proper bank statement headers.',
           detectedHeaders: headers,
-          supportedBanks: Object.keys(BankExcelMapper['BANK_FORMATS'] || {})
+          supportedBanks: ['BAC', 'FICOHSA', 'ATLANTIDA', 'BANRURAL', 'OCCIDENTE', 'G&T', 'AZUL']
         },
         { status: 400 }
       );

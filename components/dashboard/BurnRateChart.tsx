@@ -15,11 +15,10 @@ import {
   Bar,
   BarChart
 } from 'recharts';
+import { Button } from '@/components/ui/button';
+import { CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
   Title,
   Text,
   Bold,
@@ -150,7 +149,7 @@ export default function BurnRateChart({
       totalExpenses: latest.cumulativeExpenses,
       netCashFlow: latest.netCashFlow,
       breakEvenPoint: breakEven,
-      daysToBreakEven: breakEven ? data.indexOf(breakEven) + 1 : null,
+      daysToBreakEven: breakEven ? (data as any).indexOf(breakEven) + 1 : null,
       burnRate: latest.cumulativeExpenses / data.length,
       runway: latest.cumulativeRevenue / (latest.cumulativeExpenses / data.length)
     };

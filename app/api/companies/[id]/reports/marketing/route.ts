@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Reporte de Marketing y Conversión
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Mock data para reporte de marketing

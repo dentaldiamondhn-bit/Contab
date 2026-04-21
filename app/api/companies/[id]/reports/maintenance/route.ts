@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from 'next/server';
 // Reporte de Mantenimiento y Activos
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // Mock data para reporte de mantenimiento

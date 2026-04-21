@@ -13,7 +13,7 @@ export async function GET() {
       message: 'Test route working',
       fileExists: true,
       suppliersCount: suppliers.length,
-      suppliers: suppliers.map(s => ({ id: s.id, name: s.name }))
+      suppliers: suppliers.map((s: any) => ({ id: s.id, name: s.name }))
     });
   } catch (error) {
     return NextResponse.json({

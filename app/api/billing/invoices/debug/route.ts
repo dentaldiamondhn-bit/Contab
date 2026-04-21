@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
     };
     
     // Intentar insertar sin .single() primero
-    const { data: invoice, error: invoiceError } = await supabase
+    const { data: invoice, error: invoiceError } = await (supabase as any)
       .from("invoice")
       .insert({
         invoice_number: invoiceData.invoiceNumber,

@@ -25,12 +25,12 @@ export async function POST(request: NextRequest) {
     if (result.success) {
       return NextResponse.json({
         success: true,
-        reconciledEntries: result.reconciledEntries,
-        message: `Successfully reconciled ${result.reconciledEntries.length} entries for ${bankIdentifier}`
+        reconciledEntries: (result as any).reconciledEntries,
+        message: `Successfully reconciled ${(result as any).reconciledEntries?.length || 0} entries for ${bankIdentifier}`
       });
     } else {
       return NextResponse.json(
-        { error: result.error },
+        { error: (result as any).error || 'Unknown error' },
         { status: 500 }
       );
     }

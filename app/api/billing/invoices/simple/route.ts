@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
     
     console.log("Inserting invoice:", testInvoice);
     
-    const { data: invoice, error } = await supabase
+    const { data: invoice, error } = await (supabase as any)
       .from("invoice")
       .insert(testInvoice)
       .select()

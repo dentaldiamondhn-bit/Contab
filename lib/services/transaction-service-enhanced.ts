@@ -238,8 +238,8 @@ export class TransactionService {
           date: Date;
           rate: number;
           source: string;
-        }>;
-      } = {};
+        }>
+      }> = {};
 
       history.forEach(h => {
         const key = h.originalCurrency;

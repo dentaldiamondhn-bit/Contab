@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseClient();
 
     // Generar número de ajuste
-    const { data: lastAdjustment } = await supabase
+    const { data: lastAdjustment } = await (supabase as any)
       .from("inventory_adjustment")
       .select("adjustment_number")
       .eq("tenant_id", "1")
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       .limit(1)
       .single();
 
-    const lastNumber = lastAdjustment?.adjustment_number || "AJ-00000";
+    const lastNumber = (lastAdjustment as any)?.adjustment_number || "AJ-00000";
     const nextNumber = parseInt(lastNumber.split("-")[1]) + 1;
     const adjustmentNumber = `AJ-${String(nextNumber).padStart(5, "0")}`;
 
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Crear el ajuste
-    const { data: adjustment, error: adjustmentError } = await supabase
+    const { data: adjustment, error: adjustmentError } = await (supabase as any)
       .from("inventory_adjustment")
       .insert({
         tenant_id: "1",
@@ -127,10 +127,10 @@ export async function POST(request: NextRequest) {
     // Crear items del ajuste
     const itemsWithAdjustmentId = adjustmentItems.map((item: any) => ({
       ...item,
-      adjustment_id: adjustment.id,
+      adjustment_id: (adjustment as any).id,
     }));
 
-    const { error: itemsError } = await supabase
+    const { error: itemsError } = await (supabase as any)
       .from("inventory_adjustment_item")
       .insert(itemsWithAdjustmentId);
 

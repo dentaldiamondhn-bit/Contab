@@ -790,7 +790,7 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
 
     try {
       // Establecer tenant para RLS
-      await supabase.rpc("set_tenant", { tenant_id: tenantId });
+      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
       
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: "array" });

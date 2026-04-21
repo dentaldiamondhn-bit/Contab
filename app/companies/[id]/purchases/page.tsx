@@ -135,7 +135,7 @@ export default function PurchasesPage() {
       console.log('Loading purchase data for editing:', selectedPurchase);
       
       // Set supplier
-      const supplier = suppliers.find(s => s.id === selectedPurchase.supplier_id);
+      const supplier = suppliers.find((s: any) => s.id === (selectedPurchase as any).supplier_id);
       setSelectedSupplier(supplier || null);
       
       // Set basic fields
@@ -143,13 +143,13 @@ export default function PurchasesPage() {
       setCai(selectedPurchase.cai || '');
       setInvoiceDate(selectedPurchase.invoice_date || new Date().toISOString().split('T')[0]);
       setIsCredit(selectedPurchase.is_credit || false);
-      setDueDate(selectedPurchase.due_date || '');
+      setDueDate((selectedPurchase as any).due_date || '');
       setPurchaseType(selectedPurchase.purchase_type || 'merchandise');
-      setExpenseCategory(selectedPurchase.expense_category || 'administrative');
+      setExpenseCategory((selectedPurchase as any).expense_category || 'administrative');
       
       // Set items
-      if (selectedPurchase.items && selectedPurchase.items.length > 0) {
-        setItems(selectedPurchase.items);
+      if ((selectedPurchase as any).items && (selectedPurchase as any).items.length > 0) {
+        setItems((selectedPurchase as any).items);
       } else {
         setItems([{
           id: Date.now().toString(),
@@ -157,7 +157,12 @@ export default function PurchasesPage() {
           description: '',
           quantity: 1,
           unit_price: 0,
-          total: 0
+          total: 0,
+          discount_percentage: 0,
+          discount_amount: 0,
+          subtotal: 0,
+          tax_rate: 15,
+          tax_amount: 0
         }]);
       }
       
@@ -170,7 +175,7 @@ export default function PurchasesPage() {
       const res = await fetch(`/api/suppliers?companyId=${companyId}`);
       if (res.ok) {
         const data = await res.json();
-        setSuppliers(data.filter((s: Supplier) => s.is_active !== false));
+        setSuppliers(data.filter((s: any) => s.is_active !== false));
       }
     } catch (error) {
       console.error('Error loading suppliers:', error);
@@ -411,18 +416,18 @@ export default function PurchasesPage() {
   const handleEditPurchase = (purchase: Purchase) => {
     setSelectedPurchase(purchase);
     // Cargar los datos de la compra en el formulario
-    const supplier = suppliers.find(s => s.id === purchase.supplier_id);
+    const supplier = suppliers.find((s: any) => s.id === (purchase as any).supplier_id);
     setSelectedSupplier(supplier || null);
     setInvoiceNumber(purchase.invoice_number);
     setCai(purchase.cai || '');
     setInvoiceDate(purchase.invoice_date);
     setIsCredit(purchase.is_credit);
-    setDueDate(purchase.due_date || '');
+    setDueDate((purchase as any).due_date || '');
     setPurchaseType(purchase.purchase_type);
-    setExpenseCategory(purchase.expense_category || 'administrative');
-    setDocumentUrl(purchase.document_url || '');
-    setTaxRate(purchase.tax_rate || 15);
-    setItems(purchase.items || []);
+    setExpenseCategory((purchase as any).expense_category || 'administrative');
+    setDocumentUrl((purchase as any).document_url || '');
+    setTaxRate((purchase as any).tax_rate || 15);
+    setItems((purchase as any).items || []);
     setShowEditModal(true);
   };
 
@@ -712,7 +717,7 @@ export default function PurchasesPage() {
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
-                        {getPaymentStatusBadge(purchase.status, purchase.balance_due, purchase.total)}
+                        {getPaymentStatusBadge(purchase.status, (purchase as any).balance_due, purchase.total)}
                       </td>
                       <td className="py-3 px-4 text-right relative">
                         <div className="flex justify-end">
@@ -1139,8 +1144,8 @@ export default function PurchasesPage() {
 
               <div>
                 <Label className="text-gray-500">Proveedor</Label>
-                <div className="font-medium">{selectedPurchase.supplier_name || 'N/A'}</div>
-                <div className="text-sm text-gray-600">ID: {selectedPurchase.supplier_id}</div>
+                <div className="font-medium">{(selectedPurchase as any).supplier_name || 'N/A'}</div>
+                <div className="text-sm text-gray-600">ID: {(selectedPurchase as any).supplier_id}</div>
               </div>
 
               {selectedPurchase.cai && (
@@ -1154,8 +1159,8 @@ export default function PurchasesPage() {
               <div className="border-t pt-4">
                 <Label className="text-gray-500 mb-2 block">Artículos Comprados</Label>
                 <div className="space-y-2">
-                  {selectedPurchase.items && selectedPurchase.items.length > 0 ? (
-                    selectedPurchase.items.map((item: any, index: number) => (
+                  {(selectedPurchase as any).items && (selectedPurchase as any).items.length > 0 ? (
+                    (selectedPurchase as any).items.map((item: any, index: number) => (
                       <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                         <div className="flex-1">
                           <div className="font-medium">{item.product_name || item.description || 'Sin nombre'}</div>

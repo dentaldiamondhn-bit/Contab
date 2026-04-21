@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const supabase = createSupabaseClient();
     
     // Crear enlace de pago
-    const { data: paymentLink, error } = await supabase
+    const { data: paymentLink, error } = await (supabase as any)
       .from("PaymentLink")
       .insert({
         invoice_id: invoiceId,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
     }
     
     // Actualizar estado de la factura a pendiente de pago
-    await supabase
+    await (supabase as any)
       .from("Invoice")
       .update({ status: 'PENDING_PAYMENT' })
       .eq("id", invoiceId);

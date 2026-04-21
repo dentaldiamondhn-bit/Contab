@@ -48,7 +48,7 @@ export default function SalesBook({ tenantId }: SalesBookProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar datos del libro de ventas
       const { data, error } = await supabase

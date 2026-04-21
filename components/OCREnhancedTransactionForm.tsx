@@ -16,7 +16,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { ExtractedInvoiceData } from '@/lib/services/ocr-service';
-import { validateRTN, formatCurrency } from '@/lib/services/ocr-service';
+import { validateRTN, formatCurrency } from '@/lib/currency-utils';
 import { createTransaction } from '@/lib/actions/transaction';
 
 interface OCREnhancedTransactionFormProps {

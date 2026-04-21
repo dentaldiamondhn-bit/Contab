@@ -25,13 +25,19 @@ import {
   CAIStatistics,
   getUnreadAlerts,
   markAllAlertsAsRead,
-  formatCAIDisplay,
-  getCAIStatusColor,
-  getCAIStatusText,
-  generateCAIAlerts,
-  calculateDaysUntilExpiration,
-  calculateRangeUtilization
+  formatCAIDisplay
 } from '@/lib/services/cai-service';
+
+// Helper function for CAI expiration text
+function getCAIExpirationText(cai: CAI): string {
+  const days = Math.ceil((new Date(cai.expirationDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+  if (days < 0) return 'Vencido';
+  if (days === 0) return 'Vence hoy';
+  if (days === 1) return 'Vence mañana';
+  if (days <= 7) return `Vence en ${days} días`;
+  if (days <= 30) return `Vence en ${Math.ceil(days / 7)} semanas`;
+  return `Vence en ${Math.ceil(days / 30)} meses`;
+}
 
 interface CAIDashboardProps {
   compact?: boolean;

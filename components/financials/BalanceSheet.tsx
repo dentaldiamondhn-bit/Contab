@@ -46,7 +46,7 @@ export default function BalanceSheet({ tenantId }: BalanceSheetProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar datos del balance general
       const { data, error } = await supabase
@@ -58,19 +58,20 @@ export default function BalanceSheet({ tenantId }: BalanceSheetProps) {
       setBalanceData(data || []);
 
       // Calcular resúmenes
-      const activosCorrientes = data
+      const dataItems = data as any[];
+      const activosCorrientes = dataItems
         ?.filter(item => item.categoria === 'ACTIVO CORRIENTE')
         ?.reduce((sum, item) => sum + item.saldo, 0) || 0;
 
-      const activosNoCorrientes = data
+      const activosNoCorrientes = dataItems
         ?.filter(item => item.categoria === 'ACTIVO NO CORRIENTE')
         ?.reduce((sum, item) => sum + item.saldo, 0) || 0;
 
-      const pasivosCorrientes = data
+      const pasivosCorrientes = dataItems
         ?.filter(item => item.categoria === 'PASIVO CORRIENTE')
         ?.reduce((sum, item) => sum + item.saldo, 0) || 0;
 
-      const patrimonio = data
+      const patrimonio = dataItems
         ?.filter(item => item.categoria === 'PATRIMONIO')
         ?.reduce((sum, item) => sum + item.saldo, 0) || 0;
 

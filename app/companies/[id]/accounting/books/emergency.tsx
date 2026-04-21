@@ -3,7 +3,7 @@ export default function EmergencyTestPage() {
     <html>
       <head>
         <title>Emergency Test</title>
-        <style>
+        <style dangerouslySetInnerHTML={{__html: `
           body { font-family: Arial, sans-serif; padding: 20px; }
           .test-button { 
             background: red; 
@@ -20,7 +20,7 @@ export default function EmergencyTestPage() {
             margin: 10px; 
             border: 2px solid blue;
           }
-        </style>
+        `}} />
       </head>
       <body>
         <div className="info-box">
@@ -32,23 +32,23 @@ export default function EmergencyTestPage() {
         
         <button 
           className="test-button"
-          onclick="alert('✅ HTML PURO FUNCIONA!')"
+          onClick={() => alert('✅ HTML PURO FUNCIONA!')}
         >
           CLICK AQUÍ (HTML PURO)
         </button>
         
         <button 
           className="test-button"
-          onclick="console.log('🔍 Debug - HTML button clicked')"
+          onClick={() => console.log('🔍 Debug - HTML button clicked')}
         >
           CONSOLE LOG TEST
         </button>
         
-        <div onclick="alert('Div clicked')" style="background: yellow; padding: 10px; margin: 10px;">
+        <div onClick={() => alert('Div clicked')} style={{background: 'yellow', padding: '10px', margin: '10px'}}>
           Click en este div amarillo
         </div>
         
-        <script>
+        <script dangerouslySetInnerHTML={{__html: `
           console.log('🔍 Debug - Emergency test page loaded');
           
           document.addEventListener('click', function(e) {
@@ -61,7 +61,7 @@ export default function EmergencyTestPage() {
           } catch(e) {
             console.error('🔍 Debug - Alert() no funciona:', e);
           }
-        </script>
+        `}} />
       </body>
     </html>
   );

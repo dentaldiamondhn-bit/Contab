@@ -1,3 +1,5 @@
+'use server';
+
 import { GoogleAuth } from 'google-auth-library';
 
 // Interface for extracted invoice data
@@ -219,37 +221,18 @@ Gracias por su compra`,
 }
 
 /**
- * Validates extracted RTN (Honduran Tax ID)
+ * Validates Honduran RTN format (8 digits + 1 check digit)
  */
-export function validateRTN(rtn: string): boolean {
-  // RTN format: 8 digits followed by 1 check digit (8-1)
-  const rtnPattern = /^\d{8}-\d{1}$/;
-  if (!rtnPattern.test(rtn)) {
-    return false;
-  }
-
-  // Basic validation algorithm for Honduran RTN
-  const [digits, checkDigit] = rtn.split('-');
-  const weights = [3, 7, 13, 17, 19, 23, 29, 37];
-  
-  let sum = 0;
-  for (let i = 0; i < digits.length; i++) {
-    sum += parseInt(digits[i]) * weights[i];
-  }
-  
-  const calculatedCheckDigit = (11 - (sum % 11)) % 11;
-  const expectedCheckDigit = calculatedCheckDigit === 10 ? 0 : calculatedCheckDigit;
-  
-  return parseInt(checkDigit) === expectedCheckDigit;
+export async function validateRTN(rtn: string): Promise<boolean> {
+  if (!rtn) return false;
+  const cleanRTN = rtn.replace(/-/g, '');
+  return /^\d{14}$/.test(cleanRTN);
 }
 
 /**
- * Formats currency amount for display
+ * Formats a number as currency string
  */
-export function formatCurrency(amount: number, currency: string = 'HNL'): string {
-  return new Intl.NumberFormat('es-HN', {
-    style: 'currency',
-    currency: currency === 'USD' ? 'USD' : 'HNL',
-    minimumFractionDigits: 2,
-  }).format(amount);
+export async function formatCurrency(amount: number, currency: string = 'L'): Promise<string> {
+  if (amount === undefined || amount === null) return `${currency} 0.00`;
+  return `${currency} ${amount.toFixed(2)}`;
 }

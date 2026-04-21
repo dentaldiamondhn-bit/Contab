@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
       .getPublicUrl(fileName);
     
     // Actualizar enlace de pago con el comprobante
-    const { data: paymentLink, error: updateError } = await supabase
+    const { data: paymentLink, error: updateError } = await (supabase as any)
       .from("PaymentLink")
       .update({ 
         status: 'completed',
@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     
     // Actualizar estado de la factura a PAGADA
     if (paymentLink.Invoice) {
-      await supabase
+      await (supabase as any)
         .from("Invoice")
         .update({ status: 'PAGADA' })
         .eq("id", paymentLink.Invoice.id);

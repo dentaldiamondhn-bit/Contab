@@ -1,185 +1,214 @@
-// Esquema para Contabilidad Multi-tenant Honduras
-model Tenant {
-  id           String        @id @default(dbgenerated("gen_random_uuid()"))
-  businessName String        @map("businessName")
-  businessRTN  String        @unique @map("businessRTN")
-  accounts     Account[]
-  transactions Transaction[]
-  companies    Company[]
+// Use BigInt for monetary values to avoid floating-point errors
+// Use SQLite for development
 
-  @@map("Tenant")
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
-model Company {
-  id           String        @id @default(dbgenerated("gen_random_uuid()"))
-  tenantId     String        @map("tenantId")
-  name         String
-  businessType String        @map("businessType")
-  totalUnits   Int           @default(1) @map("totalUnits")
-  unitPrice    Decimal       @default(0.00) @map("unitPrice")
-  currency     String        @default("HNL")
-  createdAt    DateTime      @default(now()) @map("createdAt")
-  updatedAt    DateTime      @updatedAt @map("updatedAt")
-  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  customKpis   CustomKpi[]
-  fixedCosts   FixedCost[]
-  variableCosts VariableCost[]
-  cashFlowData CashFlowData[]
-  kpiMetrics   KpiMetric[]
-
-  @@unique([tenantId])
-  @@map("companies")
-}
-
-model CustomKpi {
-  id           String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId    String   @map("company_id")
-  name         String
-  description  String?
-  unit         String
-  currentValue Decimal  @default(0.00) @map("current_value")
-  targetValue  Decimal  @default(0.00) @map("target_value")
-  category     String   @default("custom")
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("createdAt")
-  updatedAt    DateTime @updatedAt @map("updatedAt")
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@map("custom_kpis")
-}
-
-model FixedCost {
-  id           String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId    String   @map("company_id")
-  rent         Decimal  @default(0.00)
-  salaries     Decimal  @default(0.00)
-  insurance    Decimal  @default(0.00)
-  internet     Decimal  @default(0.00)
-  permits      Decimal  @default(0.00)
-  utilities    Decimal  @default(0.00)
-  maintenance  Decimal  @default(0.00)
-  periodMonth  Int      @map("period_month")
-  periodYear   Int      @map("period_year")
-  createdAt    DateTime @default(now()) @map("createdAt")
-  updatedAt    DateTime @updatedAt @map("updatedAt")
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, periodMonth, periodYear])
-  @@map("fixed_costs")
-}
-
-model VariableCost {
-  id          String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId   String   @map("company_id")
-  electricity Decimal  @default(0.00)
-  water       Decimal  @default(0.00)
-  cleaning    Decimal  @default(0.00)
-  materials   Decimal  @default(0.00)
-  preventive  Decimal  @default(0.00)
-  periodMonth Int      @map("period_month")
-  periodYear  Int      @map("period_year")
-  createdAt   DateTime @default(now()) @map("createdAt")
-  updatedAt   DateTime @updatedAt @map("updatedAt")
-  company     Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, periodMonth, periodYear])
-  @@map("variable_costs")
-}
-
-model CashFlowData {
-  id                String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId         String   @map("company_id")
-  month             String
-  income            Decimal  @default(0.00)
-  expenses          Decimal  @default(0.00)
-  netCashFlow       Decimal  @default(0.00) @map("net_cash_flow")
-  cumulativeCashFlow Decimal @default(0.00) @map("cumulative_cash_flow")
-  periodMonth       Int      @map("period_month")
-  periodYear        Int      @map("period_year")
-  createdAt         DateTime @default(now()) @map("createdAt")
-  updatedAt         DateTime @updatedAt @map("updatedAt")
-  company           Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, periodMonth, periodYear])
-  @@map("cash_flow_data")
-}
-
-model KpiMetric {
-  id           String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId    String   @map("company_id")
-  kpiName      String   @map("kpi_name")
-  value        Decimal
-  unit         String
-  periodMonth  Int      @map("period_month")
-  periodYear   Int      @map("period_year")
-  calculatedAt DateTime @default(now()) @map("calculated_at")
-  company      Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@map("kpi_metrics")
+generator client {
+  provider = "prisma-client-js"
 }
 
 model Account {
-  id        String         @id @default(dbgenerated("gen_random_uuid()"))
-  tenantId  String         @map("tenantId")
-  code      String
-  name      String
-  type      String         // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
-  tenant    Tenant         @relation(fields: [tenantId], references: [id])
-  entries   JournalEntry[]
+  id            String         @id @default(cuid())
+  tenantId      String         @map("tenant_id")
+  name          String
+  code          String
+  type          String         // ASSET, LIABILITY, EQUITY, REVENUE, EXPENSE
+  description   String?
+  parentId      String?        @map("parent_id")
+  isActive      Boolean        @default(true) @map("is_active")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
 
-  @@unique([code, tenantId])
+  @@unique([code, tenantId], map: "unique_code_tenant")
+  @@index([tenantId], map: "idx_account_tenant")
   @@map("Account")
 }
 
 model Transaction {
-  id               String         @id @default(dbgenerated("gen_random_uuid()"))
-  tenantId         String         @map("tenantId")
-  date             DateTime       @default(now())
-  description      String
-  voucherType      String         @map("voucherType") // INGRESO, EGRESO, DIARIO
-  voucherNumber    Int            @map("voucherNumber")
-  totalAmount      BigInt         @map("totalAmount")
-  functionalAmount BigInt         @map("functionalAmount")
-  originalTotal    BigInt         @map("originalTotal")
-  currency         String         @default("HNL")
-  exchangeRate     Decimal        @default(24.70) @map("exchangeRate")
-  createdAt        DateTime       @default(now()) @map("createdAt")
-  updatedAt        DateTime       @updatedAt @map("updatedAt")
-  tenant           Tenant         @relation(fields: [tenantId], references: [id])
-  entries          JournalEntry[]
+  id                    String         @id @default(cuid())
+  tenantId              String         @map("tenant_id")
+  date                  DateTime       @default(now())
+  description           String
+  reference             String?
+  voucherType           String         @map("voucher_type") // "INGRESO", "EGRESO", "DIARIO", "AJUSTE"
+  voucherNumber         Int            @map("voucher_number")
+  currency              String         @default("HNL")
+  exchangeRate          Decimal        @default(24.70) @map("exchange_rate")
+  totalAmount           BigInt         @map("total_amount")
+  clienteRTN            String?        @map("cliente_rtn")
+  proveedorRTN          String?        @map("proveedor_rtn")
+  createdAt             DateTime       @default(now()) @map("created_at")
+  updatedAt             DateTime       @updatedAt @map("updated_at")
 
-  @@unique([voucherType, voucherNumber, tenantId])
+  @@unique([voucherType, voucherNumber, tenantId], map: "unique_voucher_tenant")
+  @@index([tenantId], map: "idx_transaction_tenant")
   @@map("Transaction")
 }
 
 model JournalEntry {
-  id             String      @id @default(dbgenerated("gen_random_uuid()"))
-  transactionId  String      @map("transactionId")
-  accountId      String      @map("accountId")
-  tenantId       String      @map("tenantId")
-  amount         BigInt      // Centavos: Positivo (Debe), Negativo (Haber)
-  originalAmount BigInt      @map("originalAmount")
-  currency       String      @default("HNL")
-  exchangeRate   Decimal     @default(24.70) @map("exchangeRate")
-  transaction    Transaction @relation(fields: [transactionId], references: [id])
-  account        Account     @relation(fields: [accountId], references: [id])
+  id                  String        @id @default(cuid())
+  transactionId       String        @map("transaction_id")
+  accountId           String        @map("account_id")
+  tenantId            String        @map("tenant_id") // Multi-tenant support for RLS
+  amount              BigInt        // Stored in cents (L. 1.00 = 100)
+  originalAmount      BigInt        @map("original_amount")
+  currency            String        @default("HNL")
+  exchangeRate        Decimal       @default(24.70) @map("exchange_rate")
+  description         String?       // Specific line description
+  cleared             Boolean       @default(false)
+  createdAt           DateTime      @default(now()) @map("created_at")
 
+  @@index([tenantId], map: "idx_entry_tenant")
+  @@index([transactionId], map: "idx_entry_transaction")
+  @@index([accountId], map: "idx_entry_account")
   @@map("JournalEntry")
 }
 
-model CAIAuthorization {
-  id             String   @id @default(dbgenerated("gen_random_uuid()"))
-  companyId      String   @map("company_id")
-  codigo         String   // Código CAI completo (ej: 3B2D-5F1A-9876-1234)
-  tipoDocumento  String   @map("tipo_documento") // Factura, Nota de Crédito, Nota de Débito
-  rangoInicial   String   @map("rango_inicial")
-  rangoFinal     String   @map("rango_final")
-  fechaLimite    DateTime @map("fecha_limite")
-  estado         String   @default("activo") // activo, proximo, vencido, agotado
-  currentNumber  Int      @default(0) @map("current_number")
+model Tenant {
+  id              String    @id @default(cuid())
+  businessName    String    @map("business_name")
+  businessRTN     String    @unique @map("business_rtn")
+  businessEmail   String    @unique @map("business_email")
+  businessAddress String    @map("business_address")
+  country         String    @default("HN")
+  phoneNumber      String?   @map("phone_number")
+  logoUrl         String?   @map("logo_url")
+  timezone        String    @default("America/Tegucigalpa")
+  currency        String    @default("HNL")
+  subscriptionPlan String    @default("BASIC") @map("subscription_plan")
+  maxUsers        Int       @default(5) @map("max_users")
+  maxStorage      Int       @default(100) @map("max_storage")
+  maxTransactions Int       @default(10000) @map("max_transactions")
+  monthlyCost     Int       @default(1000) @map("monthly_cost")
+  isActive        Boolean   @default(true) @map("is_active")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  files           File[]
+  templates        FileTemplate[]
+
+  @@map("Tenant")
+}
+
+model File {
+  id            String   @id @default(cuid())
+  tenantId      String   @map("tenant_id")
+  originalName  String   @map("original_name")
+  fileName      String   @map("file_name")
+  filePath      String   @map("file_path")
+  fileSize      Int      @map("file_size")
+  mimeType      String   @map("mime_type")
+  fileType      String   @map("file_type") // 'excel', 'pdf', 'image', etc.
+  category      String   // 'accounting', 'document', 'template', etc.
+  description   String?
+  tags          String[] // Array de etiquetas
+  uploadedBy    String   @map("uploaded_by")
+  status        String   @default("active") // 'active', 'deleted', 'archived'
+  metadata      Json?    // Información adicional específica por tipo de archivo
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
+
+  // Relations
+  tenant        Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  processing    FileProcessing[]
+  template      FileTemplate?
+  activities    FileActivity[]
+
+  @@index([tenantId], map: "idx_file_tenant")
+  @@index([uploadedBy], map: "idx_file_uploaded_by")
+  @@index([fileType], map: "idx_file_type")
+  @@index([category], map: "idx_file_category")
+  @@index([status], map: "idx_file_status")
+  @@index([createdAt], map: "idx_file_created_at")
+  @@map("File")
+}
+
+model FileProcessing {
+  id             String   @id @default(cuid())
+  fileId         String   @map("file_id")
+  processingType String   @map("processing_type") // 'excel_import', 'data_extraction', 'validation'
+  status         String   // 'pending', 'processing', 'completed', 'failed'
+  progress       Int      @default(0) // Porcentaje de progreso 0-100
+  totalRows      Int?     @map("total_rows")
+  processedRows  Int?     @map("processed_rows")
+  errorCount     Int      @default(0) @map("error_count")
+  errors         String[] // Array de mensajes de error
+  warnings       String[] // Array de advertencias
+  results        Json?    // Resultados del procesamiento
+  startedAt      DateTime @default(now()) @map("started_at")
+  completedAt    DateTime? @map("completed_at")
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
-  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
 
-  @@map("cai_authorizations")
+  // Relations
+  file           File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId], map: "idx_processing_file_id")
+  @@index([status], map: "idx_processing_status")
+  @@index([startedAt], map: "idx_processing_started_at")
+  @@map("FileProcessing")
+}
+
+model FileTemplate {
+  id           String   @id @default(cuid())
+  tenantId     String   @map("tenant_id")
+  name         String
+  description  String?
+  templateType String   @map("template_type") // 'excel_accounting', 'excel_invoices', etc.
+  fileId       String   @unique @map("file_id") // Referencia al archivo del template
+  schema       Json     // Estructura esperada del archivo
+  isActive     Boolean  @default(true) @map("is_active")
+  isDefault    Boolean  @default(false) @map("is_default")
+  createdBy    String   @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant       Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  file         File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId], map: "idx_template_tenant")
+  @@index([templateType], map: "idx_template_type")
+  @@index([isActive], map: "idx_template_is_active")
+  @@map("FileTemplate")
+}
+
+model FileActivity {
+  id        String   @id @default(cuid())
+  fileId    String   @map("file_id")
+  userId     String   @map("user_id")
+  action     String   // 'uploaded', 'downloaded', 'viewed', 'deleted', 'processed'
+  details    Json?    // Detalles específicos de la acción
+  ipAddress  String?  @map("ip_address")
+  userAgent  String?  @map("user_agent")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  // Relations
+  file       File @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId], map: "idx_activity_file_id")
+  @@index([userId], map: "idx_activity_user_id")
+  @@index([action], map: "idx_activity_action")
+  @@index([createdAt], map: "idx_activity_created_at")
+  @@map("FileActivity")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  authId    String?  @unique @map("auth_id")
+  firstName String?  @map("first_name")
+  lastName  String?  @map("last_name")
+  role      String   @default("user")
+  isActive  Boolean  @default(true) @map("is_active")
+  password  String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
 }

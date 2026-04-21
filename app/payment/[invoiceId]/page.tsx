@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 
 interface PaymentData {
+  id: string;
   invoiceNumber: string;
   amount: number;
   currency: 'HNL' | 'USD';

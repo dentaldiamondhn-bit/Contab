@@ -3,10 +3,11 @@ import { TaxConfigService } from '@/lib/services/tax-config';
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const taxConfig = await TaxConfigService.getTaxConfigById(params.id);
+    const { id } = await params;
+    const taxConfig = await TaxConfigService.getTaxConfigById(id);
     
     if (!taxConfig) {
       return NextResponse.json(
@@ -27,7 +28,7 @@ export async function GET(
 
 export async function PUT(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const body = await request.json();
@@ -47,7 +48,8 @@ export async function PUT(
     if (accountId !== undefined) updateData.accountId = accountId;
     if (isActive !== undefined) updateData.isActive = isActive;
 
-    const taxConfig = await TaxConfigService.updateTaxConfig(params.id, updateData);
+    const { id } = await params;
+    const taxConfig = await TaxConfigService.updateTaxConfig(id, updateData);
     return NextResponse.json(taxConfig);
   } catch (error) {
     console.error('Error updating tax configuration:', error);
@@ -68,10 +70,11 @@ export async function PUT(
 
 export async function DELETE(
   request: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    await TaxConfigService.deleteTaxConfig(params.id);
+    const { id } = await params;
+    await TaxConfigService.deleteTaxConfig(id);
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting tax configuration:', error);

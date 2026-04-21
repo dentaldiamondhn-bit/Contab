@@ -80,7 +80,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
   const [searchTerm, setSearchTerm] = useState("");
   const [accountTypeFilter, setAccountTypeFilter] = useState<string>("all");
   const [showAccountForm, setShowAccountForm] = useState(false);
-  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [showTransactionForm, setShowTransactionForm] = useState<string | null>(null);
   const [showReconciliationForm, setShowReconciliationForm] = useState(false);
   const [editingAccount, setEditingAccount] = useState<BankAccount | null>(null);
   const [accountForm, setAccountForm] = useState({
@@ -89,6 +89,14 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
     bankName: "",
     accountType: 'CHECKING' as 'CHECKING' | 'SAVINGS' | 'CREDIT',
     currency: "HNL"
+  });
+
+  const [transactionForm, setTransactionForm] = useState({
+    bankAccountId: "",
+    amount: 0,
+    description: "",
+    transactionType: "DEPOSIT",
+    reference: ""
   });
 
   const supabase = createSupabaseClient();
@@ -103,7 +111,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar cuentas bancarias
       const { data, error } = await supabase
@@ -181,7 +189,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
 
       if (editingAccount) {
         // Actualizar cuenta existente
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('BankAccount')
           .update(accountData)
           .eq('id', editingAccount.id);
@@ -190,7 +198,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
         alert("Cuenta bancaria actualizada exitosamente");
       } else {
         // Crear nueva cuenta
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from('BankAccount')
           .insert(accountData);
 
@@ -225,7 +233,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
       }
 
       // Crear transacción
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('BankTransaction')
         .insert({
           tenantId,
@@ -250,7 +258,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
           ? account.availableBalance + Math.round(amount * 100)
           : account.availableBalance - Math.round(amount * 100);
 
-        await supabase
+        await (supabase as any)
           .from('BankAccount')
           .update({
             currentBalance: newBalance,
@@ -261,7 +269,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
       }
 
       alert("Transacción procesada exitosamente");
-      setShowTransactionForm(false);
+      setShowTransactionForm(null);
       loadTransactions();
       loadBankAccounts();
     } catch (error: any) {
@@ -414,7 +422,6 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
 
       {/* Resumen */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
       </div>
       <div className="flex space-x-2">
         <Button onClick={exportToCSV} variant="outline">
@@ -596,7 +603,6 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
                   </SelectContent>
                 </Select>
               </div>
-            </div>
             <div className="flex justify-end space-x-3 pt-4 border-t">
               <Button
                 variant="outline"

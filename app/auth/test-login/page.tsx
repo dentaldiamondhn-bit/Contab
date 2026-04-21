@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
 
 // Cliente Supabase lazy-loaded
 let supabase: any = null;

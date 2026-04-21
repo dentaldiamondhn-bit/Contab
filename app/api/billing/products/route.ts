@@ -5,12 +5,12 @@ export async function GET(request: NextRequest) {
   try {
     const supabase = createSupabaseClient();
     
-    const { data: products, error } = await supabase
+    const { data: products, error } = await (supabase as any)
       .from("product")
       .select("*")
       .eq("is_active", true)
       .eq("tenant_id", "1")
-      .order("code", { ascending: true });
+      .order("code", { ascending: true }) as { data: any[], error: any };
     
     if (error) {
       console.error("Error fetching products:", error);
@@ -43,7 +43,7 @@ export async function POST(request: NextRequest) {
     
     const supabase = createSupabaseClient();
     
-    const { data, error } = await supabase
+    const { data, error } = await (supabase as any)
       .from("product")
       .insert({
         code,

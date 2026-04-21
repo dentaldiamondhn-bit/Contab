@@ -38,9 +38,9 @@ const savePurchases = (data: Purchase[]) => {
 };
 
 // PUT - Update purchase
-export async function PUT(request: Request, { params }: { params: { id: string } }) {
+export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id;
+    const { id } = await params;
     const body = await request.json();
     
     console.log('Updating purchase - ID from params:', id);
@@ -82,9 +82,9 @@ export async function PUT(request: Request, { params }: { params: { id: string }
 }
 
 // DELETE - Delete purchase
-export async function DELETE(request: Request, { params }: { params: { id: string } }) {
+export async function DELETE(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params.id;
+    const { id } = await params;
     
     console.log('Deleting purchase - ID from params:', id);
     

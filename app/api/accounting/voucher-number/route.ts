@@ -5,6 +5,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const voucherType = searchParams.get("voucherType");
+    const tenantId = searchParams.get("tenantId") || "1";
     
     if (!voucherType) {
       return NextResponse.json(
@@ -13,7 +14,7 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    const nextNumber = await getNextVoucherNumber(voucherType);
+    const nextNumber = await getNextVoucherNumber(voucherType, tenantId);
     
     return NextResponse.json({ nextNumber });
   } catch (error) {

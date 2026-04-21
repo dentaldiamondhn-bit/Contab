@@ -48,7 +48,7 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Para el flujo de efectivo, necesitamos analizar las transacciones
       // por tipo de cuenta y movimiento
@@ -59,29 +59,30 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
       if (error) throw error;
 
       // Clasificar transacciones por tipo de flujo
-      const operacionIngresos = transactions?.filter(t => 
-        (t.codigo_cuenta.startsWith('1') || t.codigo_cuenta.startsWith('5')) && t.debe > 0
-      )?.reduce((sum, t) => sum + t.debe, 0) || 0;
+      const txs = transactions as any[];
+      const operacionIngresos = txs?.filter((t: any) => 
+        (t.codigo_cuenta?.startsWith('1') || t.codigo_cuenta?.startsWith('5')) && t.debe > 0
+      )?.reduce((sum: number, t: any) => sum + t.debe, 0) || 0;
 
-      const operacionEgresos = transactions?.filter(t => 
-        (t.codigo_cuenta.startsWith('1') || t.codigo_cuenta.startsWith('6')) && t.haber > 0
-      )?.reduce((sum, t) => sum + t.haber, 0) || 0;
+      const operacionEgresos = txs?.filter((t: any) => 
+        (t.codigo_cuenta?.startsWith('1') || t.codigo_cuenta?.startsWith('6')) && t.haber > 0
+      )?.reduce((sum: number, t: any) => sum + t.haber, 0) || 0;
 
-      const inversionSalidas = transactions?.filter(t => 
-        t.codigo_cuenta.startsWith('2') && t.haber > 0
-      )?.reduce((sum, t) => sum + t.haber, 0) || 0;
+      const inversionSalidas = txs?.filter((t: any) => 
+        t.codigo_cuenta?.startsWith('2') && t.haber > 0
+      )?.reduce((sum: number, t: any) => sum + t.haber, 0) || 0;
 
-      const inversionEntradas = transactions?.filter(t => 
-        t.codigo_cuenta.startsWith('2') && t.debe > 0
-      )?.reduce((sum, t) => sum + t.debe, 0) || 0;
+      const inversionEntradas = txs?.filter((t: any) => 
+        t.codigo_cuenta?.startsWith('2') && t.debe > 0
+      )?.reduce((sum: number, t: any) => sum + t.debe, 0) || 0;
 
-      const financiamientoEntradas = transactions?.filter(t => 
-        t.codigo_cuenta.startsWith('3') && t.debe > 0
-      )?.reduce((sum, t) => sum + t.debe, 0) || 0;
+      const financiamientoEntradas = txs?.filter((t: any) => 
+        t.codigo_cuenta?.startsWith('3') && t.debe > 0
+      )?.reduce((sum: number, t: any) => sum + t.debe, 0) || 0;
 
-      const financiamientoSalidas = transactions?.filter(t => 
-        t.codigo_cuenta.startsWith('3') && t.haber > 0
-      )?.reduce((sum, t) => sum + t.haber, 0) || 0;
+      const financiamientoSalidas = txs?.filter((t: any) => 
+        t.codigo_cuenta?.startsWith('3') && t.haber > 0
+      )?.reduce((sum: number, t: any) => sum + t.haber, 0) || 0;
 
       const flujoOperacion = operacionIngresos - operacionEgresos;
       const flujoInversion = inversionEntradas - inversionSalidas;
@@ -104,21 +105,21 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
           codigo_cuenta: '1101',
           nombre_cuenta: 'Flujo de efectivo operativo',
           monto: flujoOperacion,
-          empresa: transactions?.[0]?.empresa || ''
+          empresa: txs?.[0]?.empresa || ''
         },
         {
           categoria: 'INVERSIÓN',
           codigo_cuenta: '1201',
           nombre_cuenta: 'Flujo de efectivo de inversión',
           monto: flujoInversion,
-          empresa: transactions?.[0]?.empresa || ''
+          empresa: txs?.[0]?.empresa || ''
         },
         {
           categoria: 'FINANCIAMIENTO',
           codigo_cuenta: '2101',
           nombre_cuenta: 'Flujo de efectivo de financiamiento',
           monto: flujoFinanciamiento,
-          empresa: transactions?.[0]?.empresa || ''
+          empresa: txs?.[0]?.empresa || ''
         }
       ];
 

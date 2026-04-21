@@ -44,3 +44,16 @@ export function centsToDollars(cents: bigint): number {
 export function dollarsToCents(dollars: number): bigint {
   return BigInt(Math.round(dollars * 100));
 }
+
+/**
+ * Validates RTN (Honduran Tax ID) format
+ * RTN format: 8 digits followed by 1 check digit (8-1)
+ */
+export function validateRTN(rtn: string): boolean {
+  const rtnPattern = /^\d{8}-\d{1}$/;
+  if (!rtnPattern.test(rtn)) {
+    return false;
+  }
+  // Additional validation could be added here (check digit calculation)
+  return true;
+}

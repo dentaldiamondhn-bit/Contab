@@ -18,12 +18,12 @@ export async function GET(request: Request) {
     let filtered = suppliers;
     
     if (companyId) {
-      filtered = filtered.filter(s => s.company_id === companyId || s.companyId === companyId);
+      filtered = filtered.filter((s: any) => s.company_id === companyId || s.companyId === companyId);
     }
 
     if (search) {
       const term = search.toLowerCase();
-      filtered = filtered.filter(s =>
+      filtered = filtered.filter((s: any) =>
         s.name.toLowerCase().includes(term) ||
         s.rtn.toLowerCase().includes(term) ||
         s.commercial_name?.toLowerCase().includes(term)
@@ -75,7 +75,7 @@ export async function DELETE(request: Request) {
     const data = readFileSync(DATA_FILE, 'utf8');
     let suppliers = JSON.parse(data);
     
-    const index = suppliers.findIndex(s => s.id === id);
+    const index = suppliers.findIndex((s: any) => s.id === id);
     if (index === -1) {
       return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
     }

@@ -18,8 +18,20 @@ import {
   EyeOff,
   RefreshCw
 } from 'lucide-react';
-import { extractInvoiceFromImage, validateRTN, formatCurrency } from '@/lib/services/ocr-service';
+import { extractInvoiceFromImage } from '@/lib/services/ocr-service';
 import { ExtractedInvoiceData } from '@/lib/services/ocr-service';
+
+// Local synchronous helper functions
+function validateRTN(rtn: string): boolean {
+  if (!rtn) return false;
+  const cleanRTN = rtn.replace(/-/g, '');
+  return /^\d{14}$/.test(cleanRTN);
+}
+
+function formatCurrency(amount: number, currency: string = 'L'): string {
+  if (amount === undefined || amount === null) return `${currency} 0.00`;
+  return `${currency} ${amount.toFixed(2)}`;
+}
 
 interface OCRInvoiceScannerProps {
   onDataExtracted?: (data: ExtractedInvoiceData) => void;
