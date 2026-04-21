@@ -22,28 +22,36 @@ export async function createTransaction(data: TransactionFormValues & { voucherT
     // Get sequential voucher number for the current month
     const nextNumber = await getNextVoucherNumber(voucherType, new Date(validatedData.date));
 
-    // Create the transaction with journal entries and voucher info
-    const transaction = await db.transaction.create({
+    // Create the transaction first
+    const transaction = await (db as any).transaction.create({
       data: {
         description: validatedData.description,
         date: new Date(validatedData.date),
         voucherType,
         voucherNumber: nextNumber,
-        entries: {
-          create: validatedData.entries.map((entry) => ({
-            accountId: entry.accountId,
-            amount: BigInt(entry.amount),
-          })),
-        },
+        tenantId: (data as any).tenantId,
+        currency: (data as any).currency || 'HNL',
+        exchangeRate: (data as any).exchangeRate || 24.70,
+        totalAmount: validatedData.entries.reduce((sum, entry) => sum + BigInt(entry.amount), BigInt(0)),
       },
-      include: {
-        entries: {
-          include: {
-            account: true
-          }
-        }
-      }
     });
+
+    // Create journal entries separately
+    await Promise.all(
+      validatedData.entries.map((entry) =>
+        (db as any).journalEntry.create({
+          data: {
+            transactionId: transaction.id,
+            accountId: entry.accountId,
+            tenantId: (data as any).tenantId,
+            amount: BigInt(entry.amount),
+            originalAmount: BigInt(entry.amount),
+            currency: (data as any).currency || 'HNL',
+            exchangeRate: (data as any).exchangeRate || 24.70,
+          },
+        })
+      )
+    );
 
     // Revalidate the dashboard path to refresh the data
     revalidatePath('/dashboard');

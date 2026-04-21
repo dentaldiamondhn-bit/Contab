@@ -107,7 +107,7 @@ export default function CustomerManager({ tenantId }: CustomerManagerProps) {
 
       if (editingCustomer) {
         // Update existing customer
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("Customer")
           .update(customerData)
           .eq("id", editingCustomer.id);
@@ -116,7 +116,7 @@ export default function CustomerManager({ tenantId }: CustomerManagerProps) {
         alert("Cliente actualizado exitosamente");
       } else {
         // Create new customer
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("Customer")
           .insert(customerData);
 
@@ -179,7 +179,7 @@ export default function CustomerManager({ tenantId }: CustomerManagerProps) {
 
   const toggleStatus = async (customer: Customer) => {
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("Customer")
         .update({ isActive: !customer.isActive })
         .eq("id", customer.id);

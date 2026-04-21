@@ -44,7 +44,7 @@ export interface CAIStatistics {
 
 // Create a new CAI
 export async function createCAI(data: Omit<CAI, 'id' | 'status' | 'isActive' | 'createdAt' | 'updatedAt'>): Promise<CAI> {
-  const cai = await db.cAI.create({
+  const cai = await (db as any).cAI.create({
     data: {
       ...data,
       status: calculateCAIStatus(data.rangeStart, data.rangeEnd, data.currentNumber, data.expirationDate),
@@ -74,7 +74,7 @@ export async function getCAIs(filters: {
   if (filters.establishmentCode) where.establishmentCode = filters.establishmentCode;
   if (filters.isActive !== undefined) where.isActive = filters.isActive;
 
-  return await db.cAI.findMany({
+  return await (db as any).cAI.findMany({
     where,
     orderBy: [
       { expirationDate: 'asc' },
@@ -85,14 +85,14 @@ export async function getCAIs(filters: {
 
 // Get CAI by ID
 export async function getCAIById(id: string): Promise<CAI | null> {
-  return await db.cAI.findUnique({
+  return await (db as any).cAI.findUnique({
     where: { id },
   });
 }
 
 // Update CAI current number (when a new invoice is generated)
 export async function updateCAICurrentNumber(caiId: string, newNumber: number): Promise<CAI> {
-  const cai = await db.cAI.update({
+  const cai = await (db as any).cAI.update({
     where: { id: caiId },
     data: {
       currentNumber: newNumber,
@@ -103,7 +103,7 @@ export async function updateCAICurrentNumber(caiId: string, newNumber: number): 
   // Update status and check for alerts
   const newStatus = calculateCAIStatus(cai.rangeStart, cai.rangeEnd, newNumber, cai.expirationDate);
   if (newStatus !== cai.status) {
-    await db.cAI.update({
+    await (db as any).cAI.update({
       where: { id: caiId },
       data: { status: newStatus },
     });
@@ -155,7 +155,7 @@ async function checkAndCreateAlerts(cai: CAI): Promise<void> {
   const daysUntilExpiration = Math.ceil((cai.expirationDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
 
   // Check for existing unread alerts of the same type
-  const existingAlerts = await db.cAIAlert.findMany({
+  const existingAlerts = await (db as any).cAIAlert.findMany({
     where: {
       caiId: cai.id,
       isRead: false,
@@ -189,7 +189,7 @@ async function checkAndCreateAlerts(cai: CAI): Promise<void> {
 
 // Create a CAI alert
 async function createCAIAlert(caiId: string, alertType: CAIAlert['alertType'], message: string): Promise<void> {
-  await db.cAIAlert.create({
+  await (db as any).cAIAlert.create({
     data: {
       caiId,
       alertType,
@@ -202,7 +202,7 @@ async function createCAIAlert(caiId: string, alertType: CAIAlert['alertType'], m
 
 // Get all unread alerts
 export async function getUnreadAlerts(): Promise<CAIAlert[]> {
-  return await db.cAIAlert.findMany({
+  return await (db as any).cAIAlert.findMany({
     where: { isRead: false },
     include: {
       cai: true,
@@ -213,7 +213,7 @@ export async function getUnreadAlerts(): Promise<CAIAlert[]> {
 
 // Mark alert as read
 export async function markAlertAsRead(alertId: string): Promise<void> {
-  await db.cAIAlert.update({
+  await (db as any).cAIAlert.update({
     where: { id: alertId },
     data: { isRead: true },
   });
@@ -221,7 +221,7 @@ export async function markAlertAsRead(alertId: string): Promise<void> {
 
 // Mark all alerts as read
 export async function markAllAlertsAsRead(): Promise<void> {
-  await db.cAIAlert.updateMany({
+  await (db as any).cAIAlert.updateMany({
     where: { isRead: false },
     data: { isRead: true },
   });
@@ -318,7 +318,7 @@ export async function canGenerateInvoice(caiId: string): Promise<{
 
 // Deactivate a CAI
 export async function deactivateCAI(caiId: string): Promise<CAI> {
-  return await db.cAI.update({
+  return await (db as any).cAI.update({
     where: { id: caiId },
     data: {
       isActive: false,
@@ -329,7 +329,7 @@ export async function deactivateCAI(caiId: string): Promise<CAI> {
 
 // Reactivate a CAI
 export async function reactivateCAI(caiId: string): Promise<CAI> {
-  const cai = await db.cAI.update({
+  const cai = await (db as any).cAI.update({
     where: { id: caiId },
     data: {
       isActive: true,
@@ -339,7 +339,7 @@ export async function reactivateCAI(caiId: string): Promise<CAI> {
 
   // Recalculate status
   const newStatus = calculateCAIStatus(cai.rangeStart, cai.rangeEnd, cai.currentNumber, cai.expirationDate);
-  await db.cAI.update({
+  await (db as any).cAI.update({
     where: { id: caiId },
     data: { status: newStatus },
   });

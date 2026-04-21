@@ -114,7 +114,7 @@ export class BreakEvenService {
       } : {};
 
       // Get expenses from fixed cost accounts
-      const fixedCostAccounts = await db.account.findMany({
+      const fixedCostAccounts = await (db as any).account.findMany({
         where: {
           type: 'EXPENSE'
         },
@@ -126,7 +126,7 @@ export class BreakEvenService {
             }
           }
         }
-      });
+      } as any);
 
       const costs: FixedCosts = {
         rent: 0,
@@ -196,7 +196,7 @@ export class BreakEvenService {
       } : {};
 
       // Get expenses from variable cost accounts
-      const variableCostAccounts = await db.account.findMany({
+      const variableCostAccounts = await (db as any).account.findMany({
         where: {
           type: 'EXPENSE'
         },
@@ -208,7 +208,7 @@ export class BreakEvenService {
             }
           }
         }
-      });
+      } as any);
 
       const costs: VariableCosts = {
         materials: 0,
@@ -273,7 +273,7 @@ export class BreakEvenService {
       } : {};
 
       // Get revenue from sales
-      const revenueAccounts = await db.account.findMany({
+      const revenueAccounts = await (db as any).account.findMany({
         where: {
           type: 'REVENUE'
         },
@@ -285,7 +285,7 @@ export class BreakEvenService {
             }
           }
         }
-      });
+      } as any);
 
       let totalRevenue = 0;
       let totalUnits = 0;
@@ -339,7 +339,7 @@ export class BreakEvenService {
         }
       } : {};
 
-      const revenueAccounts = await db.account.findMany({
+      const revenueAccounts = await (db as any).account.findMany({
         where: {
           type: 'REVENUE'
         },
@@ -351,7 +351,7 @@ export class BreakEvenService {
             }
           }
         }
-      });
+      } as any);
 
       let totalRevenue = 0;
       let totalUnits = 0;

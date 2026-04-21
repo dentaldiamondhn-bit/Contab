@@ -151,7 +151,7 @@ export class CurrencyValidationService {
    */
   private static async getExchangeRate(fromCurrency: string, toCurrency: string): Promise<number> {
     // Try to get from database first
-    const storedRate = await db.exchangeRate?.findFirst({
+    const storedRate = await (db as any).exchangeRate?.findFirst({
       where: {
         fromCurrency: fromCurrency.toUpperCase(),
         toCurrency: toCurrency.toUpperCase(),

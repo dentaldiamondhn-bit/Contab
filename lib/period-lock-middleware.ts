@@ -42,7 +42,7 @@ export async function periodLockMiddleware(
 
 async function checkPeriodLock(transactionDate: Date) {
   // Get the last closed date from GlobalSettings
-  const settings = await db.globalSettings.findFirst();
+  const settings = await (db as any).globalSettings.findFirst();
   
   if (settings?.lastClosedDate) {
     const lastClosedDate = new Date(settings.lastClosedDate);

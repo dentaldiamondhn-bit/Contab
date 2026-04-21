@@ -61,7 +61,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Cargar datos de cuentas por cobrar con relaciones
       const { data, error } = await supabase
@@ -99,7 +99,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
       const newBalance = receivable.amount - newPaidAmount;
 
       // Actualizar cuenta por cobrar
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('AccountReceivable')
         .update({
           paidAmount: newPaidAmount,
@@ -112,7 +112,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
       if (error) throw error;
 
       // Crear transacción de pago
-      const { data: transactionData, error: transactionError } = await supabase.rpc('create_accounting_transaction', {
+      const { data: transactionData, error: transactionError } = await (supabase as any).rpc('create_accounting_transaction', {
         p_tenant_id: tenantId,
         p_date: new Date().toISOString().split('T')[0],
         p_description: `Pago de factura ${receivable.invoice?.invoiceNumber || ''}`,

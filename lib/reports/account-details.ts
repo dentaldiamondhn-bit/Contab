@@ -73,7 +73,7 @@ export async function generateAccountDetails(
         date: 'asc'
       }
     }
-  });
+  } as any);
 
   let openingBalance = openingEntries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n);
 
@@ -96,7 +96,7 @@ export async function generateAccountDetails(
         date: 'asc'
       }
     }
-  });
+  } as any);
 
   // Build entries with running balances
   const entries: AccountDetailEntry[] = [];
@@ -126,11 +126,12 @@ export async function generateAccountDetails(
       }
     }
 
+    const txn = (entry as any).transaction;
     entries.push({
       id: entry.id,
-      date: entry.transaction.date,
-      description: entry.transaction.description,
-      reference: entry.transaction.reference,
+      date: txn?.date,
+      description: txn?.description,
+      reference: txn?.reference,
       debitAmount,
       creditAmount,
       runningBalance,
@@ -150,7 +151,7 @@ export async function generateAccountDetails(
       code: account.code,
       name: account.name,
       type: account.type,
-      description: account.description
+      description: account.description ?? undefined
     },
     entries,
     openingBalance: Number(openingBalance),

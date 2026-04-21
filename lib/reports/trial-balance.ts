@@ -66,7 +66,7 @@ export async function generateTrialBalance(
       include: {
         transaction: true
       }
-    });
+    } as any);
 
     // Get period entries (movements during period)
     const periodEntries = await db.journalEntry.findMany({
@@ -82,7 +82,7 @@ export async function generateTrialBalance(
       include: {
         transaction: true
       }
-    });
+    } as any);
 
     // Calculate opening balance
     let openingBalance = 0n;
@@ -177,7 +177,7 @@ export async function generateTrialBalance(
  * Checks if a specific period is closed
  */
 export async function isPeriodClosed(period: string, periodType: 'MONTHLY' | 'YEARLY'): Promise<boolean> {
-  const closing = await db.bookClosing.findUnique({
+  const closing = await (db as any).bookClosing.findUnique({
     where: {
       period_periodType: {
         period,
@@ -200,7 +200,7 @@ export async function closeBooks(
 ): Promise<{ success: boolean; error?: string }> {
   try {
     // Check if period is already closed
-    const existingClosing = await db.bookClosing.findUnique({
+    const existingClosing = await (db as any).bookClosing.findUnique({
       where: {
         period_periodType: {
           period,
@@ -240,7 +240,7 @@ export async function closeBooks(
     }
 
     // Close the books
-    await db.bookClosing.create({
+    await (db as any).bookClosing.create({
       data: {
         period,
         periodType,
@@ -272,7 +272,7 @@ export async function getClosedPeriods(): Promise<Array<{
   closedBy: string;
   description?: string;
 }>> {
-  return await db.bookClosing.findMany({
+  return await (db as any).bookClosing.findMany({
     orderBy: {
       closedAt: 'desc'
     }

@@ -17,8 +17,8 @@ export async function seedBanksAndAccounts() {
     console.log('🏦 Starting bank and account seeding...');
 
     // First, ensure we have the main bank accounts parent account (1101 - Cuentas Bancarias)
-    const mainBankAccount = await db.account.upsert({
-      where: { code: '1101' },
+    const mainBankAccount = await (db as any).account.upsert({
+      where: { code_tenantId: { code: '1101', tenantId: 'default' } },
       update: {},
       create: {
         code: '1101',
@@ -39,8 +39,8 @@ export async function seedBanksAndAccounts() {
       const accountCode = `1101-${String(i + 1).padStart(2, '0')}`;
       
       // Create the bank account
-      const bankAccount = await db.account.upsert({
-        where: { code: accountCode },
+      const bankAccount = await (db as any).account.upsert({
+        where: { code_tenantId: { code: accountCode, tenantId: 'default' } },
         update: {
           name: `${bank.name} Lempiras`,
           description: `Cuenta bancaria en ${bank.name}`,
@@ -57,7 +57,7 @@ export async function seedBanksAndAccounts() {
       });
 
       // Create the bank record
-      const bankRecord = await db.bank.upsert({
+      const bankRecord = await (db as any).bank.upsert({
         where: { identifier: bank.identifier },
         update: {
           name: bank.name,
@@ -77,8 +77,8 @@ export async function seedBanksAndAccounts() {
     }
 
     // Also create USD accounts for international transactions
-    const mainUSDAccount = await db.account.upsert({
-      where: { code: '1102' },
+    const mainUSDAccount = await (db as any).account.upsert({
+      where: { code_tenantId: { code: '1102', tenantId: 'default' } },
       update: {},
       create: {
         code: '1102',
@@ -96,15 +96,15 @@ export async function seedBanksAndAccounts() {
     for (const bankIdentifier of majorBanks) {
       const bank = hondurasBanks.find(b => b.identifier === bankIdentifier);
       if (bank) {
-        const bankRecord = await db.bank.findUnique({
+        const bankRecord = await (db as any).bank.findUnique({
           where: { identifier: bank.identifier }
         });
         
         if (bankRecord) {
           const usdAccountCode = `1102-${bankRecord.code.split('-')[1]}`;
           
-          await db.account.upsert({
-            where: { code: usdAccountCode },
+          await (db as any).account.upsert({
+            where: { code_tenantId: { code: usdAccountCode, tenantId: 'default' } },
             update: {
               name: `${bank.name} USD`,
               description: `Cuenta bancaria en ${bank.name} (USD)`,
@@ -128,7 +128,7 @@ export async function seedBanksAndAccounts() {
     console.log('🎉 Bank and account seeding completed successfully!');
     
     // Return summary
-    const totalBanks = await db.bank.count();
+    const totalBanks = await (db as any).bank.count();
     const totalAccounts = await db.account.count({
       where: {
         code: {
@@ -166,8 +166,8 @@ export function generateBankAccountCode(bankIdentifier: string): string {
 export async function createBankAccount(bankName: string, currency: 'HNL' | 'USD' = 'HNL') {
   try {
     const parentCode = currency === 'HNL' ? '1101' : '1102';
-    const parentAccount = await db.account.findUnique({
-      where: { code: parentCode }
+    const parentAccount = await (db as any).account.findUnique({
+      where: { code_tenantId: { code: parentCode, tenantId: 'default' } }
     });
 
     if (!parentAccount) {
@@ -187,7 +187,7 @@ export async function createBankAccount(bankName: string, currency: 'HNL' | 'USD
     const accountCode = `${parentCode}-${String(existingAccounts + 1).padStart(2, '0')}`;
     const accountName = currency === 'HNL' ? `${bankName} Lempiras` : `${bankName} USD`;
 
-    const newAccount = await db.account.create({
+    const newAccount = await (db as any).account.create({
       data: {
         code: accountCode,
         name: accountName,
@@ -195,6 +195,7 @@ export async function createBankAccount(bankName: string, currency: 'HNL' | 'USD
         description: `Cuenta bancaria en ${bankName} (${currency})`,
         isActive: true,
         parentId: parentAccount.id,
+        tenantId: 'default',
       }
     });
 
@@ -203,7 +204,7 @@ export async function createBankAccount(bankName: string, currency: 'HNL' | 'USD
       .replace(/[^A-Z0-9]/g, '')
       .substring(0, 8);
 
-    const newBank = await db.bank.create({
+    const newBank = await (db as any).bank.create({
       data: {
         name: bankName,
         identifier,
@@ -233,7 +234,7 @@ export async function createBankAccount(bankName: string, currency: 'HNL' | 'USD
 // Helper function to get all bank accounts
 export async function getBankAccounts() {
   try {
-    const bankAccounts = await db.bank.findMany({
+    const bankAccounts = await (db as any).bank.findMany({
       include: {
         account: {
           include: {
@@ -251,7 +252,7 @@ export async function getBankAccounts() {
 
     return {
       success: true,
-      accounts: bankAccounts.map(bank => ({
+      accounts: bankAccounts.map((bank: any) => ({
         ...bank,
         accountCode: bank.account.code,
         accountName: bank.account.name,

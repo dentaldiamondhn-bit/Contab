@@ -66,7 +66,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
     setLoading(true);
     try {
       // Establecer tenant context
-      await supabase.rpc('set_tenant', { tenant_id: tenantId });
+      await (supabase as any).rpc('set_tenant', { tenant_id: tenantId });
 
       // Calcular fechas del período
       const now = new Date();
@@ -104,14 +104,16 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
       if (receivablesError) throw receivablesError;
 
       // Calcular estadísticas
-      const totalInvoices = invoices?.length || 0;
-      const totalRevenue = invoices?.reduce((sum, inv) => sum + inv.totalAmount, 0) || 0;
+      const invoiceData = (invoices || []) as any[];
+      const totalInvoices = invoiceData.length;
+      const totalRevenue = invoiceData.reduce((sum, inv) => sum + inv.totalAmount, 0);
       const avgInvoiceValue = totalInvoices > 0 ? totalRevenue / totalInvoices : 0;
       
       const today = new Date();
-      const pendingReceivables = receivables?.reduce((sum, rec) => sum + rec.balanceAmount, 0) || 0;
-      const overdueReceivables = receivables?.filter(rec => new Date(rec.dueDate) < today)
-        ?.reduce((sum, rec) => sum + rec.balanceAmount, 0) || 0;
+      const receivableData = (receivables || []) as any[];
+      const pendingReceivables = receivableData.reduce((sum, rec) => sum + rec.balanceAmount, 0);
+      const overdueReceivables = receivableData.filter(rec => new Date(rec.dueDate) < today)
+        .reduce((sum, rec) => sum + rec.balanceAmount, 0);
 
       // Calcular crecimiento mensual (comparar con período anterior)
       const previousPeriod = new Date(startDate);
@@ -125,11 +127,12 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
         .gte('date', previousPeriod.toISOString().split('T')[0])
         .lte('date', previousPeriodEnd.toISOString().split('T')[0]);
 
-      const previousRevenue = previousInvoices?.reduce((sum, inv) => sum + inv.totalAmount, 0) || 0;
+      const prevInvoices = (previousInvoices || []) as any[];
+      const previousRevenue = prevInvoices.reduce((sum, inv) => sum + inv.totalAmount, 0);
       const monthlyGrowth = previousRevenue > 0 ? ((totalRevenue - previousRevenue) / previousRevenue) * 100 : 0;
 
       // Top clientes
-      const customerStats = receivables?.reduce((acc, rec) => {
+      const customerStats = receivableData.reduce((acc: Record<string, any>, rec: any) => {
         if (!acc[rec.customerId]) {
           acc[rec.customerId] = { totalPurchased: 0, invoiceCount: 0 };
         }
@@ -143,11 +146,12 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
       const { data: customers } = await supabase
         .from('Customer')
         .select('id, name')
-        .in('id', `(${customerIds.map((id: string) => `'${id}'`).join(',')})`);
+        .in('id', customerIds);
 
+      const customerList = (customers || []) as any[];
       const topCustomers = Object.entries(customerStats)
         .map(([customerId, stats]: [string, any]) => ({
-          name: customers?.find((c: any) => c.id === customerId)?.name || 'Unknown',
+          name: customerList.find((c: any) => c.id === customerId)?.name || 'Unknown',
           totalPurchased: stats.totalPurchased,
           invoiceCount: stats.invoiceCount
         }))
@@ -155,7 +159,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
         .slice(0, 5);
 
       // Facturas recientes
-      const recentInvoices = invoices?.slice(0, 10).map(inv => ({
+      const recentInvoices = invoiceData.slice(0, 10).map((inv: any) => ({
         id: inv.id,
         invoiceNumber: inv.invoiceNumber,
         customerName: 'Customer Name', // Debería cargar el nombre del cliente
