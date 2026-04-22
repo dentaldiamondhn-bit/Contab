@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { useAuth, useUser as useClerkUser } from '@clerk/nextjs';
 
 interface UserProfile {
   id: string;
@@ -31,6 +32,8 @@ interface UserContextType {
   loading: boolean;
   refreshUser: () => Promise<void>;
   updateUser: (userData: Partial<UserProfile>) => void;
+  isSignedIn: boolean;
+  clerkUserId: string | null;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -38,14 +41,52 @@ const UserContext = createContext<UserContextType | undefined>(undefined);
 export function UserProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const { isSignedIn, userId } = useAuth();
+  const { user: clerkUser } = useClerkUser();
 
   const refreshUser = async () => {
+    if (!isSignedIn || !clerkUser) {
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
+      
+      // First try to get from database
       const response = await fetch('/api/user/profile');
       if (response.ok) {
         const data = await response.json();
         setUser(data.user);
+      } else {
+        // Fallback: build profile from Clerk user
+        const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress || '';
+        const role = (clerkUser.publicMetadata?.role as string) || 'USER';
+        
+        setUser({
+          id: userId || '',
+          email: primaryEmail,
+          first_name: clerkUser.firstName || '',
+          last_name: clerkUser.lastName || '',
+          phone: '',
+          role: role,
+          company: '',
+          department: '',
+          timezone: 'America/Tegucigalpa',
+          language: 'es',
+          email_notifications: true,
+          push_notifications: false,
+          two_factor_enabled: false,
+          avatar_url: clerkUser.imageUrl || '',
+          subscription_plan: 'BASIC',
+          api_access: false,
+          is_active: true,
+          email_verified: clerkUser.primaryEmailAddress?.verification?.status === 'verified',
+          last_sign_in_at: clerkUser.lastSignInAt?.toString() || '',
+          created_at: clerkUser.createdAt?.toString() || '',
+          updated_at: new Date().toISOString(),
+        });
       }
     } catch (error) {
       console.error('Error al cargar usuario:', error);
@@ -62,10 +103,17 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     refreshUser();
-  }, []);
+  }, [isSignedIn, clerkUser]);
 
   return (
-    <UserContext.Provider value={{ user, loading, refreshUser, updateUser }}>
+    <UserContext.Provider value={{ 
+      user, 
+      loading, 
+      refreshUser, 
+      updateUser,
+      isSignedIn: isSignedIn || false,
+      clerkUserId: userId || null,
+    }}>
       {children}
     </UserContext.Provider>
   );
