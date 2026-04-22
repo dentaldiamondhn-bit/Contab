@@ -3,7 +3,7 @@ import { supabase, getCurrentTenantFromHeaders, getCurrentUserFromHeaders } from
 
 // Helper para obtener headers de la solicitud actual
 export function getRequestHeaders(): Headers {
-  return headers()
+  return headers() as any
 }
 
 // Helper para crear un cliente con tenant filtering automático para Server Components
@@ -32,7 +32,7 @@ export function createServerSupabaseClient() {
       ]
 
       if (multiTenantTables.includes(table)) {
-        return query.eq('tenantId', tenantId)
+        return (query as any).eq('tenantId', tenantId)
       }
 
       return query

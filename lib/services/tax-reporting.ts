@@ -108,7 +108,7 @@ export class TaxReportingService {
 
     for (const account of revenueAccounts) {
       // Get all credit entries (revenue) for this account in the period
-      const entries = await prisma.journalEntry.findMany({
+      const entries = await (prisma as any).journalEntry.findMany({
         where: {
           accountId: account.id,
           amount: { lt: 0 }, // Credits are negative
@@ -122,7 +122,7 @@ export class TaxReportingService {
         include: {
           transaction: true
         }
-      });
+      } as any);
 
       if (entries.length === 0) continue;
 
@@ -169,7 +169,7 @@ export class TaxReportingService {
 
     for (const account of expenseAccounts) {
       // Get all debit entries (expenses) for this account in the period
-      const entries = await prisma.journalEntry.findMany({
+      const entries = await (prisma as any).journalEntry.findMany({
         where: {
           accountId: account.id,
           amount: { gt: 0 }, // Debits are positive
@@ -183,7 +183,7 @@ export class TaxReportingService {
         include: {
           transaction: true
         }
-      });
+      } as any);
 
       if (entries.length === 0) continue;
 

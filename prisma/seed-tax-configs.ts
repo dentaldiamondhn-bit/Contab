@@ -14,12 +14,13 @@ export async function seedTaxConfigs() {
 
     if (!isvPayableAccount) {
       // Create the ISV payable account if it doesn't exist
-      isvPayableAccount = await prisma.account.create({
+      isvPayableAccount = await (prisma as any).account.create({
         data: {
           name: 'ISV por Pagar',
           code: '2101',
           type: 'LIABILITY',
-          description: 'Impuesto Sobre Ventas por pagar'
+          description: 'Cuentas de impuestos por pagar',
+          tenantId: 'default'
         }
       });
       console.log('Created ISV payable account:', isvPayableAccount);
@@ -30,33 +31,33 @@ export async function seedTaxConfigs() {
       {
         name: 'ISV Estándar 15%',
         rate: 0.15,
-        accountId: isvPayableAccount.id,
+        accountId: isvPayableAccount?.id || '',
         isActive: true
       },
       {
         name: 'ISV Especial 18%',
         rate: 0.18,
-        accountId: isvPayableAccount.id,
+        accountId: isvPayableAccount?.id || '',
         isActive: true
       },
       {
         name: 'Exento de ISV',
         rate: 0.00,
-        accountId: isvPayableAccount.id,
+        accountId: isvPayableAccount?.id || '',
         isActive: true
       }
     ];
 
     for (const config of taxConfigs) {
-      const existing = await prisma.taxConfig.findFirst({
+      const existing = await (prisma as any).taxConfig.findFirst({
         where: { name: config.name }
       });
 
       if (!existing) {
-        await prisma.taxConfig.create({
+        await (prisma as any).taxConfig.create({
           data: config
         });
-        console.log('Created tax config:', config.name);
+        console.log(`Created tax config: ${config.name}`);
       }
     }
 

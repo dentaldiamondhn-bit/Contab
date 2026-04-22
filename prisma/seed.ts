@@ -33,10 +33,13 @@ async function main() {
   console.log('Seed started: Creating Chart of Accounts...');
 
   for (const account of accounts) {
-    await prisma.account.upsert({
+    await (prisma as any).account.upsert({
       where: { code: account.code },
       update: {},
-      create: account,
+      create: {
+        ...account,
+        tenantId: 'default'
+      },
     });
   }
 

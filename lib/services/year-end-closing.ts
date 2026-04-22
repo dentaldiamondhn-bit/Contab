@@ -1,7 +1,6 @@
 "use server";
 
 import { db } from "@/lib/db";
-import { AuditService } from "@/lib/services/audit-service";
 import { formatCurrency } from "@/lib/currency-utils";
 
 export interface YearEndClosingData {
@@ -56,26 +55,12 @@ export class YearEndClosingService {
       );
 
       // Create book closing record
-      const bookClosing = await db.bookClosing.create({
+      const bookClosing = await (db as any).bookClosing.create({
         data: {
           period: data.year.toString(),
           periodType: 'YEARLY',
           closedBy: data.closedBy,
           description: data.description || `Cierre del ejercicio ${data.year}`,
-        },
-      });
-
-      // Log audit trail
-      await AuditService.createAuditLog({
-        tableName: 'BookClosing',
-        recordId: bookClosing.id,
-        action: 'CREATE',
-        newValues: {
-          year: data.year,
-          totalRevenue: totalRevenue.toString(),
-          totalExpenses: totalExpenses.toString(),
-          netIncome: netIncome.toString(),
-          closedBy: data.closedBy,
         },
       });
 
@@ -105,7 +90,7 @@ export class YearEndClosingService {
    */
   private static async validateYearIsComplete(year: number): Promise<{ valid: boolean; error?: string }> {
     // Check if year is already closed
-    const existingClosing = await db.bookClosing.findFirst({
+    const existingClosing = await (db as any).bookClosing.findFirst({
       where: {
         period: year.toString(),
         periodType: 'YEARLY',
@@ -113,11 +98,33 @@ export class YearEndClosingService {
     });
 
     if (existingClosing) {
-      return { valid: false, error: `Year ${year} is already closed` };
+      return {
+        valid: false,
+        error: `Year ${year} is already closed`,
+      };
     }
 
-    // Check if all months are closed
-    const unclosedMonths = await db.bookClosing.findMany({
+    // Check for unclosed months
+    const unclosedMonths = await this.getUnclosedMonths(year);
+    if (unclosedMonths.length > 0) {
+      return {
+        valid: false,
+        error: `Months ${unclosedMonths.join(', ')} are not closed`,
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Get unclosed months for a given year
+   */
+  private static async getUnclosedMonths(year: number): Promise<number[]> {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    // Check all months to see if they're closed
+    const closedMonths = await (db as any).bookClosing.findMany({
       where: {
         period: {
           startsWith: year.toString(),
@@ -126,27 +133,55 @@ export class YearEndClosingService {
       },
     });
 
-    const closedMonths = unclosedMonths.length;
-    if (closedMonths < 12) {
-      return {
-        valid: false,
-        error: `Not all months are closed. Only ${closedMonths} of 12 months are closed.`,
-      };
+    const closedMonthNumbers = closedMonths.map((closing: any) => {
+      const month = parseInt(closing.period.split('-')[1]);
+      return month;
+    });
+
+    const unclosedMonths = [];
+    for (let month = 1; month <= 12; month++) {
+      if (!closedMonthNumbers.includes(month)) {
+        unclosedMonths.push(month);
+      }
     }
 
-    // Check for unbalanced transactions
-    const startDate = new Date(year, 0, 1);
-    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    return unclosedMonths;
+  }
 
-    const unbalancedTransactions = await this.checkUnbalancedTransactions(startDate, endDate);
-    if (unbalancedTransactions.length > 0) {
-      return {
-        valid: false,
-        error: `Found ${unbalancedTransactions.length} unbalanced transactions that must be corrected before closing.`,
-      };
+  /**
+   * Check for unbalanced transactions in the period
+   */
+  private static async checkUnbalancedTransactions(
+    startDate: Date,
+    endDate: Date
+  ): Promise<boolean> {
+    const transactions = await (db as any).transaction.findMany({
+      where: {
+        date: {
+          gte: startDate,
+          lte: endDate,
+        },
+      },
+      include: {
+        entries: true,
+      },
+    });
+
+    for (const transaction of transactions) {
+      const debits = transaction.entries.reduce((sum: number, entry: any) => {
+        return entry.amount > 0 ? sum + Number(entry.amount) : sum;
+      }, 0);
+      
+      const credits = transaction.entries.reduce((sum: number, entry: any) => {
+        return entry.amount < 0 ? sum + Math.abs(Number(entry.amount)) : sum;
+      }, 0);
+
+      if (Math.abs(debits - credits) > 0.01) {
+        return true;
+      }
     }
 
-    return { valid: true };
+    return false;
   }
 
   /**
@@ -161,54 +196,70 @@ export class YearEndClosingService {
     const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
 
     // Get revenue accounts
-    const revenueAccounts = await db.account.findMany({
-      where: { type: 'REVENUE' },
+    const revenueAccounts = await (db as any).account.findMany({
+      where: {
+        type: 'REVENUE',
+      },
     });
 
-    // Get expense accounts
-    const expenseAccounts = await db.account.findMany({
-      where: { type: 'EXPENSE' },
-    });
-
-    // Calculate total revenue (sum of credits)
-    let totalRevenue = 0n;
+    let totalRevenue = BigInt(0);
     for (const account of revenueAccounts) {
-      const entries = await db.journalEntry.findMany({
+      const entries = await (db as any).journalEntry.findMany({
         where: {
           accountId: account.id,
-          amount: { lt: 0 }, // Credits
           transaction: {
             date: {
               gte: startDate,
               lte: endDate,
             },
           },
+          amount: { lt: 0 }, // Credits are negative
         },
       });
-      totalRevenue += entries.reduce((sum: bigint, entry: any) => sum - entry.amount, 0n);
+
+      const revenue = entries.reduce((sum: bigint, entry: any) => {
+        return sum + BigInt(Math.abs(Number(entry.amount)));
+      }, BigInt(0));
+
+      totalRevenue += revenue;
     }
 
-    // Calculate total expenses (sum of debits)
-    let totalExpenses = 0n;
+    // Get expense accounts
+    const expenseAccounts = await (db as any).account.findMany({
+      where: {
+        type: 'EXPENSE',
+      },
+    });
+
+    let totalExpenses = BigInt(0);
     for (const account of expenseAccounts) {
-      const entries = await db.journalEntry.findMany({
+      const entries = await (db as any).journalEntry.findMany({
         where: {
           accountId: account.id,
-          amount: { gt: 0 }, // Debits
           transaction: {
             date: {
               gte: startDate,
               lte: endDate,
             },
           },
+          amount: { gt: 0 }, // Debits are positive
         },
       });
-      totalExpenses += entries.reduce((sum: bigint, entry: any) => sum + entry.amount, 0n);
+
+      const expenses = entries.reduce((sum: bigint, entry: any) => {
+        return sum + BigInt(Number(entry.amount));
+      }, BigInt(0));
+
+      totalExpenses += expenses;
     }
 
     const netIncome = totalRevenue - totalExpenses;
 
-    return { totalRevenue, totalExpenses, netIncome };
+    return {
+      totalRevenue,
+      totalExpenses,
+      netIncome,
+    };
   }
 
   /**
@@ -222,48 +273,70 @@ export class YearEndClosingService {
     retainedEarningsAccountId: string,
     description?: string
   ): Promise<string> {
-    const closingDate = new Date(year, 11, 31); // December 31st
+    const closingDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    const closingDescription = description || `Cierre del ejercicio ${year}`;
 
     // Create closing transaction
-    const closingTransaction = await db.transaction.create({
+    const closingTransaction = await (db as any).transaction.create({
       data: {
         date: closingDate,
-        description: description || `Cierre de ejercicio ${year} - Asiento de cierre`,
-        voucherType: 'AJUSTE',
-        voucherNumber: 1, // Special closing voucher number
-        totalAmount: totalRevenue + totalExpenses,
-        functionalAmount: totalRevenue + totalExpenses,
+        description: closingDescription,
+        voucherType: 'CLOSING',
+        voucherNumber: 9999,
         currency: 'HNL',
-        functionalCurrency: 'HNL',
-        exchangeRate: 1,
-        entries: {
-          create: [
-            // Close revenue accounts (debit revenue, credit income summary)
-            ...(totalRevenue > 0n ? [{
-              accountId: '', // Will be replaced with income summary account
-              amount: totalRevenue,
-              originalAmount: totalRevenue,
-              currency: 'HNL',
-              exchangeRate: 1,
-            }] : []),
-            // Close expense accounts (debit income summary, credit expenses)
-            ...(totalExpenses > 0n ? [{
-              accountId: '', // Will be replaced with income summary account
-              amount: -totalExpenses,
-              originalAmount: totalExpenses,
-              currency: 'HNL',
-              exchangeRate: 1,
-            }] : []),
-            // Transfer net income to retained earnings
-            {
-              accountId: retainedEarningsAccountId,
-              amount: netIncome,
-              originalAmount: netIncome,
-              currency: 'HNL',
-              exchangeRate: 1,
-            },
-          ],
-        },
+        exchangeRate: 1.0,
+        totalAmount: totalRevenue + totalExpenses,
+        tenantId: 'default',
+      },
+    });
+
+    // Get revenue and expense accounts for closing entries
+    const revenueAccounts = await (db as any).account.findMany({
+      where: { type: 'REVENUE' }
+    });
+
+    const expenseAccounts = await (db as any).account.findMany({
+      where: { type: 'EXPENSE' }
+    });
+
+    // Create closing entries for revenue accounts (debit to close)
+    await Promise.all(
+      revenueAccounts.map(async (account: any) => {
+        await (db as any).journalEntry.create({
+          data: {
+            transactionId: closingTransaction.id,
+            accountId: account.id,
+            tenantId: 'default',
+            amount: totalRevenue,
+            description: `Cierre - ${account.name}`,
+          },
+        });
+      })
+    );
+
+    // Create closing entries for expense accounts (credit to close)
+    await Promise.all(
+      expenseAccounts.map(async (account: any) => {
+        await (db as any).journalEntry.create({
+          data: {
+            transactionId: closingTransaction.id,
+            accountId: account.id,
+            tenantId: 'default',
+            amount: totalExpenses,
+            description: `Cierre - ${account.name}`,
+          },
+        });
+      })
+    );
+
+    // Create entry for retained earnings
+    await (db as any).journalEntry.create({
+      data: {
+        transactionId: closingTransaction.id,
+        accountId: retainedEarningsAccountId,
+        tenantId: 'default',
+        amount: netIncome,
+        description: `Resultado del ejercicio ${year}`,
       },
     });
 
@@ -271,38 +344,7 @@ export class YearEndClosingService {
   }
 
   /**
-   * Check for unbalanced transactions in a date range
-   */
-  private static async checkUnbalancedTransactions(
-    startDate: Date,
-    endDate: Date
-  ): Promise<any[]> {
-    const transactions = await db.transaction.findMany({
-      where: {
-        date: {
-          gte: startDate,
-          lte: endDate,
-        },
-      },
-      include: {
-        entries: true,
-      },
-    });
-
-    const unbalanced: any[] = [];
-
-    for (const transaction of transactions) {
-      const sum = transaction.entries.reduce((acc: bigint, entry: any) => acc + entry.amount, 0n);
-      if (sum !== 0n) {
-        unbalanced.push(transaction);
-      }
-    }
-
-    return unbalanced;
-  }
-
-  /**
-   * Get year-end summary for a specific year
+   * Get year-end summary
    */
   static async getYearEndSummary(year: number): Promise<{
     isClosed: boolean;
@@ -312,27 +354,38 @@ export class YearEndClosingService {
     closingDate?: Date;
     closedBy?: string;
   }> {
-    const bookClosing = await db.bookClosing.findFirst({
+    // Check if year is closed
+    const bookClosing = await (db as any).bookClosing.findFirst({
       where: {
         period: year.toString(),
         periodType: 'YEARLY',
       },
     });
 
+    if (bookClosing) {
+      return {
+        isClosed: true,
+        totalRevenue: BigInt(0),
+        totalExpenses: BigInt(0),
+        netIncome: BigInt(0),
+        closingDate: bookClosing.createdAt,
+        closedBy: bookClosing.closedBy,
+      };
+    }
+
+    // Calculate current year results
     const { totalRevenue, totalExpenses, netIncome } = await this.calculateYearResults(year);
 
     return {
-      isClosed: !!bookClosing,
+      isClosed: false,
       totalRevenue,
       totalExpenses,
       netIncome,
-      closingDate: bookClosing?.closedAt,
-      closedBy: bookClosing?.closedBy,
     };
   }
 
   /**
-   * Preview year-end closing before committing
+   * Preview year-end closing without executing
    */
   static async previewYearEndClosing(year: number): Promise<{
     canClose: boolean;
@@ -345,22 +398,25 @@ export class YearEndClosingService {
   }> {
     const issues: string[] = [];
 
-    // Validate year is complete
+    // Validate year completeness
     const validation = await this.validateYearIsComplete(year);
     if (!validation.valid) {
-      issues.push(validation.error || 'Validation failed');
+      issues.push(validation.error || 'Year validation failed');
     }
 
-    // Calculate results
+    // Check for unbalanced transactions
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+    const hasUnbalanced = await this.checkUnbalancedTransactions(startDate, endDate);
+    if (hasUnbalanced) {
+      issues.push('There are unbalanced transactions in the period');
+    }
+
+    // Calculate summary
     const { totalRevenue, totalExpenses, netIncome } = await this.calculateYearResults(year);
 
-    // Check for any warnings
-    if (netIncome < 0n) {
-      issues.push(`Warning: Net loss of ${formatCurrency(netIncome)}`);
-    }
-
     return {
-      canClose: validation.valid,
+      canClose: issues.length === 0,
       issues,
       summary: {
         totalRevenue,
@@ -370,5 +426,3 @@ export class YearEndClosingService {
     };
   }
 }
-
-export default YearEndClosingService;

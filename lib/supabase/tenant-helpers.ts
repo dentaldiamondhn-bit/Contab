@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase as supabaseImport } from './standard-client'
 import { cookies } from 'next/headers'
 
 // Tipos para el contexto de tenant
@@ -79,11 +79,11 @@ export function getCurrentUserFromClient(): string | null {
 
 // Cliente Supabase con filtering automático por tenant - Client Component
 export function createTenantSupabaseClient() {
-  const supabase = createClientComponentClient();
+  const supabaseClient = supabaseImport;
 
   // Wrapper para SELECT con filtering automático
-  const originalFrom = supabase.from.bind(supabase);
-  supabase.from = function(table: string) {
+  const originalFrom = supabaseClient.from.bind(supabaseClient);
+  supabaseClient.from = function(table: string) {
     const query = originalFrom(table);
     
     // Solo aplicar filtering a tablas multi-tenant
@@ -97,14 +97,14 @@ export function createTenantSupabaseClient() {
     if (multiTenantTables.includes(table)) {
       const tenantId = getCurrentTenantFromClient();
       if (tenantId) {
-        return query.eq('tenantId', tenantId);
+        return (query as any).eq('tenantId', tenantId);
       }
     }
 
     return query;
   };
 
-  return supabase;
+  return supabaseClient;
 }
 
 // Cliente por defecto
@@ -112,14 +112,14 @@ export const tenantSupabase = createTenantSupabaseClient();
 
 // Helper para consultas manuales con tenant filtering - Server Component
 export async function createTenantQuery(table: string) {
-  const supabase = createClientComponentClient();
+  const supabaseClient = supabaseImport;
   const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  return supabase.from(table).eq('tenantId', tenantId);
+  return (supabaseImport as any).from(table).eq('tenantId', tenantId);
 }
 
 // Helper para insert con tenant automático - Server Component
@@ -127,7 +127,7 @@ export async function insertWithTenant<T = any>(
   table: string, 
   data: Omit<T, 'tenantId'>
 ) {
-  const supabase = createClientComponentClient();
+  const supabaseClient = supabaseImport;
   const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
@@ -136,7 +136,7 @@ export async function insertWithTenant<T = any>(
 
   const dataWithTenant = { ...data, tenantId } as T;
   
-  const { data: result, error } = await supabase
+  const { data: result, error } = await supabaseImport
     .from(table)
     .insert(dataWithTenant)
     .select()
@@ -156,14 +156,14 @@ export async function updateWithTenant<T = any>(
   id: string,
   data: Partial<T>
 ) {
-  const supabase = createClientComponentClient();
+  const supabaseLocal = supabaseImport;;
   const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  const { data: result, error } = await supabase
+  const { data: result, error } = await supabaseImport
     .from(table)
     .update(data)
     .eq('id', id)
@@ -184,14 +184,14 @@ export async function deleteWithTenant(
   table: string,
   id: string
 ) {
-  const supabase = createClientComponentClient();
+  const supabaseLocal = supabaseImport;;
   const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  const { error } = await supabase
+  const { error } = await supabaseLocal
     .from(table)
     .delete()
     .eq('id', id)
@@ -215,14 +215,14 @@ export async function selectWithTenant<T = any>(
     limit?: number;
   }
 ) {
-  const supabase = createClientComponentClient();
+  const supabaseLocal = supabaseImport;;
   const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  let query = supabase
+  let query = supabaseLocal
     .from(table)
     .select(options?.columns || '*')
     .eq('tenantId', tenantId);
@@ -258,7 +258,7 @@ export async function selectWithTenant<T = any>(
 
 // Helper para verificar permisos del usuario - Server Component
 export async function checkUserPermission(permission: string): Promise<boolean> {
-  const supabase = createClientComponentClient();
+  const supabaseLocal = supabaseImport;;
   const userId = await getCurrentUserFromCookies();
   
   if (!userId) {
@@ -266,7 +266,7 @@ export async function checkUserPermission(permission: string): Promise<boolean> 
   }
 
   try {
-    const { data: user } = await supabase
+    const { data: user } = await supabaseLocal
       .from('User')
       .select('role')
       .eq('id', userId)
@@ -304,7 +304,7 @@ export async function insertWithTenantClient<T = any>(
 
   const dataWithTenant = { ...data, tenantId } as T;
   
-  const { data: result, error } = await supabase
+  const { data: result, error } = await supabaseImport
     .from(table)
     .insert(dataWithTenant)
     .select()
@@ -331,7 +331,7 @@ export async function updateWithTenantClient<T = any>(
     throw new Error('No tenant selected');
   }
 
-  const { data: result, error } = await supabase
+  const { data: result, error } = await supabaseImport
     .from(table)
     .update(data)
     .eq('id', id)

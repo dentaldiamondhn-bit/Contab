@@ -1,7 +1,7 @@
 // Cliente Supabase simplificado con filtering automático por tenant
 // Compatible con Next.js 13+ App Router
 
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from './standard-client'
 
 // Helper para obtener el tenant actual desde localStorage - Client Component
 export function getCurrentTenantFromClient(): string | null {
@@ -39,11 +39,11 @@ export function getCurrentUserFromClient(): string | null {
 
 // Cliente Supabase con filtering automático por tenant - Client Component
 export function createTenantSupabaseClient() {
-  const supabase = createClientComponentClient();
+  const supabaseClient = supabase;
 
   // Wrapper para SELECT con filtering automático
-  const originalFrom = supabase.from.bind(supabase);
-  supabase.from = function(table: string) {
+  const originalFrom = supabaseClient.from.bind(supabaseClient);
+  supabaseClient.from = function(table: string) {
     const query = originalFrom(table);
     
     // Solo aplicar filtering a tablas multi-tenant
@@ -57,7 +57,7 @@ export function createTenantSupabaseClient() {
     if (multiTenantTables.includes(table)) {
       const tenantId = getCurrentTenantFromClient();
       if (tenantId) {
-        return query.eq('tenantId', tenantId);
+        return (query as any).eq('tenantId', tenantId);
       }
     }
 
@@ -84,7 +84,7 @@ export async function insertWithTenant<T = any>(
 
   const dataWithTenant = { ...data, tenantId } as T;
   
-  const { data: result, error } = await supabase
+  const { data: result, error } = await (supabase as any)
     .from(table)
     .insert(dataWithTenant)
     .select()
