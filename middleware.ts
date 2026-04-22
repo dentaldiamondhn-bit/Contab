@@ -1,94 +1,53 @@
-import { createClient } from '@supabase/supabase-js'
-import { NextResponse } from 'next/server'
-import type { NextRequest } from 'next/server'
+import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server';
+import { NextResponse } from 'next/server';
 
-// Crear cliente Supabase para middleware
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
-  }
-)
+// Definir rutas públicas (no requieren autenticación)
+const isPublicRoute = createRouteMatcher([
+  '/',
+  '/auth/login',
+  '/auth/register',
+  '/auth/reset-password',
+  '/auth/callback',
+  '/auth/sign-in',
+  '/auth/sign-up',
+  '/auth/forgot-password',
+  '/api/webhook(.*)',
+  '/api/clerk(.*)',
+]);
 
-// Configuración de rutas
-const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/auth/reset-password', '/auth/callback'];
-const PROTECTED_ROUTES = [
-  '/dashboard', '/companies', '/settings', '/account', 
-  '/reports', '/transactions', '/admin', '/multi-currency',
-  '/import-export', '/tax-reporting', '/closing', '/bank-accounts',
-  '/cai', '/isv', '/withholding', '/payment', '/patient-billing',
-  '/onboarding', '/setup'
-];
-const ADMIN_ROUTES = ['/admin'];
+// Definir rutas de admin
+const isAdminRoute = createRouteMatcher([
+  '/admin(.*)',
+]);
 
-// Rutas que no requieren autenticación (estáticas, API públicas)
-const EXCLUDED_PATHS = [
-  '/_next', '/api/auth', '/api/webhook', '/static', 
-  '/favicon.ico', '/robots.txt', '/sitemap.xml'
-];
-
-export async function middleware(req: NextRequest) {
+export default clerkMiddleware(async (auth, req) => {
   const { pathname } = req.nextUrl;
-  
-  // Verificar si la ruta está excluida
-  if (EXCLUDED_PATHS.some(path => pathname.startsWith(path))) {
+  const { userId, sessionClaims } = await auth();
+
+  // Si es ruta pública, permitir acceso
+  if (isPublicRoute(req)) {
     return NextResponse.next();
   }
-  
-  // Verificar autenticación para todas las rutas excepto públicas
-  const isPublicRoute = PUBLIC_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  );
-  
-  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  );
-  
-  const isAdminRoute = ADMIN_ROUTES.some(route => 
-    pathname === route || pathname.startsWith(route + '/')
-  );
-  
-  // Obtener sesión
-  const { data: { session } } = await supabase.auth.getSession();
-  
-  // Si es ruta pública, permitir acceso sin verificar autenticación
-  if (isPublicRoute) {
-    return NextResponse.next();
+
+  // Si no hay usuario autenticado y no es ruta pública, redirigir a sign-in
+  if (!userId) {
+    const signInUrl = new URL('/auth/sign-in', req.url);
+    signInUrl.searchParams.set('redirect_url', pathname);
+    return NextResponse.redirect(signInUrl);
   }
-  
-  // Si no hay sesión y es ruta protegida, redirigir a login
-  if (!session && (isProtectedRoute || isAdminRoute)) {
-    const loginUrl = new URL('/auth/login', req.url);
-    loginUrl.searchParams.set('redirectTo', pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-  
-  // Para rutas de administración, verificar rol
-  if (isAdminRoute && session?.user?.id) {
-    const { data: userData, error: userError } = await supabase
-      .from('users')
-      .select('role, tenant_id')
-      .eq('authId', session.user.id)
-      .single();
-    
-    if (userError || !userData) {
-      console.error('Error fetching user role:', userError);
-      return NextResponse.redirect(new URL('/dashboard', req.url));
-    }
-    
-    if (!['SUPER_ADMIN', 'ADMIN'].includes(userData.role)) {
+
+  // Para rutas de admin, verificar rol (metadata del usuario en Clerk)
+  if (isAdminRoute(req)) {
+    const role = sessionClaims?.metadata?.role;
+    if (!['SUPER_ADMIN', 'ADMIN'].includes(role as string)) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }
   }
-  
+
   // Obtener tenant seleccionado de la cookie
   let selectedTenant = null;
   const selectedTenantCookie = req.cookies.get('selected_tenant');
-  
+
   if (selectedTenantCookie?.value) {
     try {
       selectedTenant = JSON.parse(selectedTenantCookie.value);
@@ -96,25 +55,25 @@ export async function middleware(req: NextRequest) {
       console.error('Error parsing tenant cookie:', error);
     }
   }
-  
+
   // Crear respuesta con headers
   const response = NextResponse.next({
     request: {
       headers: req.headers,
     },
   });
-  
+
   // Inyectar headers para Server Components
-  if (session?.user) {
-    response.headers.set('x-user-id', session.user.id);
-    response.headers.set('x-user-email', session.user.email || '');
+  if (userId) {
+    response.headers.set('x-user-id', userId);
+    response.headers.set('x-user-email', sessionClaims?.email as string || '');
   }
-  
+
   if (selectedTenant?.id) {
     response.headers.set('x-tenant-id', selectedTenant.id);
     response.headers.set('x-tenant-name', selectedTenant.businessName || '');
   }
-  
+
   // Refrescar cookie de tenant
   if (selectedTenant) {
     response.cookies.set('selected_tenant', JSON.stringify(selectedTenant), {
@@ -124,19 +83,15 @@ export async function middleware(req: NextRequest) {
       maxAge: 60 * 60 * 24 * 30,
     });
   }
-  
+
   return response;
-}
+});
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - /api (API routes)
-     */
-    '/((?!_next/static|_next/image|favicon.ico|api).*)',
+    // Skip Next.js internals and all static files
+    '/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)',
+    // Always run for API routes
+    '/(api|trpc)(.*)',
   ],
-}
+};

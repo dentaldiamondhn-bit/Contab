@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { ClerkProvider } from "@clerk/nextjs";
 import { SidebarProvider } from "./contexts/SidebarContext";
 import { TenantProvider } from "@/lib/contexts/TenantContext";
 import { UserProvider } from "@/contexts/UserContext";
@@ -39,18 +40,20 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="es-HN">
-      <body className={inter.className}>
-        <UserProvider>
-          <TenantProvider initialTenants={mockTenants}>
-            <SidebarProvider>
-              <LayoutWrapper tenants={mockTenants}>
-                {children}
-              </LayoutWrapper>
-            </SidebarProvider>
-          </TenantProvider>
-        </UserProvider>
-      </body>
-    </html>
+    <ClerkProvider>
+      <html lang="es-HN">
+        <body className={inter.className}>
+          <UserProvider>
+            <TenantProvider initialTenants={mockTenants}>
+              <SidebarProvider>
+                <LayoutWrapper tenants={mockTenants}>
+                  {children}
+                </LayoutWrapper>
+              </SidebarProvider>
+            </TenantProvider>
+          </UserProvider>
+        </body>
+      </html>
+    </ClerkProvider>
   );
 }
