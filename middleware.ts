@@ -29,16 +29,16 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.next();
   }
 
-  // Si no hay usuario autenticado y no es ruta pública, redirigir a sign-in
+  // Si no hay usuario autenticado y no es ruta pública, redirigir a login
   if (!userId) {
-    const signInUrl = new URL('/auth/sign-in', req.url);
+    const signInUrl = new URL('/auth/login', req.url);
     signInUrl.searchParams.set('redirect_url', pathname);
     return NextResponse.redirect(signInUrl);
   }
 
   // Para rutas de admin, verificar rol (metadata del usuario en Clerk)
   if (isAdminRoute(req)) {
-    const role = sessionClaims?.metadata?.role;
+    const role = (sessionClaims?.metadata as any)?.role;
     if (!['SUPER_ADMIN', 'ADMIN'].includes(role as string)) {
       return NextResponse.redirect(new URL('/dashboard', req.url));
     }

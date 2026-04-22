@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/standard-client';
+import { SignOutButton } from '@clerk/nextjs';
 import { 
   User, 
   Settings, 
@@ -187,13 +188,9 @@ export default function AccountSettingsPage() {
     }
   };
 
-  const handleLogout = async () => {
-    try {
-      await supabase.auth.signOut();
-      window.location.href = '/auth/login';
-    } catch (error) {
-      console.error('Error logging out:', error);
-    }
+  const handleLogout = () => {
+    // Clerk SignOutButton will handle the actual logout
+    // The redirect will be handled by the afterSignOutUrl configuration
   };
 
   const uploadAvatar = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -265,10 +262,12 @@ export default function AccountSettingsPage() {
           </p>
         </div>
         
-        <Button variant="outline" onClick={handleLogout}>
-          <LogOut className="h-4 w-4 mr-2" />
-          Cerrar Sesión
-        </Button>
+        <SignOutButton>
+          <Button variant="outline">
+            <LogOut className="h-4 w-4 mr-2" />
+            Cerrar Sesión
+          </Button>
+        </SignOutButton>
       </div>
 
       {/* Alerts */}

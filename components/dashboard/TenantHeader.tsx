@@ -8,6 +8,7 @@ import { useTenant } from "@/lib/contexts/TenantContext";
 import { useUser } from "@/contexts/UserContext";
 import Link from "next/link";
 import { useState } from "react";
+import { SignOutButton } from "@clerk/nextjs";
 
 interface TenantHeaderProps {
   tenants: Array<{
@@ -50,9 +51,8 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
   };
 
   const handleLogout = () => {
-    // Aquí iría la lógica de logout
-    console.log('Cerrando sesión...');
-    window.location.href = '/login';
+    // Clerk SignOutButton will handle the actual logout
+    // The redirect will be handled by the afterSignOutUrl configuration
   };
 
   return (
@@ -156,13 +156,15 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                       </div>
 
                       <div className="border-t border-gray-200 mt-1 pt-1">
-                        <button
-                          onClick={handleLogout}
-                          className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
-                        >
-                          <LogOut className="h-4 w-4 mr-3" />
-                          Cerrar Sesión
-                        </button>
+                        <SignOutButton>
+                          <button
+                            onClick={handleLogout}
+                            className="flex items-center w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 cursor-pointer"
+                          >
+                            <LogOut className="h-4 w-4 mr-3" />
+                            Cerrar Sesión
+                          </button>
+                        </SignOutButton>
                       </div>
                     </div>
                   </div>

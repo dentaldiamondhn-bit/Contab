@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
+import InvoiceStats from "@/components/dashboard/InvoiceStats";
+import InventoryStats from "@/components/dashboard/InventoryStats";
 
 export default function DashboardPage() {
   const { currentTenant } = useTenant();
@@ -97,6 +99,16 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* Estadísticas de Facturación */}
+      {currentTenant && (
+        <InvoiceStats tenantId={currentTenant.id} />
+      )}
+
+      {/* Estadísticas de Inventario */}
+      {currentTenant && (
+        <InventoryStats tenantId={currentTenant.id} />
+      )}
 
       {/* Filtros de Empresas */}
       <div className="bg-white rounded-lg border border-gray-200 p-4 mb-6">
