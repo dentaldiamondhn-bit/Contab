@@ -1,3 +1,5 @@
+'use client';
+
 import { EnhancedTransactionForm } from '@/components/EnhancedTransactionForm';
 
 export default function TaxHelperDemoPage() {

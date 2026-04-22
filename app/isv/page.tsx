@@ -1,3 +1,5 @@
+'use client';
+
 import ISVTransactionForm from '@/components/ISVTransactionForm';
 import ISVReport from '@/components/ISVReport';
 
