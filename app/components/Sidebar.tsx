@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../contexts/SidebarContext';
+import { useUser } from '../../contexts/UserContext';
 
 interface NavItem {
   name: string;
@@ -18,6 +19,13 @@ const navigation: NavItem[] = [
     href: '/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>`,
     description: 'Resumen financiero general'
+  },
+  {
+    name: 'Administración',
+    href: '/admin',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+    description: 'Panel de administración',
+    badge: 'ADMIN'
   },
   {
     name: 'Empresas',
@@ -62,6 +70,7 @@ const navigation: NavItem[] = [
 export default function Sidebar() {
   const { collapsed, toggleCollapsed } = useSidebar();
   const pathname = usePathname();
+  const { user } = useUser();
 
   const isActive = (href: string) => {
     if (href === '/') {
@@ -70,13 +79,23 @@ export default function Sidebar() {
     return pathname.startsWith(href);
   };
 
+  // Filter navigation based on user role
+  const filteredNavigation = navigation.filter(item => {
+    // Admin routes only for SUPER_ADMIN and ADMIN
+    if (item.href === '/admin') {
+      return user && ['SUPER_ADMIN', 'ADMIN'].includes(user.role);
+    }
+    // All other routes for authenticated users
+    return true;
+  });
+
   return (
     <div className={`bg-white border-r border-gray-200 transition-all duration-300 flex flex-col h-full sticky top-0 ${
       collapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Navigation - Sin header con logo */}
       <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
-        {navigation.map((item) => {
+        {filteredNavigation.map((item) => {
           const active = isActive(item.href);
           return (
             <Link

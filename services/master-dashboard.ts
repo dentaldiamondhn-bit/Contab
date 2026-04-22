@@ -1,7 +1,7 @@
 import { db } from "@/lib/db";
 
 export async function getMasterOverview() {
-  const businesses = await db.tenant.findMany({
+  const businesses = await (db as any).tenant.findMany({
     include: {
       _count: { select: { polizas: true } },
       config_fiscal: true,

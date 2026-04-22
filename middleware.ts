@@ -2,7 +2,7 @@ import { createClient } from '@supabase/supabase-js'
 import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
-// Crear cliente Supabase para middleware (usar service role key para operaciones de servidor)
+// Crear cliente Supabase para middleware
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
@@ -14,38 +14,78 @@ const supabase = createClient(
   }
 )
 
+// Configuración de rutas
+const PUBLIC_ROUTES = ['/auth/login', '/auth/register', '/auth/reset-password', '/auth/callback'];
+const PROTECTED_ROUTES = [
+  '/dashboard', '/companies', '/settings', '/account', 
+  '/reports', '/transactions', '/admin', '/multi-currency',
+  '/import-export', '/tax-reporting', '/closing', '/bank-accounts',
+  '/cai', '/isv', '/withholding', '/payment', '/patient-billing',
+  '/onboarding', '/setup'
+];
+const ADMIN_ROUTES = ['/admin'];
+
+// Rutas que no requieren autenticación (estáticas, API públicas)
+const EXCLUDED_PATHS = [
+  '/_next', '/api/auth', '/api/webhook', '/static', 
+  '/favicon.ico', '/robots.txt', '/sitemap.xml'
+];
+
 export async function middleware(req: NextRequest) {
-  // 🔓 MODO DESARROLLO: Autenticación deshabilitada temporalmente
-  const DEV_MODE = true;
-  
-  if (DEV_MODE) {
-    // En modo desarrollo, permitir acceso a todas las rutas sin autenticación
-    return NextResponse.next();
-  }
-  
-  // Rutas que no necesitan sidebar (públicas)
-  const publicRoutes = ['/auth/login', '/auth/register', '/auth/reset-password'];
-  
-  // Rutas que necesitan sidebar (protegidas)
-  const protectedRoutes = ['/dashboard', '/companies', '/settings', '/account/settings', '/reports'];
-  
   const { pathname } = req.nextUrl;
   
-  // Determinar qué layout usar
-  if (pathname.startsWith('/auth/') || publicRoutes.includes(pathname)) {
-    // Para rutas de autenticación o públicas, usar layout sin sidebar
+  // Verificar si la ruta está excluida
+  if (EXCLUDED_PATHS.some(path => pathname.startsWith(path))) {
     return NextResponse.next();
   }
-
-  // Para rutas protegidas, verificar autenticación
+  
+  // Verificar autenticación para todas las rutas excepto públicas
+  const isPublicRoute = PUBLIC_ROUTES.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  );
+  
+  const isProtectedRoute = PROTECTED_ROUTES.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  );
+  
+  const isAdminRoute = ADMIN_ROUTES.some(route => 
+    pathname === route || pathname.startsWith(route + '/')
+  );
+  
+  // Obtener sesión
   const { data: { session } } = await supabase.auth.getSession();
   
-  if (!session && !publicRoutes.includes(pathname) && !pathname.startsWith('/auth/')) {
-    // Si no está autenticado y no es ruta pública, redirigir a login
-    return NextResponse.redirect(new URL('/auth/login', req.url));
+  // Si es ruta pública, permitir acceso sin verificar autenticación
+  if (isPublicRoute) {
+    return NextResponse.next();
   }
   
-  // Para rutas protegidas y autenticadas, obtener el tenant seleccionado
+  // Si no hay sesión y es ruta protegida, redirigir a login
+  if (!session && (isProtectedRoute || isAdminRoute)) {
+    const loginUrl = new URL('/auth/login', req.url);
+    loginUrl.searchParams.set('redirectTo', pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+  
+  // Para rutas de administración, verificar rol
+  if (isAdminRoute && session?.user?.id) {
+    const { data: userData, error: userError } = await supabase
+      .from('users')
+      .select('role, tenant_id')
+      .eq('authId', session.user.id)
+      .single();
+    
+    if (userError || !userData) {
+      console.error('Error fetching user role:', userError);
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+    
+    if (!['SUPER_ADMIN', 'ADMIN'].includes(userData.role)) {
+      return NextResponse.redirect(new URL('/dashboard', req.url));
+    }
+  }
+  
+  // Obtener tenant seleccionado de la cookie
   let selectedTenant = null;
   const selectedTenantCookie = req.cookies.get('selected_tenant');
   
@@ -56,35 +96,36 @@ export async function middleware(req: NextRequest) {
       console.error('Error parsing tenant cookie:', error);
     }
   }
-
-  // Crear la respuesta y añadir headers
+  
+  // Crear respuesta con headers
   const response = NextResponse.next({
     request: {
       headers: req.headers,
     },
-  })
-
+  });
+  
   // Inyectar headers para Server Components
   if (session?.user) {
     response.headers.set('x-user-id', session.user.id);
+    response.headers.set('x-user-email', session.user.email || '');
   }
-
+  
   if (selectedTenant?.id) {
     response.headers.set('x-tenant-id', selectedTenant.id);
+    response.headers.set('x-tenant-name', selectedTenant.businessName || '');
   }
-
-  // Inyectar headers para Client Components (a través de cookies)
+  
+  // Refrescar cookie de tenant
   if (selectedTenant) {
     response.cookies.set('selected_tenant', JSON.stringify(selectedTenant), {
-      httpOnly: false, // Permitir acceso desde JavaScript
+      httpOnly: false,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
-      maxAge: 60 * 60 * 24 * 30, // 30 días
+      maxAge: 60 * 60 * 24 * 30,
     });
   }
-
-  // Para rutas protegidas y autenticadas, usar layout con sidebar
-  return response
+  
+  return response;
 }
 
 export const config = {

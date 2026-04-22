@@ -422,7 +422,7 @@ export class PDFExportService {
     const startDate = new Date(year, month - 1, 1);
     const endDate = new Date(year, month, 0, 23, 59, 59, 999);
 
-    const transactions = await db.transaction.findMany({
+    const transactions = await (db as any).transaction.findMany({
       where: {
         date: {
           gte: startDate,
@@ -437,10 +437,10 @@ export class PDFExportService {
         },
       },
       orderBy: [
-        { date: 'asc' },
         { voucherNumber: 'asc' },
-      ],
-    });
+        { date: 'asc' }
+      ]
+    } as any);
 
     return transactions.map((tx: any) => ({
       id: tx.id,

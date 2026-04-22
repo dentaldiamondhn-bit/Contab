@@ -24,12 +24,13 @@ export async function createSampleTaxTransactions() {
     // Create expense account if it doesn't exist
     let labMaterialsAccount = expenseAccount;
     if (!labMaterialsAccount) {
-      labMaterialsAccount = await prisma.account.create({
+      labMaterialsAccount = await (prisma as any).account.create({
         data: {
           name: 'Materiales de Laboratorio',
           code: '5101',
           type: 'EXPENSE',
-          description: 'Compras de materiales y suministros de laboratorio'
+          description: 'Compras de materiales y suministros de laboratorio',
+          tenantId: 'default'
         }
       });
     }
@@ -96,7 +97,7 @@ export async function createSampleTaxTransactions() {
 
     // Create sales transactions
     for (const transaction of salesTransactions) {
-      await prisma.transaction.create({
+      const createdTransaction = await (prisma as any).transaction.create({
         data: {
           date: transaction.date,
           description: transaction.description,
@@ -104,20 +105,25 @@ export async function createSampleTaxTransactions() {
           voucherNumber: transaction.voucherNumber,
           currency: 'HNL',
           exchangeRate: 1.0,
-          functionalCurrency: 'HNL',
           totalAmount: BigInt(transaction.entries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0) * 100),
-          functionalAmount: BigInt(transaction.entries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0) * 100),
-          entries: {
-            create: transaction.entries.map(entry => ({
-              accountId: entry.accountId,
-              amount: BigInt(entry.amount * 100),
-              originalAmount: BigInt(entry.amount * 100),
-              currency: 'HNL',
-              exchangeRate: 1.0
-            }))
-          }
+          tenantId: 'default'
         }
       });
+
+      // Create journal entries separately
+      for (const entry of transaction.entries) {
+        await (prisma as any).journalEntry.create({
+          data: {
+            transactionId: createdTransaction.id,
+            accountId: entry.accountId,
+            amount: BigInt(entry.amount * 100),
+            originalAmount: BigInt(entry.amount * 100),
+            currency: 'HNL',
+            exchangeRate: 1.0,
+            tenantId: 'default'
+          }
+        });
+      }
     }
 
     // Create purchase transactions (we need a cash account first)
@@ -126,18 +132,19 @@ export async function createSampleTaxTransactions() {
     });
 
     if (!cashAccount) {
-      cashAccount = await prisma.account.create({
+      cashAccount = await (prisma as any).account.create({
         data: {
           name: 'Caja',
           code: '1001',
           type: 'ASSET',
+          tenantId: 'default',
           description: 'Caja general'
         }
       });
     }
 
     for (const transaction of purchaseTransactions) {
-      await prisma.transaction.create({
+      const createdTransaction = await prisma.transaction.create({
         data: {
           date: transaction.date,
           description: transaction.description,
@@ -145,20 +152,25 @@ export async function createSampleTaxTransactions() {
           voucherNumber: transaction.voucherNumber,
           currency: 'HNL',
           exchangeRate: 1.0,
-          functionalCurrency: 'HNL',
           totalAmount: BigInt(transaction.entries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0) * 100),
-          functionalAmount: BigInt(transaction.entries.reduce((sum, entry) => sum + Math.abs(entry.amount), 0) * 100),
-          entries: {
-            create: transaction.entries.map(entry => ({
-              accountId: entry.accountId === 'cash-account-id' ? cashAccount!.id : entry.accountId,
-              amount: BigInt(entry.amount * 100),
-              originalAmount: BigInt(entry.amount * 100),
-              currency: 'HNL',
-              exchangeRate: 1.0
-            }))
-          }
+          tenantId: 'default'
         }
       });
+
+      // Create journal entries separately
+      for (const entry of transaction.entries) {
+        await prisma.journalEntry.create({
+          data: {
+            transactionId: createdTransaction.id,
+            accountId: entry.accountId === 'cash-account-id' ? cashAccount!.id : entry.accountId,
+            amount: BigInt(entry.amount * 100),
+            originalAmount: BigInt(entry.amount * 100),
+            currency: 'HNL',
+            exchangeRate: 1.0,
+            tenantId: 'default'
+          }
+        });
+      }
     }
 
     console.log('Sample tax transactions created successfully');

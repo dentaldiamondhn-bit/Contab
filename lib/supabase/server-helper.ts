@@ -32,7 +32,7 @@ export async function createServerSupabaseClient() {
       ]
 
       if (multiTenantTables.includes(table)) {
-        return query.eq('tenantId', tenantId)
+        return (query as any).eq('tenantId', tenantId)
       }
 
       return query

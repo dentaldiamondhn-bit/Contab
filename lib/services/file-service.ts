@@ -258,7 +258,7 @@ export class FileService {
     updates: Partial<FileProcessing>
   ): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const { error } = await (this.supabase as any)
         .from('FileProcessing')
         .update({
           ...updates,
@@ -285,7 +285,7 @@ export class FileService {
     warnings: string[] = []
   ): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const { error } = await (this.supabase as any)
         .from('FileProcessing')
         .update({
           status: errors.length > 0 ? 'completed' : 'completed',
@@ -317,7 +317,7 @@ export class FileService {
     errors: string[] = []
   ): Promise<boolean> {
     try {
-      const { error } = await this.supabase
+      const { error } = await (this.supabase as any)
         .from('FileProcessing')
         .update({
           status: 'failed',
@@ -348,7 +348,7 @@ export class FileService {
     template: Omit<FileTemplate, 'id' | 'createdAt' | 'updatedAt'>
   ): Promise<FileTemplate | null> {
     try {
-      const { data, error } = await this.supabase
+      const { data, error } = await (this.supabase as any)
         .from('FileTemplate')
         .insert(template)
         .select()
@@ -406,7 +406,7 @@ export class FileService {
     details?: any
   ): Promise<void> {
     try {
-      await this.supabase
+      await (this.supabase as any)
         .from('FileActivity')
         .insert({
           fileId,

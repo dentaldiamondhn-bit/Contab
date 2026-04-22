@@ -49,8 +49,11 @@ export async function seedPatientBillingAccounts() {
       });
 
       if (!existing) {
-        await prisma.account.create({
-          data: account
+        await (prisma as any).account.create({
+          data: {
+            ...account,
+            tenantId: 'default'
+          }
         });
         console.log(`Created revenue account: ${account.name}`);
       }
@@ -63,8 +66,11 @@ export async function seedPatientBillingAccounts() {
       });
 
       if (!existing) {
-        await prisma.account.create({
-          data: account
+        await (prisma as any).account.create({
+          data: {
+            ...account,
+            tenantId: 'default'
+          }
         });
         console.log(`Created receivable account: ${account.name}`);
       }

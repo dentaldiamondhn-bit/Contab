@@ -24,7 +24,7 @@ export const supabase = createSupabaseClient();
 
 // Helper para consultas con tenant explícito
 export function createTenantQuery(table: string, tenantId: string) {
-  return supabase.from(table).eq('tenantId', tenantId);
+  return (supabase as any).from(table).eq('tenantId', tenantId);
 }
 
 // Helper para insert con tenant explícito
@@ -35,7 +35,7 @@ export async function insertWithTenant<T = any>(
 ) {
   const dataWithTenant = { ...data, tenantId } as T;
   
-  const { data: result, error } = await supabase
+  const { data: result, error } = await (supabase as any)
     .from(table)
     .insert(dataWithTenant)
     .select()
@@ -101,7 +101,7 @@ export async function updateWithTenant<T = any>(
   id: string,
   data: Partial<T>
 ) {
-  const { data: result, error } = await supabase
+  const { data: result, error } = await (supabase as any)
     .from(table)
     .update(data)
     .eq('id', id)

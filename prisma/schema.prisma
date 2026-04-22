@@ -90,6 +90,7 @@ model Tenant {
   // Relations
   files           File[]
   templates        FileTemplate[]
+  users           User[]
 
   @@map("Tenant")
 }
@@ -204,11 +205,15 @@ model User {
   authId    String?  @unique @map("auth_id")
   firstName String?  @map("first_name")
   lastName  String?  @map("last_name")
-  role      String   @default("user")
+  role      String   @default("user") // SUPER_ADMIN, ADMIN, MANAGER, USER, VIEWER
   isActive  Boolean  @default(true) @map("is_active")
   password  String?
+  tenantId  String?  @map("tenant_id") // null para SUPER_ADMIN
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant Tenant? @relation(fields: [tenantId], references: [id], onDelete: SetNull)
 
   @@map("users")
 }

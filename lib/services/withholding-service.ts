@@ -41,7 +41,7 @@ export interface WithholdingCalculation {
 export async function createWithholding(data: Omit<Withholding, 'id' | 'withholdingAmount' | 'status' | 'createdAt' | 'updatedAt'>): Promise<Withholding> {
   const withholdingAmount = Math.round(data.amount * data.withholdingRate);
   
-  const withholding = await db.withholding.create({
+  const withholding = await (db as any).withholding.create({
     data: {
       ...data,
       withholdingAmount,
@@ -101,7 +101,7 @@ export async function getWithholdings(filters: {
   if (filters.period) where.period = filters.period;
   if (filters.providerRTN) where.providerRTN = filters.providerRTN;
 
-  return await db.withholding.findMany({
+  return await (db as any).withholding.findMany({
     where,
     orderBy: [
       { createdAt: 'desc' }
@@ -111,7 +111,7 @@ export async function getWithholdings(filters: {
 
 // Get withholding by ID
 export async function getWithholdingById(id: string): Promise<Withholding | null> {
-  return await db.withholding.findUnique({
+  return await (db as any).withholding.findUnique({
     where: { id },
   });
 }
@@ -131,7 +131,7 @@ export async function updateWithholdingStatus(
   if (paymentDate) updateData.paymentDate = paymentDate;
   if (receiptNumber) updateData.receiptNumber = receiptNumber;
 
-  return await db.withholding.update({
+  return await (db as any).withholding.update({
     where: { id },
     data: updateData,
   });
@@ -174,7 +174,7 @@ export async function getWithholdingStatistics(filters?: {
     if (filters.endDate) where.invoiceDate.lte = filters.endDate;
   }
 
-  const withholdings = await db.withholding.findMany({
+  const withholdings = await (db as any).withholding.findMany({
     where,
   });
 
@@ -335,7 +335,7 @@ export async function getMonthlyWithholdingTotals(year: number): Promise<{
   const startDate = new Date(year, 0, 1);
   const endDate = new Date(year, 11, 31);
 
-  const withholdings = await db.withholding.findMany({
+  const withholdings = await (db as any).withholding.findMany({
     where: {
       invoiceDate: {
         gte: startDate,

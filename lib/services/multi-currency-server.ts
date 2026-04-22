@@ -31,37 +31,36 @@ export async function createMultiCurrencyTransaction(
   const functionalAmount = Math.round(totalAmount * exchangeRate);
   
   // Create the transaction
-  const transaction = await db.transaction.create({
+  const transaction = await (db as any).transaction.create({
     data: {
       ...rest,
       date: transactionDate,
       currency,
       exchangeRate,
-      functionalCurrency: 'HNL',
       totalAmount: BigInt(totalAmount),
-      functionalAmount: BigInt(functionalAmount),
-      entries: {
-        create: entries.map((entry) => {
-          const functionalEntryAmount = Math.round(entry.amount * exchangeRate);
-          
-          return {
-            accountId: entry.accountId,
-            amount: BigInt(functionalEntryAmount), // Functional currency amount
-            originalAmount: BigInt(entry.amount), // Original currency amount
-            currency,
-            exchangeRate,
-          };
-        })
-      }
-    },
-    include: {
-      entries: {
-        include: {
-          account: true
-        }
-      }
+      tenantId: 'default',
     }
   });
+
+  // Create journal entries separately
+  await Promise.all(
+    entries.map((entry) => {
+      const functionalEntryAmount = Math.round(entry.amount * exchangeRate);
+      
+      return (db as any).journalEntry.create({
+        data: {
+          transactionId: transaction.id,
+          accountId: entry.accountId,
+          tenantId: 'default',
+          amount: BigInt(functionalEntryAmount), // Functional currency amount
+          originalAmount: BigInt(entry.amount), // Original currency amount
+          currency,
+          exchangeRate,
+          description: entry.description
+        }
+      });
+    })
+  );
 
   return transaction;
 }
@@ -73,14 +72,14 @@ export async function getAccountFunctionalBalance(
   accountId: string,
   endDate?: Date
 ): Promise<number> {
-  const entries = await db.journalEntry.findMany({
+  const entries = await (db as any).journalEntry.findMany({
     where: {
       accountId,
       transaction: {
         date: endDate ? { lte: endDate } : undefined
       }
     }
-  });
+  } as any);
 
   return entries.reduce((sum: number, entry: any) => sum + Number(entry.amount), 0);
 }

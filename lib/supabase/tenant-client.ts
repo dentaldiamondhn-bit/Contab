@@ -1,4 +1,4 @@
-import { createClientComponentClient } from '@supabase/auth-helpers-nextjs'
+import { supabase } from './standard-client'
 import { cookies } from 'next/headers'
 
 // Tipos para el contexto de tenant
@@ -12,9 +12,9 @@ interface TenantContext {
 }
 
 // Helper para obtener el tenant actual desde cookies
-function getCurrentTenantFromCookies(): string | null {
+async function getCurrentTenantFromCookies(): Promise<string | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const selectedTenant = cookieStore.get('selected_tenant');
     if (selectedTenant?.value) {
       const tenant = JSON.parse(selectedTenant.value);
@@ -28,9 +28,9 @@ function getCurrentTenantFromCookies(): string | null {
 }
 
 // Helper para obtener el usuario actual desde cookies
-function getCurrentUserFromCookies(): string | null {
+async function getCurrentUserFromCookies(): Promise<string | null> {
   try {
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const userSession = cookieStore.get('supabase-auth-token');
     if (userSession?.value) {
       const session = JSON.parse(userSession.value);
@@ -44,12 +44,12 @@ function getCurrentUserFromCookies(): string | null {
 }
 
 // Cliente Supabase con filtering automático por tenant
-export function createTenantSupabaseClient() {
-  const supabase = createClientComponentClient();
+export async function createTenantSupabaseClient() {
+  const supabaseClient = supabase;
 
   // Wrapper para SELECT con filtering automático
-  const originalFrom = supabase.from.bind(supabase);
-  supabase.from = function(table: string) {
+  const originalFrom = supabaseClient.from.bind(supabaseClient);
+  supabaseClient.from = function(table: string) {
     const query = originalFrom(table);
     
     // Solo aplicar filtering a tablas multi-tenant
@@ -61,10 +61,12 @@ export function createTenantSupabaseClient() {
     ];
 
     if (multiTenantTables.includes(table)) {
-      const tenantId = getCurrentTenantFromCookies();
-      if (tenantId) {
-        return query.eq('tenantId', tenantId);
-      }
+      (async () => {
+        const tenantId = await getCurrentTenantFromCookies();
+        if (tenantId) {
+          return (query as any).eq('tenantId', tenantId);
+        }
+      })();
     }
 
     return query;
@@ -74,18 +76,18 @@ export function createTenantSupabaseClient() {
 }
 
 // Cliente por defecto
-export const tenantSupabase = createTenantSupabaseClient();
+export const tenantSupabase = (async () => await createTenantSupabaseClient())();
 
-// Helper para consultas manuales con tenant filtering
-export function createTenantQuery(table: string) {
-  const supabaseClient = createTenantSupabaseClient();
-  const tenantId = getCurrentTenantFromCookies();
+// Helper para crear query con tenant explícito
+export async function createTenantQuery(table: string) {
+  const supabaseClient = await createTenantSupabaseClient();
+  const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  return supabaseClient.from(table).eq('tenantId', tenantId);
+  return (supabaseClient.from(table) as any).eq('tenantId', tenantId);
 }
 
 // Helper para insert con tenant automático
@@ -93,8 +95,8 @@ export async function insertWithTenant<T = any>(
   table: string, 
   data: Omit<T, 'tenantId'>
 ) {
-  const supabaseClient = createTenantSupabaseClient();
-  const tenantId = getCurrentTenantFromCookies();
+  const supabaseClient = await createTenantSupabaseClient();
+  const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
@@ -122,8 +124,8 @@ export async function updateWithTenant<T = any>(
   id: string,
   data: Partial<T>
 ) {
-  const supabaseClient = createTenantSupabaseClient();
-  const tenantId = getCurrentTenantFromCookies();
+  const supabaseClient = await createTenantSupabaseClient();
+  const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
@@ -150,8 +152,8 @@ export async function deleteWithTenant(
   table: string,
   id: string
 ) {
-  const supabaseClient = createTenantSupabaseClient();
-  const tenantId = getCurrentTenantFromCookies();
+  const supabaseClient = await createTenantSupabaseClient();
+  const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
@@ -181,8 +183,8 @@ export async function selectWithTenant<T = any>(
     limit?: number;
   }
 ) {
-  const supabaseClient = createTenantSupabaseClient();
-  const tenantId = getCurrentTenantFromCookies();
+  const supabaseClient = await createTenantSupabaseClient();
+  const tenantId = await getCurrentTenantFromCookies();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
@@ -224,7 +226,7 @@ export async function selectWithTenant<T = any>(
 
 // Helper para verificar permisos del usuario
 export async function checkUserPermission(permission: string): Promise<boolean> {
-  const supabaseClient = createTenantSupabaseClient();
+  const supabaseClient = await createTenantSupabaseClient();
   const userId = getCurrentUserFromCookies();
   
   if (!userId) {

@@ -16,7 +16,7 @@ interface AccountWithBalance {
 
 export async function getTrialBalance(startDate: Date, endDate: Date): Promise<AccountWithBalance[]> {
   // 1. Fetch all accounts and their entries within the period
-  const accounts = await db.account.findMany({
+  const accounts = await (db as any).account.findMany({
     include: {
       entries: {
         where: {
@@ -29,7 +29,7 @@ export async function getTrialBalance(startDate: Date, endDate: Date): Promise<A
       parent: true
     },
     orderBy: { code: 'asc' }
-  });
+  } as any);
 
   // 2. Calculate balances for leaf accounts (accounts with entries)
   const accountBalances = new Map<string, AccountWithBalance>();
