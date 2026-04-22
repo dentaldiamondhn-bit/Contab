@@ -86,6 +86,17 @@ const regimenesTributarios = [
 ];
 
 export default function CompaniesPage() {
+  // Tooltip wrapper component
+  const TooltipWrapper = ({ title, children }: { title: string; children: React.ReactNode }) => {
+    return (
+      <div className="group relative inline-block">
+        {children}
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 bg-gray-900 text-white text-xs rounded opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+          {title}
+        </div>
+      </div>
+    );
+  };
   const router = useRouter();
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(false);
@@ -697,40 +708,48 @@ export default function CompaniesPage() {
 
               <div className="flex justify-between pt-2 border-t">
                 <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => router.push(`/companies/${company.id}`)}
-                  >
-                    <Eye className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleEdit(company)}
-                  >
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => toggleCompanyStatus(company.id)}
-                  >
-                    {company.is_active ? (
-                      <AlertTriangle className="h-4 w-4 text-yellow-600" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-green-600" />
-                    )}
-                  </Button>
+                  <TooltipWrapper title={`Ver detalles de ${company.business_name}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push(`/companies/${company.id}`)}
+                    >
+                      <Eye className="h-4 w-4" />
+                    </Button>
+                  </TooltipWrapper>
+                  <TooltipWrapper title={`Editar ${company.business_name}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleEdit(company)}
+                    >
+                      <Edit className="h-4 w-4" />
+                    </Button>
+                  </TooltipWrapper>
+                  <TooltipWrapper title={`${company.is_active ? 'Desactivar' : 'Activar'} ${company.business_name}`}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => toggleCompanyStatus(company.id)}
+                    >
+                      {company.is_active ? (
+                        <AlertTriangle className="h-4 w-4 text-yellow-600" />
+                      ) : (
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                      )}
+                    </Button>
+                  </TooltipWrapper>
                 </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleDelete(company.id)}
-                  className="text-red-600 hover:text-red-700"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
+                <TooltipWrapper title={`Eliminar ${company.business_name}`}>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleDelete(company.id)}
+                    className="text-red-600 hover:text-red-700"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </TooltipWrapper>
               </div>
             </CardContent>
           </Card>
