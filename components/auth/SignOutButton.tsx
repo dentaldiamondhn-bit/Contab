@@ -3,7 +3,7 @@
 import { SignOutButton } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 
-export default function SignOutButton() {
+export default function CustomSignOutButton() {
   const router = useRouter();
 
   return (
