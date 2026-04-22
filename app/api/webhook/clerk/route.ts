@@ -11,7 +11,7 @@ export async function POST(req: Request) {
   }
 
   // Get the headers
-  const headerPayload = headers();
+  const headerPayload = await headers();
   const svix_id = headerPayload.get('svix-id');
   const svix_timestamp = headerPayload.get('svix-timestamp');
   const svix_signature = headerPayload.get('svix-signature');
@@ -72,7 +72,8 @@ export async function POST(req: Request) {
           where: { authId: id },
           data: {
             email: primaryEmail,
-            name: `${first_name || ''} ${last_name || ''}`.trim(),
+            firstName: first_name || null,
+            lastName: last_name || null,
             role: role,
             tenantId: public_metadata?.tenantId || existingUser.tenantId,
           },
@@ -84,7 +85,8 @@ export async function POST(req: Request) {
           data: {
             authId: id,
             email: primaryEmail,
-            name: `${first_name || ''} ${last_name || ''}`.trim(),
+            firstName: first_name || null,
+            lastName: last_name || null,
             role: role,
             tenantId: public_metadata?.tenantId || 'default-tenant',
           },

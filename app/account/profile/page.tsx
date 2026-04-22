@@ -6,6 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { useRouter } from 'next/navigation';
+import { SignOutButton } from '@clerk/nextjs';
 import { 
   User, 
   Mail, 
@@ -48,11 +50,16 @@ interface UserProfile {
 }
 
 export default function AccountSettingsPage() {
+  const router = useRouter();
   const [showPassword, setShowPassword] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleLogout = () => {
+    router.push('/auth/login');
+  };
   
   const [userData, setUserData] = useState<UserProfile | null>(null);
   const [formData, setFormData] = useState({
@@ -426,10 +433,12 @@ export default function AccountSettingsPage() {
                 <Bell className="h-4 w-4 mr-2" />
                 Notificaciones
               </Button>
+              <SignOutButton>
               <Button variant="outline" className="w-full justify-start text-red-600 hover:text-red-700">
                 <LogOut className="h-4 w-4 mr-2" />
                 Cerrar Sesión
               </Button>
+            </SignOutButton>
             </CardContent>
           </Card>
         </div>

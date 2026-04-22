@@ -40,7 +40,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <ClerkProvider>
+    <ClerkProvider
+      appearance={{
+        elements: {
+          formButtonPrimary: "bg-blue-600 hover:bg-blue-700",
+          footerActionLink: "text-blue-600 hover:text-blue-800",
+        },
+      }}
+      signInUrl="/auth/login"
+      signUpUrl="/auth/sign-up"
+      afterSignOutUrl="/auth/login"
+    >
       <html lang="es-HN">
         <body className={inter.className}>
           <UserProvider>
