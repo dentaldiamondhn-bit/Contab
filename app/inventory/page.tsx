@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/badge';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { 
   Package, 
   Plus, 
@@ -30,8 +31,17 @@ import {
   Boxes,
   ShoppingCart,
   Tag,
-  List
+  List,
+  X,
+  ChevronDown,
+  ChevronUp
 } from 'lucide-react';
+import { 
+  formatDateForInput, 
+  formatDateForDisplay, 
+  formatDateRange, 
+  isDateExpired 
+} from '@/lib/date-utils';
 import { supabase } from '@/lib/supabase/standard-client';
 
 interface Product {
@@ -44,11 +54,16 @@ interface Product {
   unit: string;
   cost: number;
   price: number;
+  discountPrice?: number;
+  isDiscount?: boolean;
   stock: number;
   minstock: number;
   maxstock: number;
   tags: string[];
   isActive: boolean;
+  expirationDate?: string;
+  promotionStartDate?: string;
+  promotionEndDate?: string;
   createdat: string;
   updatedat: string;
 }
@@ -74,10 +89,13 @@ interface NewProductData {
   unit: string;
   cost: string;
   price: string;
+  discountPrice: string;
+  isDiscount: boolean;
   precioTotal: string;
   nuevoStock: string;
-  minStock: string;
+  minstock: string;
   tags: string[];
+  expirationDate: string;
 }
 
 export default function InventoryPage() {
@@ -103,10 +121,13 @@ export default function InventoryPage() {
     unit: '',
     cost: '',
     price: '',
+    discountPrice: '',
+    isDiscount: false,
     precioTotal: '',
     nuevoStock: '0',
-    minStock: '0',
-    tags: []
+    minstock: '0',
+    tags: [],
+    expirationDate: ''
   });
 
   const [movementData, setMovementData] = useState({
@@ -125,8 +146,96 @@ export default function InventoryPage() {
     endDate: ''
   });
 
-  // Predefined categories and units
-  const categories = [
+  // Category management state
+  const [showCategoryDialog, setShowCategoryDialog] = useState(false);
+  const [categoryData, setCategoryData] = useState({
+    name: '',
+    description: ''
+  });
+  const [editingCategory, setEditingCategory] = useState<string | null>(null);
+
+  // Package management state
+  const [showPackageDialog, setShowPackageDialog] = useState(false);
+  const [packageData, setPackageData] = useState({
+    name: '',
+    description: '',
+    price: '',
+    promotionprice: '',
+    ispromotion: false,
+    selectedProducts: [] as Array<{id: string, name: string, quantity: number}>
+  });
+  const [packages, setPackages] = useState<any[]>([]);
+  const [editingPackage, setEditingPackage] = useState<any>(null);
+  const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(true);
+  const [activeTab, setActiveTab] = useState<'inventory' | 'packages' | 'promotions'>('inventory');
+  const [showPromotionDialog, setShowPromotionDialog] = useState(false);
+  const [selectedPromotionProduct, setSelectedPromotionProduct] = useState<Product | null>(null);
+  const [selectedPromotionPackage, setSelectedPromotionPackage] = useState<any>(null);
+  const [promotionTargetType, setPromotionTargetType] = useState<'product' | 'package'>('product');
+  const [productsExpanded, setProductsExpanded] = useState(false);
+  const [packagesExpanded, setPackagesExpanded] = useState(false);
+  const [promotionData, setPromotionData] = useState({
+    discountPrice: '',
+    isDiscount: false,
+    promotionStartDate: '',
+    promotionEndDate: ''
+  });
+
+  // Debug editing state changes
+  React.useEffect(() => {
+    console.log('Editing category changed:', editingCategory);
+    console.log('Category data:', categoryData);
+  }, [editingCategory, categoryData]);
+
+  // Load packages from database
+  const loadPackages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('Packages')
+        .select(`
+          *,
+          PackageProducts (
+            productid,
+            quantity
+          )
+        `)
+        .eq('isactive', true)
+        .order('createdat', { ascending: false });
+
+      if (error) throw error;
+      
+      // Enrich packages with product names
+      const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
+        const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
+        const { data: products } = await supabase
+          .from('Product')
+          .select('id, name')
+          .in('id', productIds);
+        
+        return {
+          ...pkg,
+          products: pkg.PackageProducts.map((pp: any) => ({
+            id: pp.productid,
+            productid: pp.productid,
+            productname: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            name: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            quantity: pp.quantity
+          }))
+        };
+      }));
+
+      setPackages(enrichedPackages || []);
+    } catch (error) {
+      console.error('Error loading packages:', error);
+    }
+  };
+
+  // Load packages on component mount
+  React.useEffect(() => {
+    loadPackages();
+  }, []);
+
+  const [categories, setCategories] = useState([
     'Empaque',
     'Limpieza',
     'Insumos Médicos',
@@ -137,8 +246,9 @@ export default function InventoryPage() {
     'Productos Químicos',
     'Herramientas',
     'Otros'
-  ];
+  ]);
 
+  // Predefined units
   const units = [
     'Unidades',
     'Cajas',
@@ -256,7 +366,7 @@ export default function InventoryPage() {
       errors.push('El precio de venta debe ser mayor a 0');
     }
 
-    if (!formData.minStock || parseInt(formData.minStock) < 0) {
+    if (!formData.minstock || parseInt(formData.minstock) < 0) {
       errors.push('El stock mínimo no puede ser negativo');
     }
 
@@ -265,7 +375,7 @@ export default function InventoryPage() {
     const unidades = parseInt(formData.nuevoStock);
     const precioVenta = parseFloat(formData.price);
     const costoUnitario = parseFloat(formData.cost);
-    const minStock = parseInt(formData.minStock);
+    const minstock = parseInt(formData.minstock);
     
     console.log('Valores en validación:', {
       formData: formData,
@@ -273,7 +383,7 @@ export default function InventoryPage() {
       unidades,
       precioVenta,
       costoUnitario,
-      minStock
+      minstock
     });
 
     // Validate that calculated cost makes sense
@@ -309,7 +419,7 @@ export default function InventoryPage() {
     }
 
     
-    if (minStock >= unidades) {
+    if (minstock >= unidades) {
       errors.push('El stock mínimo no puede ser mayor o igual a las unidades nuevas');
     }
 
@@ -372,12 +482,12 @@ export default function InventoryPage() {
         }
         break;
 
-      case 'minStock':
-        const minStock = parseInt(value);
-        if (minStock < 0) {
-          errors.minStock = 'El stock mínimo no puede ser negativo';
-        } else if (formData.nuevoStock && minStock >= parseInt(formData.nuevoStock)) {
-          errors.minStock = 'El stock mínimo no puede ser mayor o igual a las unidades nuevas';
+      case 'minstock':
+        const minstock = parseInt(value);
+        if (minstock < 0) {
+          errors.minstock = 'El stock mínimo no puede ser negativo';
+        } else if (formData.nuevoStock && minstock >= parseInt(formData.nuevoStock)) {
+          errors.minstock = 'El stock mínimo no puede ser mayor o igual a las unidades nuevas';
         }
         break;
 
@@ -406,6 +516,35 @@ export default function InventoryPage() {
       });
     }
   };
+
+  // Update date inputs when promotion data changes
+  React.useEffect(() => {
+    if (showPromotionDialog && (selectedPromotionProduct || selectedPromotionPackage)) {
+      setTimeout(() => {
+        const startInput = document.getElementById('promotionStartDate') as HTMLInputElement;
+        const endInput = document.getElementById('promotionEndDate') as HTMLInputElement;
+        
+        const formattedStartDate = formatDateForInput(promotionData.promotionStartDate);
+        const formattedEndDate = formatDateForInput(promotionData.promotionEndDate);
+        
+        console.log('Actualizando inputs con timezone:', {
+          originalStart: promotionData.promotionStartDate,
+          originalEnd: promotionData.promotionEndDate,
+          formattedStart: formattedStartDate,
+          formattedEnd: formattedEndDate,
+          startInput: startInput?.value,
+          endInput: endInput?.value
+        });
+        
+        if (startInput && formattedStartDate) {
+          startInput.value = formattedStartDate;
+        }
+        if (endInput && formattedEndDate) {
+          endInput.value = formattedEndDate;
+        }
+      }, 100);
+    }
+  }, [showPromotionDialog, selectedPromotionProduct, selectedPromotionPackage, promotionData]);
 
   // Load data from Supabase
   useEffect(() => {
@@ -513,9 +652,12 @@ export default function InventoryPage() {
         unit: formData.unit,
         cost: costoUnitarioCorrecto,
         price: parseFloat(formData.price),
+        discountPrice: formData.isDiscount ? parseFloat(formData.discountPrice) || null : null,
+        isDiscount: formData.isDiscount,
         stock: totalStock,
-        minstock: parseInt(formData.minStock),
+        minstock: parseInt(formData.minstock),
         tags: formData.tags,
+        expirationDate: formData.expirationDate || null,
         isActive: true
       };
 
@@ -576,10 +718,13 @@ export default function InventoryPage() {
         unit: '',
         cost: '',
         price: '',
+        discountPrice: '',
+        isDiscount: false,
         precioTotal: '',
         nuevoStock: '0',
-        minStock: '0',
-        tags: []
+        minstock: '0',
+        tags: [],
+        expirationDate: ''
       });
       setEditingProduct(null);
       setShowAddDialog(false);
@@ -669,10 +814,13 @@ export default function InventoryPage() {
       unit: isCustomUnit ? 'OTRO' : product.unit,
       cost: product.cost.toString(),
       price: product.price.toString(),
+      discountPrice: (product as any).discountPrice?.toString() || '',
+      isDiscount: (product as any).isDiscount || false,
       precioTotal: (product.cost * product.stock).toString(),
       nuevoStock: product.stock.toString(),
-      minStock: (product.minstock || 0).toString(),
-      tags: product.tags || []
+      minstock: (product.minstock || 0).toString(),
+      tags: product.tags || [],
+      expirationDate: product.expirationDate || ''
     });
     
     // Set existing stock for calculation
@@ -769,6 +917,517 @@ export default function InventoryPage() {
     }
   };
 
+  // Category management functions
+  const handleAddCategory = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!categoryData.name.trim()) {
+      setMessage({ type: 'error', text: 'El nombre de la categoría es requerido' });
+      return;
+    }
+
+    try {
+      if (editingCategory) {
+        // Update existing category
+        const updatedCategories = categories.map(cat => 
+          cat === editingCategory ? categoryData.name.trim() : cat
+        );
+        
+        // Update products with the old category name
+        // In a real app, this would be a database update
+        console.log('Updating products from', editingCategory, 'to', categoryData.name.trim());
+        
+        setCategories(updatedCategories);
+        setMessage({ type: 'success', text: 'Categoría actualizada exitosamente' });
+      } else {
+        // Check if category already exists
+        if (categories.includes(categoryData.name.trim())) {
+          setMessage({ type: 'error', text: 'Esta categoría ya existe' });
+          return;
+        }
+
+        // Add new category
+        setCategories([...categories, categoryData.name.trim()]);
+        setMessage({ type: 'success', text: 'Categoría agregada exitosamente' });
+      }
+
+      // Reset form
+      setCategoryData({ name: '', description: '' });
+      setEditingCategory(null);
+      setShowCategoryDialog(false);
+    } catch (error: any) {
+      console.error('Error saving category:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al guardar categoría' });
+    }
+  };
+
+  const handleEditCategory = (categoryName: string) => {
+    console.log('Editing category:', categoryName);
+    setEditingCategory(categoryName);
+    setCategoryData({ 
+      name: categoryName, 
+      description: `Categoría: ${categoryName}` 
+    });
+    
+    // Auto-scroll to edit form
+    setTimeout(() => {
+      const editForm = document.querySelector('[data-edit-form="true"]');
+      if (editForm) {
+        editForm.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 100);
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+    try {
+      // Check if any product is using this category
+      const productsWithCategory = products.filter(p => p.category === categoryName);
+      if (productsWithCategory.length > 0) {
+        setMessage({ 
+          type: 'error', 
+          text: `No se puede eliminar la categoría. Hay ${productsWithCategory.length} productos usando esta categoría.` 
+        });
+        return;
+      }
+
+      // Remove category
+      setCategories(categories.filter(c => c !== categoryName));
+      setMessage({ type: 'success', text: 'Categoría eliminada exitosamente' });
+    } catch (error: any) {
+      console.error('Error deleting category:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al eliminar categoría' });
+    }
+  };
+
+  // Package management functions
+  const handleAddProductToPackage = (product: any) => {
+    // Validate product has valid ID
+    if (!product || !product.id) {
+      console.error('Producto sin ID válido:', product);
+      setMessage({ type: 'error', text: 'Producto no válido - falta ID' });
+      return;
+    }
+
+    const existingProduct = packageData.selectedProducts.find(p => p.id === product.id);
+    if (existingProduct) {
+      // Update quantity if already in package
+      setPackageData(prev => ({
+        ...prev,
+        selectedProducts: prev.selectedProducts.map(p => 
+          p.id === product.id ? { ...p, quantity: p.quantity + 1 } : p
+        )
+      }));
+    } else {
+      // Add new product to package
+      setPackageData(prev => ({
+        ...prev,
+        selectedProducts: [...prev.selectedProducts, {
+          id: product.id, // Keep as string, Supabase will handle UUID conversion
+          name: product.name,
+          quantity: 1
+        }]
+      }));
+    }
+  };
+
+  const handleRemoveProductFromPackage = (productId: string) => {
+    setPackageData(prev => ({
+      ...prev,
+      selectedProducts: prev.selectedProducts.filter(p => p.id !== productId)
+    }));
+  };
+
+  const handleUpdateProductQuantity = (productId: string, quantity: number) => {
+    if (quantity <= 0) {
+      handleRemoveProductFromPackage(productId);
+    } else {
+      setPackageData(prev => ({
+        ...prev,
+        selectedProducts: prev.selectedProducts.map(p => 
+          p.id === productId ? { ...p, quantity } : p
+        )
+      }));
+    }
+  };
+
+  const handleEditPackage = (pkg: any) => {
+    setEditingPackage(pkg);
+    
+    // Map products from database structure to form structure
+    const selectedProducts = pkg.products?.map((pp: any) => ({
+      id: pp.productid || pp.id,
+      name: pp.productname || pp.name || 'Producto desconocido',
+      quantity: pp.quantity
+    })) || [];
+
+    setPackageData({
+      name: pkg.name,
+      description: pkg.description,
+      price: pkg.price,
+      promotionprice: pkg.promotionprice || '',
+      ispromotion: pkg.ispromotion || false,
+      selectedProducts: selectedProducts
+    });
+    setShowPackageDialog(true);
+  };
+
+  const handleDeletePackage = async (packageId: string) => {
+    if (!confirm('¿Estás seguro de eliminar este paquete?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('Packages')
+        .update({ isactive: false })
+        .eq('id', packageId);
+
+      if (error) throw error;
+
+      // Reload packages from database
+      const { data, error: loadError } = await supabase
+        .from('Packages')
+        .select(`
+          *,
+          PackageProducts (
+            productid,
+            quantity
+          )
+        `)
+        .eq('isactive', true)
+        .order('createdat', { ascending: false });
+
+      if (loadError) throw loadError;
+      
+      // Enrich packages with product names
+      const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
+        const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
+        const { data: products } = await supabase
+          .from('Product')
+          .select('id, name')
+          .in('id', productIds);
+        
+        return {
+          ...pkg,
+          products: pkg.PackageProducts.map((pp: any) => ({
+            id: pp.productid,
+            productid: pp.productid,
+            productname: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            name: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            quantity: pp.quantity
+          }))
+        };
+      }));
+
+      setPackages(enrichedPackages || []);
+      setMessage({ type: 'success', text: 'Paquete eliminado exitosamente' });
+    } catch (error: any) {
+      console.error('Error deleting package:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al eliminar paquete' });
+    }
+  };
+
+  const handleApplyPromotion = async () => {
+    if (promotionTargetType === 'product' && !selectedPromotionProduct) return;
+    if (promotionTargetType === 'package' && !selectedPromotionPackage) return;
+
+    try {
+      if (promotionTargetType === 'product') {
+        const updateData: any = {
+          isDiscount: promotionData.isDiscount,
+          discountPrice: promotionData.isDiscount ? parseFloat(promotionData.discountPrice) : null
+        };
+
+        if (promotionData.isDiscount) {
+          if (promotionData.promotionStartDate) {
+            updateData.promotionStartDate = promotionData.promotionStartDate;
+          }
+          if (promotionData.promotionEndDate) {
+            updateData.promotionEndDate = promotionData.promotionEndDate;
+          }
+        } else {
+          updateData.promotionStartDate = null;
+          updateData.promotionEndDate = null;
+        }
+
+        console.log('Guardando promoción de producto:', updateData);
+        const { error } = await supabase
+          .from('Product')
+          .update(updateData)
+          .eq('id', selectedPromotionProduct!.id);
+
+        if (error) throw error;
+      } else {
+        const updateData: any = {
+          ispromotion: promotionData.isDiscount,
+          promotionprice: promotionData.isDiscount ? parseFloat(promotionData.discountPrice) : null
+        };
+
+        if (promotionData.isDiscount) {
+          if (promotionData.promotionStartDate) {
+            updateData.promotionstartdate = promotionData.promotionStartDate;
+          }
+          if (promotionData.promotionEndDate) {
+            updateData.promotionenddate = promotionData.promotionEndDate;
+          }
+        } else {
+          updateData.promotionstartdate = null;
+          updateData.promotionenddate = null;
+        }
+
+        console.log('Guardando promoción de paquete:', updateData);
+        const { error } = await supabase
+          .from('Packages')
+          .update(updateData)
+          .eq('id', selectedPromotionPackage.id);
+
+        if (error) throw error;
+      }
+
+      setMessage({ type: 'success', text: 'Promoción aplicada exitosamente' });
+      setShowPromotionDialog(false);
+      setSelectedPromotionProduct(null);
+      setSelectedPromotionPackage(null);
+      setPromotionTargetType('product');
+      setPromotionData({ discountPrice: '', isDiscount: false, promotionStartDate: '', promotionEndDate: '' });
+      if (promotionTargetType === 'product') {
+        loadProducts();
+      } else {
+        loadPackages();
+      }
+    } catch (error: any) {
+      console.error('Error applying promotion:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al aplicar promoción' });
+    }
+  };
+
+  const handleOpenPromotionDialog = (product: Product) => {
+    const startDate = (product as any).promotionStartDate;
+    const endDate = (product as any).promotionEndDate;
+    
+    console.log('Fechas del producto con timezone:', {
+      promotionStartDate: startDate,
+      promotionEndDate: endDate,
+      formattedStart: formatDateForInput(startDate),
+      formattedEnd: formatDateForInput(endDate)
+    });
+    
+    setSelectedPromotionProduct(product);
+    setPromotionData({
+      discountPrice: (product as any).discountPrice?.toString() || '',
+      isDiscount: product.isDiscount || false,
+      promotionStartDate: formatDateForInput(startDate),
+      promotionEndDate: formatDateForInput(endDate)
+    });
+    setShowPromotionDialog(true);
+  };
+
+  const handleTogglePromotion = async (packageId: string, currentStatus: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('Packages')
+        .update({ 
+          ispromotion: !currentStatus,
+          promotionprice: currentStatus ? null : null
+        })
+        .eq('id', packageId);
+
+      if (error) throw error;
+
+      // Reload packages from database
+      const { data, error: loadError } = await supabase
+        .from('Packages')
+        .select(`
+          *,
+          PackageProducts (
+            productid,
+            quantity
+          )
+        `)
+        .eq('isactive', true)
+        .order('createdat', { ascending: false });
+
+      if (loadError) throw loadError;
+      
+      // Enrich packages with product names
+      const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
+        const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
+        const { data: products } = await supabase
+          .from('Product')
+          .select('id, name')
+          .in('id', productIds);
+        
+        return {
+          ...pkg,
+          products: pkg.PackageProducts.map((pp: any) => ({
+            id: pp.productid,
+            productid: pp.productid,
+            productname: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            name: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            quantity: pp.quantity
+          }))
+        };
+      }));
+
+      setPackages(enrichedPackages || []);
+      setMessage({ 
+        type: 'success', 
+        text: currentStatus ? 'Paquete quitado de promoción' : 'Paquete puesto en promoción' 
+      });
+    } catch (error: any) {
+      console.error('Error toggling promotion:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al cambiar estado de promoción' });
+    }
+  };
+
+  const handleCreatePackage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!packageData.name.trim()) {
+      setMessage({ type: 'error', text: 'El nombre del paquete es requerido' });
+      return;
+    }
+
+    if (packageData.selectedProducts.length === 0) {
+      setMessage({ type: 'error', text: 'Debes seleccionar al menos un producto para el paquete' });
+      return;
+    }
+
+    try {
+      if (editingPackage) {
+        // Update existing package
+        const { error: updateError } = await supabase
+          .from('Packages')
+          .update({
+            name: packageData.name,
+            description: packageData.description,
+            price: parseFloat(packageData.price) || 0,
+            promotionprice: packageData.ispromotion ? parseFloat(packageData.promotionprice) || null : null,
+            ispromotion: packageData.ispromotion,
+            updatedat: new Date().toISOString()
+          })
+          .eq('id', editingPackage.id);
+
+        if (updateError) throw updateError;
+
+        // Delete existing products
+        const { error: deleteError } = await supabase
+          .from('PackageProducts')
+          .delete()
+          .eq('packageid', editingPackage.id);
+
+        if (deleteError) throw deleteError;
+
+        // Add updated products
+        for (const product of packageData.selectedProducts) {
+          if (!product || !product.id) {
+            console.error('Producto sin ID válido al actualizar paquete:', product);
+            continue; // Skip invalid products
+          }
+
+          const { error: productError } = await supabase
+            .from('PackageProducts')
+            .insert({
+              id: `pp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              packageid: editingPackage.id,
+              productid: product.id,
+              quantity: product.quantity
+            });
+
+          if (productError) throw productError;
+        }
+      } else {
+        // Create new package
+        const packageId = `pkg_${Date.now()}`;
+        const { data: packageDataDB, error: packageError } = await supabase
+          .from('Packages')
+          .insert({
+            id: packageId,
+            tenantid: '1',
+            name: packageData.name,
+            description: packageData.description,
+            price: parseFloat(packageData.price) || 0,
+            promotionprice: packageData.ispromotion ? parseFloat(packageData.promotionprice) || null : null,
+            ispromotion: packageData.ispromotion,
+            isactive: true
+          })
+          .select()
+          .single();
+
+        if (packageError) throw packageError;
+
+        // Add products to package
+        for (const product of packageData.selectedProducts) {
+          if (!product || !product.id) {
+            console.error('Producto sin ID válido al crear paquete:', product);
+            continue; // Skip invalid products
+          }
+
+          const { error: productError } = await supabase
+            .from('PackageProducts')
+            .insert({
+              id: `pp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              packageid: packageId,
+              productid: product.id,
+              quantity: product.quantity
+            });
+
+          if (productError) throw productError;
+        }
+      }
+
+      // Reload packages from database with enriched data
+      const { data: packagesData, error: loadError } = await supabase
+        .from('Packages')
+        .select(`
+          *,
+          PackageProducts (
+            productid,
+            quantity
+          )
+        `)
+        .eq('isactive', true)
+        .order('createdat', { ascending: false });
+
+      if (loadError) throw loadError;
+      
+      // Enrich packages with product names
+      const enrichedPackages = await Promise.all((packagesData || []).map(async (pkg) => {
+        const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
+        const { data: products } = await supabase
+          .from('Product')
+          .select('id, name')
+          .in('id', productIds);
+        
+        return {
+          ...pkg,
+          products: pkg.PackageProducts.map((pp: any) => ({
+            id: pp.productid,
+            productid: pp.productid,
+            productname: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            name: products?.find((p: any) => p.id === pp.productid)?.name || 'Producto desconocido',
+            quantity: pp.quantity
+          }))
+        };
+      }));
+
+      setPackages(enrichedPackages || []);
+
+      setPackageData({
+        name: '',
+        description: '',
+        price: '',
+        promotionprice: '',
+        ispromotion: false,
+        selectedProducts: []
+      });
+      setEditingPackage(null);
+      setShowPackageDialog(false);
+      setMessage({ type: 'success', text: editingPackage ? 'Paquete actualizado exitosamente' : 'Paquete creado exitosamente' });
+    } catch (error: any) {
+      console.error('Error creating package:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al crear paquete' });
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Filter Indicator */}
@@ -800,6 +1459,352 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex space-x-2">
+          <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+            <Plus className="h-4 w-4 mr-2" />
+            Agregar Producto
+          </Button>
+          <Dialog open={showPackageDialog} onOpenChange={(open) => {
+            setShowPackageDialog(open);
+            if (!open) {
+              setEditingPackage(null);
+              setPackageData({ name: '', description: '', price: '', promotionprice: '', ispromotion: false, selectedProducts: [] });
+            }
+          }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white">
+                <Package className="h-4 w-4 mr-2" />
+                Crear Paquete
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editingPackage ? 'Editar Paquete de Productos' : 'Crear Paquete de Productos'}</DialogTitle>
+                <DialogDescription>
+                  {editingPackage ? 'Modifica los productos y detalles del paquete' : 'Combina múltiples productos para crear un paquete o kit especial'}
+                </DialogDescription>
+              </DialogHeader>
+              
+              <form onSubmit={handleCreatePackage} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <Label htmlFor="packageName">Nombre del Paquete *</Label>
+                    <Input
+                      id="packageName"
+                      value={packageData.name}
+                      onChange={(e) => setPackageData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="Ej: Kit de Limpieza Dental"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="packagePrice">Precio del Paquete (L)</Label>
+                    <Input
+                      id="packagePrice"
+                      type="number"
+                      step="0.01"
+                      value={packageData.price}
+                      onChange={(e) => setPackageData(prev => ({ ...prev, price: e.target.value }))}
+                      placeholder="0.00"
+                    />
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="packagePromotion"
+                      checked={packageData.ispromotion}
+                      onChange={(e) => setPackageData(prev => ({ ...prev, ispromotion: e.target.checked }))}
+                      className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                    />
+                    <Label htmlFor="packagePromotion" className="flex items-center space-x-2 cursor-pointer">
+                      <Tag className="h-4 w-4 text-orange-600" />
+                      <span>Poner en Promoción</span>
+                    </Label>
+                  </div>
+                  {packageData.ispromotion && (
+                    <div>
+                      <Label htmlFor="promotionPrice">Precio Promocional (L) <span className="text-orange-600 font-medium">- Precio original: L {packageData.price}</span></Label>
+                      <Input
+                        id="promotionPrice"
+                        type="number"
+                        step="0.01"
+                        value={packageData.promotionprice}
+                        onChange={(e) => setPackageData(prev => ({ ...prev, promotionprice: e.target.value }))}
+                        placeholder="Precio en promoción"
+                        className="border-orange-300 focus:ring-orange-500"
+                      />
+                    </div>
+                  )}
+                </div>
+                
+                <div>
+                  <Label htmlFor="packageDescription">Descripción</Label>
+                  <Textarea
+                    id="packageDescription"
+                    value={packageData.description}
+                    onChange={(e) => setPackageData(prev => ({ ...prev, description: e.target.value }))}
+                    placeholder="Describe qué incluye este paquete..."
+                    rows={3}
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Available Products */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">Productos Disponibles</h3>
+                    <div key="available-products" className="border rounded-lg max-h-64 overflow-y-auto">
+                      {products.filter(p => p.stock > 0).map((product, index) => {
+                        const isInPackage = packageData.selectedProducts.some(p => p.id === product.id);
+                        return (
+                          <div
+                            key={`available-product-${index}`}
+                            className={`p-3 border-b hover:bg-gray-50 cursor-pointer ${
+                              isInPackage ? 'bg-green-50' : ''
+                            }`}
+                            onClick={() => handleAddProductToPackage(product)}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-medium">{product.name}</p>
+                                <p className="text-sm text-gray-500">{product.category} · Stock: {product.stock}</p>
+                                {product.expirationDate && (
+                                  <p className="text-xs text-orange-600">
+                                    Expira: {new Date(product.expirationDate).toLocaleDateString('es-HN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                                  </p>
+                                )}
+                                {(product as any).isDiscount && (product as any).discountPrice ? (
+                                  <>
+                                    <p className="text-sm text-gray-400 line-through">L {product.price}</p>
+                                    <p className="text-sm text-orange-600 font-medium">L {(product as any).discountPrice}</p>
+                                  </>
+                                ) : (
+                                  <p className="text-sm text-blue-600">L {product.price}</p>
+                                )}
+                              </div>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className={isInPackage ? 'bg-green-100' : ''}
+                              >
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                      {products.filter(p => p.stock > 0).length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <Package className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p>No hay productos disponibles con stock</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Selected Products */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-3">
+                      Productos en el Paquete ({packageData.selectedProducts.length})
+                    </h3>
+                    <div key="selected-products" className="border rounded-lg max-h-64 overflow-y-auto">
+                      {packageData.selectedProducts.map((product, index) => (
+                        <div key={`product-${index}`} className="p-3 border-b">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-medium">{product.name}</p>
+                              <p className="text-sm text-gray-500">Cantidad: {product.quantity}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <Input
+                                type="number"
+                                min="1"
+                                value={product.quantity}
+                                onChange={(e) => handleUpdateProductQuantity(product.id, parseInt(e.target.value) || 1)}
+                                className="w-16 h-8"
+                              />
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleRemoveProductFromPackage(product.id)}
+                                className="text-red-600 hover:text-red-700"
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {packageData.selectedProducts.length === 0 && (
+                        <div className="text-center py-8 text-gray-500">
+                          <ShoppingCart className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                          <p>Selecciona productos del listado izquierdo</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => {
+                    setShowPackageDialog(false);
+                    setEditingPackage(null);
+                    setPackageData({ name: '', description: '', price: '', promotionprice: '', ispromotion: false, selectedProducts: [] });
+                  }}>
+                    Cancelar
+                  </Button>
+                  <Button type="submit" disabled={packageData.selectedProducts.length === 0}>
+                    <Package className="h-4 w-4 mr-2" />
+                    {editingPackage ? 'Actualizar Paquete' : 'Crear Paquete'}
+                  </Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <Dialog open={showCategoryDialog} onOpenChange={(open) => {
+    setShowCategoryDialog(open);
+    if (!open) {
+      setEditingCategory(null);
+      setCategoryData({ name: '', description: '' });
+    }
+  }}>
+            <DialogTrigger asChild>
+              <Button variant="outline" className="bg-purple-600 hover:bg-purple-700 text-white">
+                <Tag className="h-4 w-4 mr-2" />
+                Gestionar Categorías
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Gestionar Categorías</DialogTitle>
+                <DialogDescription>
+                  Administra todas las categorías de productos: agrega, edita o elimina
+                </DialogDescription>
+              </DialogHeader>
+              
+              <div className="space-y-6">
+                {/* Add/Edit Category Form */}
+                <div className={`border-b pb-4 ${editingCategory ? 'bg-blue-50 border-blue-200 rounded-lg p-4' : ''}`} data-edit-form="true">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-lg font-semibold">
+                      {editingCategory ? 'Editar Categoría' : 'Agregar Nueva Categoría'}
+                    </h3>
+                    {editingCategory && (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditingCategory(null);
+                          setCategoryData({ name: '', description: '' });
+                        }}
+                        className="flex items-center"
+                      >
+                        <Plus className="h-4 w-4 mr-1" />
+                        Nueva Categoría
+                      </Button>
+                    )}
+                  </div>
+                  <form onSubmit={handleAddCategory} className="space-y-4">
+                    <div>
+                      <Label htmlFor="categoryName">Nombre de la Categoría *</Label>
+                      <Input
+                        id="categoryName"
+                        value={categoryData.name}
+                        onChange={(e) => setCategoryData(prev => ({ ...prev, name: e.target.value }))}
+                        placeholder="Ej: Insumos Médicos"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="categoryDescription">Descripción (Opcional)</Label>
+                      <Textarea
+                        id="categoryDescription"
+                        value={categoryData.description}
+                        onChange={(e) => setCategoryData(prev => ({ ...prev, description: e.target.value }))}
+                        placeholder="Descripción breve de la categoría"
+                        rows={2}
+                      />
+                    </div>
+                    <div className="flex justify-end space-x-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        onClick={() => {
+                          setShowCategoryDialog(false);
+                          setEditingCategory(null);
+                          setCategoryData({ name: '', description: '' });
+                        }}
+                      >
+                        Cancelar
+                      </Button>
+                      <Button type="submit">
+                        {editingCategory ? (
+                          <>
+                            <Edit className="h-4 w-4 mr-2" />
+                            Actualizar Categoría
+                          </>
+                        ) : (
+                          <>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Agregar Categoría
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </form>
+                </div>
+
+                {/* Existing Categories */}
+                <div>
+                  <h3 className="text-lg font-semibold mb-3">Categorías Existentes</h3>
+                  <div key="categories-list" className="space-y-2">
+                    {categories.map((category, index) => {
+                      const productCount = products.filter(p => p.category === category).length;
+                      return (
+                        <div key={`category-${index}`} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="flex items-center space-x-3">
+                            <div className="w-2 h-2 rounded-full bg-purple-500"></div>
+                            <div>
+                              <p className="font-medium">{category}</p>
+                              <p className="text-sm text-gray-500">{productCount} productos</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleEditCategory(category)}
+                              className="flex items-center"
+                            >
+                              <Edit className="h-4 w-4 mr-1" />
+                              Editar
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleDeleteCategory(category)}
+                              className="text-red-600 hover:text-red-700 flex items-center"
+                            >
+                              <Trash2 className="h-4 w-4 mr-1" />
+                              Eliminar
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {categories.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <Tag className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                        <p>No hay categorías registradas</p>
+                        <p className="text-sm mt-2">Usa el formulario de arriba para agregar tu primera categoría</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
@@ -1049,15 +2054,52 @@ export default function InventoryPage() {
                       <p className="text-xs text-red-500 mt-1">{fieldErrors.price}</p>
                     )}
                   </div>
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="productDiscount"
+                      checked={formData.isDiscount}
+                      onChange={(e) => setFormData(prev => ({ ...prev, isDiscount: e.target.checked }))}
+                      className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                    />
+                    <Label htmlFor="productDiscount" className="flex items-center space-x-2 cursor-pointer">
+                      <Tag className="h-4 w-4 text-orange-600" />
+                      <span>Poner en Descuento</span>
+                    </Label>
+                  </div>
+                  {formData.isDiscount && (
+                    <div>
+                      <Label htmlFor="discountPrice">Precio con Descuento (L) <span className="text-orange-600 font-medium">- Precio original: L {formData.price}</span></Label>
+                      <Input
+                        id="discountPrice"
+                        type="number"
+                        step="0.01"
+                        value={formData.discountPrice}
+                        onChange={(e) => setFormData(prev => ({ ...prev, discountPrice: e.target.value }))}
+                        placeholder="Precio con descuento"
+                        className="border-orange-300 focus:ring-orange-500"
+                      />
+                    </div>
+                  )}
                   <div>
-                    <Label htmlFor="minStock">Stock Mínimo *</Label>
+                    <Label htmlFor="minstock">Stock Mínimo *</Label>
                     <Input
-                      id="minStock"
+                      id="minstock"
                       type="number"
-                      value={formData.minStock}
-                      onChange={(e) => setFormData(prev => ({ ...prev, minStock: e.target.value }))}
+                      value={formData.minstock}
+                      onChange={(e) => setFormData(prev => ({ ...prev, minstock: e.target.value }))}
                       placeholder="0"
                       required
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="expirationDate">Fecha de Expiración</Label>
+                    <Input
+                      id="expirationDate"
+                      type="date"
+                      value={formData.expirationDate}
+                      onChange={(e) => setFormData(prev => ({ ...prev, expirationDate: e.target.value }))}
+                      placeholder="YYYY-MM-DD"
                     />
                   </div>
                   <div>
@@ -1102,10 +2144,10 @@ export default function InventoryPage() {
                           <Plus className="h-4 w-4" />
                         </Button>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div key="tags-list" className="flex flex-wrap gap-2">
                         {formData.tags.map((tag, index) => (
                           <div
-                            key={index}
+                            key={`tag-${index}`}
                             className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
                           >
                             {tag}
@@ -1263,8 +2305,143 @@ export default function InventoryPage() {
             </div>
           </CardContent>
         </Card>
+        {/* Promotions Summary */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Promociones Activas</CardTitle>
+            <Tag className="h-4 w-4 text-orange-600" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-orange-600">
+              {products.filter(p => p.isDiscount).length + packages.filter(p => p.ispromotion).length}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Total de promociones activas
+            </p>
+            <div className="mt-2 space-y-1">
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Productos en descuento:</span>
+                <span className="font-medium">{products.filter(p => p.isDiscount).length}</span>
+              </div>
+              <div className="flex justify-between text-xs">
+                <span className="text-gray-500">Paquetes en promoción:</span>
+                <span className="font-medium">{packages.filter(p => p.ispromotion).length}</span>
+              </div>
+            </div>
+            <Button 
+              size="sm" 
+              variant="outline"
+              className="w-full mt-2 border-orange-600 text-orange-600 hover:bg-orange-50"
+              onClick={() => setActiveTab('promotions')}
+            >
+              Ver Promociones
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
+      {/* Categories Management */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setIsCategoriesCollapsed(!isCategoriesCollapsed)}
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Tag className="h-5 w-5 mr-2" />
+              <CardTitle>Categorías de Productos</CardTitle>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <span>{categories.length}</span>
+                <span>·</span>
+                <span>{products.filter(p => categories.includes(p.category)).length} productos</span>
+              </div>
+              {isCategoriesCollapsed ? (
+                <ChevronDown className="h-4 w-4 text-gray-500" />
+              ) : (
+                <ChevronUp className="h-4 w-4 text-gray-500" />
+              )}
+            </div>
+          </div>
+          <CardDescription>
+            {isCategoriesCollapsed 
+              ? "Clic para expandir y gestionar categorías" 
+              : "Gestiona las categorías disponibles para organizar tu inventario"
+            }
+          </CardDescription>
+        </CardHeader>
+        {!isCategoriesCollapsed && (
+          <CardContent>
+            <div className="space-y-4">
+              <div key="categories-badges" className="flex flex-wrap gap-2">
+                {categories.map((category, index) => {
+                  const productCount = products.filter(p => p.category === category).length;
+                  return (
+                    <div
+                      key={`category-badge-${index}`}
+                      className="inline-flex items-center px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+                    >
+                      <span className="text-sm font-medium">{category}</span>
+                      <span className="ml-2 text-xs text-gray-500 bg-white px-2 py-1 rounded-full">
+                        {productCount}
+                      </span>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteCategory(category);
+                        }}
+                        className="ml-2 text-red-500 hover:text-red-700 transition-colors"
+                        title="Eliminar categoría"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-sm text-gray-500">
+                <div className="flex items-center space-x-4">
+                  <span>Total categorías: {categories.length}</span>
+                  <span>Productos categorizados: {products.filter(p => categories.includes(p.category)).length}</span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
+      {/* Tab Buttons */}
+      <div className="flex space-x-2 mb-6">
+        <Button
+          variant={activeTab === 'inventory' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('inventory')}
+          className={activeTab === 'inventory' ? 'bg-blue-600' : ''}
+        >
+          <Boxes className="h-4 w-4 mr-2" />
+          Inventario
+        </Button>
+        <Button
+          variant={activeTab === 'packages' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('packages')}
+          className={activeTab === 'packages' ? 'bg-green-600' : ''}
+        >
+          <Package className="h-4 w-4 mr-2" />
+          Paquetes
+        </Button>
+        <Button
+          variant={activeTab === 'promotions' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('promotions')}
+          className={activeTab === 'promotions' ? 'bg-orange-600' : ''}
+        >
+          <Tag className="h-4 w-4 mr-2" />
+          Promociones
+        </Button>
+      </div>
+
+      {/* Tab Content */}
+      {activeTab === 'inventory' && (
+        <>
       {/* Search and Filters */}
       <Card>
         <CardContent className="flex items-center space-x-4">
@@ -1312,9 +2489,11 @@ export default function InventoryPage() {
 
       {/* Product List */}
       {viewMode === 'cards' ? (
-        <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
-          {filteredProducts.map((product) => {
+        <div key="products-cards" className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+          {filteredProducts.map((product, index) => {
             const stockStatus = getStockStatus(product);
+            const isExpired = isDateExpired(product.promotionEndDate);
+            const showDiscount = (product as any).isDiscount && !isExpired;
             return (
               <Card key={product.id} className="hover:shadow-lg transition-shadow p-3">
                 <CardHeader className="pb-1 p-0">
@@ -1322,7 +2501,14 @@ export default function InventoryPage() {
                     <div className="flex items-center space-x-1">
                       <div className={`w-1 h-1 rounded-full bg-${stockStatus.color}-500`}></div>
                       <div>
-                        <CardTitle className="text-xs">{product.name}</CardTitle>
+                        <div className="flex items-center space-x-2">
+                          <CardTitle className="text-xs">{product.name}</CardTitle>
+                          {showDiscount && (
+                            <Badge className="bg-orange-500 text-white text-xs px-2 py-0.5">
+                              Descuento
+                            </Badge>
+                          )}
+                        </div>
                         <CardDescription className="text-xs opacity-70">
                           SKU: {product.sku}
                         </CardDescription>
@@ -1353,7 +2539,14 @@ export default function InventoryPage() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-500">Precio:</span>
-                      <span className="font-medium text-xs">Lps. {product.price.toFixed(2)}</span>
+                      {showDiscount && (product as any).discountPrice ? (
+                        <div className="flex items-center space-x-2">
+                          <span className="text-gray-400 line-through text-xs">Lps. {product.price.toFixed(2)}</span>
+                          <span className="font-medium text-xs text-orange-600">Lps. {(product as any).discountPrice.toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <span className="font-medium text-xs">Lps. {product.price.toFixed(2)}</span>
+                      )}
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-500">Margen:</span>
@@ -1363,9 +2556,9 @@ export default function InventoryPage() {
                       </span>
                     </div>
                     {product.tags && product.tags.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pt-1">
+                      <div key={`product-tags-${product.id}`} className="flex flex-wrap gap-1 pt-1">
                         {product.tags.slice(0, 2).map((tag, index) => (
-                          <span key={index} className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                          <span key={`tag-${index}`} className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
                             {tag}
                           </span>
                         ))}
@@ -1433,9 +2626,11 @@ export default function InventoryPage() {
           })}
         </div>
       ) : viewMode === 'list' ? (
-        <div className="space-y-2">
+        <div key="products-list" className="space-y-2">
           {filteredProducts.map((product) => {
             const stockStatus = getStockStatus(product);
+            const isExpired = isDateExpired(product.promotionEndDate);
+            const showDiscount = (product as any).isDiscount && !isExpired;
             return (
               <Card key={product.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4">
@@ -1445,6 +2640,11 @@ export default function InventoryPage() {
                       <div className="flex-1">
                         <div className="flex items-center space-x-3">
                           <h3 className="font-semibold text-lg">{product.name}</h3>
+                          {showDiscount && (
+                            <Badge className="bg-orange-500 text-white text-xs">
+                              Descuento
+                            </Badge>
+                          )}
                           <Badge variant={stockStatus.status === 'normal' ? 'default' : 'secondary'} className="text-xs">
                             {stockStatus.text}
                           </Badge>
@@ -1456,6 +2656,11 @@ export default function InventoryPage() {
                         </div>
                         {product.description && (
                           <p className="text-sm text-gray-500 mt-1">{product.description}</p>
+                        )}
+                        {product.expirationDate && (
+                          <p className="text-xs text-orange-600 mt-1">
+                            Expira: {new Date(product.expirationDate).toLocaleDateString('es-HN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
                         )}
                       </div>
                     </div>
@@ -1473,7 +2678,14 @@ export default function InventoryPage() {
                         <div className="text-sm text-gray-500">Valor</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold">Lps. {product.price.toFixed(2)}</div>
+                        {showDiscount && (product as any).discountPrice ? (
+                          <>
+                            <div className="text-gray-400 line-through text-sm">Lps. {product.price.toFixed(2)}</div>
+                            <div className="font-semibold text-orange-600">Lps. {(product as any).discountPrice.toFixed(2)}</div>
+                          </>
+                        ) : (
+                          <div className="font-semibold">Lps. {product.price.toFixed(2)}</div>
+                        )}
                         <div className="text-sm text-gray-500">Precio</div>
                       </div>
                       <div className="text-right">
@@ -1560,9 +2772,11 @@ export default function InventoryPage() {
                     </th>
                   </tr>
                 </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
+                <tbody key="products-table-body" className="bg-white divide-y divide-gray-200">
                   {filteredProducts.map((product) => {
                     const stockStatus = getStockStatus(product);
+                    const isExpired = isDateExpired(product.promotionEndDate);
+                    const showDiscount = (product as any).isDiscount && !isExpired;
                     return (
                       <tr key={product.id} className="hover:bg-gray-50">
                         <td className="px-4 py-4 whitespace-nowrap">
@@ -1571,6 +2785,13 @@ export default function InventoryPage() {
                             <div>
                               <div className="text-sm font-medium text-gray-900">{product.name}</div>
                               <div className="text-xs text-gray-500">SKU: {product.sku}</div>
+                              <div className="flex items-center space-x-2 mt-1">
+                                {showDiscount && (
+                                  <Badge className="bg-orange-500 text-white text-xs px-2 py-0.5">
+                                    Descuento
+                                  </Badge>
+                                )}
+                              </div>
                             </div>
                           </div>
                         </td>
@@ -1591,7 +2812,14 @@ export default function InventoryPage() {
                           Lps. {product.cost.toFixed(2)}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          Lps. {product.price.toFixed(2)}
+                          {showDiscount && (product as any).discountPrice ? (
+                            <div>
+                              <span className="text-gray-400 line-through text-xs">Lps. {product.price.toFixed(2)}</span>
+                              <span className="font-medium text-orange-600"> Lps. {(product as any).discountPrice.toFixed(2)}</span>
+                            </div>
+                          ) : (
+                            <span>Lps. {product.price.toFixed(2)}</span>
+                          )}
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap">
                           <Badge variant={stockStatus.status === 'normal' ? 'default' : 'secondary'}>
@@ -1667,6 +2895,456 @@ export default function InventoryPage() {
             </Button>
           )}
         </div>
+      )}
+        </>
+      )}
+
+      {/* Packages Tab */}
+      {activeTab === 'packages' && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">Paquetes de Productos</h2>
+            <Dialog open={showPackageDialog} onOpenChange={(open) => {
+              setShowPackageDialog(open);
+              if (!open) {
+                setEditingPackage(null);
+                setPackageData({ name: '', description: '', price: '', promotionprice: '', ispromotion: false, selectedProducts: [] });
+              }
+            }}>
+              <DialogTrigger asChild>
+                <Button className="bg-green-600 hover:bg-green-700 text-white">
+                  <Package className="h-4 w-4 mr-2" />
+                  Crear Paquete
+                </Button>
+              </DialogTrigger>
+            </Dialog>
+          </div>
+          {packages.length === 0 ? (
+            <div className="text-center py-12">
+              <Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-600">No hay paquetes creados</h3>
+              <p className="text-sm text-gray-500">Crea tu primer paquete combinando múltiples productos</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {packages.map((pkg) => (
+                <Card key={pkg.id} className="hover:shadow-lg transition-shadow">
+                  <CardHeader>
+                    <CardTitle className="flex items-center justify-between">
+                      <span>{pkg.name}</span>
+                      {pkg.ispromotion && (
+                        <Badge className="bg-orange-500 text-white">En Promoción</Badge>
+                      )}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <p className="text-sm text-gray-600 mb-2">{pkg.description}</p>
+                    <div className="flex items-center space-x-2 mb-2">
+                      {pkg.ispromotion && pkg.promotionprice ? (
+                        <>
+                          <span className="text-gray-400 line-through">L {pkg.price}</span>
+                          <span className="text-orange-600 font-bold">L {pkg.promotionprice}</span>
+                        </>
+                      ) : (
+                        <span className="text-green-600 font-bold">L {pkg.price}</span>
+                      )}
+                    </div>
+                    <div className="flex space-x-2">
+                      <Button size="sm" variant="outline" onClick={() => handleEditPackage(pkg)}>
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => handleDeletePackage(pkg.id)}>
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Eliminar
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Promotions Tab */}
+      {activeTab === 'promotions' && (
+        <>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-2xl font-bold">Promociones Activas</h2>
+            <div className="flex items-center space-x-2">
+              <Badge variant="outline" className="text-orange-600">
+                {products.filter(p => p.isDiscount).length + packages.filter(p => p.ispromotion).length} promociones
+              </Badge>
+              <Dialog 
+                key={`${selectedPromotionProduct?.id || selectedPromotionPackage?.id || 'new'}-${promotionData.isDiscount}`}
+                open={showPromotionDialog} 
+                onOpenChange={(open) => {
+                  setShowPromotionDialog(open);
+                  if (!open) {
+                    setSelectedPromotionProduct(null);
+                    setSelectedPromotionPackage(null);
+                    setPromotionTargetType('product');
+                    setPromotionData({ discountPrice: '', isDiscount: false, promotionStartDate: '', promotionEndDate: '' });
+                  }
+                }}>
+                <DialogTrigger asChild>
+                  <Button className="bg-orange-600 hover:bg-orange-700 text-white">
+                    <Tag className="h-4 w-4 mr-2" />
+                    Agregar Promoción
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+                  <DialogHeader>
+                    <DialogTitle>{selectedPromotionProduct?.isDiscount || selectedPromotionPackage?.ispromotion ? 'Modificar Promoción' : 'Agregar Promoción'}</DialogTitle>
+                    <DialogDescription>
+                      Selecciona un producto del inventario o un paquete para activar o modificar su promoción
+                    </DialogDescription>
+                  </DialogHeader>
+                  <form onSubmit={handleApplyPromotion} className="space-y-6">
+                    <div>
+                      <Label>Tipo de Promoción</Label>
+                      <div className="flex space-x-4 mt-2">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="targetType"
+                            value="product"
+                            checked={promotionTargetType === 'product'}
+                            onChange={(e) => setPromotionTargetType(e.target.value as 'product' | 'package')}
+                            className="w-4 h-4 text-orange-600"
+                          />
+                          <span>Producto</span>
+                        </label>
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="targetType"
+                            value="package"
+                            checked={promotionTargetType === 'package'}
+                            onChange={(e) => setPromotionTargetType(e.target.value as 'product' | 'package')}
+                            className="w-4 h-4 text-orange-600"
+                          />
+                          <span>Paquete</span>
+                        </label>
+                      </div>
+                    </div>
+                    {promotionTargetType === 'product' && (
+                      <div>
+                        <Label htmlFor="productSelect">Seleccionar Producto</Label>
+                        <select
+                          id="productSelect"
+                          value={selectedPromotionProduct?.id || ''}
+                          onChange={(e) => {
+                            const product = products.find(p => p.id === e.target.value);
+                            if (product) {
+                              const startDate = (product as any).promotionStartDate;
+                              const endDate = (product as any).promotionEndDate;
+                              
+                              console.log('Fechas del producto seleccionado con timezone:', {
+                                promotionStartDate: startDate,
+                                promotionEndDate: endDate,
+                                formattedStart: formatDateForInput(startDate),
+                                formattedEnd: formatDateForInput(endDate)
+                              });
+                              
+                              setSelectedPromotionProduct(product);
+                              setPromotionData({
+                                discountPrice: (product as any).discountPrice?.toString() || '',
+                                isDiscount: product.isDiscount || false,
+                                promotionStartDate: formatDateForInput(startDate),
+                                promotionEndDate: formatDateForInput(endDate)
+                              });
+                            }
+                          }}
+                          className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          required
+                        >
+                          <option value="">Seleccionar producto...</option>
+                          {products.map((product) => (
+                            <option key={product.id} value={product.id}>
+                              {product.name} - L {product.price.toFixed(2)} - Stock: {product.stock}
+                              {product.isDiscount && ' (En promoción)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {promotionTargetType === 'package' && (
+                      <div>
+                        <Label htmlFor="packageSelect">Seleccionar Paquete</Label>
+                        <select
+                          id="packageSelect"
+                          value={selectedPromotionPackage?.id || ''}
+                          onChange={(e) => {
+                            const pkg = packages.find(p => p.id === e.target.value);
+                            if (pkg) {
+                              const startDate = pkg.promotionstartdate;
+                              const endDate = pkg.promotionenddate;
+                              
+                              console.log('Fechas del paquete seleccionado con timezone:', {
+                                promotionStartDate: startDate,
+                                promotionEndDate: endDate,
+                                formattedStart: formatDateForInput(startDate),
+                                formattedEnd: formatDateForInput(endDate)
+                              });
+                              
+                              setSelectedPromotionPackage(pkg);
+                              setPromotionData({
+                                discountPrice: pkg.promotionprice?.toString() || '',
+                                isDiscount: pkg.ispromotion || false,
+                                promotionStartDate: formatDateForInput(startDate),
+                                promotionEndDate: formatDateForInput(endDate)
+                              });
+                            }
+                          }}
+                          className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                          required
+                        >
+                          <option value="">Seleccionar paquete...</option>
+                          {packages.map((pkg) => (
+                            <option key={pkg.id} value={pkg.id}>
+                              {pkg.name} - L {pkg.price}
+                              {pkg.ispromotion && ' (En promoción)'}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                    {(selectedPromotionProduct || selectedPromotionPackage) && (
+                      <>
+                        <div className="flex items-center space-x-2">
+                          <input
+                            type="checkbox"
+                            id="promotionActive"
+                            checked={promotionData.isDiscount}
+                            onChange={(e) => setPromotionData(prev => ({ ...prev, isDiscount: e.target.checked }))}
+                            className="w-4 h-4 text-orange-600 rounded focus:ring-orange-500"
+                          />
+                          <Label htmlFor="promotionActive" className="flex items-center space-x-2 cursor-pointer">
+                            <Tag className="h-4 w-4 text-orange-600" />
+                            <span>Poner en Promoción</span>
+                          </Label>
+                        </div>
+                        {promotionData.isDiscount && (
+                          <>
+                            <div>
+                              <Label htmlFor="promotionPrice">
+                                Precio con Promoción (L)
+                                <span className="text-orange-600 font-medium">
+                                  - Precio original: L {promotionTargetType === 'product' ? selectedPromotionProduct?.price.toFixed(2) : selectedPromotionPackage?.price}
+                                </span>
+                              </Label>
+                              <Input
+                                id="promotionPrice"
+                                type="number"
+                                step="0.01"
+                                value={promotionData.discountPrice}
+                                onChange={(e) => setPromotionData(prev => ({ ...prev, discountPrice: e.target.value }))}
+                                placeholder="Precio con promoción"
+                                className="border-orange-300 focus:ring-orange-500"
+                                required
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="promotionStartDate">Fecha de Inicio</Label>
+                                <input
+                                  id="promotionStartDate"
+                                  type="date"
+                                  defaultValue={promotionData.promotionStartDate || ''}
+                                  onChange={(e) => {
+                                    console.log('Cambiando fecha de inicio:', e.target.value);
+                                    setPromotionData(prev => ({ ...prev, promotionStartDate: e.target.value }));
+                                  }}
+                                  className="w-full mt-1 px-3 py-2 border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="promotionEndDate">Fecha de Finalización</Label>
+                                <input
+                                  id="promotionEndDate"
+                                  type="date"
+                                  defaultValue={promotionData.promotionEndDate || ''}
+                                  onChange={(e) => setPromotionData(prev => ({ ...prev, promotionEndDate: e.target.value }))}
+                                  className="w-full mt-1 px-3 py-2 border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500"
+                                />
+                              </div>
+                            </div>
+                          </>
+                        )}
+                        {!promotionData.isDiscount && (selectedPromotionProduct?.isDiscount || selectedPromotionPackage?.ispromotion) && (
+                          <p className="text-sm text-orange-600">
+                            ⚠️ Al guardar, se quitará la promoción actual
+                          </p>
+                        )}
+                      </>
+                    )}
+                    <div className="flex justify-end space-x-2">
+                      <Button type="button" variant="outline" onClick={() => setShowPromotionDialog(false)}>
+                        Cancelar
+                      </Button>
+                      <Button type="submit" disabled={!selectedPromotionProduct && !selectedPromotionPackage}>
+                        {promotionData.isDiscount ? 'Aplicar Promoción' : 'Guardar Cambios'}
+                      </Button>
+                    </div>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </div>
+          </div>
+          {products.filter(p => p.isDiscount).length === 0 && packages.filter(p => p.ispromotion).length === 0 ? (
+            <div className="text-center py-12">
+              <Tag className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-600">No hay promociones activas</h3>
+              <p className="text-sm text-gray-500">Activa descuentos en productos o paquetes para promocionarlos</p>
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {products.filter(p => p.isDiscount).length > 0 && (
+                <Collapsible open={productsExpanded} onOpenChange={setProductsExpanded}>
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <h3 className="text-lg font-semibold text-gray-700 flex items-center">
+                        <Tag className="h-5 w-5 mr-2 text-orange-600" />
+                        Productos en Descuento
+                        <Badge className="ml-2 bg-orange-100 text-orange-800">
+                          {products.filter(p => p.isDiscount).length}
+                        </Badge>
+                      </h3>
+                      <ChevronDown 
+                        className={`h-5 w-5 text-gray-500 transition-transform ${productsExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {products.filter(p => p.isDiscount).map((product) => {
+                      const isExpired = isDateExpired(product.promotionEndDate);
+                      return (
+                      <Card key={product.id} className={`hover:shadow-lg transition-shadow ${isExpired ? 'opacity-75' : ''}`}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center space-x-2">
+                            <span>{product.name}</span>
+                            {(product as any).isDiscount && (product as any).discountPrice ? (
+                              <Badge className="bg-orange-500 text-white text-xs">Descuento</Badge>
+                            ) : null}
+                            {isExpired && (
+                              <Badge className="bg-red-500 text-white text-xs">Expirada</Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="text-gray-400 line-through">L {product.price.toFixed(2)}</span>
+                            <span className="text-orange-600 font-bold text-lg">L {(product as any).discountPrice?.toFixed(2)}</span>
+                          </div>
+                          <p className="text-sm text-gray-500">{product.category}</p>
+                          <p className="text-sm text-gray-500">Stock: {product.stock} {product.unit}</p>
+                          {product.expirationDate && (
+                            <p className="text-xs text-orange-600">
+                              Expira: {new Date(product.expirationDate).toLocaleDateString('es-HN', { month: 'short', day: 'numeric', year: 'numeric' })}
+                            </p>
+                          )}
+                          {product.promotionStartDate && (
+                            <p className="text-xs text-blue-600">
+                              Promoción: {formatDateRange(product.promotionStartDate, product.promotionEndDate)}
+                            </p>
+                          )}
+                          <div className="flex space-x-2 mt-2">
+                            <Button size="sm" variant="outline" onClick={() => handleOpenPromotionDialog(product)}>
+                              <Edit className="h-4 w-4 mr-1" />
+                              Modificar
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      );
+                    })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+              {packages.filter(p => p.ispromotion).length > 0 && (
+                <Collapsible open={packagesExpanded} onOpenChange={setPackagesExpanded}>
+                  <CollapsibleTrigger className="w-full">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors cursor-pointer">
+                      <h3 className="text-lg font-semibold text-gray-700 flex items-center">
+                        <Package className="h-5 w-5 mr-2 text-orange-600" />
+                        Paquetes en Promoción
+                        <Badge className="ml-2 bg-orange-100 text-orange-800">
+                          {packages.filter(p => p.ispromotion).length}
+                        </Badge>
+                      </h3>
+                      <ChevronDown 
+                        className={`h-5 w-5 text-gray-500 transition-transform ${packagesExpanded ? 'rotate-180' : ''}`}
+                      />
+                    </div>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent className="mt-4">
+                    <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {packages.filter(p => p.ispromotion).map((pkg) => {
+                      const isExpired = isDateExpired(pkg.promotionenddate);
+                      return (
+                      <Card key={pkg.id} className={`hover:shadow-lg transition-shadow ${isExpired ? 'opacity-75' : ''}`}>
+                        <CardHeader>
+                          <CardTitle className="flex items-center space-x-2">
+                            <span>{pkg.name}</span>
+                            <Badge className="bg-orange-500 text-white text-xs">Promoción</Badge>
+                            {isExpired && (
+                              <Badge className="bg-red-500 text-white text-xs">Expirada</Badge>
+                            )}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="flex items-center space-x-2 mb-2">
+                            <span className="text-gray-400 line-through">L {pkg.price}</span>
+                            <span className="text-orange-600 font-bold text-lg">L {pkg.promotionprice}</span>
+                          </div>
+                          <p className="text-sm text-gray-500">{pkg.description}</p>
+                          <p className="text-sm text-gray-500">{pkg.products?.length || 0} productos</p>
+                          {pkg.promotionstartdate && (
+                            <p className="text-xs text-blue-600">
+                              Promoción: {formatDateRange(pkg.promotionstartdate, pkg.promotionenddate)}
+                            </p>
+                          )}
+                          <div className="flex space-x-2 mt-2">
+                            <Button size="sm" variant="outline" onClick={() => {
+                              const startDate = pkg.promotionstartdate;
+                              const endDate = pkg.promotionenddate;
+                              
+                              console.log('Fechas del paquete con timezone:', {
+                                promotionStartDate: startDate,
+                                promotionEndDate: endDate,
+                                formattedStart: formatDateForInput(startDate),
+                                formattedEnd: formatDateForInput(endDate)
+                              });
+                              
+                              setSelectedPromotionPackage(pkg);
+                              setPromotionTargetType('package');
+                              setPromotionData({
+                                discountPrice: pkg.promotionprice?.toString() || '',
+                                isDiscount: pkg.ispromotion || false,
+                                promotionStartDate: formatDateForInput(startDate),
+                                promotionEndDate: formatDateForInput(endDate)
+                              });
+                              setShowPromotionDialog(true);
+                            }}>
+                              <Edit className="h-4 w-4 mr-1" />
+                              Modificar
+                            </Button>
+                          </div>
+                        </CardContent>
+                      </Card>
+                      );
+                    })}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              )}
+            </div>
+          )}
+        </>
       )}
 
       {/* Movement Dialog */}
@@ -1785,6 +3463,18 @@ export default function InventoryPage() {
                       <Label className="text-sm font-medium text-gray-500">Stock Mínimo</Label>
                       <p className="text-lg">{selectedProduct.minstock || 0} {selectedProduct.unit}</p>
                     </div>
+                    {selectedProduct.expirationDate && (
+                      <div>
+                        <Label className="text-sm font-medium text-gray-500">Fecha de Expiración</Label>
+                        <p className="text-lg">
+                          {new Date(selectedProduct.expirationDate).toLocaleDateString('es-HN', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <Label className="text-sm font-medium text-gray-500">Estado</Label>
                       <Badge variant={getStockStatus(selectedProduct).status === 'normal' ? 'default' : 'secondary'}>
@@ -1800,7 +3490,14 @@ export default function InventoryPage() {
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Precio de Venta</Label>
-                    <p className="text-lg font-bold text-green-600">Lps. {selectedProduct.price.toFixed(2)}</p>
+                    {(selectedProduct as any).isDiscount && (selectedProduct as any).discountPrice ? (
+                      <>
+                        <p className="text-lg text-gray-400 line-through">Lps. {selectedProduct.price.toFixed(2)}</p>
+                        <p className="text-lg font-bold text-orange-600">Lps. {(selectedProduct as any).discountPrice.toFixed(2)}</p>
+                      </>
+                    ) : (
+                      <p className="text-lg font-bold text-green-600">Lps. {selectedProduct.price.toFixed(2)}</p>
+                    )}
                   </div>
                 </div>
                 {selectedProduct.description && (
