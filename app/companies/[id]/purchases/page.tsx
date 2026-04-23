@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Plus, FileText, Calendar, CreditCard, AlertCircle, ChevronLeft, Trash2, Upload, Printer, Eye, Edit, BarChart3, Wallet, MoreHorizontal, Menu } from 'lucide-react';
 import PaymentManager from '@/components/purchases/PaymentManager';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 interface Supplier {
   id: string;
   rtn: string;

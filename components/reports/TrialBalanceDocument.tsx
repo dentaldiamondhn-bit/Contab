@@ -1,6 +1,7 @@
 import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 import { SignatureBlock } from '@/components/reports/SignatureBlock';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 const styles = StyleSheet.create({
   page: { padding: 30, fontSize: 10, fontFamily: 'Helvetica' },
   header: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 15, borderBottom: 2 },

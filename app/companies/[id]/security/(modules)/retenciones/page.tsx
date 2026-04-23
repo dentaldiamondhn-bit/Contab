@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import YearSelector from '../../components/YearSelector';
 import ComprobanteRetencion from './components/ComprobanteRetencion';
 import HistoricoRetenciones from './components/HistoricoRetenciones';
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 import { 
   Percent,
   Database,

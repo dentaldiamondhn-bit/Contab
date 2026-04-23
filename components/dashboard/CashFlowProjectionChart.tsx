@@ -33,6 +33,7 @@ import {
 } from 'lucide-react';
 import { CashFlowProjection, DailyCashFlow } from '@/lib/services/cash-flow-projection-service';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface CashFlowProjectionChartProps {
   showControls?: boolean;
   compact?: boolean;

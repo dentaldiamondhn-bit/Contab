@@ -14,6 +14,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Plus, Building2, Phone, Mail, MapPin, History, CreditCard, AlertCircle, ChevronLeft, Trash2, Edit, Menu, FileText, ShoppingCart, BarChart3 } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface Supplier {
   id: string;
   rtn: string;

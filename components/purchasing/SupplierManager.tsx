@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface SupplierManagerProps {
   tenantId: string;
 }

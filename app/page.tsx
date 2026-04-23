@@ -7,8 +7,8 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to dashboard since Clerk is configured
-    router.push('/dashboard');
+    // Redirect to auth callback for proper role-based routing
+    router.push('/auth/callback');
   }, [router]);
 
   return (

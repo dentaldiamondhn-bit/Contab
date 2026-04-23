@@ -1,6 +1,8 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -169,6 +171,7 @@ export default function InventoryPage() {
   const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(true);
   const [activeTab, setActiveTab] = useState<'inventory' | 'packages' | 'promotions'>('inventory');
   const [showPromotionDialog, setShowPromotionDialog] = useState(false);
+  const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
   const [selectedPromotionProduct, setSelectedPromotionProduct] = useState<Product | null>(null);
   const [selectedPromotionPackage, setSelectedPromotionPackage] = useState<any>(null);
   const [promotionTargetType, setPromotionTargetType] = useState<'product' | 'package'>('product');
@@ -917,6 +920,168 @@ export default function InventoryPage() {
     }
   };
 
+  // Bulk import function
+  const handleBulkImport = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      let products: any[] = [];
+      const fileName = file.name.toLowerCase();
+
+      if (fileName.endsWith('.csv')) {
+        // Parse CSV file
+        const text = await file.text();
+        const config: Papa.ParseConfig = {
+          header: false,
+          skipEmptyLines: true
+        };
+        const result = Papa.parse(text, config);
+
+        products = result.data.map((row: any) => ({
+          name: row[0]?.trim(),
+          category: row[1]?.trim(),
+          price: parseFloat(row[2]) || 0,
+          stock: parseInt(row[3]) || 0,
+          cost: parseFloat(row[4]) || 0,
+          description: row[5]?.trim() || ''
+        }));
+      } else if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
+        // Parse Excel file
+        const buffer = await file.arrayBuffer();
+        const workbook = XLSX.read(buffer, { type: 'buffer' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        products = data.slice(1).map((row: any) => ({
+          name: row[0]?.trim(),
+          category: row[1]?.trim(),
+          price: parseFloat(row[2]) || 0,
+          stock: parseInt(row[3]) || 0,
+          cost: parseFloat(row[4]) || 0,
+          description: row[5]?.trim() || ''
+        }));
+      } else {
+        setMessage({ type: 'error', text: 'Formato de archivo no soportado' });
+        return;
+      }
+
+      // Validate and filter products
+      const validProducts = products.filter(product => {
+        if (!product.name || !product.category || !product.price || !product.stock) {
+          console.warn('Producto inválido (campos obligatorios faltantes):', product);
+          return false;
+        }
+        if (isNaN(product.price) || isNaN(product.stock)) {
+          console.warn('Producto inválido (precio o stock no numérico):', product);
+          return false;
+        }
+        return true;
+      });
+
+      if (validProducts.length === 0) {
+        setMessage({ type: 'error', text: 'No se encontraron productos válidos en el archivo' });
+        return;
+      }
+
+      // Check for duplicate names
+      const existingProductNames = new Set(products.map(p => p.name.toLowerCase()));
+      const newValidProducts = validProducts.filter(product => 
+        !existingProductNames.has(product.name.toLowerCase())
+      );
+
+      if (newValidProducts.length === 0) {
+        setMessage({ type: 'error', text: 'Todos los productos ya existen en el inventario' });
+        return;
+      }
+
+      // Process products in batches
+      const batchSize = 10;
+      let successCount = 0;
+      let errorCount = 0;
+
+      for (let i = 0; i < newValidProducts.length; i += batchSize) {
+        const batch = newValidProducts.slice(i, i + batchSize);
+        
+        for (const product of batch) {
+          try {
+            // Create category if it doesn't exist
+            const { data: categoryData, error: categoryError } = await supabase
+              .from('Categories')
+              .select('id')
+              .eq('name', product.category)
+              .single();
+
+            let categoryId;
+            if (categoryError || !categoryData) {
+              // Create new category
+              const { data: newCategory, error: createError } = await supabase
+                .from('Categories')
+                .insert([{ name: product.category, description: `Categoría para ${product.category}` }])
+                .select()
+                .single();
+
+              if (createError) {
+                console.error('Error creating category:', createError);
+                errorCount++;
+                continue;
+              }
+              categoryId = newCategory.id;
+            } else {
+              categoryId = categoryData.id;
+            }
+
+            // Create product
+            const { error: productError } = await supabase
+              .from('Products')
+              .insert([{
+                name: product.name,
+                category: product.category,
+                categoryid: categoryId,
+                price: product.price,
+                cost: product.cost,
+                stock: product.stock,
+                description: product.description,
+                isactive: true
+              }]);
+
+            if (productError) {
+              console.error('Error creating product:', productError);
+              errorCount++;
+            } else {
+              successCount++;
+            }
+          } catch (error) {
+            console.error('Error processing product:', error);
+            errorCount++;
+          }
+        }
+      }
+
+      // Reload products
+      await loadProducts();
+      
+      // Show results
+      if (successCount > 0) {
+        setMessage({ 
+          type: 'success', 
+          text: `Se importaron ${successCount} productos exitosamente${errorCount > 0 ? ` (${errorCount} errores)` : ''}` 
+        });
+        setShowBulkImportDialog(false);
+      } else {
+        setMessage({ type: 'error', text: 'No se pudo importar ningún producto' });
+      }
+
+    } catch (error: any) {
+      console.error('Error importing products:', error);
+      setMessage({ type: 'error', text: error.message || 'Error al importar productos' });
+    }
+
+    // Reset file input
+    event.target.value = '';
+  };
+
   // Category management functions
   const handleAddCategory = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1459,10 +1624,32 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex space-x-2">
-          <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-            <Plus className="h-4 w-4 mr-2" />
-            Agregar Producto
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white">
+                <MoreHorizontal className="h-4 w-4 mr-2" />
+                Acciones
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => setShowAddDialog(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Agregar Producto
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowBulkImportDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Productos
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowPackageDialog(true)}>
+                <Package className="h-4 w-4 mr-2" />
+                Crear Paquete
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowCategoryDialog(true)}>
+                <Tag className="h-4 w-4 mr-2" />
+                Gestionar Categorías
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Dialog open={showPackageDialog} onOpenChange={(open) => {
             setShowPackageDialog(open);
             if (!open) {
@@ -1470,12 +1657,6 @@ export default function InventoryPage() {
               setPackageData({ name: '', description: '', price: '', promotionprice: '', ispromotion: false, selectedProducts: [] });
             }
           }}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="bg-green-600 hover:bg-green-700 text-white">
-                <Package className="h-4 w-4 mr-2" />
-                Crear Paquete
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>{editingPackage ? 'Editar Paquete de Productos' : 'Crear Paquete de Productos'}</DialogTitle>
@@ -1668,12 +1849,6 @@ export default function InventoryPage() {
       setCategoryData({ name: '', description: '' });
     }
   }}>
-            <DialogTrigger asChild>
-              <Button variant="outline" className="bg-purple-600 hover:bg-purple-700 text-white">
-                <Tag className="h-4 w-4 mr-2" />
-                Gestionar Categorías
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Gestionar Categorías</DialogTitle>
@@ -1806,12 +1981,6 @@ export default function InventoryPage() {
             </DialogContent>
           </Dialog>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-            <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
-                <Plus className="h-4 w-4 mr-2" />
-                Nuevo Producto
-              </Button>
-            </DialogTrigger>
             <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>
@@ -3681,6 +3850,102 @@ export default function InventoryPage() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Import Dialog */}
+      <Dialog open={showBulkImportDialog} onOpenChange={(open) => {
+        setShowBulkImportDialog(open);
+      }}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Importar Productos Masivamente</DialogTitle>
+            <DialogDescription>
+              Importa múltiples productos desde un archivo Excel o CSV
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+              <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+              <div className="space-y-2">
+                <h3 className="text-lg font-semibold">Selecciona un archivo</h3>
+                <p className="text-sm text-gray-600">
+                  Formatos soportados: Excel (.xlsx, .xls) y CSV (.csv)
+                </p>
+              </div>
+              <input
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                className="hidden"
+                id="bulk-import-file"
+                onChange={handleBulkImport}
+              />
+              <Button 
+                onClick={() => document.getElementById('bulk-import-file')?.click()}
+                className="mt-4"
+                variant="outline"
+              >
+                <Upload className="h-4 w-4 mr-2" />
+                Seleccionar Archivo
+              </Button>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+              <h4 className="font-semibold text-blue-900 mb-2">Formato del Archivo:</h4>
+              <p className="text-sm text-blue-800 mb-2">
+                Tu archivo debe contener las siguientes columnas en este orden:
+              </p>
+              <div className="grid grid-cols-2 gap-2 text-sm text-blue-700">
+                <div><strong>Nombre*</strong> - Nombre del producto</div>
+                <div><strong>Categoría*</strong> - Categoría del producto</div>
+                <div><strong>Precio*</strong> - Precio de venta</div>
+                <div><strong>Stock*</strong> - Cantidad inicial</div>
+                <div><strong>Costo</strong> - Costo del producto (opcional)</div>
+                <div><strong>Descripción</strong> - Descripción (opcional)</div>
+              </div>
+            </div>
+
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <h4 className="font-semibold text-green-900 mb-2">Consejos:</h4>
+              <ul className="text-sm text-green-800 space-y-1">
+                <li> Las columnas con * son obligatorias</li>
+                <li> Usa categorías existentes o crea nuevas automáticamente</li>
+                <li> Los productos con nombres duplicados serán ignorados</li>
+                <li> El precio y stock deben ser números válidos</li>
+              </ul>
+            </div>
+          </div>
+
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkImportDialog(false)}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              className="bg-green-600 hover:bg-green-700"
+              onClick={() => {
+                // Descargar plantilla
+                const templateData = [
+                  ['Nombre', 'Categoría', 'Precio', 'Stock', 'Costo', 'Descripción'],
+                  ['Ejemplo: Laptop Pro', 'Electrónica', '15000', '10', '12000', 'Laptop de alto rendimiento']
+                ];
+                const csvContent = templateData.map(row => row.join(',')).join('\n');
+                const blob = new Blob([csvContent], { type: 'text/csv' });
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = 'plantilla_productos.csv';
+                a.click();
+                window.URL.revokeObjectURL(url);
+              }}
+            >
+              <Download className="h-4 w-4 mr-2" />
+              Descargar Plantilla
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

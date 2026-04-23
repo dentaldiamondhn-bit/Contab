@@ -15,6 +15,7 @@ import {
   FileText
 } from 'lucide-react';
 import Link from 'next/link';
+import { formatDateForDisplay, formatDateRange } from '@/lib/date-utils';
 import { 
   getWithholdingStatistics,
   formatCurrency

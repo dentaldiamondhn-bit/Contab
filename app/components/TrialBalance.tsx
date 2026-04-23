@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { generateTrialBalance, TrialBalanceReport, TrialBalanceAccount } from '@/lib/reports/trial-balance';
 import { getAccountTypeLabel, ACCOUNT_TYPE_COLORS } from '@/lib/accounting-utils';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 export default function TrialBalance() {
   const [report, setReport] = useState<TrialBalanceReport | null>(null);
   const [loading, setLoading] = useState(false);

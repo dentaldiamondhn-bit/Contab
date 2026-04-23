@@ -13,6 +13,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, CreditCard, Calendar, AlertCircle, ChevronLeft, CheckCircle, Clock, AlertTriangle, DollarSign, Building2, Menu, FileText, ShoppingCart, BarChart3, Plus } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 interface AccountPayable {
   purchase_id: string;
   invoice_number: string;

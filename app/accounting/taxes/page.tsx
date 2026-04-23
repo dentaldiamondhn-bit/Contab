@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatDateForDisplay } from '@/lib/date-utils';
 import { 
   Calculator, 
   Plus, 
@@ -433,7 +434,7 @@ export default function TaxesPage() {
                   </div>
 
                   <div className="text-xs text-gray-500 mt-2">
-                    Creado: {new Date(tax.createdat).toLocaleDateString('es-HN')}
+                    Creado: {formatDateForDisplay(tax.createdat)}
                   </div>
                 </CardContent>
               </Card>
@@ -549,7 +550,7 @@ export default function TaxesPage() {
                   </div>
 
                   <div className="text-xs text-gray-500 mt-2">
-                    Creado: {new Date(retention.createdat).toLocaleDateString('es-HN')}
+                    Creado: {formatDateForDisplay(retention.createdat)}
                   </div>
                 </CardContent>
               </Card>

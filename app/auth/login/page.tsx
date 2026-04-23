@@ -51,7 +51,7 @@ export default function LoginPage() {
                 dividerText: "text-gray-500",
               },
             }}
-            fallbackRedirectUrl="/dashboard"
+            fallbackRedirectUrl="/auth/callback"
             signUpUrl="/auth/register"
             routing="hash"
           />

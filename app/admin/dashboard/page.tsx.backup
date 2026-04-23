@@ -1,0 +1,498 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  Users, 
+  Building, 
+  TrendingUp, 
+  AlertTriangle, 
+  Settings, 
+  Search,
+  Filter,
+  Eye,
+  Edit,
+  Trash2,
+  Plus,
+  Crown,
+  Headphones,
+  Database,
+  Shield,
+  Activity,
+  DollarSign,
+  UserCheck,
+  UserX,
+  BarChart3,
+  PieChart,
+  Download
+} from 'lucide-react';
+import { useUser } from '@clerk/nextjs';
+
+interface Tenant {
+  id: string;
+  businessName: string;
+  tenantCode: string;
+  businessEmail: string;
+  subscriptionPlan: string;
+  maxUsers: number;
+  isActive: boolean;
+  _count: {
+    users: number;
+  };
+  createdAt: string;
+}
+
+interface SystemStats {
+  totalTenants: number;
+  activeTenants: number;
+  totalUsers: number;
+  activeUsers: number;
+  totalRevenue: number;
+  recentActivity: Array<{
+    id: string;
+    type: string;
+    description: string;
+    timestamp: string;
+    tenantName?: string;
+  }>;
+}
+
+export default function AdminDashboard() {
+  const { user } = useUser();
+  const [userRole, setUserRole] = useState<string>('');
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [systemStats, setSystemStats] = useState<SystemStats>({
+    totalTenants: 0,
+    activeTenants: 0,
+    totalUsers: 0,
+    activeUsers: 0,
+    totalRevenue: 0,
+    recentActivity: []
+  });
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
+
+  useEffect(() => {
+    if (!user) {
+      console.log('AdminDashboard - User not loaded yet');
+      return;
+    }
+
+    const loadDashboardData = async () => {
+      try {
+        console.log('AdminDashboard - Loading data for user:', user?.primaryEmailAddress?.emailAddress);
+        
+        // Obtener información del usuario autenticado
+        const role = user?.publicMetadata?.role || 
+                     user?.unsafeMetadata?.role ||
+                     (user as any).privateMetadata?.role;
+        setUserRole(role || '');
+        console.log('AdminDashboard - User role:', role);
+
+        // Cargar datos del dashboard
+        await Promise.all([
+          loadTenants(),
+          loadSystemStats()
+        ]);
+      } catch (error) {
+        console.error('AdminDashboard - Error loading dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboardData();
+  }, [user]);
+
+  const loadTenants = async () => {
+    try {
+      const response = await fetch('/api/admin/tenants');
+      const data = await response.json();
+      if (data.success) {
+        setTenants(data.tenants);
+      }
+    } catch (error) {
+      console.error('Error loading tenants:', error);
+    }
+  };
+
+  const loadSystemStats = async () => {
+    try {
+      const response = await fetch('/api/admin/stats');
+      const data = await response.json();
+      if (data.success) {
+        setSystemStats(data.stats);
+      }
+    } catch (error) {
+      console.error('Error loading stats:', error);
+    }
+  };
+
+  const filteredTenants = tenants.filter(tenant => {
+    const matchesSearch = tenant.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tenant.tenantCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         tenant.businessEmail.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesFilter = filterStatus === 'all' || 
+                         (filterStatus === 'active' && tenant.isActive) ||
+                         (filterStatus === 'inactive' && !tenant.isActive);
+    
+    return matchesSearch && matchesFilter;
+  });
+
+  const getRoleIcon = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return <Crown className="h-4 w-4" />;
+      case 'SUPPORT':
+        return <Headphones className="h-4 w-4" />;
+      default:
+        return <Users className="h-4 w-4" />;
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'SUPER_ADMIN':
+        return 'bg-purple-100 text-purple-800';
+      case 'SUPPORT':
+        return 'bg-blue-100 text-blue-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  // Show loading while user is not loaded or data is loading
+  if (!user || loading) {
+    console.log('AdminDashboard - Showing loading, user:', !!user, 'loading:', loading);
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Cargando dashboard administrativo...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
+            {getRoleIcon(userRole)}
+            Panel Administrativo
+          </h1>
+          <p className="text-muted-foreground">
+            {userRole === 'SUPER_ADMIN' 
+              ? 'Gestión completa del sistema multi-tenant' 
+              : 'Soporte y monitoreo del sistema'
+            }
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge className={getRoleColor(userRole)}>
+            {userRole}
+          </Badge>
+          {userRole === 'SUPER_ADMIN' && (
+            <Button className="bg-blue-600 hover:bg-blue-700">
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Tenant
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Tenants</CardTitle>
+            <Building className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{systemStats.totalTenants}</div>
+            <p className="text-xs text-muted-foreground">
+              {systemStats.activeTenants} activos
+            </p>
+          </CardContent>
+        </Card>
+        
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Usuarios</CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{systemStats.totalUsers}</div>
+            <p className="text-xs text-muted-foreground">
+              {systemStats.activeUsers} activos
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Ingresos Mensuales</CardTitle>
+            <DollarSign className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">Lps. {systemStats.totalRevenue.toLocaleString()}</div>
+            <p className="text-xs text-muted-foreground">
+              +12% vs mes anterior
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Actividad Reciente</CardTitle>
+            <Activity className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{systemStats.recentActivity.length}</div>
+            <p className="text-xs text-muted-foreground">
+              últimas 24 horas
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Main Content */}
+      <Tabs defaultValue="tenants" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="tenants">Tenants</TabsTrigger>
+          <TabsTrigger value="users">Usuarios</TabsTrigger>
+          <TabsTrigger value="activity">Actividad</TabsTrigger>
+          {userRole === 'SUPER_ADMIN' && <TabsTrigger value="system">Sistema</TabsTrigger>}
+        </TabsList>
+
+        {/* Tenants Tab */}
+        <TabsContent value="tenants" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Gestión de Tenants</CardTitle>
+                  <CardDescription>
+                    Administra todas las organizaciones del sistema
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <div className="relative">
+                    <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar tenant..."
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                      className="pl-8 w-64"
+                    />
+                  </div>
+                  <select
+                    value={filterStatus}
+                    onChange={(e) => setFilterStatus(e.target.value as any)}
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="all">Todos</option>
+                    <option value="active">Activos</option>
+                    <option value="inactive">Inactivos</option>
+                  </select>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-md border">
+                <div className="grid grid-cols-6 gap-4 p-4 border-b bg-muted/50">
+                  <div className="font-medium">Empresa</div>
+                  <div className="font-medium">Código</div>
+                  <div className="font-medium">Plan</div>
+                  <div className="font-medium">Usuarios</div>
+                  <div className="font-medium">Estado</div>
+                  <div className="font-medium">Acciones</div>
+                </div>
+                {filteredTenants.map((tenant) => (
+                  <div key={tenant.id} className="grid grid-cols-6 gap-4 p-4 border-b hover:bg-muted/50">
+                    <div>
+                      <div className="font-medium">{tenant.businessName}</div>
+                      <div className="text-sm text-muted-foreground">{tenant.businessEmail}</div>
+                    </div>
+                    <div className="font-mono text-sm">{tenant.tenantCode}</div>
+                    <div>
+                      <Badge variant="outline">{tenant.subscriptionPlan}</Badge>
+                    </div>
+                    <div>
+                      <div className="text-sm">{tenant._count.users}/{tenant.maxUsers}</div>
+                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-1">
+                        <div 
+                          className="bg-blue-600 h-1.5 rounded-full" 
+                          style={{ width: `${(tenant._count.users / tenant.maxUsers) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                    <div>
+                      <Badge className={tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}>
+                        {tenant.isActive ? 'Activo' : 'Inactivo'}
+                      </Badge>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline">
+                        <Eye className="h-4 w-4" />
+                      </Button>
+                      {userRole === 'SUPER_ADMIN' && (
+                        <>
+                          <Button size="sm" variant="outline">
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                          <Button size="sm" variant="outline">
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Users Tab */}
+        <TabsContent value="users" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Gestión de Usuarios</CardTitle>
+              <CardDescription>
+                Administra todos los usuarios del sistema
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                <h3 className="text-lg font-semibold">Gestión de Usuarios</h3>
+                <p className="text-muted-foreground">
+                  {userRole === 'SUPER_ADMIN' 
+                    ? 'Crea y gestiona usuarios de todos los tenants'
+                    : 'Visualiza y gestiona usuarios asignados'
+                  }
+                </p>
+                {userRole === 'SUPER_ADMIN' && (
+                  <Button className="mt-4">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Crear Usuario
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Actividad del Sistema</CardTitle>
+              <CardDescription>
+                Registro de actividades recientes
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {systemStats.recentActivity.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Activity className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-semibold">Sin actividad reciente</h3>
+                    <p className="text-muted-foreground">
+                      No hay actividades registradas en las últimas 24 horas
+                    </p>
+                  </div>
+                ) : (
+                  systemStats.recentActivity.map((activity) => (
+                    <div key={activity.id} className="flex items-center justify-between p-4 border rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Activity className="h-4 w-4 text-muted-foreground" />
+                        <div>
+                          <div className="font-medium">{activity.description}</div>
+                          <div className="text-sm text-muted-foreground">
+                            {activity.tenantName && `${activity.tenantName} • `}
+                            {new Date(activity.timestamp).toLocaleString()}
+                          </div>
+                        </div>
+                      </div>
+                      <Badge variant="outline">{activity.type}</Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* System Tab - Solo SUPER_ADMIN */}
+        {userRole === 'SUPER_ADMIN' && (
+          <TabsContent value="system" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Database className="h-5 w-5" />
+                    Base de Datos
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between">
+                    <span>Estado</span>
+                    <Badge className="bg-green-100 text-green-800">Activa</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Último backup</span>
+                    <span className="text-sm">Hace 2 horas</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Tamaño total</span>
+                    <span className="text-sm">2.4 GB</span>
+                  </div>
+                  <Button variant="outline" className="w-full">
+                    <Download className="h-4 w-4 mr-2" />
+                    Exportar Datos
+                  </Button>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Seguridad
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex justify-between">
+                    <span>Autenticación</span>
+                    <Badge className="bg-green-100 text-green-800">Clerk</Badge>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Intentos fallidos</span>
+                    <span className="text-sm">3 (últimas 24h)</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Usuarios bloqueados</span>
+                    <span className="text-sm">0</span>
+                  </div>
+                  <Button variant="outline" className="w-full">
+                    Ver Logs
+                  </Button>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
+      </Tabs>
+    </div>
+  );
+}

@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { suggestMatches } from '@/app/lib/services/reconciliation';
 import { parseBankStatement, BankStatementRow } from '@/app/lib/services/bank-statement-parser';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface BankRow {
   id: string;
   date: Date;

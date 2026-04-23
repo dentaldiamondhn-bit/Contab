@@ -40,6 +40,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/standard-client';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface Customer {
   id: string;
   tenantid: string;

@@ -35,6 +35,7 @@ import {
 } from 'lucide-react';
 import PaymentLinkGenerator from '@/components/billing/PaymentLinkGenerator';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface InvoiceItem {
   id: string;
   productId?: string;

@@ -1,6 +1,9 @@
 "use client";
 
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useUser } from "@clerk/nextjs";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,6 +31,37 @@ import InventoryStats from "@/components/dashboard/InventoryStats";
 
 export default function DashboardPage() {
   const { currentTenant } = useTenant();
+  const { user } = useUser();
+  const router = useRouter();
+
+  // Verificar rol y redirigir si es administrador
+  useEffect(() => {
+    if (user) {
+      const userRole = user.publicMetadata?.role;
+      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
+        router.replace('/admin/dashboard');
+      }
+    }
+  }, [user, router]);
+
+  // Mostrar loading mientras se verifica el rol
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
+
+  // Si es administrador, no mostrar este dashboard (será redirigido)
+  const userRole = user.publicMetadata?.role;
+  if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+      </div>
+    );
+  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {

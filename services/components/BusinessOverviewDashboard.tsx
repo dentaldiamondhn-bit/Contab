@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AlertTriangle, CheckCircle2, Clock, Filter, FileText, Lock } from "lucide-react";
 import { useState, useMemo } from "react";
 
-export function MasterDashboard({ summaryData }: { summaryData: any[] }) {
+export function BusinessOverviewDashboard({ summaryData }: { summaryData: any[] }) {
   const [selectedIndustry, setSelectedIndustry] = useState<string>('todos');
   
   // Obtener industrias únicas para el filtro
