@@ -1,0 +1,290 @@
+{
+  "metadata_templates": {
+    "SUPER_ADMIN": {
+      "role": "SUPER_ADMIN",
+      "tenantId": null,
+      "tenantCode": null,
+      "permissions": [
+        "system:admin",
+        "users:manage",
+        "tenants:manage",
+        "audit:view",
+        "reports:all",
+        "tenant:*:access"
+      ],
+      "isolation": {
+        "tenantScope": false,
+        "crossTenantAccess": true,
+        "dataVisibility": "all_tenants"
+      },
+      "description": "Acceso completo a todo el sistema multi-tenant"
+    },
+    "SUPPORT": {
+      "role": "SUPPORT",
+      "tenantId": null,
+      "tenantCode": null,
+      "permissions": [
+        "support:admin",
+        "tenants:view_basic",
+        "users:view_basic",
+        "tickets:manage",
+        "audit:view_support",
+        "reports:basic"
+      ],
+      "isolation": {
+        "tenantScope": false,
+        "crossTenantAccess": true,
+        "dataVisibility": "support_limited"
+      },
+      "restrictions": {
+        "financial_access": false,
+        "sensitive_data": false,
+        "user_modification": false,
+        "tenant_modification": false
+      },
+      "description": "Soporte técnico con acceso multi-tenant limitado"
+    },
+    "ADMIN": {
+      "role": "ADMIN",
+      "tenantId": "REPLACE_WITH_TENANT_ID",
+      "tenantCode": "REPLACE_WITH_TENANT_CODE",
+      "permissions": [
+        "tenant:admin",
+        "users:tenant_manage",
+        "inventory:manage",
+        "accounting:manage",
+        "reports:tenant",
+        "tenant:REPLACE_WITH_TENANT_CODE:access"
+      ],
+      "isolation": {
+        "tenantScope": true,
+        "crossTenantAccess": false,
+        "dataVisibility": "tenant_only"
+      },
+      "description": "Administrador dentro de un tenant específico"
+    },
+    "MANAGER": {
+      "role": "MANAGER",
+      "tenantId": "REPLACE_WITH_TENANT_ID",
+      "tenantCode": "REPLACE_WITH_TENANT_CODE",
+      "permissions": [
+        "inventory:view",
+        "inventory:create",
+        "inventory:edit",
+        "accounting:view",
+        "accounting:create",
+        "reports:basic",
+        "tenant:REPLACE_WITH_TENANT_CODE:access"
+      ],
+      "isolation": {
+        "tenantScope": true,
+        "crossTenantAccess": false,
+        "dataVisibility": "tenant_only"
+      },
+      "description": "Gerente con acceso limitado a operaciones"
+    },
+    "USER": {
+      "role": "USER",
+      "tenantId": "REPLACE_WITH_TENANT_ID",
+      "tenantCode": "REPLACE_WITH_TENANT_CODE",
+      "permissions": [
+        "inventory:view",
+        "accounting:view",
+        "reports:personal",
+        "tenant:REPLACE_WITH_TENANT_CODE:access"
+      ],
+      "isolation": {
+        "tenantScope": true,
+        "crossTenantAccess": false,
+        "dataVisibility": "tenant_only"
+      },
+      "description": "Usuario estándar con acceso básico"
+    },
+    "VIEWER": {
+      "role": "VIEWER",
+      "tenantId": "REPLACE_WITH_TENANT_ID",
+      "tenantCode": "REPLACE_WITH_TENANT_CODE",
+      "permissions": [
+        "inventory:readonly",
+        "accounting:readonly",
+        "reports:view",
+        "tenant:REPLACE_WITH_TENANT_CODE:access"
+      ],
+      "isolation": {
+        "tenantScope": true,
+        "crossTenantAccess": false,
+        "dataVisibility": "tenant_only"
+      },
+      "description": "Solo lectura, sin permisos de modificación"
+    }
+  },
+  "examples": {
+    "super_admin_example": {
+      "userId": "user_2ABC123DEF456",
+      "email": "admin@company.com",
+      "publicMetadata": {
+        "role": "SUPER_ADMIN",
+        "tenantId": null,
+        "tenantCode": null,
+        "permissions": [
+          "system:admin",
+          "users:manage",
+          "tenants:manage",
+          "audit:view",
+          "reports:all",
+          "tenant:*:access"
+        ],
+        "isolation": {
+          "tenantScope": false,
+          "crossTenantAccess": true,
+          "dataVisibility": "all_tenants"
+        }
+      }
+    },
+    "support_example": {
+      "userId": "user_2SUPPORT123DEF",
+      "email": "support@company.com",
+      "publicMetadata": {
+        "role": "SUPPORT",
+        "tenantId": null,
+        "tenantCode": null,
+        "permissions": [
+          "support:admin",
+          "tenants:view_basic",
+          "users:view_basic",
+          "tickets:manage",
+          "audit:view_support",
+          "reports:basic"
+        ],
+        "isolation": {
+          "tenantScope": false,
+          "crossTenantAccess": true,
+          "dataVisibility": "support_limited"
+        },
+        "restrictions": {
+          "financial_access": false,
+          "sensitive_data": false,
+          "user_modification": false,
+          "tenant_modification": false
+        }
+      }
+    },
+    "admin_example": {
+      "userId": "user_3XYZ789UVW012",
+      "email": "tenant-admin@company.com",
+      "publicMetadata": {
+        "role": "ADMIN",
+        "tenantId": "tenant_123abc456def",
+        "tenantCode": "DEN001",
+        "permissions": [
+          "tenant:admin",
+          "users:tenant_manage",
+          "inventory:manage",
+          "accounting:manage",
+          "reports:tenant",
+          "tenant:DEN001:access"
+        ],
+        "isolation": {
+          "tenantScope": true,
+          "crossTenantAccess": false,
+          "dataVisibility": "tenant_only"
+        }
+      }
+    },
+    "manager_example": {
+      "userId": "user_4LMN345OPQ678",
+      "email": "manager@company.com",
+      "publicMetadata": {
+        "role": "MANAGER",
+        "tenantId": "tenant_123abc456def",
+        "tenantCode": "DEN001",
+        "permissions": [
+          "inventory:view",
+          "inventory:create",
+          "inventory:edit",
+          "accounting:view",
+          "accounting:create",
+          "reports:basic",
+          "tenant:DEN001:access"
+        ],
+        "isolation": {
+          "tenantScope": true,
+          "crossTenantAccess": false,
+          "dataVisibility": "tenant_only"
+        }
+      }
+    },
+    "user_example": {
+      "userId": "user_5RST901YZU234",
+      "email": "user@company.com",
+      "publicMetadata": {
+        "role": "USER",
+        "tenantId": "tenant_123abc456def",
+        "tenantCode": "DEN001",
+        "permissions": [
+          "inventory:view",
+          "accounting:view",
+          "reports:personal",
+          "tenant:DEN001:access"
+        ],
+        "isolation": {
+          "tenantScope": true,
+          "crossTenantAccess": false,
+          "dataVisibility": "tenant_only"
+        }
+      }
+    },
+    "viewer_example": {
+      "userId": "user_6VWX567ABC890",
+      "email": "viewer@company.com",
+      "publicMetadata": {
+        "role": "VIEWER",
+        "tenantId": "tenant_123abc456def",
+        "tenantCode": "DEN001",
+        "permissions": [
+          "inventory:readonly",
+          "accounting:readonly",
+          "reports:view",
+          "tenant:DEN001:access"
+        ],
+        "isolation": {
+          "tenantScope": true,
+          "crossTenantAccess": false,
+          "dataVisibility": "tenant_only"
+        }
+      }
+    }
+  },
+  "bulk_import_format": [
+    {
+      "user_id": "user_2ABC123DEF456",
+      "email": "admin@company.com",
+      "role": "SUPER_ADMIN",
+      "tenant_id": null
+    },
+    {
+      "user_id": "user_3XYZ789UVW012", 
+      "email": "tenant-admin@company.com",
+      "role": "ADMIN",
+      "tenant_id": "tenant_123abc456def"
+    },
+    {
+      "user_id": "user_4LMN345OPQ678",
+      "email": "manager@company.com", 
+      "role": "MANAGER",
+      "tenant_id": "tenant_123abc456def"
+    },
+    {
+      "user_id": "user_5RST901YZU234",
+      "email": "user@company.com",
+      "role": "USER", 
+      "tenant_id": "tenant_123abc456def"
+    },
+    {
+      "user_id": "user_6VWX567ABC890",
+      "email": "viewer@company.com",
+      "role": "VIEWER",
+      "tenant_id": "tenant_123abc456def"
+    }
+  ]
+}
