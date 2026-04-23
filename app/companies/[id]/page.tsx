@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatDateForDisplay, formatDateRange } from '@/lib/date-utils';
 import { 
   Building2, 
   ArrowLeft,
@@ -532,7 +533,7 @@ export default function CompanyDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Fecha de Creación</p>
-                  <p className="font-medium">{new Date(company.created_at).toLocaleDateString('es-HN')}</p>
+                  <p className="font-medium">{formatDateForDisplay(company.created_at)}</p>
                 </div>
               </CardContent>
             </Card>
@@ -632,7 +633,7 @@ export default function CompanyDetailPage() {
                       <div>
                         <h4 className="font-medium">{cai.cai_number}</h4>
                         <p className="text-sm text-gray-600">
-                          Vence: {new Date(cai.fecha_limite_emision).toLocaleDateString('es-HN')}
+                          Vence: {formatDateForDisplay(cai.fecha_limite_emision)}
                         </p>
                       </div>
                       <div className="text-right">
@@ -679,7 +680,7 @@ export default function CompanyDetailPage() {
                     <div>
                       <CardTitle className="text-lg">{cai.cai_number}</CardTitle>
                       <CardDescription>
-                        Asignado: {new Date(cai.fecha_asignacion).toLocaleDateString('es-HN')}
+                        Asignado: {formatDateForDisplay(cai.fecha_asignacion)}
                       </CardDescription>
                     </div>
                     {getEstadoBadge(cai.estado)}
@@ -705,7 +706,7 @@ export default function CompanyDetailPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Vencimiento:</span>
-                      <span className="font-medium">{new Date(cai.fecha_limite_emision).toLocaleDateString('es-HN')}</span>
+                      <span className="font-medium">{formatDateForDisplay(cai.fecha_limite_emision)}</span>
                     </div>
                   </div>
 
@@ -762,7 +763,7 @@ export default function CompanyDetailPage() {
                     <div>
                       <CardTitle className="text-lg">{talonario.numero_talonario}</CardTitle>
                       <CardDescription>
-                        Solicitado: {new Date(talonario.fecha_solicitud).toLocaleDateString('es-HN')}
+                        Solicitado: {formatDateForDisplay(talonario.fecha_solicitud)}
                       </CardDescription>
                     </div>
                     {getEstadoBadge(talonario.estado)}
@@ -792,7 +793,7 @@ export default function CompanyDetailPage() {
                     </div>
                     <div className="flex justify-between text-sm">
                       <span className="text-gray-600">Vencimiento:</span>
-                      <span className="font-medium">{new Date(talonario.fecha_vencimiento).toLocaleDateString('es-HN')}</span>
+                      <span className="font-medium">{formatDateForDisplay(talonario.fecha_vencimiento)}</span>
                     </div>
                   </div>
 

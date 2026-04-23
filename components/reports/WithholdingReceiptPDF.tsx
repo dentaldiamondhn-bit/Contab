@@ -1,5 +1,6 @@
 import { Page, Text, View, Document, StyleSheet, Font } from '@react-pdf/renderer';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 // Register fonts (you may need to adjust the path)
 Font.register({
   family: 'Roboto',

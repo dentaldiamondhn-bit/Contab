@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { AlertCircle, CreditCard, DollarSign, Calendar, Plus, Trash2, Edit } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface Payment {
   id: string;
   purchase_id: string;

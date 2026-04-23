@@ -6,6 +6,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Download, FileText, Loader2 } from "lucide-react";
 import { generateBatchPolizaPDF } from "@/lib/actions/batch-poliza";
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface Transaction {
   id: string;
   description: string;

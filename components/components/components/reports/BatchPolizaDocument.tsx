@@ -2,6 +2,7 @@ import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 import { formatVoucher, VOUCHER_TYPE_DESCRIPTIONS } from '@/lib/voucher-types';
 import { SignatureBlock } from '@/components/reports/SignatureBlock';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 const styles = StyleSheet.create({
   page: { padding: 30, fontSize: 10, fontFamily: 'Helvetica' },
   voucherContainer: { marginBottom: 30, border: 1, padding: 10 },

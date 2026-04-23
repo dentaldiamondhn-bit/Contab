@@ -13,9 +13,11 @@ export default function LayoutWrapper({ children, tenants }: LayoutWrapperProps)
   const pathname = usePathname();
   const isOnboarding = pathname === '/onboarding' || pathname?.startsWith('/onboarding/');
   const isAuthPage = pathname?.startsWith('/auth/') || pathname === '/login' || pathname === '/register';
+  const isAdminPage = pathname?.startsWith('/admin/');
 
-  // During onboarding or auth pages, show only children without sidebar/header
-  if (isOnboarding || isAuthPage) {
+  // During onboarding, auth, or admin pages, show only children without sidebar/header
+  if (isOnboarding || isAuthPage || isAdminPage) {
+    console.log('LayoutWrapper - Excluding layout for pathname:', pathname);
     return (
       <div className="min-h-screen bg-gray-50">
         {children}

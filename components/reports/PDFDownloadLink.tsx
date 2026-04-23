@@ -7,6 +7,7 @@ import { getPnLData } from "@/lib/reports/profit-and-loss";
 import { pdf } from '@react-pdf/renderer';
 import { PnLPDF } from './PnLPDF';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface PDFDownloadLinkProps {
   startDate?: Date;
   endDate?: Date;

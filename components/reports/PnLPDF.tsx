@@ -1,5 +1,6 @@
 import { Page, Text, View, Document, StyleSheet } from '@react-pdf/renderer';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 const styles = StyleSheet.create({
   page: { padding: 40, fontSize: 12 },
   header: { fontSize: 20, marginBottom: 20, textAlign: 'center', fontWeight: 'bold' },

@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { useRouter } from 'next/navigation';
 import { SignOutButton } from '@clerk/nextjs';
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 import { 
   User, 
   Mail, 

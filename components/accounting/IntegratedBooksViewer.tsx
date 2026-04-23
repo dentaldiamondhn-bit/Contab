@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Calendar, BookOpen, BarChart3, FileText, RefreshCw } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 interface IntegratedBookData {
   [key: string]: any;
 }

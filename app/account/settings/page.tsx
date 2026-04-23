@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/lib/supabase/standard-client';
 import { SignOutButton } from '@clerk/nextjs';
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 import { 
   User, 
   Settings, 

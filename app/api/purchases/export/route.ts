@@ -3,6 +3,7 @@ import { readFileSync, existsSync } from 'fs';
 import { join } from 'path';
 import * as XLSX from 'xlsx';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 const DATA_FILE = join(process.cwd(), 'purchases-data.json');
 
 interface Purchase {

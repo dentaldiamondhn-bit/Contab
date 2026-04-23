@@ -4,6 +4,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { getAccountTypeLabel, getAccountTypeColor } from '@/lib/accounting-utils';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface Account {
   id: string;
   name: string;

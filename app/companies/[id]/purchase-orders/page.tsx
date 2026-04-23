@@ -13,6 +13,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Plus, FileText, CheckCircle, Clock, AlertCircle, ChevronLeft, Trash2, Edit, Eye, Send, Package, CheckSquare } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 interface Supplier {
   id: string;
   name: string;

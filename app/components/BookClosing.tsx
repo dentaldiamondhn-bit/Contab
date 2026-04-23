@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { closeBooks, getClosedPeriods, isPeriodClosed } from '@/lib/reports/trial-balance';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface ClosedPeriod {
   id: string;
   period: string;

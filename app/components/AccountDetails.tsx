@@ -8,6 +8,7 @@ import { ArrowLeft } from 'lucide-react';
 import { generateAccountDetails, getAllAccounts, formatCurrency, AccountDetailsReport } from '@/lib/reports/account-details';
 import { getAccountTypeLabel, getAccountTypeColor } from '@/lib/accounting-utils';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 interface Account {
   id: string;
   code: string;

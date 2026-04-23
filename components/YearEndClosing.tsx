@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Loader2, CheckCircle, AlertCircle, Lock } from 'lucide-react';
 
+import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface TrialBalanceData {
   year: string;
   trialBalance: Array<{
