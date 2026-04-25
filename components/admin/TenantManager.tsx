@@ -24,7 +24,6 @@ import {
   Eye,
   EyeOff
 } from "lucide-react";
-import { createSupabaseClient } from "@/lib/supabase/client";
 
 interface Tenant {
   id: string;
@@ -102,8 +101,6 @@ export default function TenantManager() {
     password: '',
   });
 
-  const supabase = createSupabaseClient();
-
   useEffect(() => {
     loadTenants();
   }, []);
@@ -111,79 +108,37 @@ export default function TenantManager() {
   const loadTenants = async () => {
     setLoading(true);
     try {
-      // Como SUPER_ADMIN, puede ver todos los tenants
-      const { data, error } = await supabase
-        .rpc('super_admin_get_all_tenants');
-
-      if (error) throw error;
-      setTenants(data || []);
+      const response = await fetch('/api/admin/tenants');
+      if (response.ok) {
+        const data = await response.json();
+        setTenants(data.tenants || []);
+      }
     } catch (error: any) {
       console.error("Error loading tenants:", error);
-      // Fallback: obtener tenants sin RPC si no existe
-      const { data, error: fetchError } = await supabase
-        .from('Tenant')
-        .select('*, _count(users)')
-        .order('createdAt', { ascending: false });
-      
-      if (!fetchError) {
-        setTenants(data);
-      }
     } finally {
       setLoading(false);
     }
   };
 
-  const generateTenantCode = async (businessName: string): Promise<string> => {
-    try {
-      const { data, error } = await supabase
-        .rpc('generate_tenant_code', { business_name: businessName } as any);
-
-      if (error) throw error;
-      return data;
-    } catch (error) {
-      // Fallback: generar código localmente
-      const prefix = businessName
-        .replace(/[^a-zA-Z]/g, '')
-        .substring(0, 3)
-        .toUpperCase();
-      
-      let counter = 1;
-      let code = `${prefix}${counter.toString().padStart(3, '0')}`;
-
-      // Verificar si existe
-      while (tenants.some(t => t.tenantCode === code)) {
-        counter++;
-        code = `${prefix}${counter.toString().padStart(3, '0')}`;
-      }
-
-      return code;
-    }
-  };
-
   const saveTenant = async () => {
     try {
-      const tenantCode = await generateTenantCode(tenantForm.businessName);
-      
-      const tenantData = {
-        ...tenantForm,
-        tenantCode,
-        isActive: true,
-      };
-
       if (editingTenant) {
-        const { error } = await supabase
-          .from('Tenant')
-          .update(tenantData)
-          .eq('id', editingTenant.id);
+        const response = await fetch(`/api/admin/tenants/${editingTenant.id}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tenantForm)
+        });
 
-        if (error) throw error;
+        if (!response.ok) throw new Error('Error actualizando tenant');
         alert("Tenant actualizado exitosamente");
       } else {
-        const { error } = await supabase
-          .from('Tenant')
-          .insert(tenantData);
-        
-        if (error) throw error;
+        const response = await fetch('/api/admin/tenants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(tenantForm)
+        });
+
+        if (!response.ok) throw new Error('Error creando tenant');
         alert("Tenant creado exitosamente");
       }
 
@@ -201,21 +156,8 @@ export default function TenantManager() {
     if (!selectedTenant) return;
 
     try {
-      // 1. Crear usuario en Clerk con metadata aislada
-      const metadata = {
-        role: userForm.role,
-        tenantId: selectedTenant.id,
-        tenantCode: selectedTenant.tenantCode,
-        permissions: getPermissionsForRole(userForm.role),
-        isolation: {
-          tenantScope: true,
-          crossTenantAccess: false,
-          dataVisibility: 'tenant_only'
-        }
-      };
-
-      // Llamar a API para crear usuario en Clerk
-      const clerkResponse = await fetch('/api/admin/create-user', {
+      // Llamar a API para crear usuario en Clerk y en BD local
+      const response = await fetch(`/api/admin/tenants/${selectedTenant.id}/users`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -223,31 +165,14 @@ export default function TenantManager() {
           firstName: userForm.firstName,
           lastName: userForm.lastName,
           password: userForm.password,
-          publicMetadata: metadata
+          role: userForm.role
         })
       });
 
-      if (!clerkResponse.ok) {
-        const error = await clerkResponse.json();
-        throw new Error(error.message || 'Error creando usuario en Clerk');
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || 'Error creando usuario');
       }
-
-      const clerkUser = await clerkResponse.json();
-
-      // 2. Crear usuario en base de datos local
-      const { error } = await supabase
-        .from('User')
-        .insert({
-          authId: clerkUser.id,
-          email: userForm.email,
-          firstName: userForm.firstName,
-          lastName: userForm.lastName,
-          role: userForm.role,
-          tenantId: selectedTenant.id,
-          isActive: true
-        });
-
-      if (error) throw error;
 
       alert("Usuario creado exitosamente");
       setShowUserForm(false);
@@ -293,15 +218,13 @@ export default function TenantManager() {
 
   const toggleTenantStatus = async (tenant: Tenant) => {
     try {
-      const { error } = await supabase
-        .from('Tenant')
-        .update({
-          isActive: !tenant.isActive,
-          updatedAt: new Date().toISOString()
-        })
-        .eq('id', tenant.id);
+      const response = await fetch(`/api/admin/tenants/${tenant.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ isActive: !tenant.isActive })
+      });
 
-      if (error) throw error;
+      if (!response.ok) throw new Error('Error cambiando estado');
       alert(`Tenant ${tenant.isActive ? 'desactivado' : 'activado'} exitosamente`);
       loadTenants();
     } catch (error: any) {
@@ -312,14 +235,13 @@ export default function TenantManager() {
 
   const deleteTenant = async (tenantId: string) => {
     if (!confirm('¿Está seguro de eliminar este tenant? También se eliminarán todos sus usuarios.')) return;
-    
-    try {
-      const { error } = await supabase
-        .from('Tenant')
-        .delete()
-        .eq('id', tenantId);
 
-      if (error) throw error;
+    try {
+      const response = await fetch(`/api/admin/tenants/${tenantId}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) throw new Error('Error eliminando tenant');
       alert("Tenant eliminado exitosamente");
       loadTenants();
     } catch (error: any) {

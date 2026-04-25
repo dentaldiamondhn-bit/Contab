@@ -26,41 +26,13 @@ const superAdminNavigation: NavItem[] = [
     name: 'Gestión de Usuarios',
     href: '/admin/users',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
-    description: 'Administrar usuarios del sistema',
-    children: [
-      {
-        name: 'Crear Usuario',
-        href: '/admin/users/create',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>`,
-        description: 'Crear nuevo usuario'
-      },
-      {
-        name: 'Lista de Usuarios',
-        href: '/admin/users',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>`,
-        description: 'Ver todos los usuarios'
-      }
-    ]
+    description: 'Administrar usuarios del sistema'
   },
   {
     name: 'Gestión de Tenants',
     href: '/admin/tenants',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
-    description: 'Administrar empresas/tenants',
-    children: [
-      {
-        name: 'Crear Tenant',
-        href: '/admin/tenants/create',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>`,
-        description: 'Crear nueva empresa'
-      },
-      {
-        name: 'Lista de Tenants',
-        href: '/admin/tenants',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" /></svg>`,
-        description: 'Ver todas las empresas'
-      }
-    ]
+    description: 'Administrar empresas/tenants'
   },
   {
     name: 'Sistema',

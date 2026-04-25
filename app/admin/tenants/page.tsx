@@ -168,7 +168,13 @@ export default function TenantsListPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                        <button
+                          onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
+                          className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                        >
+                          Editar
+                        </button>
                         <button
                           onClick={() => toggleTenantStatus(tenant.id, tenant.isActive)}
                           className={`px-3 py-1 rounded ${

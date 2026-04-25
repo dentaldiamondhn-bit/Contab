@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 interface Plan {
@@ -12,77 +12,89 @@ interface Plan {
   maxStorage: number;
   maxTransactions: number;
   features: string[];
+  modules: string[]; // Array de módulos predefinidos
   isActive: boolean;
+}
+
+interface Module {
+  id: string;
+  name: string;
+  description: string;
 }
 
 export default function PlansPage() {
   const router = useRouter();
-  const [plans, setPlans] = useState<Plan[]>([
-    {
-      id: "1",
-      name: "Básico",
-      code: "BASIC",
-      price: 500,
-      maxUsers: 5,
-      maxStorage: 100,
-      maxTransactions: 10000,
-      features: [
-        "5 usuarios",
-        "100 GB de almacenamiento",
-        "10,000 transacciones mensuales",
-        "Soporte por email",
-        "Reportes básicos"
-      ],
-      isActive: true
-    },
-    {
-      id: "2",
-      name: "Profesional",
-      code: "PROFESSIONAL",
-      price: 1500,
-      maxUsers: 20,
-      maxStorage: 500,
-      maxTransactions: 50000,
-      features: [
-        "20 usuarios",
-        "500 GB de almacenamiento",
-        "50,000 transacciones mensuales",
-        "Soporte prioritario",
-        "Reportes avanzados",
-        "API access",
-        "Integraciones"
-      ],
-      isActive: true
-    },
-    {
-      id: "3",
-      name: "Empresarial",
-      code: "ENTERPRISE",
-      price: 5000,
-      maxUsers: 100,
-      maxStorage: 2000,
-      maxTransactions: 100000,
-      features: [
-        "100 usuarios",
-        "2 TB de almacenamiento",
-        "100,000 transacciones mensuales",
-        "Soporte 24/7",
-        "Reportes personalizados",
-        "API access completo",
-        "Integraciones avanzadas",
-        "Dedicated account manager",
-        "SLA garantizado"
-      ],
-      isActive: true
-    }
-  ]);
-
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  const availableModules: Module[] = [
+    { id: "accounting", name: "Contabilidad", description: "Gestión contable completa" },
+    { id: "billing", name: "Facturación", description: "Facturas y pagos" },
+    { id: "inventory", name: "Inventario", description: "Gestión de productos" },
+    { id: "contacts", name: "Contactos", description: "Clientes y prospectos" },
+    { id: "reports", name: "Reportes", description: "Reportes financieros" },
+    { id: "tax", name: "Impuestos", description: "Gestión de impuestos" },
+    { id: "multi_currency", name: "Multi-divisa", description: "Soporte para múltiples monedas" },
+    { id: "api", name: "API Access", description: "Acceso a API" },
+  ];
+
+  useEffect(() => {
+    fetchPlans();
+    
+    // Restaurar estado del modal del localStorage
+    const savedModal = localStorage.getItem('planModalState');
+    if (savedModal) {
+      const { showModal: savedShowModal, editingPlan: savedEditingPlan, isCreating: savedIsCreating } = JSON.parse(savedModal);
+      setShowModal(savedShowModal);
+      setEditingPlan(savedEditingPlan);
+      setIsCreating(savedIsCreating);
+    }
+  }, []);
+
+  // Guardar estado del modal en localStorage cuando cambie
+  useEffect(() => {
+    if (showModal || editingPlan) {
+      localStorage.setItem('planModalState', JSON.stringify({ showModal, editingPlan, isCreating }));
+    } else {
+      localStorage.removeItem('planModalState');
+    }
+  }, [showModal, editingPlan, isCreating]);
+
+  // Log cuando el modal debería mostrarse
+  useEffect(() => {
+    if (showModal && editingPlan) {
+      console.log('Modal debería mostrarse:', { showModal, editingPlan, isCreating });
+    }
+  }, [showModal, editingPlan, isCreating]);
+
+  const fetchPlans = async () => {
+    try {
+      const response = await fetch("/api/admin/plans");
+      if (response.ok) {
+        const data = await response.json();
+        setPlans(data.plans || []);
+      } else {
+        setError("Error al cargar los planes");
+      }
+    } catch (err) {
+      setError("Error de conexión al servidor");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleEdit = (plan: Plan) => {
-    setEditingPlan(plan);
+    // Asegurar que el plan tenga el campo modules
+    const planWithModules = {
+      ...plan,
+      modules: plan.modules || []
+    };
+    setEditingPlan(planWithModules);
     setIsCreating(false);
     setShowModal(true);
   };
@@ -97,33 +109,101 @@ export default function PlansPage() {
       maxStorage: 100,
       maxTransactions: 10000,
       features: [],
+      modules: [], // Array vacío de módulos
       isActive: true
     });
     setIsCreating(true);
     setShowModal(true);
   };
 
-  const handleSave = (updatedPlan: Plan) => {
-    if (isCreating) {
-      setPlans([...plans, updatedPlan]);
-    } else {
-      setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
-    }
-    setShowModal(false);
-    setEditingPlan(null);
-    setIsCreating(false);
+  const handleModuleToggle = (moduleId: string) => {
+    if (!editingPlan) return;
+    
+    const newModules = editingPlan.modules.includes(moduleId)
+      ? editingPlan.modules.filter(m => m !== moduleId)
+      : [...editingPlan.modules, moduleId];
+    
+    setEditingPlan({
+      ...editingPlan,
+      modules: newModules
+    });
   };
 
-  const handleDelete = (planId: string) => {
+  const generateCodeFromName = (name: string) => {
+    return name
+      .toUpperCase()
+      .replace(/\s+/g, '_')
+      .replace(/[^A-Z0-9_]/g, '');
+  };
+
+  const handleSave = async (updatedPlan: Plan) => {
+    try {
+      const response = await fetch("/api/admin/plans", {
+        method: isCreating ? "POST" : "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updatedPlan),
+      });
+
+      if (response.ok) {
+        await fetchPlans();
+        setShowModal(false);
+        setEditingPlan(null);
+        setIsCreating(false);
+      } else {
+        const data = await response.json();
+        setError(data.error || "Error al guardar el plan");
+      }
+    } catch (err) {
+      setError("Error de conexión al servidor");
+    }
+  };
+
+  const handleDelete = async (planId: string) => {
     if (confirm('¿Estás seguro de que deseas eliminar este plan?')) {
-      setPlans(plans.filter(p => p.id !== planId));
+      try {
+        const response = await fetch(`/api/admin/plans?id=${planId}`, {
+          method: "DELETE",
+        });
+
+        if (response.ok) {
+          await fetchPlans();
+        } else {
+          const data = await response.json();
+          setError(data.error || "Error al eliminar el plan");
+        }
+      } catch (err) {
+        setError("Error de conexión al servidor");
+      }
     }
   };
 
-  const handleToggleStatus = (planId: string) => {
-    setPlans(plans.map(p => 
-      p.id === planId ? { ...p, isActive: !p.isActive } : p
-    ));
+  const handleToggleStatus = async (planId: string) => {
+    const plan = plans.find(p => p.id === planId);
+    if (plan) {
+      try {
+        const response = await fetch("/api/admin/plans", {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            ...plan,
+            isActive: !plan.isActive
+          }),
+        });
+
+        if (response.ok) {
+          await fetchPlans();
+        } else {
+          const data = await response.json();
+          setError(data.error || "Error al cambiar estado del plan");
+        }
+      } catch (err) {
+        setError("Error de conexión al servidor");
+      }
+    }
   };
 
   return (
@@ -230,8 +310,8 @@ export default function PlansPage() {
         </div>
 
         {showModal && editingPlan && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+            <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full mx-4 max-h-[90vh] overflow-y-auto relative">
               <div className="p-6">
                 <h2 className="text-2xl font-bold text-gray-900 mb-6">
                   {isCreating ? 'Crear Nuevo Plan' : `Editar Plan: ${editingPlan.name}`}
@@ -246,7 +326,11 @@ export default function PlansPage() {
                     <input
                       type="text"
                       value={editingPlan.name}
-                      onChange={(e) => setEditingPlan({...editingPlan, name: e.target.value})}
+                      onChange={(e) => {
+                        const name = e.target.value;
+                        const code = isCreating ? generateCodeFromName(name) : editingPlan.code;
+                        setEditingPlan({...editingPlan, name, code});
+                      }}
                       required
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="Ej: Premium"
@@ -260,18 +344,27 @@ export default function PlansPage() {
                       value={editingPlan.code}
                       onChange={(e) => setEditingPlan({...editingPlan, code: e.target.value.toUpperCase()})}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      readOnly={isCreating}
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                        isCreating 
+                          ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
+                          : 'border-gray-300'
+                      }`}
                       placeholder="Ej: PREMIUM"
                     />
-                    <p className="text-xs text-gray-500 mt-1">Código único para identificar el plan (mayúsculas)</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {isCreating 
+                        ? 'Código generado automáticamente basado en el nombre' 
+                        : 'Código único para identificar el plan (mayúsculas)'}
+                    </p>
                   </div>
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Precio Mensual (L) *</label>
                     <input
                       type="number"
-                      value={editingPlan.price}
-                      onChange={(e) => setEditingPlan({...editingPlan, price: parseInt(e.target.value)})}
+                      value={editingPlan.price || 0}
+                      onChange={(e) => setEditingPlan({...editingPlan, price: parseInt(e.target.value) || 0})}
                       required
                       min="0"
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -283,8 +376,8 @@ export default function PlansPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Máx. Usuarios *</label>
                       <input
                         type="number"
-                        value={editingPlan.maxUsers}
-                        onChange={(e) => setEditingPlan({...editingPlan, maxUsers: parseInt(e.target.value)})}
+                        value={editingPlan.maxUsers || 0}
+                        onChange={(e) => setEditingPlan({...editingPlan, maxUsers: parseInt(e.target.value) || 0})}
                         required
                         min="1"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -294,8 +387,8 @@ export default function PlansPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Almacenamiento (GB) *</label>
                       <input
                         type="number"
-                        value={editingPlan.maxStorage}
-                        onChange={(e) => setEditingPlan({...editingPlan, maxStorage: parseInt(e.target.value)})}
+                        value={editingPlan.maxStorage || 0}
+                        onChange={(e) => setEditingPlan({...editingPlan, maxStorage: parseInt(e.target.value) || 0})}
                         required
                         min="1"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -305,8 +398,8 @@ export default function PlansPage() {
                       <label className="block text-sm font-medium text-gray-700 mb-2">Transacciones *</label>
                       <input
                         type="number"
-                        value={editingPlan.maxTransactions}
-                        onChange={(e) => setEditingPlan({...editingPlan, maxTransactions: parseInt(e.target.value)})}
+                        value={editingPlan.maxTransactions || 0}
+                        onChange={(e) => setEditingPlan({...editingPlan, maxTransactions: parseInt(e.target.value) || 0})}
                         required
                         min="1"
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
@@ -323,6 +416,31 @@ export default function PlansPage() {
                       className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       placeholder="Ej:&#10;10 usuarios&#10;Soporte 24/7&#10;API access"
                     />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Incluidos</label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {availableModules.map((module) => (
+                        <label key={module.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                          <input
+                            type="checkbox"
+                            checked={editingPlan.modules.includes(module.id)}
+                            onChange={() => handleModuleToggle(module.id)}
+                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          />
+                          <div>
+                            <span className="text-sm font-medium">{module.name}</span>
+                            <p className="text-xs text-gray-500">{module.description}</p>
+                          </div>
+                        </label>
+                      ))}
+                    </div>
+                    {editingPlan.modules.length > 0 && (
+                      <p className="text-xs text-gray-600 mt-1">
+                        {editingPlan.modules.length} módulo(s) seleccionado(s)
+                      </p>
+                    )}
                   </div>
 
                   <div className="flex items-center">
