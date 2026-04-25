@@ -159,12 +159,24 @@ function getPermissionsForRole(role: string): string[] {
         'accounting:manage',
         'reports:tenant'
       ];
+    case 'MANAGER':
+      return [
+        'tenant:manage',
+        'users:tenant_view',
+        'inventory:manage',
+        'accounting:manage',
+        'reports:tenant'
+      ];
     case 'ACCOUNTANT':
       return [
         'accounting:manage',
         'reports:tenant'
       ];
     case 'VIEWER':
+      return [
+        'reports:tenant'
+      ];
+    case 'USER':
       return [
         'reports:tenant'
       ];

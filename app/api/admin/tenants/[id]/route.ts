@@ -38,8 +38,16 @@ export async function GET(
     const tenant = await db.tenant.findUnique({
       where: { id },
       include: {
-        _count: {
-          select: { users: true }
+        users: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+            role: true,
+            isActive: true,
+            createdAt: true
+          }
         }
       }
     });
@@ -53,7 +61,41 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(tenant);
+    // Enriquecer datos del tenant
+    let subscriptionPlans = [];
+    try {
+      subscriptionPlans = typeof (tenant as any).subscriptionPlans === 'string' 
+        ? JSON.parse((tenant as any).subscriptionPlans) 
+        : (tenant as any).subscriptionPlans || [];
+    } catch (e) {
+      subscriptionPlans = [];
+    }
+
+    let modules: string[] = [];
+    try {
+      modules = tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [];
+    } catch (e) {
+      modules = [];
+    }
+
+    // Contar usuarios por tipo
+    const userCounts = (tenant as any).users?.reduce((acc: Record<string, number>, user: any) => {
+      acc[user.role] = (acc[user.role] || 0) + 1;
+      acc.total = (acc.total || 0) + 1;
+      acc.active = user.isActive ? (acc.active || 0) + 1 : (acc.active || 0);
+      return acc;
+    }, {} as Record<string, number>) || {};
+
+    const enrichedTenant = {
+      ...tenant,
+      subscriptionPlans,
+      modules,
+      userCounts,
+      totalUsers: userCounts.total || 0,
+      activeUsers: userCounts.active || 0
+    };
+
+    return NextResponse.json(enrichedTenant);
   } catch (error: any) {
     console.error('Error obteniendo tenant:', error);
     return NextResponse.json(
@@ -94,7 +136,15 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const { businessName, businessEmail, businessRTN, phoneNumber, businessAddress, subscriptionPlan, maxUsers, modules, isActive } = body;
+    console.log('PATCH /api/admin/tenants/[id] - Request body:', body);
+    const { businessName, businessEmail, businessRTN, phoneNumber, businessAddress, subscriptionPlan, maxUsers, monthlyCost, modules, isActive } = body;
+
+    console.log('PATCH /api/admin/tenants/[id] - Updating tenant with data:', {
+        subscriptionPlan,
+        maxUsers,
+        monthlyCost,
+        modules
+      });
 
     const tenant = await db.tenant.update({
       where: { id },
@@ -104,10 +154,11 @@ export async function PATCH(
         ...(businessRTN && { businessRTN }),
         ...(phoneNumber !== undefined && { phoneNumber }),
         ...(businessAddress && { businessAddress }),
-        ...(subscriptionPlan && { subscriptionPlan }),
+        ...(subscriptionPlan && { subscriptionPlans: subscriptionPlan }),
         ...(maxUsers !== undefined && { maxUsers }),
-        ...(modules !== undefined && { modules }),
-        ...(isActive !== undefined && { isActive }),
+        ...(monthlyCost !== undefined && { monthlyCost }),
+        ...(modules && { modules }),
+        ...(isActive !== undefined && { isActive })
       }
     });
 
