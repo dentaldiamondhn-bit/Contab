@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useParams } from "next/navigation";
 
 interface Plan {
   id: string;
@@ -15,9 +15,13 @@ interface Plan {
   isActive: boolean;
 }
 
-export default function CreateTenantPage() {
+export default function EditTenantPage() {
   const router = useRouter();
-  const [loading, setLoading] = useState(false);
+  const params = useParams();
+  const tenantId = params.id as string;
+  
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
@@ -28,29 +32,20 @@ export default function CreateTenantPage() {
     businessRTN: string;
     phoneNumber: string;
     businessAddress: string;
-    subscriptionPlans: { code: string; quantity: number }[]; // Array con código y cantidad
+    subscriptionPlans: { code: string; quantity: number }[];
     maxUsers: number;
     monthlyCost: number;
     modules: string[];
-    adminEmail: string;
-    adminFirstName: string;
-    adminLastName: string;
-    adminPassword: string;
   }>({
     businessName: "",
     businessEmail: "",
     businessRTN: "",
     phoneNumber: "",
     businessAddress: "",
-    subscriptionPlans: [], // Array de planes con cantidad
+    subscriptionPlans: [],
     maxUsers: 5,
     monthlyCost: 0,
     modules: [],
-    // Admin user fields
-    adminEmail: "",
-    adminFirstName: "",
-    adminLastName: "",
-    adminPassword: "",
   });
 
   const availableModules = [
@@ -66,28 +61,44 @@ export default function CreateTenantPage() {
 
   useEffect(() => {
     fetchPlans();
-  }, []);
+    fetchTenant();
+  }, [tenantId]);
 
   const fetchPlans = async () => {
     try {
       const response = await fetch("/api/admin/plans");
       if (response.ok) {
         const data = await response.json();
-        const loadedPlans = data.plans || [];
-        setPlans(loadedPlans);
-        
-        // Establecer el primer plan como valor por defecto si existe
-        if (loadedPlans.length > 0) {
-          setFormData(prev => ({
-            ...prev,
-            subscriptionPlans: [{ code: loadedPlans[0].code, quantity: 1 }],
-            maxUsers: loadedPlans[0].maxUsers,
-            monthlyCost: loadedPlans[0].price
-          }));
-        }
+        setPlans(data.plans || []);
       }
     } catch (err) {
       console.error("Error cargando planes:", err);
+    }
+  };
+
+  const fetchTenant = async () => {
+    try {
+      const response = await fetch(`/api/admin/tenants/${tenantId}`);
+      if (!response.ok) {
+        throw new Error("Error al cargar el tenant");
+      }
+      const data = await response.json();
+      
+      setFormData({
+        businessName: data.businessName || "",
+        businessEmail: data.businessEmail || "",
+        businessRTN: data.businessRTN || "",
+        phoneNumber: data.phoneNumber || "",
+        businessAddress: data.businessAddress || "",
+        subscriptionPlans: data.subscriptionPlans ? JSON.parse(data.subscriptionPlans) : [],
+        maxUsers: data.maxUsers || 5,
+        monthlyCost: data.monthlyCost || 0,
+        modules: data.modules ? data.modules.split(',') : [],
+      });
+    } catch (err) {
+      setError("Error al cargar el tenant");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -148,17 +159,17 @@ export default function CreateTenantPage() {
       
       // Calcular el maxUsers total basado en los planes seleccionados
       const totalMaxUsers = plans
-        .filter(p => newPlans.some(np => np.code === p.code))
+        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
           return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
         }, 5);
       
       // Calcular el costo total mensual
       const totalMonthlyCost = plans
-        .filter(p => newPlans.some(np => np.code === p.code))
+        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
           return sum + (p.price * (planWithQuantity?.quantity || 1));
         }, 0);
       
@@ -177,17 +188,17 @@ export default function CreateTenantPage() {
       
       // Calcular el maxUsers total basado en los planes seleccionados
       const totalMaxUsers = plans
-        .filter(p => newPlans.some(np => np.code === p.code))
+        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
           return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
         }, 5);
       
       // Calcular el costo total mensual
       const totalMonthlyCost = plans
-        .filter(p => newPlans.some(np => np.code === p.code))
+        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
           return sum + (p.price * (planWithQuantity?.quantity || 1));
         }, 0);
       
@@ -224,49 +235,24 @@ export default function CreateTenantPage() {
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('handleSubmit llamado');
     e.preventDefault();
-    console.log('Formulario enviado:', formData);
-    setLoading(true);
+    setSaving(true);
     setError("");
 
-    // Validar contraseña del admin
-    if (formData.adminPassword && formData.adminPassword.length < 8) {
-      setError("La contraseña del admin debe tener al menos 8 caracteres");
-      setLoading(false);
-      return;
-    }
-
     try {
-      console.log('Enviando solicitud a /api/admin/tenants...');
-      const response = await fetch("/api/admin/tenants", {
-        method: "POST",
+      const response = await fetch(`/api/admin/tenants/${tenantId}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          businessName: formData.businessName,
-          businessEmail: formData.businessEmail,
-          businessRTN: formData.businessRTN,
-          phoneNumber: formData.phoneNumber,
-          businessAddress: formData.businessAddress,
-          subscriptionPlans: JSON.stringify(formData.subscriptionPlans), // Convertir array a JSON string
-          maxUsers: formData.maxUsers,
-          monthlyCost: formData.monthlyCost,
-          modules: formData.modules.join(','),
-          // Admin user data
-          adminUser: {
-            email: formData.adminEmail,
-            firstName: formData.adminFirstName,
-            lastName: formData.adminLastName,
-            password: formData.adminPassword,
-          }
+          ...formData,
+          subscriptionPlans: JSON.stringify(formData.subscriptionPlans),
+          modules: formData.modules.join(',')
         }),
       });
 
-      console.log('Respuesta recibida:', response.status);
       const data = await response.json();
-      console.log('Datos de respuesta:', data);
 
       if (response.ok) {
         setSuccess(true);
@@ -274,15 +260,22 @@ export default function CreateTenantPage() {
           router.push("/admin/tenants");
         }, 2000);
       } else {
-        setError(data.error || "Error al crear el tenant");
+        setError(data.error || "Error al actualizar el tenant");
       }
     } catch (err) {
-      console.error('Error en handleSubmit:', err);
       setError("Error de conexión al servidor");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
+        <div className="text-gray-500">Cargando...</div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -294,8 +287,8 @@ export default function CreateTenantPage() {
           >
             ← Volver
           </button>
-          <h1 className="text-3xl font-bold text-gray-900">Crear Nuevo Tenant</h1>
-          <p className="text-gray-600 mt-2">Registra una nueva empresa en el sistema</p>
+          <h1 className="text-3xl font-bold text-gray-900">Editar Tenant</h1>
+          <p className="text-gray-600 mt-2">Actualiza la información del tenant</p>
         </div>
 
         {success && (
@@ -304,7 +297,7 @@ export default function CreateTenantPage() {
               <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
               </svg>
-              <p className="text-green-800">Tenant creado exitosamente. Redirigiendo...</p>
+              <p className="text-green-800">Tenant actualizado exitosamente. Redirigiendo...</p>
             </div>
           </div>
         )}
@@ -350,23 +343,22 @@ export default function CreateTenantPage() {
                 value={formData.businessEmail}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ej: contacto@miempresa.com"
+                placeholder="empresa@ejemplo.com"
               />
             </div>
 
             <div>
               <label htmlFor="businessRTN" className="block text-sm font-medium text-gray-700 mb-2">
-                RTN *
+                RTN
               </label>
               <input
                 type="text"
                 id="businessRTN"
                 name="businessRTN"
-                required
                 value={formData.businessRTN}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ej: 12345678901234"
+                placeholder="Ej: 0801-1990-12345"
               />
             </div>
 
@@ -381,7 +373,7 @@ export default function CreateTenantPage() {
                 value={formData.phoneNumber}
                 onChange={handleChange}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ej: +504 1234-5678"
+                placeholder="Ej: +504 2200-0000"
               />
             </div>
 
@@ -396,14 +388,14 @@ export default function CreateTenantPage() {
                 onChange={handleChange}
                 rows={3}
                 className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                placeholder="Ej: Calle Principal #123, Ciudad, País"
+                placeholder="Dirección completa de la empresa"
               />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Planes de Suscripción
+                <label htmlFor="subscriptionPlan" className="block text-sm font-medium text-gray-700 mb-2">
+                  Plan de Suscripción
                 </label>
                 <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
                   {plans.length === 0 ? (
@@ -495,77 +487,6 @@ export default function CreateTenantPage() {
               </div>
             </div>
 
-            <div className="border-t pt-6">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Usuario Administrador</h3>
-              <p className="text-sm text-gray-600 mb-4">Se creará automáticamente un usuario administrador para este tenant</p>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label htmlFor="adminEmail" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email del Admin *
-                  </label>
-                  <input
-                    type="email"
-                    id="adminEmail"
-                    name="adminEmail"
-                    required
-                    value={formData.adminEmail}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="admin@empresa.com"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="adminPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                    Contraseña Temporal *
-                  </label>
-                  <input
-                    type="text"
-                    id="adminPassword"
-                    name="adminPassword"
-                    required
-                    value={formData.adminPassword}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Contraseña temporal"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="adminFirstName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre *
-                  </label>
-                  <input
-                    type="text"
-                    id="adminFirstName"
-                    name="adminFirstName"
-                    required
-                    value={formData.adminFirstName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Juan"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="adminLastName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Apellido *
-                  </label>
-                  <input
-                    type="text"
-                    id="adminLastName"
-                    name="adminLastName"
-                    required
-                    value={formData.adminLastName}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Pérez"
-                  />
-                </div>
-              </div>
-            </div>
-
             <div>
               <div className="flex items-center justify-between mb-4">
                 <label className="block text-sm font-medium text-gray-700">Módulos Disponibles</label>
@@ -629,10 +550,10 @@ export default function CreateTenantPage() {
               </button>
               <button
                 type="submit"
-                disabled={loading}
+                disabled={saving}
                 className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                {loading ? "Creando..." : "Crear Tenant"}
+                {saving ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </div>
           </form>

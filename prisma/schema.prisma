@@ -76,7 +76,7 @@ model Tenant {
   logoUrl          String?        @map("logo_url")
   timezone         String         @default("America/Tegucigalpa")
   currency         String         @default("HNL")
-  subscriptionPlan String         @default("BASIC") @map("subscription_plan")
+  subscriptionPlans String         @default("BASIC") @map("subscription_plans") // JSON array de plan codes
   maxUsers         Int            @default(5) @map("max_users")
   maxStorage       Int            @default(100) @map("max_storage")
   maxTransactions  Int            @default(10000) @map("max_transactions")
@@ -203,4 +203,21 @@ model User {
   tenant    Tenant?  @relation(fields: [tenantId], references: [id])
 
   @@map("users")
+}
+
+model Plan {
+  id               String   @id @default(cuid())
+  name             String
+  code             String   @unique
+  price            Int
+  maxUsers         Int      @map("max_users")
+  maxStorage       Int      @map("max_storage")
+  maxTransactions  Int      @map("max_transactions")
+  features         String   // JSON array as string
+  modules          String   // JSON array of module ids
+  isActive         Boolean  @default(true) @map("is_active")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@map("Plan")
 }

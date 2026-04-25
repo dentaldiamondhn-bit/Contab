@@ -12,6 +12,7 @@ interface CreateUserRequest {
   email: string;
   firstName: string;
   lastName: string;
+  username?: string;
   password: string;
   publicMetadata: {
     role: string;
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body: CreateUserRequest = await req.json();
-    const { email, firstName, lastName, password, publicMetadata } = body;
+    const { email, firstName, lastName, username, password, publicMetadata } = body;
 
     // Validar datos requeridos
     if (!email || !firstName || !lastName || !password || !publicMetadata) {
@@ -134,6 +135,7 @@ export async function POST(req: NextRequest) {
         firstName,
         lastName,
         password,
+        username: username || `${firstName.toLowerCase()}_${lastName.toLowerCase()}`,
         publicMetadata: {
           role: publicMetadata.role,
           tenantId: publicMetadata.tenantId,
