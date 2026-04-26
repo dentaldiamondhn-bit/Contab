@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
+import FooterPaginator from "@/components/admin/FooterPaginator";
 
 interface Plan {
   id: string;
@@ -30,6 +31,14 @@ export default function PlansPage() {
   const [editingPlan, setEditingPlan] = useState<Plan | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
   const modalRef = useRef<HTMLDivElement>(null);
 
   const availableModules: Module[] = [
@@ -54,7 +63,7 @@ export default function PlansPage() {
       setEditingPlan(savedEditingPlan);
       setIsCreating(savedIsCreating);
     }
-  }, []);
+  }, [pagination.currentPage, searchTerm, statusFilter]);
 
   // Guardar estado del modal en localStorage cuando cambie
   useEffect(() => {
@@ -74,14 +83,34 @@ export default function PlansPage() {
 
   const fetchPlans = async () => {
     try {
-      const response = await fetch("/api/admin/plans");
+      console.log('🔄 fetchPlans - Cargando planes...');
+      const params = new URLSearchParams({
+        page: pagination.currentPage.toString(),
+        limit: pagination.itemsPerPage.toString(),
+        search: searchTerm,
+        status: statusFilter,
+      });
+      
+      console.log('📡 Fetching:', `/api/admin/plans?${params}`);
+      const response = await fetch(`/api/admin/plans?${params}`);
+      console.log('📡 Response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('📦 Plans data received:', data);
         setPlans(data.plans || []);
+        setPagination(prev => ({
+          ...prev,
+          totalPages: data.pagination?.pages || 1,
+          totalItems: data.pagination?.total || 0,
+        }));
+        console.log('✅ Plans set:', data.plans?.length || 0);
       } else {
+        console.error('❌ Error response:', response.status);
         setError("Error al cargar los planes");
       }
     } catch (err) {
+      console.error('❌ Fetch error:', err);
       setError("Error de conexión al servidor");
     } finally {
       setLoading(false);
@@ -89,12 +118,18 @@ export default function PlansPage() {
   };
 
   const handleEdit = (plan: Plan) => {
-    // Asegurar que el plan tenga el campo modules
-    const planWithModules = {
+    // Asegurar que el plan tenga todos los campos necesarios
+    const planWithDefaults = {
       ...plan,
-      modules: plan.modules || []
+      modules: plan.modules || [],
+      price: plan.price || 0,
+      maxUsers: plan.maxUsers || 0,
+      maxStorage: plan.maxStorage || 0,
+      maxTransactions: plan.maxTransactions || 0,
+      features: plan.features || [],
+      isActive: plan.isActive || false
     };
-    setEditingPlan(planWithModules);
+    setEditingPlan(planWithDefaults);
     setIsCreating(false);
     setShowModal(true);
   };
@@ -127,6 +162,16 @@ export default function PlansPage() {
       ...editingPlan,
       modules: newModules
     });
+  };
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    fetchPlans();
   };
 
   const generateCodeFromName = (name: string) => {
@@ -240,7 +285,7 @@ export default function PlansPage() {
                 
                 <div className="mb-4">
                   <p className="text-4xl font-bold text-blue-600">
-                    L {plan.price.toLocaleString()}
+                    L {plan.unitPrice?.toLocaleString() || '0'}
                     <span className="text-lg font-normal text-gray-500">/mes</span>
                   </p>
                 </div>
@@ -262,7 +307,7 @@ export default function PlansPage() {
                     <svg className="w-4 h-4 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
-                    {plan.maxTransactions.toLocaleString()} transacciones
+                    {plan.maxTransactions?.toLocaleString() || '0'} transacciones
                   </div>
                 </div>
 
@@ -447,7 +492,7 @@ export default function PlansPage() {
                     <input
                       type="checkbox"
                       id="isActive"
-                      checked={editingPlan.isActive}
+                      checked={editingPlan.isActive || false}
                       onChange={(e) => setEditingPlan({...editingPlan, isActive: e.target.checked})}
                       className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
                     />
@@ -477,6 +522,17 @@ export default function PlansPage() {
               </div>
             </div>
           </div>
+        )}
+        
+        {/* Pagination */}
+        {!loading && plans.length > 0 && (
+          <FooterPaginator
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.totalItems}
+            itemsPerPage={pagination.itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
       </div>
     </div>

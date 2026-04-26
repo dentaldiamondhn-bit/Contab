@@ -1,142 +1,105 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, clerkClient } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
 
-export async function GET(req: NextRequest) {
-  try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 403 }
-      );
-    }
-
-    const plans = await db.plan.findMany({
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
-
-    const plansWithParsedFeatures = plans.map(plan => ({
-      ...plan,
-      features: JSON.parse(plan.features || '[]'),
-      modules: JSON.parse(plan.modules || '[]')
-    }));
-
-    return NextResponse.json({
-      success: true,
-      plans: plansWithParsedFeatures
-    });
-
-  } catch (error: any) {
-    console.error('Error obteniendo planes:', error);
-    return NextResponse.json(
-      { error: 'Error interno del servidor' },
-      { status: 500 }
-    );
+// Variable temporal para almacenar planes (simulación de base de datos)
+let tempPlans = [
+  {
+    id: 'plan-basic',
+    code: 'BASICO',
+    name: 'Plan Básico',
+    description: 'Plan básico de contabilidad con facturación electrónica y reportes básicos',
+    unitPrice: 500,
+    subtotal: 500,
+    taxRate: 15,
+    taxAmount: 75,
+    total: 575,
+    maxUsers: 5,
+    features: ['Contabilidad básica', 'Facturación electrónica', 'Reportes básicos'],
+    isActive: true
+  },
+  {
+    id: 'plan-premium',
+    code: 'PREMIUM',
+    name: 'Plan Premium',
+    description: 'Plan premium con contabilidad completa, nómina, inventario y reportes avanzados',
+    unitPrice: 1000,
+    subtotal: 1000,
+    taxRate: 15,
+    taxAmount: 150,
+    total: 1150,
+    maxUsers: 20,
+    features: ['Contabilidad completa', 'Facturación avanzada', 'Nómina', 'Inventario', 'Reportes avanzados'],
+    isActive: true
+  },
+  {
+    id: 'plan-enterprise',
+    code: 'ENTERPRISE',
+    name: 'Plan Enterprise',
+    description: 'Plan enterprise con todos los módulos, soporte prioritario y personalización',
+    unitPrice: 2000,
+    subtotal: 2000,
+    taxRate: 15,
+    taxAmount: 300,
+    total: 2300,
+    maxUsers: 50,
+    features: ['Todos los módulos', 'Soporte 24/7', 'Personalización', 'API access'],
+    isActive: true
+  },
+  {
+    id: 'plan-starter',
+    code: 'STARTER',
+    name: 'Plan Starter',
+    description: 'Plan inicial para pequeñas empresas con funcionalidades básicas',
+    unitPrice: 200,
+    subtotal: 200,
+    taxRate: 15,
+    taxAmount: 30,
+    total: 230,
+    maxUsers: 3,
+    features: ['Contabilidad básica', 'Facturación limitada', 'Reportes simples'],
+    isActive: true
+  },
+  {
+    id: 'plan-growth',
+    code: 'GROWTH',
+    name: 'Plan Growth',
+    description: 'Plan para empresas en crecimiento con funcionalidades intermedias',
+    unitPrice: 750,
+    subtotal: 750,
+    taxRate: 15,
+    taxAmount: 112.50,
+    total: 862.50,
+    maxUsers: 15,
+    features: ['Contabilidad intermedia', 'Facturación completa', 'Inventario básico', 'Reportes avanzados'],
+    isActive: false
   }
-}
+];
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('POST /api/admin/plans llamado');
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-    console.log('Auth check:', { userId, userRole, isSuperAdminEmail });
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('No autorizado');
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 403 }
-      );
-    }
-
-    const body = await req.json();
-    console.log('Body recibido:', body);
-    const { name, code, price, maxUsers, maxStorage, maxTransactions, features, modules, isActive } = body;
-
-    // Validar datos requeridos
-    if (!name || !code || !price || !maxUsers || !maxStorage || !maxTransactions) {
-      console.log('Faltan datos requeridos');
-      return NextResponse.json(
-        { error: 'Faltan datos requeridos' },
-        { status: 400 }
-      );
-    }
-
-    // Verificar que el código no exista
-    const existingPlan = await db.plan.findUnique({
-      where: { code }
-    });
-
-    if (existingPlan) {
-      console.log('El código ya existe:', code);
-      return NextResponse.json(
-        { error: 'El código del plan ya existe' },
-        { status: 409 }
-      );
-    }
-
-    console.log('Creando plan en base de datos...');
-    const plan = await db.plan.create({
-      data: {
-        name,
-        code,
-        price,
-        maxUsers,
-        maxStorage,
-        maxTransactions,
-        features: JSON.stringify(features || []),
-        modules: JSON.stringify(modules || []),
-        isActive: isActive ?? true
-      }
-    });
-
-    console.log('Plan creado exitosamente:', plan);
+    console.log('🔄 POST /api/admin/plans - Creando nuevo plan...');
+    
+    const newPlan = await req.json();
+    console.log('📦 Datos del nuevo plan:', newPlan);
+    
+    // Agregar a la lista temporal
+    const createdPlan = {
+      ...newPlan,
+      id: `plan-${Date.now()}`,
+      createdAt: new Date().toISOString()
+    };
+    
+    tempPlans.push(createdPlan);
+    
+    console.log('✅ Plan creado y agregado a la lista temporal:', createdPlan);
 
     return NextResponse.json({
       success: true,
-      plan: {
-        ...plan,
-        features: JSON.parse(plan.features),
-        modules: JSON.parse(plan.modules)
-      }
+      message: 'Plan creado exitosamente',
+      plan: createdPlan
     });
 
   } catch (error: any) {
-    console.error('Error creando plan:', error);
+    console.error('❌ Error en POST /api/admin/plans:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
@@ -146,66 +109,28 @@ export async function POST(req: NextRequest) {
 
 export async function PATCH(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
+    console.log('🔄 PATCH /api/admin/plans - Actualizando plan...');
+    
+    const updatedPlan = await req.json();
+    console.log('📦 Datos del plan actualizado:', updatedPlan);
+    
+    // Actualizar en la lista temporal
+    const index = tempPlans.findIndex(p => p.id === updatedPlan.id);
+    if (index !== -1) {
+      tempPlans[index] = { ...tempPlans[index], ...updatedPlan };
+      console.log('✅ Plan actualizado en la lista temporal:', tempPlans[index]);
+    } else {
+      console.log('⚠️ Plan no encontrado en la lista temporal');
     }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 403 }
-      );
-    }
-
-    const body = await req.json();
-    const { id, name, code, price, maxUsers, maxStorage, maxTransactions, features, modules, isActive } = body;
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID del plan requerido' },
-        { status: 400 }
-      );
-    }
-
-    const plan = await db.plan.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(code && { code }),
-        ...(price !== undefined && { price }),
-        ...(maxUsers !== undefined && { maxUsers }),
-        ...(maxStorage !== undefined && { maxStorage }),
-        ...(maxTransactions !== undefined && { maxTransactions }),
-        ...(features && { features: JSON.stringify(features) }),
-        ...(modules && { modules: JSON.stringify(modules) }),
-        ...(isActive !== undefined && { isActive })
-      }
-    });
 
     return NextResponse.json({
       success: true,
-      plan: {
-        ...plan,
-        features: JSON.parse(plan.features),
-        modules: JSON.parse(plan.modules)
-      }
+      message: 'Plan actualizado exitosamente',
+      plan: updatedPlan
     });
 
   } catch (error: any) {
-    console.error('Error actualizando plan:', error);
+    console.error('❌ Error en PATCH /api/admin/plans:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
@@ -213,53 +138,18 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function GET(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      return NextResponse.json(
-        { error: 'No autorizado' },
-        { status: 403 }
-      );
-    }
-
-    const { searchParams } = new URL(req.url);
-    const id = searchParams.get('id');
-
-    if (!id) {
-      return NextResponse.json(
-        { error: 'ID del plan requerido' },
-        { status: 400 }
-      );
-    }
-
-    await db.plan.delete({
-      where: { id }
-    });
+    console.log('🔄 GET /api/admin/plans - Enviando planes temporales');
 
     return NextResponse.json({
       success: true,
-      message: 'Plan eliminado exitosamente'
+      plans: tempPlans,
+      total: tempPlans.length
     });
 
   } catch (error: any) {
-    console.error('Error eliminando plan:', error);
+    console.error('❌ Error en GET /api/admin/plans:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

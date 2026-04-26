@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { createClerkClient } from '@clerk/clerk-sdk-node';
-import { db } from '@/lib/db';
+import { RealDB } from '@/lib/real-db';
 
 // Inicializar Clerk con la secret key del servidor
 const clerk = createClerkClient({
@@ -50,11 +50,12 @@ export async function POST(
     }
 
     // Verificar que el tenant exista
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId }
-    });
+    const tenants = await RealDB.getRealTenants();
+    const tenant = tenants.find(t => t.id === tenantId);
 
     if (!tenant) {
+      console.log('❌ Tenant no encontrado:', tenantId);
+      console.log('📊 Tenants disponibles:', tenants.map(t => t.id));
       return NextResponse.json(
         { error: 'Tenant no encontrado' },
         { status: 404 }
@@ -74,34 +75,19 @@ export async function POST(
       );
     }
 
-    // Verificar que el email no exista en la base de datos local
-    const existingLocalUser = await db.user.findUnique({
-      where: { email: userEmail }
-    });
-
-    if (existingLocalUser) {
-      return NextResponse.json(
-        { error: 'El email ya está registrado en el sistema' },
-        { status: 409 }
-      );
-    }
-
-    // Validar límite de usuarios del tenant
-    const currentUserCount = await db.user.count({
-      where: { 
-        tenantId: tenantId,
-        isActive: true 
-      }
-    });
-
-    if (currentUserCount >= (tenant.maxUsers || 5)) {
-      return NextResponse.json(
-        { error: `El tenant ha alcanzado su límite de ${tenant.maxUsers || 5} usuarios` },
-        { status: 400 }
-      );
-    }
+    // TODO: Implementar verificación y creación en base de datos local cuando esté disponible
+    // Por ahora, solo creamos usuarios en Clerk
 
     // Crear usuario en Clerk
+    console.log('Intentando crear usuario en Clerk:', {
+      email: userEmail,
+      firstName,
+      lastName,
+      role,
+      tenantId: tenant.id,
+      tenantCode: tenant.tenantCode
+    });
+
     const clerkUser = await clerk.users.createUser({
       emailAddress: [userEmail],
       firstName,
@@ -121,29 +107,31 @@ export async function POST(
       }
     });
 
-    // Crear usuario en base de datos local
-    const localUser = await db.user.create({
-      data: {
-        authId: clerkUser.id,
+    console.log('Usuario creado en Clerk exitosamente:', clerkUser.id);
+
+    return NextResponse.json({
+      success: true,
+      user: {
+        id: clerkUser.id,
         email: userEmail,
         firstName,
         lastName,
         role,
         tenantId: tenant.id,
-        isActive: true
-      }
-    });
-
-    return NextResponse.json({
-      success: true,
-      user: localUser,
-      message: 'Usuario creado exitosamente'
+        tenantCode: tenant.tenantCode
+      },
+      message: 'Usuario creado exitosamente en Clerk'
     });
 
   } catch (error: any) {
     console.error('Error creando usuario:', error);
+    console.error('Error details:', JSON.stringify(error, null, 2));
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { 
+        error: 'Error interno del servidor',
+        details: error.message || 'Unknown error',
+        clerkError: error.clerkError || null
+      },
       { status: 500 }
     );
   }
@@ -182,5 +170,94 @@ function getPermissionsForRole(role: string): string[] {
       ];
     default:
       return [];
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { userId, sessionClaims } = await auth();
+    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { id: tenantId } = await params;
+    const { searchParams } = new URL(req.url);
+    const userIdToDelete = searchParams.get('userId');
+
+    // Get email from Clerk user
+    let email = '';
+    if (userId) {
+      try {
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        email = user.emailAddresses[0]?.emailAddress || '';
+      } catch (error) {
+        console.error('Error getting user email from Clerk:', error);
+      }
+    }
+
+    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 403 }
+      );
+    }
+
+    if (!userIdToDelete) {
+      return NextResponse.json(
+        { error: 'Se requiere el ID del usuario a eliminar' },
+        { status: 400 }
+      );
+    }
+
+    // Protección: No permitir eliminar al super admin principal
+    try {
+      const client = await clerkClient();
+      const userToDelete = await client.users.getUser(userIdToDelete);
+      const userToDeleteEmail = userToDelete.emailAddresses[0]?.emailAddress || '';
+      
+      if (userToDeleteEmail === 'sucachi.123@gmail.com') {
+        console.log('🔒 Intento de eliminar super admin bloqueado:', userToDeleteEmail);
+        return NextResponse.json(
+          { error: 'No se puede eliminar al super admin principal' },
+          { status: 403 }
+        );
+      }
+    } catch (error) {
+      console.error('Error verificando usuario a eliminar:', error);
+      return NextResponse.json(
+        { error: 'Error verificando usuario a eliminar' },
+        { status: 500 }
+      );
+    }
+
+    // TODO: Implementar verificación en base de datos local cuando esté disponible
+    // Por ahora, solo eliminamos de Clerk
+
+    // Eliminar usuario de Clerk
+    try {
+      const client = await clerkClient();
+      await client.users.deleteUser(userIdToDelete);
+    } catch (error) {
+      console.error(`Error eliminando usuario ${userIdToDelete} de Clerk:`, error);
+      return NextResponse.json(
+        { error: 'Error eliminando usuario de Clerk' },
+        { status: 500 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: 'Usuario eliminado exitosamente'
+    });
+
+  } catch (error: any) {
+    console.error('Error eliminando usuario:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
   }
 }

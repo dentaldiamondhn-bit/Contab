@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import FooterPaginator from "@/components/admin/FooterPaginator";
 
 interface User {
   id: string;
@@ -23,6 +24,12 @@ export default function UsersManagementPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalItems: 0,
+    itemsPerPage: 10,
+  });
   const [formData, setFormData] = useState({
     email: "",
     firstName: "",
@@ -37,14 +44,26 @@ export default function UsersManagementPage() {
   useEffect(() => {
     fetchUsers();
     fetchTenants();
-  }, []);
+  }, [pagination.currentPage, searchTerm, roleFilter]);
 
   const fetchUsers = async () => {
     try {
-      const response = await fetch("/api/admin/users");
+      const params = new URLSearchParams({
+        page: pagination.currentPage.toString(),
+        limit: pagination.itemsPerPage.toString(),
+        search: searchTerm,
+        role: roleFilter === "ALL" ? "" : roleFilter,
+      });
+      
+      const response = await fetch(`/api/admin/users?${params}`);
       if (response.ok) {
         const data = await response.json();
         setUsers(data.users || []);
+        setPagination(prev => ({
+          ...prev,
+          totalPages: data.pagination?.pages || 1,
+          totalItems: data.pagination?.total || 0,
+        }));
       } else {
         setError("Error al cargar los usuarios");
       }
@@ -65,6 +84,16 @@ export default function UsersManagementPage() {
     } catch (err) {
       console.error("Error al cargar tenants:", err);
     }
+  };
+
+  const handlePageChange = (page: number) => {
+    setPagination(prev => ({ ...prev, currentPage: page }));
+  };
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setPagination(prev => ({ ...prev, currentPage: 1 }));
+    fetchUsers();
   };
 
   const handleCreateUser = async (e: React.FormEvent) => {
@@ -186,6 +215,28 @@ export default function UsersManagementPage() {
       }
     } catch (err) {
       console.error("Error al cambiar rol:", err);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string, userEmail: string) => {
+    if (!confirm(`¿Estás seguro de que deseas eliminar al usuario ${userEmail}? Esta acción también eliminará el usuario de Clerk.`)) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        fetchUsers();
+      } else {
+        const data = await response.json();
+        alert(data.error || 'Error al eliminar usuario');
+      }
+    } catch (err) {
+      console.error("Error al eliminar usuario:", err);
+      alert('Error de conexión al eliminar usuario');
     }
   };
 
@@ -344,7 +395,7 @@ export default function UsersManagementPage() {
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(user.createdAt).toLocaleDateString('es-HN')}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
                         <button
                           onClick={() => handleToggleStatus(user.id, user.isActive)}
                           className={`px-3 py-1 rounded ${
@@ -354,6 +405,12 @@ export default function UsersManagementPage() {
                           }`}
                         >
                           {user.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteUser(user.id, user.email)}
+                          className="px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                        >
+                          🗑️ Eliminar
                         </button>
                       </td>
                     </tr>
@@ -522,6 +579,17 @@ export default function UsersManagementPage() {
               </div>
             </div>
           </div>
+        )}
+        
+        {/* Pagination */}
+        {!loading && users.length > 0 && (
+          <FooterPaginator
+            currentPage={pagination.currentPage}
+            totalPages={pagination.totalPages}
+            totalItems={pagination.totalItems}
+            itemsPerPage={pagination.itemsPerPage}
+            onPageChange={handlePageChange}
+          />
         )}
       </div>
     </div>

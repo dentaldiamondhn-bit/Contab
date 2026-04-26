@@ -25,6 +25,21 @@ import {
   EyeOff
 } from "lucide-react";
 
+interface Plan {
+  id: string;
+  name: string;
+  code: string;
+  price: number;
+  maxUsers: number;
+  maxStorage: number;
+  maxTransactions: number;
+  features: string[];
+  modules: string[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 interface Tenant {
   id: string;
   businessName: string;
@@ -71,6 +86,7 @@ interface UserFormData {
 
 export default function TenantManager() {
   const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [showTenantForm, setShowTenantForm] = useState(false);
@@ -103,7 +119,27 @@ export default function TenantManager() {
 
   useEffect(() => {
     loadTenants();
+    loadPlans();
   }, []);
+
+  const loadPlans = async () => {
+    try {
+      console.log('Cargando planes desde /api/admin/plans...');
+      const response = await fetch('/api/admin/plans');
+      console.log('Response status:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Planes recibidos:', data);
+        setPlans(data.plans || []);
+      } else {
+        console.error('Error en respuesta de planes:', response.status);
+        const errorData = await response.json();
+        console.error('Error data:', errorData);
+      }
+    } catch (error: any) {
+      console.error("Error loading plans:", error);
+    }
+  };
 
   const loadTenants = async () => {
     setLoading(true);
@@ -290,11 +326,32 @@ export default function TenantManager() {
     return <Badge className={colors[plan] || 'bg-gray-100'}>{labels[plan] || plan}</Badge>;
   };
 
+  const getSubscriptionPlanDetails = (planCode: string) => {
+    const plan = plans.find(p => p.code === planCode);
+    if (plan) {
+      return {
+        maxUsers: plan.maxUsers,
+        maxStorage: plan.maxStorage,
+        maxTransactions: plan.maxTransactions,
+        monthlyCost: plan.price
+      };
+    }
+    // Valores por defecto si no se encuentra el plan
+    return {
+      maxUsers: 5,
+      maxStorage: 100,
+      maxTransactions: 10000,
+      monthlyCost: 1000
+    };
+  };
+
   const filteredTenants = tenants.filter(tenant =>
     tenant.businessName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tenant.tenantCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
     tenant.businessEmail.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  console.log('Estado actual - Plans:', plans.length, 'Tenants:', tenants.length);
 
   return (
     <div className="space-y-6">
@@ -497,19 +554,48 @@ export default function TenantManager() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="subscriptionPlan">Plan de Suscripción</Label>
-                <Select 
-                  value={tenantForm.subscriptionPlan} 
-                  onValueChange={(value) => setTenantForm({ ...tenantForm, subscriptionPlan: value })}
+                <select
+                  id="subscriptionPlan"
+                  value={tenantForm.subscriptionPlan}
+                  onChange={(e) => {
+                    const plan = getSubscriptionPlanDetails(e.target.value);
+                    setTenantForm({ 
+                      ...tenantForm, 
+                      subscriptionPlan: e.target.value,
+                      maxUsers: plan.maxUsers,
+                      maxStorage: plan.maxStorage,
+                      maxTransactions: plan.maxTransactions,
+                      monthlyCost: plan.monthlyCost
+                    });
+                  }}
+                  className="w-full p-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                 >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="BASIC">Básico</SelectItem>
-                    <SelectItem value="PREMIUM">Premium</SelectItem>
-                    <SelectItem value="ENTERPRISE">Empresarial</SelectItem>
-                  </SelectContent>
-                </Select>
+                  <option value="">Selecciona un plan</option>
+                  {plans.length > 0 ? (
+                    plans.filter(plan => plan.isActive).map(plan => (
+                      <option key={plan.id} value={plan.code}>
+                        {plan.name} - {plan.maxUsers} usuarios - L. {plan.price.toLocaleString()}/mes
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="BASIC">Básico - 5 usuarios - L. 1,000/mes</option>
+                      <option value="PREMIUM">Premium - 20 usuarios - L. 3,000/mes</option>
+                      <option value="ENTERPRISE">Empresarial - Ilimitado - L. 10,000/mes</option>
+                    </>
+                  )}
+                </select>
+                {tenantForm.subscriptionPlan && (
+                  <div className="mt-2 p-3 bg-gray-50 rounded-lg">
+                    <h4 className="font-medium text-sm mb-2">Detalles del Plan:</h4>
+                    <div className="text-xs space-y-1">
+                      <div>• Usuarios máximos: {tenantForm.maxUsers}</div>
+                      <div>• Almacenamiento: {tenantForm.maxStorage}MB</div>
+                      <div>• Transacciones: {tenantForm.maxTransactions.toLocaleString()}</div>
+                      <div>• Costo mensual: L. {tenantForm.monthlyCost.toLocaleString()}</div>
+                    </div>
+                  </div>
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="maxUsers">Usuarios Máximos</Label>
