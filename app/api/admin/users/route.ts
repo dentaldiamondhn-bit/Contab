@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 
 export async function GET(req: NextRequest) {
   try {
+    // Verificar que el usuario autenticado sea SUPER_ADMIN o SUPPORT
     const { userId, sessionClaims } = await auth();
     const userRole = (sessionClaims?.metadata as any)?.role;
 
@@ -28,27 +29,65 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const users = await db.user.findMany({
-      include: {
-        tenant: {
-          select: {
-            businessName: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const { searchParams } = new URL(req.url);
+    const page = parseInt(searchParams.get('page') || '1');
+    const limit = parseInt(searchParams.get('limit') || '10');
+    const search = searchParams.get('search') || '';
+    const role = searchParams.get('role') || '';
 
-    const usersWithTenantName = users.map(user => ({
+    const skip = (page - 1) * limit;
+
+    // Construir where clause
+    const where: any = {};
+    
+    if (search) {
+      where.OR = [
+        { email: { contains: search, mode: 'insensitive' } },
+        { firstName: { contains: search, mode: 'insensitive' } },
+        { lastName: { contains: search, mode: 'insensitive' } },
+        { username: { contains: search, mode: 'insensitive' } }
+      ];
+    }
+
+    if (role) {
+      where.role = role;
+    }
+
+    // Obtener usuarios con conteo y tenant info
+    const [users, totalCount] = await Promise.all([
+      db.user.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          tenant: {
+            select: {
+              businessName: true
+            }
+          }
+        },
+        orderBy: {
+          createdAt: 'desc'
+        }
+      }),
+      db.user.count({ where })
+    ]);
+
+    // Formatear usuarios para incluir tenantName
+    const formattedUsers = users.map(user => ({
       ...user,
       tenantName: user.tenant?.businessName || null
     }));
 
     return NextResponse.json({
       success: true,
-      users: usersWithTenantName
+      users: formattedUsers,
+      pagination: {
+        page,
+        limit,
+        total: totalCount,
+        pages: Math.ceil(totalCount / limit)
+      }
     });
 
   } catch (error: any) {

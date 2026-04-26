@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Factura - {{companyName}}</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .invoice-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 20px;
+        }
+        .company-info h1 {
+            margin: 0;
+            color: #333;
+            font-size: 24px;
+        }
+        .company-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .invoice-info {
+            text-align: right;
+        }
+        .invoice-info h2 {
+            margin: 0;
+            color: #333;
+            font-size: 20px;
+        }
+        .invoice-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .customer-info {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f9f9f9;
+            border-radius: 5px;
+        }
+        .customer-info h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        .customer-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+        .items-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        .items-table th {
+            background: #333;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: bold;
+        }
+        .items-table td {
+            padding: 12px;
+            border-bottom: 1px solid #ddd;
+        }
+        .items-table tr:nth-child(even) {
+            background: #f9f9f9;
+        }
+        .text-right {
+            text-align: right;
+        }
+        .text-center {
+            text-align: center;
+        }
+        .totals {
+            margin-top: 20px;
+            text-align: right;
+        }
+        .totals p {
+            margin: 5px 0;
+            font-size: 16px;
+        }
+        .totals .grand-total {
+            font-size: 20px;
+            font-weight: bold;
+            color: #333;
+            border-top: 2px solid #333;
+            padding-top: 10px;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+        }
+        .cai-info {
+            margin-top: 20px;
+            padding: 15px;
+            background: #f0f8ff;
+            border-radius: 5px;
+            border-left: 4px solid #0066cc;
+        }
+        .cai-info h4 {
+            margin: 0 0 10px 0;
+            color: #0066cc;
+        }
+        .cai-info p {
+            margin: 5px 0;
+            color: #333;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="invoice-container">
+        <!-- Cabecera -->
+        <div class="header">
+            <div class="company-info">
+                <h1>{{companyName}}</h1>
+                <p>{{companyAddress}}</p>
+                <p>Tel: {{companyPhone}}</p>
+                <p>RTN: {{companyRTN}}</p>
+            </div>
+            <div class="invoice-info">
+                <h2>FACTURA</h2>
+                <p><strong>N°:</strong> {{invoiceNumber}}</p>
+                <p><strong>Fecha:</strong> {{invoiceDate}}</p>
+                <p><strong>CAI:</strong> {{cai}}</p>
+            </div>
+        </div>
+
+        <!-- Información del Cliente -->
+        <div class="customer-info">
+            <h3>Cliente</h3>
+            <p><strong>Nombre:</strong> {{customerName}}</p>
+            <p><strong>RTN:</strong> {{customerRTN}}</p>
+            <p><strong>Dirección:</strong> {{customerAddress}}</p>
+        </div>
+
+        <!-- Tabla de Items -->
+        <table class="items-table">
+            <thead>
+                <tr>
+                    <th>Código</th>
+                    <th>Descripción</th>
+                    <th class="text-center">Cantidad</th>
+                    <th class="text-right">Precio Unit.</th>
+                    <th class="text-right">Descuento</th>
+                    <th class="text-right">Subtotal</th>
+                </tr>
+            </thead>
+            <tbody>
+                {{#each items}}
+                <tr>
+                    <td>{{code}}</td>
+                    <td>{{name}}</td>
+                    <td class="text-center">{{quantity}}</td>
+                    <td class="text-right">L. {{unitPrice}}</td>
+                    <td class="text-right">L. {{discount}}</td>
+                    <td class="text-right">L. {{subtotal}}</td>
+                </tr>
+                {{/each}}
+            </tbody>
+        </table>
+
+        <!-- Totales -->
+        <div class="totals">
+            <p><strong>Subtotal:</strong> L. {{subtotal}}</p>
+            <p><strong>ISV (15%):</strong> L. {{tax}}</p>
+            <p><strong>Total:</strong> L. {{total}}</p>
+            <p class="grand-total">TOTAL A PAGAR: L. {{total}}</p>
+        </div>
+
+        <!-- Información CAI -->
+        <div class="cai-info">
+            <h4>Información CAI</h4>
+            <p><strong>Rango Autorizado:</strong> {{caiRange}}</p>
+            <p><strong>Fecha Límite:</strong> {{caiExpiryDate}}</p>
+            <p><strong>Estado:</strong> {{caiStatus}}</p>
+        </div>
+
+        <!-- Notas -->
+        {{#if notes}}
+        <div class="notes">
+            <h4>Notas:</h4>
+            <p>{{notes}}</p>
+        </div>
+        {{/if}}
+
+        <!-- Pie de página -->
+        <div class="footer">
+            <p>Esta factura es un documento legal válido según la normativa tributaria de Honduras</p>
+            <p>Generado el: {{generationDate}}</p>
+        </div>
+    </div>
+</body>
+</html>

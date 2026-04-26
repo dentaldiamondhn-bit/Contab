@@ -5,14 +5,16 @@ import { useRouter, useParams } from "next/navigation";
 
 interface Plan {
   id: string;
-  name: string;
   code: string;
-  price: number;
-  maxUsers: number;
-  maxStorage: number;
-  maxTransactions: number;
-  features: string[];
-  isActive: boolean;
+  name: string;
+  description: string;
+  unitPrice: number;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  total: number;
+  maxUsers?: number;
+  features?: string[];
 }
 
 export default function EditTenantPage() {
@@ -25,6 +27,7 @@ export default function EditTenantPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
   const [plans, setPlans] = useState<Plan[]>([]);
+  const [availablePlans, setAvailablePlans] = useState<Plan[]>([]);
 
   const [formData, setFormData] = useState<{
     businessName: string;
@@ -61,15 +64,42 @@ export default function EditTenantPage() {
 
   useEffect(() => {
     fetchPlans();
+    fetchAvailablePlans();
     fetchTenant();
   }, [tenantId]);
 
-  const fetchPlans = async () => {
+  const fetchAvailablePlans = async () => {
     try {
+      console.log('Cargando planes disponibles desde /api/admin/plans...');
       const response = await fetch("/api/admin/plans");
+      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
+        console.log('Planes disponibles recibidos:', data);
+        setAvailablePlans(data.plans || []);
+      } else {
+        console.error('Error en respuesta de planes disponibles:', response.status);
+        const errorData = await response.json();
+        console.error('Error data:', errorData);
+      }
+    } catch (err) {
+      console.error("Error cargando planes disponibles:", err);
+    }
+  };
+
+  const fetchPlans = async () => {
+    try {
+      console.log('Cargando planes desde /api/admin/plans-public...');
+      const response = await fetch("/api/admin/plans-public");
+      console.log('Response status:', response.status);
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Planes recibidos:', data);
         setPlans(data.plans || []);
+      } else {
+        console.error('Error en respuesta de planes:', response.status);
+        const errorData = await response.json();
+        console.error('Error data:', errorData);
       }
     } catch (err) {
       console.error("Error cargando planes:", err);
@@ -90,10 +120,11 @@ export default function EditTenantPage() {
         businessRTN: data.businessRTN || "",
         phoneNumber: data.phoneNumber || "",
         businessAddress: data.businessAddress || "",
-        subscriptionPlans: data.subscriptionPlans ? JSON.parse(data.subscriptionPlans) : [],
+        subscriptionPlans: data.subscriptionPlans ? (typeof data.subscriptionPlans === 'string' ? JSON.parse(data.subscriptionPlans) : data.subscriptionPlans) : 
+                   data.subscriptionPlan ? (typeof data.subscriptionPlan === 'string' ? JSON.parse(data.subscriptionPlan) : data.subscriptionPlan) : [],
         maxUsers: data.maxUsers || 5,
         monthlyCost: data.monthlyCost || 0,
-        modules: data.modules ? data.modules.split(',') : [],
+        modules: data.modules ? (typeof data.modules === 'string' ? data.modules.split(',') : data.modules) : [],
       });
     } catch (err) {
       setError("Error al cargar el tenant");
@@ -112,64 +143,55 @@ export default function EditTenantPage() {
 
   const handlePlanToggle = (planCode: string) => {
     setFormData(prev => {
-      const existingPlanIndex = prev.subscriptionPlans.findIndex((p: { code: string; quantity: number }) => p.code === planCode);
+      const currentPlans = Array.isArray(prev.subscriptionPlans) ? prev.subscriptionPlans : [];
+      const existingPlanIndex = currentPlans.findIndex((p: { code: string; quantity: number }) => p.code === planCode);
       let newPlans;
       
       if (existingPlanIndex >= 0) {
-        // Si el plan ya existe, incrementar la cantidad
-        newPlans = [...prev.subscriptionPlans];
-        newPlans[existingPlanIndex].quantity += 1;
+        // Si el plan ya existe, removerlo completamente
+        newPlans = currentPlans.filter((p: { code: string; quantity: number }) => p.code !== planCode);
       } else {
         // Si no existe, agregar con cantidad 1
-        newPlans = [...prev.subscriptionPlans, { code: planCode, quantity: 1 }];
+        newPlans = [...currentPlans, { code: planCode, quantity: 1 }];
       }
-      
-      // Calcular el maxUsers total basado en los planes seleccionados
-      const totalMaxUsers = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
-        .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
-          return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
-        }, 5);
-      
-      // Calcular el costo total mensual
-      const totalMonthlyCost = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
-        .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
-          return sum + (p.price * (planWithQuantity?.quantity || 1));
-        }, 0);
       
       return {
         ...prev,
-        subscriptionPlans: newPlans,
-        maxUsers: totalMaxUsers,
-        monthlyCost: totalMonthlyCost
+        subscriptionPlans: newPlans
       };
     });
   };
 
   const handleQuantityChange = (planCode: string, newQuantity: number) => {
-    if (newQuantity < 1) return;
+    if (newQuantity < 1 || isNaN(newQuantity)) return;
     
     setFormData(prev => {
-      const newPlans = prev.subscriptionPlans.map(p => 
-        p.code === planCode ? { ...p, quantity: newQuantity } : p
-      );
+      // Asegurarse que subscriptionPlans sea un array
+      const currentPlans = Array.isArray(prev.subscriptionPlans) ? prev.subscriptionPlans : [];
       
-      // Calcular el maxUsers total basado en los planes seleccionados
-      const totalMaxUsers = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
-        .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
-          return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
-        }, 5);
+      if (newQuantity === 0) {
+        // Si la cantidad es 0, remover el plan
+        const newPlans = currentPlans.filter(p => p.code !== planCode);
+        return {
+          ...prev,
+          subscriptionPlans: newPlans
+        };
+      } else {
+        // Actualizar la cantidad
+        const newPlans = currentPlans.map(p => 
+          p.code === planCode ? { ...p, quantity: newQuantity } : p
+        );
+        return {
+          ...prev,
+          subscriptionPlans: newPlans
+        };
+      }
       
       // Calcular el costo total mensual
       const totalMonthlyCost = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
+        .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
+          const planWithQuantity = newPlans.find(np => np.code === p.code);
           return sum + (p.price * (planWithQuantity?.quantity || 1));
         }, 0);
       
@@ -184,21 +206,23 @@ export default function EditTenantPage() {
 
   const handleRemovePlan = (planCode: string) => {
     setFormData(prev => {
-      const newPlans = prev.subscriptionPlans.filter(p => p.code !== planCode);
+      // Asegurarse que subscriptionPlans sea un array
+      const currentPlans = Array.isArray(prev.subscriptionPlans) ? prev.subscriptionPlans : [];
+      const newPlans = currentPlans.filter(p => p.code !== planCode);
       
       // Calcular el maxUsers total basado en los planes seleccionados
       const totalMaxUsers = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
+        .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
+          const planWithQuantity = newPlans.find(np => np.code === p.code);
           return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
         }, 5);
       
       // Calcular el costo total mensual
       const totalMonthlyCost = plans
-        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
+        .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
-          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
+          const planWithQuantity = newPlans.find(np => np.code === p.code);
           return sum + (p.price * (planWithQuantity?.quantity || 1));
         }, 0);
       
@@ -240,6 +264,26 @@ export default function EditTenantPage() {
     setError("");
 
     try {
+      // Calcular el costo total mensual basado en los planes seleccionados
+      const calculateMonthlyCost = () => {
+        const currentPlans = Array.isArray(formData.subscriptionPlans) ? formData.subscriptionPlans : [];
+        return currentPlans.reduce((total, plan) => {
+          const planData = plans.find(p => p.code === plan.code);
+          if (planData) {
+            return total + (planData.unitPrice * (plan.quantity || 1));
+          }
+          return total;
+        }, 0);
+      };
+
+      const calculatedMonthlyCost = calculateMonthlyCost();
+      
+      console.log('📦 Datos a guardar:', {
+        ...formData,
+        subscriptionPlans: formData.subscriptionPlans,
+        calculatedMonthlyCost
+      });
+
       const response = await fetch(`/api/admin/tenants/${tenantId}`, {
         method: "PATCH",
         headers: {
@@ -248,18 +292,23 @@ export default function EditTenantPage() {
         body: JSON.stringify({
           ...formData,
           subscriptionPlans: JSON.stringify(formData.subscriptionPlans),
+          monthlyCost: calculatedMonthlyCost,
           modules: formData.modules.join(',')
         }),
       });
 
+      console.log('📡 Response status:', response.status);
       const data = await response.json();
+      console.log('📦 Response data:', data);
 
       if (response.ok) {
+        console.log('✅ Tenant actualizado exitosamente');
         setSuccess(true);
         setTimeout(() => {
-          router.push("/admin/tenants");
+          router.push(`/admin/tenants/${tenantId}`);
         }, 2000);
       } else {
+        console.log('❌ Error al actualizar tenant:', data.error);
         setError(data.error || "Error al actualizar el tenant");
       }
     } catch (err) {
@@ -279,7 +328,7 @@ export default function EditTenantPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-8">
           <button
             onClick={() => router.push("/admin/tenants")}
@@ -288,7 +337,29 @@ export default function EditTenantPage() {
             ← Volver
           </button>
           <h1 className="text-3xl font-bold text-gray-900">Editar Tenant</h1>
-          <p className="text-gray-600 mt-2">Actualiza la información del tenant</p>
+          <p className="text-gray-600 mt-2">Actualiza la información y planes de suscripción del tenant</p>
+        </div>
+
+        {/* Panel de información del tenant */}
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Empresa</p>
+              <p className="text-lg font-semibold text-blue-900">{formData.businessName}</p>
+            </div>
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Planes Actuales</p>
+              <p className="text-lg font-semibold text-blue-900">{formData.subscriptionPlans.length}</p>
+            </div>
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Usuarios Máximos</p>
+              <p className="text-lg font-semibold text-blue-900">{formData.maxUsers}</p>
+            </div>
+            <div>
+              <p className="text-sm text-blue-600 font-medium">Costo Mensual</p>
+              <p className="text-lg font-semibold text-blue-900">L. {formData.monthlyCost.toLocaleString()}</p>
+            </div>
+          </div>
         </div>
 
         {success && (
@@ -392,87 +463,117 @@ export default function EditTenantPage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <div>
-                <label htmlFor="subscriptionPlan" className="block text-sm font-medium text-gray-700 mb-2">
-                  Plan de Suscripción
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  📋 Planes de Suscripción
                 </label>
-                <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-300 rounded-lg p-3">
-                  {plans.length === 0 ? (
-                    <p className="text-gray-500">Cargando planes...</p>
-                  ) : (
-                    plans.map((plan) => {
-                      const planInForm = formData.subscriptionPlans.find(p => p.code === plan.code);
-                      const quantity = planInForm?.quantity || 0;
-                      
-                      return (
-                        <div key={plan.id} className="border-b border-gray-100 pb-2 last:border-b-0">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <button
-                                type="button"
-                                onClick={() => handlePlanToggle(plan.code)}
-                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-sm"
-                              >
-                                Agregar
-                              </button>
-                              <span className="text-sm font-medium">
-                                {plan.name}
-                              </span>
+                <div className="bg-white border border-gray-300 rounded-lg p-4">
+                  <div className="mb-3">
+                    <p className="text-xs text-gray-500 mb-2">Planes disponibles para agregar:</p>
+                    <div className="space-y-2 max-h-48 overflow-y-auto">
+                      {plans.length === 0 ? (
+                        <p className="text-gray-500 text-center py-4">Cargando planes...</p>
+                      ) : (
+                        plans.map((plan) => {
+                          const isSelected = formData.subscriptionPlans.some((p: any) => p.code === plan.code);
+                          const quantity = formData.subscriptionPlans.find((p: any) => p.code === plan.code)?.quantity || 0;
+                          
+                          return (
+                            <div key={plan.id} className={`border rounded-lg p-4 ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                              <div className="flex items-center justify-between mb-3">
+                                <div>
+                                  <h3 className="font-medium text-gray-900">{plan.name}</h3>
+                                  <p className="text-sm text-gray-600">{plan.description}</p>
+                                  <div className="mt-2 space-y-1">
+                                    <p className="text-xs text-gray-500">Precio: L. {plan.unitPrice?.toLocaleString() || '0'}/mes</p>
+                                    <p className="text-xs text-gray-500">Usuarios: {plan.maxUsers || 'Ilimitado'}</p>
+                                    {plan.features && (
+                                      <p className="text-xs text-gray-500">
+                                        Características: {plan.features.slice(0, 3).join(', ')}
+                                        {plan.features.length > 3 && '...'}
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  {quantity === 0 ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePlanToggle(plan.code)}
+                                      className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-sm"
+                                    >
+                                      ➕ Agregar
+                                    </button>
+                                  ) : (
+                                    <div className="flex items-center space-x-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuantityChange(plan.code, quantity - 1)}
+                                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                                      >
+                                        -
+                                      </button>
+                                      <span className="text-sm font-medium px-2">{quantity}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleQuantityChange(plan.code, quantity + 1)}
+                                        className="px-2 py-1 bg-gray-200 text-gray-700 rounded hover:bg-gray-300 text-sm"
+                                      >
+                                        +
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handlePlanToggle(plan.code)}
+                                        className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
+                                      >
+                                        Eliminar
+                                      </button>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
                             </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-sm text-gray-600">
-                                L {plan.price.toLocaleString()}/mes
-                              </span>
-                              {quantity > 0 && (
-                                <span className="text-sm font-semibold text-blue-600">
-                                  x{quantity}
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {quantity > 0 && (
-                            <div className="mt-2 flex items-center space-x-2">
-                              <label className="text-xs text-gray-600">Cantidad:</label>
-                              <input
-                                type="number"
-                                min="1"
-                                value={quantity}
-                                onChange={(e) => handleQuantityChange(plan.code, parseInt(e.target.value))}
-                                className="w-16 px-2 py-1 text-xs border border-gray-300 rounded"
-                              />
-                              <button
-                                type="button"
-                                onClick={() => handleRemovePlan(plan.code)}
-                                className="text-xs text-red-600 hover:text-red-800"
-                              >
-                                Eliminar
-                              </button>
-                              <span className="text-xs text-gray-500">
-                                Subtotal: L {(plan.price * quantity).toLocaleString()}
-                              </span>
-                            </div>
-                          )}
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  
+                  {formData.subscriptionPlans.length > 0 && (
+                    <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-medium text-green-800">
+                            ✅ {formData.subscriptionPlans.length} plan(es) seleccionado(s)
+                          </p>
+                          <p className="text-xs text-green-600 mt-1">
+                            Total usuarios: {formData.maxUsers} | Costo mensual: L. {formData.monthlyCost.toLocaleString()}
+                          </p>
                         </div>
-                      );
-                    })
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setFormData(prev => ({
+                              ...prev,
+                              subscriptionPlans: [],
+                              maxUsers: 5,
+                              monthlyCost: 0
+                            }));
+                          }}
+                          className="text-xs px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200"
+                        >
+                          Limpiar planes
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
-                {formData.subscriptionPlans.length > 0 && (
-                  <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                    <p className="text-xs text-blue-800 font-medium">
-                      {formData.subscriptionPlans.length} plan(es) seleccionado(s)
-                    </p>
-                    <p className="text-sm text-blue-900 font-semibold">
-                      Costo total mensual: L {formData.monthlyCost.toLocaleString()}
-                    </p>
-                  </div>
-                )}
               </div>
 
               <div>
                 <label htmlFor="maxUsers" className="block text-sm font-medium text-gray-700 mb-2">
-                  Máximo de Usuarios
+                  👥 Máximo de Usuarios
                 </label>
                 <input
                   type="number"
@@ -480,10 +581,14 @@ export default function EditTenantPage() {
                   name="maxUsers"
                   min="1"
                   max="100"
-                  value={formData.maxUsers}
+                  value={formData.maxUsers || 5}
                   onChange={handleChange}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder="Número máximo de usuarios"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Este valor se calcula automáticamente basado en los planes seleccionados
+                </p>
               </div>
             </div>
 
