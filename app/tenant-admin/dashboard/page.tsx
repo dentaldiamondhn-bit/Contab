@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,97 +40,67 @@ export default function TenantAdminDashboard() {
     activeModules: []
   });
   const [loading, setLoading] = useState(true);
+  const [hasChecked, setHasChecked] = useState(false);
 
   // Verificar rol y redirigir si no es admin de tenant
   useEffect(() => {
     if (user) {
       const userRole = user.publicMetadata?.role;
-      const email = user.primaryEmailAddress?.emailAddress;
       
-      // Permitir acceso a ADMIN, MANAGER, y SUPER_ADMIN
       if (!['ADMIN', 'MANAGER', 'SUPER_ADMIN'].includes(userRole as string)) {
         router.replace('/dashboard');
       }
     }
   }, [user, router]);
 
-  // Función para cargar estadísticas - memorizada para evitar recreaciones
-  const loadTenantStats = useCallback(async (tenant: typeof currentTenant) => {
-    if (!tenant) return;
+  // Check localStorage once on mount
+  useEffect(() => {
+    if (hasChecked) return;
     
-    try {
-      setLoading(true);
-      // Simular carga de estadísticas (en producción, esto vendría de APIs)
-      const mockStats: TenantStats = {
-        totalUsers: tenant.maxUsers || 5,
-        activeUsers: Math.floor(Math.random() * (tenant.maxUsers || 5)) + 1,
-        totalInvoices: Math.floor(Math.random() * 50) + 10,
-        monthlyRevenue: 500,
-        activeModules: []
+    const companyData = localStorage.getItem('companyData');
+    const businessName = localStorage.getItem('businessName');
+    const savedTenant = localStorage.getItem('selected_tenant');
+    
+    if (!savedTenant && companyData && businessName) {
+      const parsedCompany = JSON.parse(companyData);
+      const reconstructedTenant = {
+        id: 'temp-' + Date.now(),
+        businessName: businessName,
+        tenantCode: parsedCompany.rtn || 'TEMP',
+        businessEmail: parsedCompany.email || '',
+        businessRTN: parsedCompany.rtn || '',
+        phoneNumber: parsedCompany.contactPhone || parsedCompany.companyPhone || '',
+        businessAddress: parsedCompany.address || '',
+        industry: parsedCompany.industry || '',
+        maxUsers: 5,
       };
-      setStats(mockStats);
-    } catch (error) {
-      console.error('Error loading tenant stats:', error);
-    } finally {
+      localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
+      window.location.reload();
+      return;
+    }
+    
+    setHasChecked(true);
+    if (!currentTenant && savedTenant) {
+      // Waiting for TenantContext to load
       setLoading(false);
     }
-  }, []);
+  }, [hasChecked, currentTenant]);
 
-  // Efecto único para manejar todo - evita múltiples re-renders
-  const initDoneRef = useRef(false);
-  const tenantLoadedRef = useRef(false);
-  
+  // Load stats when tenant is available
   useEffect(() => {
-    // Si ya inicializamos y el tenant ya cargó, no hacer nada
-    if (initDoneRef.current && tenantLoadedRef.current) {
-      return;
-    }
+    if (!currentTenant || !hasChecked) return;
     
-    // Si hay tenant y aún no lo hemos procesado
-    if (currentTenant && !tenantLoadedRef.current) {
-      tenantLoadedRef.current = true;
-      initDoneRef.current = true;
-      loadTenantStats(currentTenant);
-      return;
-    }
-    
-    // Si no hay tenant y aún no inicializamos
-    if (!currentTenant && !initDoneRef.current) {
-      initDoneRef.current = true;
-      
-      // Verificar si hay datos en localStorage del onboarding
-      const companyData = localStorage.getItem('companyData');
-      const businessName = localStorage.getItem('businessName');
-      const savedTenant = localStorage.getItem('selected_tenant');
-      
-      if (savedTenant) {
-        // Ya hay un tenant guardado, esperar a que TenantContext lo cargue
-        setLoading(false);
-      } else if (companyData && businessName) {
-        // Reconstruir tenant desde datos de onboarding y recargar
-        const parsedCompany = JSON.parse(companyData);
-        const reconstructedTenant = {
-          id: 'temp-' + Date.now(),
-          businessName: businessName,
-          tenantCode: parsedCompany.rtn || 'TEMP',
-          businessEmail: parsedCompany.email || '',
-          businessRTN: parsedCompany.rtn || '',
-          phoneNumber: parsedCompany.contactPhone || parsedCompany.companyPhone || '',
-          businessAddress: parsedCompany.address || '',
-          industry: parsedCompany.industry || '',
-          maxUsers: 5,
-        };
-        
-        localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
-        window.location.reload();
-      } else {
-        // Si no hay datos de onboarding tampoco, mostrar mensaje vacío
-        setLoading(false);
-      }
-    }
-  // Solo ejecutar cuando currentTenant cambia de null a un valor
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant]);
+    // Calculate stats once
+    const mockStats: TenantStats = {
+      totalUsers: currentTenant.maxUsers || 5,
+      activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
+      totalInvoices: Math.floor(Math.random() * 50) + 10,
+      monthlyRevenue: 500,
+      activeModules: []
+    };
+    setStats(mockStats);
+    setLoading(false);
+  }, [currentTenant, hasChecked]);
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {
