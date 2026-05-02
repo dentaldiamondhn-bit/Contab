@@ -8,10 +8,8 @@ import { Button } from "@/components/ui/button";
 import { 
   Building2, 
   Users, 
-  FileText, 
-  DollarSign,
-  TrendingUp,
-  Settings,
+  HeadphonesIcon,
+  LifeBuoy,
   AlertCircle,
   CheckCircle,
   Activity,
@@ -26,7 +24,9 @@ import {
   CreditCard,
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Shield,
+  Wrench
 } from "lucide-react";
 
 interface TenantStats {
@@ -215,67 +215,61 @@ export default function SupportDashboard() {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-3xl font-bold text-gray-900">Dashboard de Soporte</h2>
-        <p className="text-gray-600">Visión global del sistema para soporte técnico</p>
-      </div>
-
-      {/* Stats Cards */}
+    <div className="p-6 space-y-6 bg-orange-50/30 min-h-screen">
+      {/* Stats Cards - Orange/Amber Theme */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Tenants</CardTitle>
+        <Card className="border-orange-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3 bg-orange-50/50">
+            <CardTitle className="text-sm font-medium text-orange-700">Total Tenants</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold text-gray-900">
                 {loadingStats ? '...' : tenantStats?.totalTenants || 0}
               </div>
-              <Building2 className="h-8 w-8 text-blue-600" />
+              <Building2 className="h-8 w-8 text-orange-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Tenants Activos</CardTitle>
+        <Card className="border-green-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3 bg-green-50/50">
+            <CardTitle className="text-sm font-medium text-green-700">Tenants Activos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold text-green-600">
                 {loadingStats ? '...' : tenantStats?.activeTenants || 0}
               </div>
-              <CheckCircle className="h-8 w-8 text-green-600" />
+              <CheckCircle className="h-8 w-8 text-green-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Usuarios</CardTitle>
+        <Card className="border-amber-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3 bg-amber-50/50">
+            <CardTitle className="text-sm font-medium text-amber-700">Total Usuarios</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
               <div className="text-2xl font-bold text-gray-900">
                 {loadingStats ? '...' : tenantStats?.totalUsers || 0}
               </div>
-              <Users className="h-8 w-8 text-purple-600" />
+              <Users className="h-8 w-8 text-amber-500" />
             </div>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-gray-600">Usuarios Activos</CardTitle>
+        <Card className="border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3 bg-blue-50/50">
+            <CardTitle className="text-sm font-medium text-blue-700">Usuarios Activos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold text-green-600">
+              <div className="text-2xl font-bold text-blue-600">
                 {loadingStats ? '...' : tenantStats?.activeUsers || 0}
               </div>
-              <Activity className="h-8 w-8 text-green-600" />
+              <Activity className="h-8 w-8 text-blue-500" />
             </div>
           </CardContent>
         </Card>
@@ -284,121 +278,126 @@ export default function SupportDashboard() {
       {/* Search and Filter */}
       <div className="flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-orange-400 h-4 w-4" />
           <input
             type="text"
             placeholder="Buscar tenant o usuario..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
+            className="w-full pl-10 pr-4 py-2 border border-orange-200 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500 bg-white"
           />
         </div>
-        <Button variant="outline" className="flex items-center">
+        <Button variant="outline" className="flex items-center border-orange-200 hover:bg-orange-50 text-orange-700">
           <Filter className="h-4 w-4 mr-2" />
           Filtros
         </Button>
       </div>
 
       {/* Tenants List with Users */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tenants y Usuarios</CardTitle>
-          <CardDescription>
-            {loadingTenants ? 'Cargando...' : `${filteredTenants.length} tenant(s) con ${filteredTenants.reduce((acc, t) => acc + t.userCount, 0)} usuario(s)`}
+      <Card className="border-orange-200 shadow-md">
+        <CardHeader className="bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-100">
+          <div className="flex items-center gap-2">
+            <Wrench className="h-5 w-5 text-orange-600" />
+            <CardTitle className="text-orange-900">Gestión de Tenants y Usuarios</CardTitle>
+          </div>
+          <CardDescription className="text-orange-700">
+            {loadingTenants ? 'Cargando...' : `${filteredTenants.length} tenant(s) con ${filteredTenants.reduce((acc, t) => acc + t.userCount, 0)} usuario(s) - Vista de Soporte Técnico`}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {loadingTenants ? (
             <div className="flex items-center justify-center h-32">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-600"></div>
             </div>
           ) : filteredTenants.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
+            <div className="text-center py-8 text-orange-600">
+              <HeadphonesIcon className="h-12 w-12 mx-auto mb-2 opacity-50" />
               No se encontraron tenants
             </div>
           ) : (
             <div className="space-y-3">
               {filteredTenants.map((tenant) => (
-                <div key={tenant.id} className="border rounded-lg overflow-hidden">
-                  {/* Tenant Header - Click to expand */}
+                <div key={tenant.id} className="border border-orange-200 rounded-lg overflow-hidden shadow-sm hover:shadow-md transition-shadow">
+                  {/* Tenant Header - Click to expand - Orange Theme */}
                   <div
                     onClick={() => toggleTenantExpansion(tenant.id)}
-                    className="flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors"
+                    className="flex items-center justify-between p-4 bg-gradient-to-r from-orange-50 to-amber-50 hover:from-orange-100 hover:to-amber-100 cursor-pointer transition-colors border-b border-orange-100"
                   >
                     <div className="flex-1">
                       <div className="flex items-center gap-3">
                         {expandedTenants.has(tenant.id) ? (
-                          <ChevronDown className="h-5 w-5 text-gray-500" />
+                          <ChevronDown className="h-5 w-5 text-orange-600" />
                         ) : (
-                          <ChevronRight className="h-5 w-5 text-gray-500" />
+                          <ChevronRight className="h-5 w-5 text-orange-500" />
                         )}
                         <div className={`w-2 h-2 rounded-full ${tenant.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
                         <div>
-                          <h3 className="font-medium text-gray-900">{tenant.businessName}</h3>
-                          <p className="text-sm text-gray-600">
+                          <h3 className="font-medium text-orange-900">{tenant.businessName}</h3>
+                          <p className="text-sm text-orange-700/70">
                             Código: {tenant.tenantCode}
                           </p>
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-2 ml-10">
-                        <Badge variant="outline" className="text-xs">
-                          <CreditCard className="h-3 w-3 mr-1" />
+                        <Badge variant="outline" className="text-xs border-orange-200 text-orange-700 bg-white">
+                          <CreditCard className="h-3 w-3 mr-1 text-orange-500" />
                           {tenant.subscriptionPlan}
                         </Badge>
-                        <Badge variant="secondary" className="text-xs">
-                          <Users className="h-3 w-3 mr-1" />
+                        <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800 hover:bg-amber-200">
+                          <Users className="h-3 w-3 mr-1 text-amber-600" />
                           {tenant.userCount}/{tenant.maxUsers} usuarios
                         </Badge>
-                        <Badge variant={tenant.activeUserCount > 0 ? "default" : "secondary"} className="text-xs">
+                        <Badge variant={tenant.activeUserCount > 0 ? "default" : "secondary"} className={`text-xs ${tenant.activeUserCount > 0 ? 'bg-green-100 text-green-800 hover:bg-green-200' : 'bg-gray-100 text-gray-600'}`}>
                           <CheckCircle className="h-3 w-3 mr-1" />
                           {tenant.activeUserCount} activos
                         </Badge>
                       </div>
                     </div>
                     <div className="text-right">
-                      <p className="text-sm text-gray-600">{tenant.businessEmail}</p>
-                      <p className="text-xs text-gray-500">{tenant.businessRTN}</p>
+                      <p className="text-sm text-orange-800">{tenant.businessEmail}</p>
+                      <p className="text-xs text-orange-600/70">{tenant.businessRTN}</p>
                     </div>
                   </div>
 
                   {/* Users List - Expanded */}
                   {expandedTenants.has(tenant.id) && (
-                    <div className="border-t bg-white">
+                    <div className="bg-white">
                       {tenant.users.length === 0 ? (
-                        <div className="p-4 text-center text-gray-500 text-sm">
+                        <div className="p-4 text-center text-orange-500 text-sm bg-orange-50/30">
+                          <HeadphonesIcon className="h-5 w-5 mx-auto mb-1 opacity-50" />
                           No hay usuarios en este tenant
                         </div>
                       ) : (
-                        <div className="divide-y">
+                        <div className="divide-y divide-orange-100">
                           {tenant.users.map((user) => (
-                            <div key={user.id} className="p-3 hover:bg-gray-50 transition-colors">
+                            <div key={user.id} className="p-3 hover:bg-orange-50/50 transition-colors">
                               <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                   <div className={`w-2 h-2 rounded-full ${user.isActive ? 'bg-green-500' : 'bg-red-500'}`}></div>
-                                  <div className="w-8 h-8 bg-green-100 rounded-full flex items-center justify-center">
-                                    <User className="h-4 w-4 text-green-600" />
+                                  <div className="w-8 h-8 bg-orange-100 rounded-full flex items-center justify-center">
+                                    <User className="h-4 w-4 text-orange-600" />
                                   </div>
                                   <div>
                                     <p className="font-medium text-sm text-gray-900">
                                       {user.firstName} {user.lastName}
                                     </p>
                                     <p className="text-xs text-gray-600 flex items-center gap-2">
-                                      <Mail className="h-3 w-3" />
+                                      <Mail className="h-3 w-3 text-orange-400" />
                                       {user.email}
                                     </p>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <Badge variant="outline" className="text-xs">
+                                  <Badge variant="outline" className="text-xs border-orange-200 text-orange-700">
                                     {user.role}
                                   </Badge>
-                                  <span className="text-xs text-gray-500">
+                                  <span className="text-xs text-orange-600/70">
                                     {new Date(user.createdAt).toLocaleDateString()}
                                   </span>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-7 px-2 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    className="h-7 px-2 text-orange-600 hover:text-orange-700 hover:bg-orange-100"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       openPasswordModal(user, tenant.businessName);

@@ -6,30 +6,39 @@ export async function GET(req: NextRequest) {
   console.log('🚀 API TENANTS GET - Iniciando...');
   
   try {
-    console.log('🔄 GET /api/admin/tenants - Cargando tenants temporales...');
+    console.log('🔄 GET /api/admin/tenants - Cargando tenants...');
     
     // Verificar autenticación
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
     
-    // Get email from Clerk user
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    
+    // Get user from Clerk to check role
+    let userRole: string | undefined;
     let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
+    try {
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(userId);
+      email = clerkUser.emailAddresses[0]?.emailAddress || '';
+      
+      userRole = 
+        clerkUser.publicMetadata?.role || 
+        clerkUser.unsafeMetadata?.role ||
+        (clerkUser.privateMetadata as any)?.role;
+      
+      console.log('API /admin/tenants - Clerk role:', userRole);
+    } catch (error) {
+      console.error('Error getting user from Clerk:', error);
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
     console.log('✅ Auth check:', { userId, userRole, email, isSuperAdminEmail });
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado');
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
+      console.log('❌ No autorizado - role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }

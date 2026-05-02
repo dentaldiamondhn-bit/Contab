@@ -48,6 +48,27 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Obtener información del usuario objetivo para verificar su rol
+    let targetUserRole: string | undefined;
+    try {
+      const client = await clerkClient();
+      const targetUser = await client.users.getUser(targetUserId);
+      targetUserRole = 
+        targetUser.publicMetadata?.role || 
+        targetUser.unsafeMetadata?.role ||
+        (targetUser.privateMetadata as any)?.role;
+    } catch (error) {
+      console.error('Error getting target user from Clerk:', error);
+    }
+
+    // No permitir que SUPPORT resetee la contraseña de usuarios SUPER_ADMIN
+    if (userRole === 'SUPPORT' && targetUserRole === 'SUPER_ADMIN') {
+      return NextResponse.json(
+        { error: 'El rol de soporte no puede modificar contraseñas de usuarios SUPER_ADMIN' },
+        { status: 403 }
+      );
+    }
+
     // Actualizar contraseña en Clerk
     const client = await clerkClient();
     await client.users.updateUser(targetUserId, {

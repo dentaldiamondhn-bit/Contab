@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import FooterPaginator from "@/components/admin/FooterPaginator";
+import { Key, Eye, EyeOff } from "lucide-react";
 
 interface User {
   id: string;
@@ -40,6 +41,14 @@ export default function UsersManagementPage() {
     tenantId: "",
   });
   const [tenants, setTenants] = useState<any[]>([]);
+  
+  // Password reset modal state
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [newPassword, setNewPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [resettingPassword, setResettingPassword] = useState(false);
+  const [resetMessage, setResetMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
 
   useEffect(() => {
     fetchUsers();
@@ -185,6 +194,70 @@ export default function UsersManagementPage() {
     } catch (err) {
       console.error('Error en handleCreateUser:', err);
       setError("Error de conexión al servidor");
+    }
+  };
+
+  const openPasswordModal = (user: User) => {
+    setSelectedUser(user);
+    setNewPassword('');
+    setShowPassword(false);
+    setResetMessage(null);
+    setShowPasswordModal(true);
+  };
+
+  const closePasswordModal = () => {
+    setShowPasswordModal(false);
+    setSelectedUser(null);
+    setNewPassword('');
+    setResetMessage(null);
+  };
+
+  const generateRandomPassword = () => {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      password += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setNewPassword(password);
+    setShowPassword(true);
+  };
+
+  const resetPassword = async () => {
+    if (!selectedUser || !newPassword) return;
+
+    if (newPassword.length < 8) {
+      setResetMessage({ type: 'error', text: 'La contraseña debe tener al menos 8 caracteres' });
+      return;
+    }
+
+    try {
+      setResettingPassword(true);
+      setResetMessage(null);
+
+      const response = await fetch('/api/support/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: selectedUser.id,
+          newPassword: newPassword
+        })
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetMessage({ type: 'success', text: 'Contraseña actualizada exitosamente' });
+        setTimeout(() => {
+          closePasswordModal();
+        }, 2000);
+      } else {
+        setResetMessage({ type: 'error', text: data.error || 'Error al actualizar contraseña' });
+      }
+    } catch (error) {
+      console.error('Error reseteando contraseña:', error);
+      setResetMessage({ type: 'error', text: 'Error de conexión' });
+    } finally {
+      setResettingPassword(false);
     }
   };
 
@@ -407,10 +480,11 @@ export default function UsersManagementPage() {
                           {user.isActive ? 'Desactivar' : 'Activar'}
                         </button>
                         <button
-                          onClick={() => handleDeleteUser(user.id, user.email)}
-                          className="px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200"
+                          onClick={() => openPasswordModal(user)}
+                          className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
                         >
-                          🗑️ Eliminar
+                          <Key className="h-4 w-4 inline mr-1" />
+                          Cambiar contraseña
                         </button>
                       </td>
                     </tr>
@@ -418,6 +492,88 @@ export default function UsersManagementPage() {
                 )}
               </tbody>
             </table>
+          </div>
+        )}
+
+        {/* Password Reset Modal */}
+        {showPasswordModal && selectedUser && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4 shadow-xl">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">
+                Cambiar Contraseña
+              </h3>
+              <p className="text-sm text-gray-600 mb-4">
+                Usuario: <span className="font-medium">{selectedUser.firstName} {selectedUser.lastName}</span>
+                <br />
+                Email: <span className="font-medium">{selectedUser.email}</span>
+              </p>
+
+              {resetMessage && (
+                <div className={`p-3 rounded-md mb-4 text-sm ${
+                  resetMessage.type === 'success' 
+                    ? 'bg-green-100 text-green-800' 
+                    : 'bg-red-100 text-red-800'
+                }`}>
+                  {resetMessage.text}
+                </div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nueva Contraseña
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="Mínimo 8 caracteres"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    >
+                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={generateRandomPassword}
+                  className="w-full px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50 text-sm"
+                >
+                  Generar contraseña aleatoria
+                </button>
+
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={closePasswordModal}
+                    disabled={resettingPassword}
+                    className="flex-1 px-4 py-2 border border-gray-300 rounded-md hover:bg-gray-50"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={resetPassword}
+                    disabled={!newPassword || newPassword.length < 8 || resettingPassword}
+                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resettingPassword ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white inline mr-2"></div>
+                        Actualizando...
+                      </>
+                    ) : (
+                      'Actualizar Contraseña'
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
         )}
 

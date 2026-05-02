@@ -1,8 +1,122 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { supabase } from '@/lib/supabase-db';
 
 // Memoria temporal para simular persistencia de facturas
 let generatedInvoices: any[] = [];
+
+// Función para generar facturas mensuales basadas en los planes del tenant
+async function generateMonthlyInvoices(tenantId: string) {
+  try {
+    // Obtener datos del tenant
+    const { data: tenant, error: tenantError } = await supabase
+      .from('Tenant')
+      .select('*')
+      .eq('id', tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
+      console.log('❌ Tenant no encontrado:', tenantError);
+      return [];
+    }
+
+    // Obtener planes del tenant
+    let subscriptionPlans: any[] = [];
+    try {
+      subscriptionPlans = JSON.parse(tenant.subscriptionplan || '[]');
+    } catch {
+      if (tenant.subscriptionplan && typeof tenant.subscriptionplan === 'string') {
+        subscriptionPlans = tenant.subscriptionplan.split(',').map((code: string) => ({
+          code: code.trim(),
+          quantity: 1
+        }));
+      }
+    }
+
+    // Obtener módulos del tenant
+    const modules = tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [];
+
+    // Precios de planes
+    const planPrices: Record<string, number> = {
+      'BASICO': 500,
+      'PREMIUM': 1000,
+      'ENTERPRISE': 2000,
+      'STARTER': 200,
+      'GROWTH': 750
+    };
+
+    // Generar facturas para los últimos 12 meses
+    const invoices = [];
+    const now = new Date();
+    
+    for (let i = 0; i < 12; i++) {
+      const invoiceDate = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthYear = invoiceDate.toLocaleString('es-HN', { month: 'long', year: 'numeric' });
+      
+      // Calcular total basado en planes
+      let subtotal = 0;
+      const items: any[] = [];
+      
+      // Agregar items por cada plan
+      for (const plan of subscriptionPlans) {
+        const planCode = typeof plan === 'string' ? plan : plan.code;
+        const quantity = typeof plan === 'string' ? 1 : (plan.quantity || 1);
+        const unitPrice = planPrices[planCode] || 500;
+        const planTotal = unitPrice * quantity;
+        subtotal += planTotal;
+        
+        items.push({
+          description: `Plan ${planCode} - ${monthYear}`,
+          quantity: quantity,
+          unitPrice: unitPrice,
+          total: planTotal
+        });
+      }
+
+      // Agregar items por módulos adicionales
+      for (const module of modules) {
+        const modulePrice = 150; // Precio por módulo adicional
+        subtotal += modulePrice;
+        items.push({
+          description: `Módulo ${module} - ${monthYear}`,
+          quantity: 1,
+          unitPrice: modulePrice,
+          total: modulePrice
+        });
+      }
+
+      const taxRate = 0.15;
+      const taxAmount = subtotal * taxRate;
+      const total = subtotal + taxAmount;
+
+      const invoiceNumber = `CONTAB-${tenant.tenant_code}-${invoiceDate.getFullYear()}${(invoiceDate.getMonth() + 1).toString().padStart(2, '0')}`;
+
+      invoices.push({
+        id: `INV-${invoiceNumber}`,
+        tenantId: tenantId,
+        invoiceNumber: invoiceNumber,
+        invoiceDate: invoiceDate.toISOString(),
+        customerName: tenant.businessname,
+        customerRTN: tenant.businessrtn,
+        customerEmail: tenant.businessemail,
+        issuerName: 'ContabHN',
+        issuerRTN: '08011989237960',
+        items: items,
+        subtotal: subtotal,
+        totalTax: taxAmount,
+        total: total,
+        taxRate: taxRate * 100,
+        status: i === 0 ? 'ACTIVE' : 'PAID',
+        createdAt: invoiceDate.toISOString()
+      });
+    }
+
+    return invoices;
+  } catch (error) {
+    console.error('❌ Error generating monthly invoices:', error);
+    return [];
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -44,15 +158,15 @@ export async function GET(req: NextRequest) {
     console.log('📋 Parámetros:', { tenantId, page, limit, status });
 
     if (tenantId) {
-      // Filtrar facturas por tenantId
-      const tenantInvoices = generatedInvoices.filter(invoice => invoice.tenantId === tenantId);
+      // Generar facturas mensuales basadas en los planes del tenant
+      const tenantInvoices = await generateMonthlyInvoices(tenantId);
       
       // Aplicar paginación
       const startIndex = (page - 1) * limit;
       const endIndex = startIndex + limit;
       const paginatedInvoices = tenantInvoices.slice(startIndex, endIndex);
       
-      console.log('📦 Facturas encontradas:', tenantInvoices.length);
+      console.log('📦 Facturas generadas:', tenantInvoices.length);
       console.log('📄 Facturas devueltas:', paginatedInvoices.length);
 
       return NextResponse.json({
