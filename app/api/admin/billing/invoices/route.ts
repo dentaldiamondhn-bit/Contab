@@ -139,8 +139,10 @@ export async function GET(req: NextRequest) {
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado');
+    // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
+    const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
+    if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
+      console.log('❌ No autorizado - role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -219,8 +221,10 @@ export async function POST(req: NextRequest) {
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado');
+    // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
+    const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
+    if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
+      console.log('❌ No autorizado - role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -323,8 +327,10 @@ export async function DELETE(req: NextRequest) {
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado');
+    // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
+    const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
+    if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
+      console.log('❌ No autorizado - role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
