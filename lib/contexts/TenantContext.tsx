@@ -67,7 +67,9 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
       console.log('TenantContext - No saved tenant found, staying null');
       setCurrentTenant(null); // Explicitly set to null
     }
-  }, [initialTenants]);
+    // Only run once on mount - no dependencies to prevent re-renders
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const setTenant = (tenant: Tenant) => {
     setLoading(true);
