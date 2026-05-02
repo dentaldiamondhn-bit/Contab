@@ -32,11 +32,15 @@ export default function UserDashboardLayout({
 
       console.log('UserDashboardLayout - User check:', { email, userRole, isSuperAdminEmail });
 
-      // Redirect admin users to admin dashboard
-      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail) {
-        console.log('UserDashboardLayout - Redirecting admin user to admin dashboard');
+      // Redirect admin/support users to their respective dashboards
+      if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
+        console.log('UserDashboardLayout - Redirecting SUPER_ADMIN to admin dashboard');
         setIsRedirecting(true);
         router.replace('/admin/dashboard');
+      } else if (userRole === 'SUPPORT') {
+        console.log('UserDashboardLayout - Redirecting SUPPORT to support dashboard');
+        setIsRedirecting(true);
+        router.replace('/support/dashboard');
       } else {
         console.log('UserDashboardLayout - ALLOWING ACCESS: Regular user confirmed');
       }
@@ -75,9 +79,9 @@ export default function UserDashboardLayout({
   const email = user.primaryEmailAddress?.emailAddress;
   const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-  // Don't render anything for admin users - let the redirect happen
-  if (isRedirecting || (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail)) {
-    console.log('UserDashboardLayout - BLOCKING ACCESS: Admin user, redirecting');
+  // Don't render anything for admin/support users - let the redirect happen
+  if (isRedirecting || userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail) {
+    console.log('UserDashboardLayout - BLOCKING ACCESS: Admin/Support user, redirecting');
     return null; // Return null to allow redirect to complete
   }
 

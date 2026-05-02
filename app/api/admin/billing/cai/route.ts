@@ -6,12 +6,17 @@ import { db } from '@/lib/db';
 function getSystemCAI() {
   // Aquí deberíamos obtener de la base de datos o configuración
   // Por ahora, usamos el CAI por defecto de ContabHN
+  
+  // Calcular fecha de expiración: 1 año desde hoy
+  const expiryDate = new Date();
+  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
+  
   return {
     cai: 'DAF5-8D9A-4E6B-C2F1-9A3B-5E7F-8D9A',
     rangeStart: 1,
     rangeEnd: 1000,
     currentNumber: 1,
-    expiryDate: '2024-12-31T23:59:59.000Z',
+    expiryDate: expiryDate.toISOString(),
     rtn: '05011991078006',
     businessName: 'CONTAB HN',
     businessAddress: 'Tegucigalpa, Honduras',
@@ -27,28 +32,34 @@ export async function GET(
 ) {
   try {
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-    const userEmail = sessionClaims?.email;
 
     // Verificar autorización
     if (!userId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Obtener email del usuario para verificación
+    // Obtener email y rol del usuario desde Clerk
     let email = '';
+    let userRole: string | undefined;
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Check multiple metadata sources for role
+        userRole = 
+          user.publicMetadata?.role || 
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-    const isAuthorized = userRole === 'SUPER_ADMIN' || isSuperAdminEmail;
+    const isAuthorized = ['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) || isSuperAdminEmail;
 
     console.log('CAI API - Auth check:', { userId, userRole, email, isAuthorized });
 

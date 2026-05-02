@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { RealDB } from '@/lib/real-db';
+import { supabaseAdmin } from '@/lib/supabase';
 import { mockTenants } from '../mock-data';
 
 export async function GET(
@@ -11,18 +11,25 @@ export async function GET(
     console.log('🔄 GET /api/admin/tenants/[id] - Iniciando...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
     const { id } = await params;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user
     let email = '';
+    let userRole: string | undefined;
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Check multiple metadata sources for role
+        userRole = 
+          user.publicMetadata?.role || 
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
@@ -38,22 +45,54 @@ export async function GET(
       );
     }
 
-    // Buscar tenant en datos reales
-    const realTenants = await RealDB.getRealTenants();
-    const tenant = realTenants.find(t => t.id === id);
+    // Buscar tenant en Supabase - primero por id, luego por tenant_code
+    let { data: tenant, error: tenantError } = await supabaseAdmin
+      .from('Tenant')
+      .select('*')
+      .eq('id', id)
+      .single();
     
-    if (!tenant) {
-      console.log('❌ Tenant no encontrado en datos reales');
-      return NextResponse.json(
-        { error: 'Tenant no encontrado' },
-        { status: 404 }
-      );
+    // Si no encuentra por id, intentar por tenant_code
+    if (tenantError || !tenant) {
+      console.log('🔍 No encontrado por id, buscando por tenant_code:', id);
+      const { data: tenantByCode, error: codeError } = await supabaseAdmin
+        .from('Tenant')
+        .select('*')
+        .eq('tenant_code', id)
+        .single();
+      
+      if (codeError || !tenantByCode) {
+        console.log('❌ Tenant no encontrado en Supabase (ni por id ni por tenant_code):', { tenantError, codeError });
+        return NextResponse.json(
+          { error: 'Tenant no encontrado' },
+          { status: 404 }
+        );
+      }
+      
+      tenant = tenantByCode;
+      tenantError = null;
     }
 
     console.log('✅ Tenant encontrado en datos reales:', tenant.businessName);
 
+    // Funciones para limpiar datos
+    const cleanEmail = (email: string) => {
+      if (!email) return '';
+      return email.replace(/\+[A-Za-z0-9]+@/, '@');
+    };
+    const cleanRTN = (rtn: string) => {
+      if (!rtn) return '';
+      const match = rtn.match(/^\d{14}/);
+      return match ? match[0] : rtn;
+    };
+
     // Enriquecer datos del tenant
-    const subscriptionPlans = JSON.parse(tenant.subscriptionPlans || '["BASICO"]');
+    let subscriptionPlans = [];
+    try {
+      subscriptionPlans = JSON.parse(tenant.subscriptionplans || '["BASICO"]');
+    } catch {
+      subscriptionPlans = [{ code: tenant.subscriptionplans || 'BASICO', quantity: 1 }];
+    }
     const planPrices: Record<string, number> = {
       'BASICO': 500,
       'PREMIUM': 1000,
@@ -117,18 +156,35 @@ export async function GET(
     }
 
     const enrichedTenant = {
-      ...tenant,
+      id: tenant.id,
+      businessName: tenant.businessname,
+      businessRTN: cleanRTN(tenant.businessrtn),
+      businessEmail: cleanEmail(tenant.businessemail),
+      businessAddress: tenant.businessaddress,
+      tenantCode: tenant.tenant_code,
+      phoneNumber: tenant.phonenumber,
+      country: tenant.country,
+      timezone: tenant.timezone,
+      currency: tenant.currency,
       subscriptionPlans: enrichedPlans,
-      modules: tenant.modules ? tenant.modules.split(',').filter(m => m.trim()) : [],
+      subscriptionPlan: tenant.subscriptionplans,
+      maxUsers: tenant.maxusers,
+      maxStorage: tenant.maxstorage,
+      maxTransactions: tenant.maxtransactions,
+      monthlyCost: tenant.monthlycost,
+      modules: tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [],
+      isActive: tenant.isactive,
+      createdAt: tenant.createdat,
+      updatedAt: tenant.updatedat,
       users: clerkUsers.length > 0 ? clerkUsers : [
         {
           id: tenant.id,
-          email: tenant.businessEmail,
-          firstName: tenant.businessName.split(' ')[0] || 'Admin',
-          lastName: tenant.businessName.split(' ').slice(1).join(' ') || 'User',
+          email: tenant.businessemail,
+          firstName: tenant.businessname?.split(' ')[0] || 'Admin',
+          lastName: tenant.businessname?.split(' ').slice(1).join(' ') || 'User',
           role: 'ADMIN',
           isActive: true,
-          createdAt: tenant.createdAt,
+          createdAt: tenant.createdat,
           lastLoginAt: new Date().toISOString()
         }
       ], 
@@ -163,18 +219,25 @@ export async function PATCH(
     console.log('🔄 PATCH /api/admin/tenants/[id] - Actualizando tenant...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
     const { id } = await params;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user
     let email = '';
+    let userRole: string | undefined;
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Check multiple metadata sources for role
+        userRole = 
+          user.publicMetadata?.role || 
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
@@ -194,24 +257,34 @@ export async function PATCH(
     const updateData = await req.json();
     console.log('📦 Datos a actualizar:', updateData);
 
-    // Buscar tenant en datos reales
-    const realTenants = await RealDB.getRealTenants();
-    const tenantIndex = realTenants.findIndex(t => t.id === id);
+    // Actualizar tenant en Supabase
+    const { data: updatedTenant, error: updateError } = await supabaseAdmin
+      .from('Tenant')
+      .update({
+        ...updateData,
+        updatedat: new Date().toISOString()
+      })
+      .eq('id', id)
+      .select()
+      .single();
     
-    if (tenantIndex === -1) {
-      console.log('❌ Tenant no encontrado en datos reales');
+    if (updateError) {
+      console.error('❌ Error actualizando tenant en Supabase:', updateError);
       return NextResponse.json(
-        { error: 'Tenant no encontrado' },
-        { status: 404 }
+        { error: 'Error actualizando tenant', details: updateError },
+        { status: 500 }
       );
     }
-
-    // Actualizar tenant en base de datos persistente
-    const updatedTenant = await RealDB.updateTenant(id, updateData);
-    console.log('✅ Tenant actualizado en datos reales:', updatedTenant.businessName);
+    
+    console.log('✅ Tenant actualizado en Supabase:', updatedTenant.businessname);
 
     // Enriquecer los planes con precios para la respuesta
-    const updatedSubscriptionPlans = JSON.parse(updatedTenant.subscriptionPlans || '["BASICO"]');
+    let updatedSubscriptionPlans = [];
+    try {
+      updatedSubscriptionPlans = JSON.parse(updatedTenant.subscriptionplans || '["BASICO"]');
+    } catch {
+      updatedSubscriptionPlans = [{ code: updatedTenant.subscriptionplans || 'BASICO', quantity: 1 }];
+    }
     const planPrices: Record<string, number> = {
       'BASICO': 500,
       'PREMIUM': 1000,
@@ -241,7 +314,11 @@ export async function PATCH(
       tenant: {
         ...updatedTenant,
         subscriptionPlans: enrichedUpdatedPlans,
-        modules: updatedTenant.modules ? updatedTenant.modules.split(',').filter((m: string) => m.trim()) : []
+        modules: updatedTenant.modules ? updatedTenant.modules.split(',').filter((m: string) => m.trim()) : [],
+      businessName: updatedTenant.businessname,
+      businessRTN: updatedTenant.businessrtn,
+      businessEmail: updatedTenant.businessemail,
+      businessAddress: updatedTenant.businessaddress
       }
     });
 
@@ -262,18 +339,25 @@ export async function DELETE(
     console.log('🔄 DELETE /api/admin/tenants/[id] - Eliminando tenant...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
     const { id } = await params;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user
     let email = '';
+    let userRole: string | undefined;
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Check multiple metadata sources for role
+        userRole = 
+          user.publicMetadata?.role || 
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 

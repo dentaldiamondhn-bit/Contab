@@ -4,30 +4,42 @@ import { supabase } from '@/lib/supabase-db';
 
 export async function GET(req: NextRequest) {
   try {
-    // Verificar que el usuario autenticado sea SUPER_ADMIN o SUPPORT
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-
-    // Get email from Clerk user
+    // Verificar autenticación
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+    
+    // Get user from Clerk to check role
+    let userRole: string | undefined;
     let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
+    try {
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(userId);
+      email = clerkUser.emailAddresses[0]?.emailAddress || '';
+      
+      userRole = 
+        clerkUser.publicMetadata?.role || 
+        clerkUser.unsafeMetadata?.role ||
+        (clerkUser.privateMetadata as any)?.role;
+      
+      console.log('API /admin/stats - Clerk role:', userRole);
+    } catch (error) {
+      console.error('Error getting user from Clerk:', error);
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
+      console.log('API /admin/stats - Access denied, role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
       );
     }
+
+    console.log('API /admin/stats - Access granted for role:', userRole);
 
     // Obtener estadísticas del sistema usando Supabase
     const { count: totalTenants, error: tenantsError } = await supabase

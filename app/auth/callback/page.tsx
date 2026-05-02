@@ -38,9 +38,12 @@ export default function AuthCallbackPage() {
       // Determine redirect based on role or email
       let redirectUrl = '/dashboard'; // default
       
-      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail) {
+      if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
         redirectUrl = '/admin/dashboard';
-        console.log('AuthCallback - Redirecting to admin dashboard');
+        console.log('AuthCallback - Redirecting SUPER_ADMIN to admin dashboard');
+      } else if (userRole === 'SUPPORT') {
+        redirectUrl = '/support/dashboard';
+        console.log('AuthCallback - Redirecting SUPPORT to support dashboard');
       } else {
         console.log('AuthCallback - Redirecting to regular dashboard');
       }
