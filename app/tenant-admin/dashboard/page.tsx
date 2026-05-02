@@ -15,7 +15,8 @@ import {
   Settings,
   Calendar,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  ArrowLeft
 } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 
@@ -53,13 +54,63 @@ export default function TenantAdminDashboard() {
     }
   }, [user, router]);
 
+  // Cargar tenant desde API si no está en contexto
+  const loadTenantFromAPI = async () => {
+    try {
+      const response = await fetch('/api/tenant/my-tenant');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.hasTenant && data.tenant) {
+          // Guardar en localStorage para futuras visitas
+          localStorage.setItem('selected_tenant', JSON.stringify(data.tenant));
+          // Recargar la página para que el TenantContext lo cargue
+          window.location.reload();
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Error loading tenant from API:', error);
+      return false;
+    }
+  };
+
   // Cargar estadísticas del tenant
   useEffect(() => {
     if (currentTenant) {
       loadTenantStats();
     } else {
-      // Si no hay tenant seleccionado, dejar de cargar y mostrar estado vacío
-      setLoading(false);
+      // Intentar cargar el tenant desde la API primero
+      loadTenantFromAPI().then((found) => {
+        if (!found) {
+          // Si no hay tenant seleccionado y no se pudo cargar desde API,
+          // verificar si hay datos en localStorage del onboarding
+          const companyData = localStorage.getItem('companyData');
+          const businessName = localStorage.getItem('businessName');
+          
+          if (companyData && businessName) {
+            // Reconstruir tenant desde datos de onboarding
+            const parsedCompany = JSON.parse(companyData);
+            const reconstructedTenant = {
+              id: 'temp-' + Date.now(),
+              businessName: businessName,
+              tenantCode: parsedCompany.rtn || 'TEMP',
+              businessEmail: parsedCompany.email || '',
+              businessRTN: parsedCompany.rtn || '',
+              phoneNumber: parsedCompany.contactPhone || parsedCompany.companyPhone || '',
+              businessAddress: parsedCompany.address || '',
+              industry: parsedCompany.industry || '',
+              maxUsers: 5,
+            };
+            
+            localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
+            window.location.reload();
+          } else {
+            // Si no hay datos de onboarding tampoco, mostrar mensaje vacío
+            setLoading(false);
+          }
+        }
+      });
     }
   }, [currentTenant]);
 
