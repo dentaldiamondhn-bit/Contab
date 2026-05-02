@@ -1,8 +1,40 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { getPeriodAuditTrail } from '@/lib/services/audit-service';
 
 export async function GET(request: NextRequest) {
   try {
+    const { userId, sessionClaims } = await auth();
+
+    // Verificar autorización
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    // Obtener email y rol del usuario desde Clerk
+    let email = '';
+    let userRole: string | undefined;
+    try {
+      const client = await clerkClient();
+      const user = await client.users.getUser(userId);
+      email = user.emailAddresses[0]?.emailAddress || '';
+      
+      userRole = 
+        user.publicMetadata?.role || 
+        user.unsafeMetadata?.role ||
+        (user.privateMetadata as any)?.role ||
+        (sessionClaims?.metadata as any)?.role;
+    } catch (error) {
+      console.error('Error getting user from Clerk:', error);
+    }
+
+    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+    const isAuthorized = ['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) || isSuperAdminEmail;
+
+    if (!isAuthorized) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const limit = searchParams.get('limit') || '10';
     const filter = searchParams.get('filter') || 'all';
