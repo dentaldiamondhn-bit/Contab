@@ -40,6 +40,8 @@ export default function DashboardPage() {
       const userRole = user.publicMetadata?.role;
       if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
         router.replace('/admin/dashboard');
+      } else if (userRole === 'ADMIN' || userRole === 'MANAGER') {
+        router.replace('/tenant-admin/dashboard');
       }
     }
   }, [user, router]);
@@ -85,28 +87,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header del Dashboard */}
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard Contable</h1>
-        <p className="text-gray-600">
-          Gestión contable para <span className="font-medium">{currentTenant.businessName}</span>
-        </p>
-        {currentTenant.businessRTN && (
-          <div className="flex items-center gap-2 mt-2">
-            <Badge variant="outline" className="text-xs">
-              RTN: {currentTenant.businessRTN}
-            </Badge>
-            {currentTenant.industry && (
-              <Badge variant="secondary" className="text-xs">
-                {currentTenant.industry}
-              </Badge>
-            )}
-            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-              Dashboard Activo
-            </Badge>
-          </div>
-        )}
-      </div>
 
       {/* Estadísticas de Facturación */}
       {currentTenant && (

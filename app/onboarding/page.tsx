@@ -297,8 +297,9 @@ export default function OnboardingPage() {
     
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    // Redirigir al dashboard de admin después del onboarding
-    router.push('/admin/dashboard');
+    // Redirigir al dashboard de tenant-admin después del onboarding
+    // Los usuarios que crean un tenant son administradores de su propio tenant
+    router.push('/tenant-admin/dashboard');
   };
 
   const handleAccountToggle = (index: number) => {

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Browser Cleanup</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 600px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .danger { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #dc3545; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #c3e6cb; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffeaa7; }
+        button { padding: 15px 30px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; width: 100%; }
+        button:hover { background: #d32f2f; }
+        button.success { background: #4CAF50; }
+        button.success:hover { background: #45a049; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 Browser Cleanup</h1>
+        
+        <div class="danger">
+            <h2>⚠️ MANUAL CLEANUP REQUIRED</h2>
+            <p><strong>Server API is not responding properly.</strong></p>
+            <p>We need to manually clear Angel Ring data from browser storage.</p>
+        </div>
+        
+        <div class="warning">
+            <h3>🔍 What this tool does:</h3>
+            <ul>
+                <li>🗑️ Clears localStorage Angel Ring data</li>
+                <li>🗑️ Clears sessionStorage Angel Ring data</li>
+                <li>🍪 Clears Angel Ring cookies</li>
+                <li>🔄 Forces page refresh</li>
+                <li>🔑 Redirects to fresh login</li>
+            </ul>
+        </div>
+        
+        <button onclick="performBrowserCleanup()">🧹 CLEAN BROWSER & REDIRECT</button>
+        
+        <div id="result"></div>
+        
+        <div class="success">
+            <h3>🔄 After Cleanup:</h3>
+            <ol>
+                <li>Login with <strong>azuna22@outlook.com</strong></li>
+                <li>Complete onboarding with <strong>"casa vieja"</strong></li>
+                <li>Verify dashboard shows <strong>"casa vieja"</strong></li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        function performBrowserCleanup() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!confirm('⚠️ This will clear all Angel Ring data from your browser and redirect to login. Continue?')) {
+                return;
+            }
+            
+            resultDiv.innerHTML = '🧹 Cleaning browser storage...';
+            
+            try {
+                // Clear localStorage
+                const localStorageKeys = ['selected_tenant', 'tenant_data', 'current_tenant'];
+                let localStorageCleared = 0;
+                
+                localStorageKeys.forEach(key => {
+                    if (localStorage.getItem(key)) {
+                        localStorage.removeItem(key);
+                        localStorageCleared++;
+                        console.log(`✅ Cleared localStorage: ${key}`);
+                    }
+                });
+                
+                // Clear sessionStorage
+                const sessionStorageKeys = ['tenant_session', 'user_session'];
+                let sessionStorageCleared = 0;
+                
+                sessionStorageKeys.forEach(key => {
+                    if (sessionStorage.getItem(key)) {
+                        sessionStorage.removeItem(key);
+                        sessionStorageCleared++;
+                        console.log(`✅ Cleared sessionStorage: ${key}`);
+                    }
+                });
+                
+                // Clear cookies
+                const cookies = document.cookie.split(';');
+                let cookiesCleared = 0;
+                
+                cookies.forEach(cookie => {
+                    const cookieName = cookie.split('=')[0].trim();
+                    if (cookieName.includes('tenant') || cookieName.includes('current')) {
+                        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                        cookiesCleared++;
+                        console.log(`✅ Cleared cookie: ${cookieName}`);
+                    }
+                });
+                
+                // Clear any remaining Angel Ring references
+                if (localStorage.getItem('selected_tenant') && localStorage.getItem('selected_tenant').includes('Angel Ring')) {
+                    localStorage.removeItem('selected_tenant');
+                    localStorageCleared++;
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h2>✅ Browser Cleanup Completed!</h2>
+                        <p><strong>localStorage items cleared:</strong> ${localStorageCleared}</p>
+                        <p><strong>sessionStorage items cleared:</strong> ${sessionStorageCleared}</p>
+                        <p><strong>cookies cleared:</strong> ${cookiesCleared}</p>
+                    </div>
+                    
+                    <div class="warning">
+                        <h3>🔄 Redirecting to login...</h3>
+                        <p>You will be redirected to the login page in 3 seconds.</p>
+                        <p>After login, complete onboarding with "casa vieja".</p>
+                    </div>
+                `;
+                
+                // Redirect after 3 seconds
+                setTimeout(() => {
+                    window.location.href = '/auth/login';
+                }, 3000);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="danger">
+                        <h2>❌ Cleanup Error</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        // Show current storage status
+        window.addEventListener('load', () => {
+            const storageInfo = {
+                localStorage: {},
+                sessionStorage: {},
+                cookies: {}
+            };
+            
+            // Check localStorage
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                if (key && (key.includes('tenant') || key.includes('current'))) {
+                    storageInfo.localStorage[key] = localStorage.getItem(key);
+                }
+            }
+            
+            // Check sessionStorage
+            for (let i = 0; i < sessionStorage.length; i++) {
+                const key = sessionStorage.key(i);
+                if (key && (key.includes('tenant') || key.includes('user'))) {
+                    storageInfo.sessionStorage[key] = sessionStorage.getItem(key);
+                }
+            }
+            
+            // Check cookies
+            document.cookie.split(';').forEach(cookie => {
+                const cookieName = cookie.split('=')[0].trim();
+                if (cookieName.includes('tenant') || cookieName.includes('current')) {
+                    storageInfo.cookies[cookieName] = cookie.split('=')[1];
+                }
+            });
+            
+            console.log('📊 Current storage status:', storageInfo);
+        });
+    </script>
+</body>
+</html>

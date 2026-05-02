@@ -12,20 +12,15 @@ const inter = Inter({ subsets: ["latin"] });
 // Datos de ejemplo - en producción vendrían de la base de datos
 const mockTenants = [
   {
-    id: "tenant_001",
-    businessName: "Empresa Ejemplo S.A.",
-    businessRTN: "08011999012345",
-    industry: "Servicios Profesionales",
-    subscriptionType: "PROFESSIONAL",
-    isActive: true,
-  },
-  {
-    id: "tenant_002",
-    businessName: "Negocio Demo",
-    businessRTN: "08011999012346",
-    industry: "Comercio",
-    subscriptionType: "BASIC",
-    isActive: true,
+    id: "cmoegv9te0009z0pax786qqqn",
+    businessName: "Dental Diamond",
+    businessRTN: "05011991078006",
+    businessEmail: "dentaldiamondhn@gmail.com",
+    businessAddress: "Dirección Dental Diamond",
+    phoneNumber: "504XXXXXXX",
+    tenantCode: "DD001",
+    industry: "Servicios Dentales",
+    maxUsers: 5,
   },
 ];
 
@@ -48,15 +43,17 @@ export default function RootLayout({
         },
       }}
       signInUrl="/auth/login"
-      signUpUrl="/auth/sign-up"
+      signUpUrl="/auth/register"
       afterSignOutUrl="/auth/login"
+      signInFallbackRedirectUrl="/auth/login"
+      signUpFallbackRedirectUrl="/auth/register"
     >
       <html lang="es-HN">
         <body className={inter.className}>
           <UserProvider>
-            <TenantProvider initialTenants={mockTenants}>
+            <TenantProvider>
               <SidebarProvider>
-                <LayoutWrapper tenants={mockTenants}>
+                <LayoutWrapper tenants={[]}>
                   {children}
                 </LayoutWrapper>
               </SidebarProvider>

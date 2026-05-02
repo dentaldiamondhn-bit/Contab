@@ -566,23 +566,35 @@ export default function TenantDetailPage() {
 
   const nextPaymentDate = getNextPaymentDate();
 
+  console.log('🔍 Admin Page - Rendering page for tenant:', tenant?.businessName);
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <button
-            onClick={() => router.push("/admin/tenants")}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
-          >
-            ← Volver a Tenants
-          </button>
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4">
+        <div className="max-w-6xl mx-auto">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">{tenant.businessName}</h1>
-              <p className="text-gray-600 mt-1">Código: {tenant.tenantCode}</p>
+            <div className="flex-1">
+                {tenant.businessRTN && (
+                <div className="flex items-center gap-2 mt-2">
+                  <span className="px-2 py-1 text-xs border border-gray-300 rounded">
+                    RTN: {tenant.businessRTN}
+                  </span>
+                  <span className="px-2 py-1 text-xs bg-gray-100 rounded">
+                    Código: {tenant.tenantCode}
+                  </span>
+                  <span className="px-2 py-1 text-xs bg-green-50 text-green-700 border border-green-200 rounded">
+                    Admin Activo
+                  </span>
+                </div>
+              )}
             </div>
             <div className="flex space-x-3">
+              <button
+                onClick={() => router.push("/admin/tenants")}
+                className="px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50"
+              >
+                ← Volver a Tenants
+              </button>
               <button
                 onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
@@ -598,6 +610,11 @@ export default function TenantDetailPage() {
             </div>
           </div>
         </div>
+      </header>
+
+      {/* Page Content */}
+      <div className="p-8">
+        <div className="max-w-6xl mx-auto">
 
         {/* Pestañas */}
         <div className="bg-white rounded-lg shadow mb-6">
@@ -1434,6 +1451,7 @@ export default function TenantDetailPage() {
             </div>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

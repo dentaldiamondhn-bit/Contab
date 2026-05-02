@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase-db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -34,50 +34,76 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const search = searchParams.get('search') || '';
     const role = searchParams.get('role') || '';
+    const tenantId = searchParams.get('tenantId') || '';
 
-    const skip = (page - 1) * limit;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    // Construir where clause
-    const where: any = {};
-    
-    if (search) {
-      where.OR = [
-        { email: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } },
-        { username: { contains: search, mode: 'insensitive' } }
-      ];
+    // Construir query base - sin join inicial para evitar errores
+    let usersQuery = supabase
+      .from('User')
+      .select('*', { count: 'exact' });
+
+    // Aplicar filtros
+    if (tenantId) {
+      usersQuery = usersQuery.eq('tenantid', tenantId);
     }
 
     if (role) {
-      where.role = role;
+      usersQuery = usersQuery.eq('role', role);
     }
 
-    // Obtener usuarios con conteo y tenant info
-    const [users, totalCount] = await Promise.all([
-      db.user.findMany({
-        where,
-        skip,
-        take: limit,
-        include: {
-          tenant: {
-            select: {
-              businessName: true
-            }
-          }
-        },
-        orderBy: {
-          createdAt: 'desc'
-        }
-      }),
-      db.user.count({ where })
-    ]);
+    if (search) {
+      // Supabase no soporta OR en ilike directamente, hacemos búsqueda simple en email
+      usersQuery = usersQuery.ilike('email', `%${search}%`);
+    }
 
-    // Formatear usuarios para incluir tenantName
-    const formattedUsers = users.map(user => ({
-      ...user,
-      tenantName: user.tenant?.businessName || null
-    }));
+    // Ejecutar query con paginación
+    const { data: users, count: totalCount, error: usersError } = await usersQuery
+      .order('createdat', { ascending: false })
+      .range(from, to);
+
+    if (usersError) {
+      console.error('Error fetching users:', usersError);
+      return NextResponse.json(
+        { error: 'Error obteniendo usuarios', details: usersError },
+        { status: 500 }
+      );
+    }
+
+    // Obtener nombres de tenants por separado si hay usuarios
+    let tenantNames: Record<string, string> = {};
+    if (users && users.length > 0) {
+      const tenantIds = users.map(u => u.tenantid).filter(Boolean);
+      if (tenantIds.length > 0) {
+        const { data: tenants } = await supabase
+          .from('Tenant')
+          .select('id, businessname')
+          .in('id', tenantIds);
+        
+        if (tenants) {
+          tenantNames = tenants.reduce((acc, t) => {
+            acc[t.id] = t.businessname;
+            return acc;
+          }, {} as Record<string, string>);
+        }
+      }
+    }
+
+    // Formatear usuarios para incluir tenantName y mapear campos a camelCase
+    const formattedUsers = users?.map(user => ({
+      id: user.id,
+      authId: user.authid,
+      email: user.email,
+      firstName: user.firstname,
+      lastName: user.lastname,
+      role: user.role,
+      isActive: user.isactive,
+      tenantId: user.tenantid,
+      tenantName: user.tenantid ? (tenantNames[user.tenantid] || null) : null,
+      createdAt: user.createdat,
+      updatedAt: user.updatedat
+    })) || [];
 
     return NextResponse.json({
       success: true,
@@ -85,8 +111,8 @@ export async function GET(req: NextRequest) {
       pagination: {
         page,
         limit,
-        total: totalCount,
-        pages: Math.ceil(totalCount / limit)
+        total: totalCount || 0,
+        pages: Math.ceil((totalCount || 0) / limit)
       }
     });
 
@@ -136,18 +162,39 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Crear usuario
-    const user = await db.user.create({
-      data: {
-        authId,
+    // Crear usuario usando Supabase
+    const { data: user, error: createError } = await supabase
+      .from('User')
+      .insert([{
+        authid: authId,
         email: userEmail,
-        firstName,
-        lastName,
-        role,
-        tenantId,
-        isActive: isActive ?? true
+        firstname: firstName,
+        lastname: lastName,
+        role: role || 'USER',
+        tenantid: tenantId,
+        isactive: isActive ?? true,
+        createdat: new Date().toISOString(),
+        updatedat: new Date().toISOString()
+      }])
+      .select()
+      .single();
+
+    if (createError) {
+      console.error('Error creating user:', createError);
+      
+      // Verificar si es error de duplicado
+      if (createError.message?.includes('duplicate') || createError.code === '23505') {
+        return NextResponse.json(
+          { error: 'El email ya existe' },
+          { status: 409 }
+        );
       }
-    });
+
+      return NextResponse.json(
+        { error: 'Error creando usuario' },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -156,13 +203,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error creando usuario:', error);
-
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'El email ya existe' },
-        { status: 409 }
-      );
-    }
 
     return NextResponse.json(
       { error: 'Error interno del servidor' },

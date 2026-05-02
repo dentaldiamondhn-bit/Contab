@@ -6,8 +6,13 @@ import { useRouter } from 'next/navigation';
 interface Tenant {
   id: string;
   businessName: string;
-  industry: string;
-  businessRTN?: string;
+  tenantCode: string;
+  businessEmail: string;
+  businessRTN: string;
+  phoneNumber: string;
+  businessAddress: string;
+  industry?: string;
+  maxUsers?: number;
 }
 
 interface TenantContextType {
@@ -26,22 +31,41 @@ interface TenantProviderProps {
 
 export function TenantProvider({ children, initialTenants = [] }: TenantProviderProps) {
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
-  const [tenants, setTenants] = useState<Tenant[]>(initialTenants);
+  const [tenants, setTenants] = useState<Tenant[]>([]); // Start with empty array, force database load
   const [loading, setLoading] = useState(false);
   const router = useRouter();
 
   // Al cargar, intentamos recuperar la última empresa del localStorage
   useEffect(() => {
+    // No cargar tenant context en páginas de admin (solo admin general, no tenant-admin)
+    if (typeof window !== 'undefined') {
+      const pathname = window.location.pathname;
+      if (pathname?.startsWith('/admin/') && !pathname?.startsWith('/admin/tenants')) {
+        console.log('TenantContext - Skipping tenant loading on admin page:', pathname);
+        return;
+      }
+    }
+
     const saved = localStorage.getItem('selected_tenant');
     if (saved) {
       try {
         const parsedTenant = JSON.parse(saved);
-        setCurrentTenant(parsedTenant);
+        // Check if saved tenant is Angel Ring - if so, clear it
+        if (parsedTenant.businessName === 'Angel Ring' || parsedTenant.id === 'cmofey73w000087izrdfvtlve') {
+          console.log('TenantContext - Clearing Angel Ring from localStorage');
+          localStorage.removeItem('selected_tenant');
+          setCurrentTenant(null);
+        } else {
+          setCurrentTenant(parsedTenant);
+          console.log('TenantContext - Loaded tenant from localStorage:', parsedTenant.businessName);
+        }
       } catch (error) {
         console.error('Error parsing saved tenant:', error);
+        setCurrentTenant(null); // Don't use fallback, clear it
       }
-    } else if (tenants.length > 0) {
-      setCurrentTenant(tenants[0]);
+    } else {
+      console.log('TenantContext - No saved tenant found, staying null');
+      setCurrentTenant(null); // Explicitly set to null
     }
   }, [initialTenants]);
 

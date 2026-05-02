@@ -1,24 +1,22 @@
-import { SignUp } from '@clerk/nextjs';
+'use client';
+
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function SignUpPage() {
+  const router = useRouter();
+  
+  useEffect(() => {
+    // Redirigir a la página de registro correcta
+    router.replace('/auth/register');
+  }, [router]);
+
+  // Mostrar loader mientras redirige
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
-      <div className="w-full max-w-md">
-        <SignUp
-          appearance={{
-            elements: {
-              rootBox: "mx-auto",
-              card: "shadow-lg rounded-lg",
-              headerTitle: "text-2xl font-bold text-gray-900",
-              headerSubtitle: "text-gray-600",
-              formButtonPrimary: "bg-blue-600 hover:bg-blue-700 text-white",
-              formFieldLabel: "text-gray-700",
-              footerActionLink: "text-blue-600 hover:text-blue-700",
-            },
-          }}
-          fallbackRedirectUrl="/dashboard"
-          signInUrl="/auth/sign-in"
-        />
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+        <p className="text-gray-600">Redirigiendo al registro...</p>
       </div>
     </div>
   );

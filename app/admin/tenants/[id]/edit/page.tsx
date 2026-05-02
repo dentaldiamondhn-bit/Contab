@@ -169,30 +169,31 @@ export default function EditTenantPage() {
       // Asegurarse que subscriptionPlans sea un array
       const currentPlans = Array.isArray(prev.subscriptionPlans) ? prev.subscriptionPlans : [];
       
+      let newPlans;
       if (newQuantity === 0) {
         // Si la cantidad es 0, remover el plan
-        const newPlans = currentPlans.filter(p => p.code !== planCode);
-        return {
-          ...prev,
-          subscriptionPlans: newPlans
-        };
+        newPlans = currentPlans.filter(p => p.code !== planCode);
       } else {
         // Actualizar la cantidad
-        const newPlans = currentPlans.map(p => 
+        newPlans = currentPlans.map(p => 
           p.code === planCode ? { ...p, quantity: newQuantity } : p
         );
-        return {
-          ...prev,
-          subscriptionPlans: newPlans
-        };
       }
+      
+      // Calcular el maxUsers total basado en los planes seleccionados
+      const totalMaxUsers = plans
+        .filter(p => newPlans.some(np => np.code === p.code))
+        .reduce((sum, p) => {
+          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          return Math.max(sum, (p.maxUsers || 0) * (planWithQuantity?.quantity || 1));
+        }, 5);
       
       // Calcular el costo total mensual
       const totalMonthlyCost = plans
         .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
           const planWithQuantity = newPlans.find(np => np.code === p.code);
-          return sum + (p.price * (planWithQuantity?.quantity || 1));
+          return sum + (p.unitPrice * (planWithQuantity?.quantity || 1));
         }, 0);
       
       return {
@@ -215,7 +216,7 @@ export default function EditTenantPage() {
         .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
           const planWithQuantity = newPlans.find(np => np.code === p.code);
-          return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
+          return Math.max(sum, (p.maxUsers || 0) * (planWithQuantity?.quantity || 1));
         }, 5);
       
       // Calcular el costo total mensual
@@ -223,7 +224,7 @@ export default function EditTenantPage() {
         .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
           const planWithQuantity = newPlans.find(np => np.code === p.code);
-          return sum + (p.price * (planWithQuantity?.quantity || 1));
+          return sum + (p.unitPrice * (planWithQuantity?.quantity || 1));
         }, 0);
       
       return {
@@ -362,17 +363,7 @@ export default function EditTenantPage() {
           </div>
         </div>
 
-        {success && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-green-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-green-800">Tenant actualizado exitosamente. Redirigiendo...</p>
-            </div>
-          </div>
-        )}
-
+        
         {error && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
             <div className="flex items-center">

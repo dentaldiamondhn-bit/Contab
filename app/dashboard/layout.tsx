@@ -3,9 +3,9 @@
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import RoleBasedSidebar from "@/components/RoleBasedSidebar";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { SidebarProvider } from "@/app/contexts/SidebarContext";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { Badge } from "@/components/ui/badge";
 
 export default function UserDashboardLayout({
   children,
@@ -14,6 +14,7 @@ export default function UserDashboardLayout({
 }) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const { currentTenant } = useTenant();
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   console.log('UserDashboardLayout - Component rendered, user:', !!user, 'isLoaded:', isLoaded);
@@ -80,49 +81,73 @@ export default function UserDashboardLayout({
     return null; // Return null to allow redirect to complete
   }
 
-  console.log('UserDashboardLayout - Rendering children with RoleBasedSidebar');
+  console.log('UserDashboardLayout - Rendering children without sidebar (will be redirected if admin)');
   
   return (
-    <SidebarProvider>
-      <div className="flex h-screen bg-gray-50">
-      {/* User Sidebar */}
-      <RoleBasedSidebar />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 relative z-10">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-              <p className="text-sm text-gray-500">
-                {userRole === 'ADMIN' ? 'Administrador' : 
-                 userRole === 'MANAGER' ? 'Gerente' : 
-                 userRole === 'USER' ? 'Usuario' : 
-                 userRole === 'VIEWER' ? 'Observador' : 'Usuario'}
-              </p>
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {user.primaryEmailAddress?.emailAddress}
+    <div className="min-h-screen bg-gray-50">
+      {/* Header */}
+      <header className="bg-white border-b border-gray-200 px-6 py-4 relative z-10">
+        <div className="flex items-center justify-between">
+          <div className="flex-1">
+            {currentTenant ? (
+              <>
+                {console.log('🔍 Dashboard - currentTenant:', currentTenant)}
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard Contable</h1>
+                <p className="text-gray-600">
+                  Gestión contable para <span className="font-medium">{currentTenant.businessName}</span>
+                </p>
+                {currentTenant.businessRTN && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge variant="outline" className="text-xs">
+                      RTN: {currentTenant.businessRTN}
+                    </Badge>
+                    {currentTenant.businessAddress && (
+                      <Badge variant="secondary" className="text-xs">
+                        {currentTenant.businessAddress}
+                      </Badge>
+                    )}
+                    {currentTenant.businessEmail && (
+                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
+                        {currentTenant.businessEmail}
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                      Dashboard Activo
+                    </Badge>
+                  </div>
+                )}
+              </>
+            ) : (
+              <>
+                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+                <p className="text-sm text-gray-500">
+                  {userRole === 'ADMIN' ? 'Administrador' : 
+                   userRole === 'MANAGER' ? 'Gerente' : 
+                   userRole === 'USER' ? 'Usuario' : 
+                   userRole === 'VIEWER' ? 'Observador' : 'Usuario'}
+                </p>
+              </>
+            )}
+          </div>
+          <div className="flex items-center space-x-4">
+            <span className="text-sm text-gray-600">
+              {user.primaryEmailAddress?.emailAddress}
+            </span>
+            <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
+              <span className="text-white text-sm font-medium">
+                {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
               </span>
-              <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
-                  {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
-                </span>
-              </div>
             </div>
           </div>
-        </header>
-        
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
-        </main>
-      </div>
+        </div>
+      </header>
+      
+      {/* Page Content */}
+      <main className="p-6">
+        <ErrorBoundary>
+          {children}
+        </ErrorBoundary>
+      </main>
     </div>
-    </SidebarProvider>
   );
 }

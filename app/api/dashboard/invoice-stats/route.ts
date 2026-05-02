@@ -15,31 +15,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
     }
 
-    // Datos de prueba realistas para el dashboard
-    console.log('API: Returning test data');
-    const testStats = {
-      totalInvoices: 25,
-      paidInvoices: 18,
-      pendingInvoices: 6,
-      overdueInvoices: 1,
-      totalRevenue: 1250000, // L. 12,500.00
-      pendingRevenue: 250000,  // L. 2,500.00
-      paidRevenue: 1000000,   // L. 10,000.00
+    // Para nuevos tenants, devolver datos vacíos
+    console.log('API: Returning empty data for new tenant');
+    const emptyStats = {
+      totalInvoices: 0,
+      paidInvoices: 0,
+      pendingInvoices: 0,
+      overdueInvoices: 0,
+      totalRevenue: 0,
+      pendingRevenue: 0,
+      paidRevenue: 0,
       paymentMethods: {
-        cash: 400000,    // L. 4,000.00
-        card: 350000,    // L. 3,500.00
-        transfer: 200000, // L. 2,000.00
-        other: 50000     // L. 500.00
+        cash: 0,
+        card: 0,
+        transfer: 0,
+        other: 0
       },
       monthlyStats: {
-        currentMonth: 1250000,
-        previousMonth: 1000000,
-        growth: 25.0
+        currentMonth: 0,
+        previousMonth: 0,
+        growth: 0
       }
     };
-    
-    console.log('API: Returning test stats:', testStats);
-    return NextResponse.json(testStats);
+
+    console.log('API: Returning empty stats:', emptyStats);
+    return NextResponse.json(emptyStats);
   } catch (error) {
     console.error('Error fetching invoice stats:', error);
     return NextResponse.json(

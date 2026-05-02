@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import FooterPaginator from "@/components/admin/FooterPaginator";
 
@@ -25,6 +25,16 @@ interface Tenant {
   activeUsers: number;
 }
 
+interface TenantUser {
+  id: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+  isActive: boolean;
+  createdAt: string;
+}
+
 export default function TenantsListPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -38,6 +48,25 @@ export default function TenantsListPage() {
     totalItems: 0,
     itemsPerPage: 10,
   });
+  const [expandedTenantId, setExpandedTenantId] = useState<string | null>(null);
+  const [tenantUsers, setTenantUsers] = useState<Record<string, TenantUser[]>>({});
+  const [loadingUsers, setLoadingUsers] = useState<Record<string, boolean>>({});
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+
+  // Cerrar menú al hacer clic fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.actions-menu-container')) {
+        setOpenMenuId(null);
+      }
+    };
+
+    if (openMenuId) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }
+  }, [openMenuId]);
 
   useEffect(() => {
     fetchTenants();
@@ -144,6 +173,45 @@ export default function TenantsListPage() {
     }
   };
 
+  const toggleTenantUsers = async (tenantId: string) => {
+    if (expandedTenantId === tenantId) {
+      setExpandedTenantId(null);
+      return;
+    }
+
+    setExpandedTenantId(tenantId);
+    setLoadingUsers(prev => ({ ...prev, [tenantId]: true }));
+
+    try {
+      const response = await fetch(`/api/admin/users?tenantId=${tenantId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setTenantUsers(prev => ({ ...prev, [tenantId]: data.users || [] }));
+      } else {
+        console.error('Error fetching users for tenant:', tenantId);
+      }
+    } catch (err) {
+      console.error('Error fetching users:', err);
+    } finally {
+      setLoadingUsers(prev => ({ ...prev, [tenantId]: false }));
+    }
+  };
+
+  const getRoleColor = (role: string) => {
+    switch (role) {
+      case 'ADMIN':
+        return 'bg-purple-100 text-purple-800';
+      case 'MANAGER':
+        return 'bg-blue-100 text-blue-800';
+      case 'USER':
+        return 'bg-gray-100 text-gray-800';
+      case 'VIEWER':
+        return 'bg-green-100 text-green-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
       <div className="max-w-full mx-auto">
@@ -217,126 +285,233 @@ export default function TenantsListPage() {
                   </tr>
                 ) : (
                   tenants.map((tenant) => (
-                    <tr key={tenant.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="text-lg font-semibold text-gray-900">{tenant.businessName}</div>
-                        <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
-                        <div className="text-2xl font-bold text-blue-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <div className="space-y-1 text-sm">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-gray-500">RTN:</span>
-                            <span className="font-medium text-gray-900">{tenant.businessRTN || 'No especificado'}</span>
+                    <React.Fragment key={tenant.id}>
+                      <tr className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="text-lg font-semibold text-gray-900">{tenant.businessName}</div>
+                          <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
+                          <div className="text-2xl font-bold text-blue-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="space-y-1 text-sm">
+                            <div className="flex items-center space-x-2">
+                              <span className="text-gray-500">RTN:</span>
+                              <span className="font-medium text-gray-900">{tenant.businessRTN || 'No especificado'}</span>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                              <span className="text-gray-500">Tel:</span>
+                              <span className="font-medium text-gray-900">{tenant.phoneNumber || 'No especificado'}</span>
+                            </div>
+                            <div className="flex items-start space-x-2">
+                              <span className="text-gray-500">Dir:</span>
+                              <span className="font-medium text-gray-900 max-w-xs truncate">{tenant.businessAddress || 'No especificada'}</span>
+                            </div>
                           </div>
-                          <div className="flex items-center space-x-2">
-                            <span className="text-gray-500">Tel:</span>
-                            <span className="font-medium text-gray-900">{tenant.phoneNumber || 'No especificado'}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 ? (
+                              tenant.subscriptionPlans.map((plan: any, idx: number) => (
+                                <div key={idx} className="flex items-center space-x-2">
+                                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                                    {plan.code}
+                                  </span>
+                                  <span className="text-xs text-gray-600">x{plan.quantity}</span>
+                                </div>
+                              ))
+                            ) : (
+                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                Sin planes
+                              </span>
+                            )}
                           </div>
-                          <div className="flex items-start space-x-2">
-                            <span className="text-gray-500">Dir:</span>
-                            <span className="font-medium text-gray-900 max-w-xs truncate">{tenant.businessAddress || 'No especificada'}</span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-gray-900">
+                              {tenant.activeUsers} usuarios activos
+                            </div>
+                            <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                              Límite: {tenant.maxUsers || 'No definido'}
+                            </div>
+                            <button
+                              onClick={() => toggleTenantUsers(tenant.id)}
+                              className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+                            >
+                              {expandedTenantId === tenant.id ? 'Ocultar usuarios' : 'Ver usuarios'}
+                            </button>
                           </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 ? (
-                            tenant.subscriptionPlans.map((plan: any, idx: number) => (
-                              <div key={idx} className="flex items-center space-x-2">
-                                <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
-                                  {plan.code}
-                                </span>
-                                <span className="text-xs text-gray-600">x{plan.quantity}</span>
-                              </div>
-                            ))
-                          ) : (
-                            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                              Sin planes
-                            </span>
-                          )}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="space-y-1">
-                          <div className="text-sm font-medium text-gray-900">
-                            {tenant.activeUsers} usuarios activos
-                          </div>
-                          <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                            Límite: {tenant.maxUsers || 'No definido'}
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          tenant.isActive
-                            ? 'bg-green-100 text-green-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {tenant.isActive ? 'Activo' : 'Suspendido'}
-                        </span>
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        {(() => {
-                          let modules: string[] = [];
-                          if (Array.isArray(tenant.modules)) {
-                            modules = tenant.modules;
-                          } else if (typeof tenant.modules === 'string') {
-                            try {
-                              modules = JSON.parse(tenant.modules);
-                            } catch {
-                              modules = [];
-                            }
-                          }
-                          
-                          return modules.length > 0 ? (
-                            <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
-                              {modules.length} módulos
-                            </span>
-                          ) : (
-                            <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                              Sin módulos
-                            </span>
-                          );
-                        })()}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
-                        <button
-                          onClick={() => router.push(`/admin/tenants/${tenant.id}`)}
-                          className="px-3 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200 transition-colors"
-                        >
-                          👁️ Ver Detalles
-                        </button>
-                        <button
-                          onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
-                          className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
-                        >
-                          ✏️ Editar
-                        </button>
-                        <button
-                          onClick={() => toggleTenantStatus(tenant.id, tenant.isActive)}
-                          className={`px-3 py-1 rounded transition-colors ${
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             tenant.isActive
-                              ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                              : 'bg-green-100 text-green-700 hover:bg-green-200'
-                          }`}
-                        >
-                          {tenant.isActive ? '⏸️ Suspender' : '▶️ Activar'}
-                        </button>
-                        <button
-                          onClick={() => handleDeleteTenant(tenant.id)}
-                          className="px-3 py-1 rounded bg-red-100 text-red-700 hover:bg-red-200 transition-colors"
-                        >
-                          🗑️ Eliminar
-                        </button>
-                      </td>
-                    </tr>
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}>
+                            {tenant.isActive ? 'Activo' : 'Suspendido'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {(() => {
+                            let modules: string[] = [];
+                            if (Array.isArray(tenant.modules)) {
+                              modules = tenant.modules;
+                            } else if (typeof tenant.modules === 'string') {
+                              try {
+                                modules = JSON.parse(tenant.modules);
+                              } catch {
+                                modules = [];
+                              }
+                            }
+                            
+                            return modules.length > 0 ? (
+                              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                                {modules.length} módulos
+                              </span>
+                            ) : (
+                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                Sin módulos
+                              </span>
+                            );
+                          })()}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative actions-menu-container">
+                          <div className="relative inline-block text-left">
+                            <button
+                              onClick={() => setOpenMenuId(openMenuId === tenant.id ? null : tenant.id)}
+                              className="inline-flex justify-center w-10 h-10 items-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              aria-haspopup="true"
+                              aria-expanded={openMenuId === tenant.id}
+                            >
+                              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                              </svg>
+                            </button>
+
+                            {openMenuId === tenant.id && (
+                              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                                <div className="py-1" role="menu">
+                                  <button
+                                    onClick={() => {
+                                      router.push(`/admin/tenants/${tenant.id}`);
+                                      setOpenMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-purple-50 flex items-center"
+                                    role="menuitem"
+                                  >
+                                    <span className="mr-2">👁️</span> Ver Detalles
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      router.push(`/admin/tenants/${tenant.id}/edit`);
+                                      setOpenMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 flex items-center"
+                                    role="menuitem"
+                                  >
+                                    <span className="mr-2">✏️</span> Editar
+                                  </button>
+                                  <button
+                                    onClick={() => {
+                                      toggleTenantStatus(tenant.id, tenant.isActive);
+                                      setOpenMenuId(null);
+                                    }}
+                                    className={`w-full text-left px-4 py-2 text-sm flex items-center ${
+                                      tenant.isActive
+                                        ? 'text-yellow-700 hover:bg-yellow-50'
+                                        : 'text-green-700 hover:bg-green-50'
+                                    }`}
+                                    role="menuitem"
+                                  >
+                                    <span className="mr-2">{tenant.isActive ? '⏸️' : '▶️'}</span>
+                                    {tenant.isActive ? 'Suspender' : 'Activar'}
+                                  </button>
+                                  <div className="border-t border-gray-100 my-1"></div>
+                                  <button
+                                    onClick={() => {
+                                      handleDeleteTenant(tenant.id);
+                                      setOpenMenuId(null);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-red-700 hover:bg-red-50 flex items-center"
+                                    role="menuitem"
+                                  >
+                                    <span className="mr-2">🗑️</span> Eliminar
+                                  </button>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                      {expandedTenantId === tenant.id && (
+                        <tr className="bg-gray-50">
+                          <td colSpan={9} className="px-6 py-4">
+                            {loadingUsers[tenant.id] ? (
+                              <div className="flex items-center justify-center py-4">
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-gray-900">Usuarios de {tenant.businessName}</h4>
+                                {tenantUsers[tenant.id]?.length === 0 ? (
+                                  <p className="text-gray-500 text-sm">No hay usuarios en este tenant</p>
+                                ) : (
+                                  <div className="overflow-x-auto">
+                                    <table className="min-w-full divide-y divide-gray-200">
+                                      <thead className="bg-gray-100">
+                                        <tr>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Usuario</th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Email</th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Rol</th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Estado</th>
+                                          <th className="px-4 py-2 text-left text-xs font-medium text-gray-500">Creado</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody className="bg-white divide-y divide-gray-200">
+                                        {tenantUsers[tenant.id]?.map((user) => (
+                                          <tr key={user.id}>
+                                            <td className="px-4 py-2 text-sm">
+                                              {user.firstName && user.lastName 
+                                                ? `${user.firstName} ${user.lastName}`
+                                                : 'Sin nombre'
+                                              }
+                                            </td>
+                                            <td className="px-4 py-2 text-sm text-gray-600">{user.email}</td>
+                                            <td className="px-4 py-2">
+                                              <span className={`px-2 py-1 text-xs rounded ${getRoleColor(user.role)}`}>
+                                                {user.role}
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-2">
+                                              <span className={`px-2 py-1 text-xs rounded ${
+                                                user.isActive 
+                                                  ? 'bg-green-100 text-green-800' 
+                                                  : 'bg-red-100 text-red-800'
+                                              }`}>
+                                                {user.isActive ? 'Activo' : 'Inactivo'}
+                                              </span>
+                                            </td>
+                                            <td className="px-4 py-2 text-sm text-gray-600">
+                                              {new Date(user.createdAt).toLocaleDateString('es-HN')}
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            )}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))
                 )}
               </tbody>
