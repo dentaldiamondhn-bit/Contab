@@ -54,66 +54,7 @@ export default function TenantAdminDashboard() {
     }
   }, [user, router]);
 
-  // Cargar tenant desde API si no está en contexto
-  const loadTenantFromAPI = async () => {
-    try {
-      const response = await fetch('/api/tenant/my-tenant');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.hasTenant && data.tenant) {
-          // Guardar en localStorage para futuras visitas
-          localStorage.setItem('selected_tenant', JSON.stringify(data.tenant));
-          // Recargar la página para que el TenantContext lo cargue
-          window.location.reload();
-          return true;
-        }
-      }
-      return false;
-    } catch (error) {
-      console.error('Error loading tenant from API:', error);
-      return false;
-    }
-  };
-
-  // Cargar estadísticas del tenant
-  useEffect(() => {
-    if (currentTenant) {
-      loadTenantStats();
-    } else {
-      // Intentar cargar el tenant desde la API primero
-      loadTenantFromAPI().then((found) => {
-        if (!found) {
-          // Si no hay tenant seleccionado y no se pudo cargar desde API,
-          // verificar si hay datos en localStorage del onboarding
-          const companyData = localStorage.getItem('companyData');
-          const businessName = localStorage.getItem('businessName');
-          
-          if (companyData && businessName) {
-            // Reconstruir tenant desde datos de onboarding
-            const parsedCompany = JSON.parse(companyData);
-            const reconstructedTenant = {
-              id: 'temp-' + Date.now(),
-              businessName: businessName,
-              tenantCode: parsedCompany.rtn || 'TEMP',
-              businessEmail: parsedCompany.email || '',
-              businessRTN: parsedCompany.rtn || '',
-              phoneNumber: parsedCompany.contactPhone || parsedCompany.companyPhone || '',
-              businessAddress: parsedCompany.address || '',
-              industry: parsedCompany.industry || '',
-              maxUsers: 5,
-            };
-            
-            localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
-            window.location.reload();
-          } else {
-            // Si no hay datos de onboarding tampoco, mostrar mensaje vacío
-            setLoading(false);
-          }
-        }
-      });
-    }
-  }, [currentTenant]);
-
+  // Función para cargar estadísticas
   const loadTenantStats = async () => {
     try {
       setLoading(true);
@@ -126,8 +67,8 @@ export default function TenantAdminDashboard() {
         totalUsers: currentTenant.maxUsers || 5,
         activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
         totalInvoices: Math.floor(Math.random() * 50) + 10,
-        monthlyRevenue: 500, // Valor por defecto ya que monthlyCost no está en el tipo Tenant
-        activeModules: [] // Valor por defecto ya que modules no está en el tipo Tenant
+        monthlyRevenue: 500,
+        activeModules: []
       };
       setStats(mockStats);
     } catch (error) {
@@ -136,6 +77,53 @@ export default function TenantAdminDashboard() {
       setLoading(false);
     }
   };
+
+  // Efecto para manejar carga inicial y reconstrucción de tenant
+  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
+  
+  useEffect(() => {
+    if (hasAttemptedLoad) return;
+    setHasAttemptedLoad(true);
+    
+    if (currentTenant) {
+      loadTenantStats();
+    } else {
+      const companyData = localStorage.getItem('companyData');
+      const businessName = localStorage.getItem('businessName');
+      const savedTenant = localStorage.getItem('selected_tenant');
+      
+      if (savedTenant) {
+        setLoading(false);
+      } else if (companyData && businessName) {
+        const parsedCompany = JSON.parse(companyData);
+        const reconstructedTenant = {
+          id: 'temp-' + Date.now(),
+          businessName: businessName,
+          tenantCode: parsedCompany.rtn || 'TEMP',
+          businessEmail: parsedCompany.email || '',
+          businessRTN: parsedCompany.rtn || '',
+          phoneNumber: parsedCompany.contactPhone || parsedCompany.companyPhone || '',
+          businessAddress: parsedCompany.address || '',
+          industry: parsedCompany.industry || '',
+          maxUsers: 5,
+        };
+        
+        localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
+        window.location.reload();
+      } else {
+        setLoading(false);
+      }
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Efecto para cuando currentTenant cambia (ej: carga desde localStorage)
+  useEffect(() => {
+    if (currentTenant && hasAttemptedLoad) {
+      loadTenantStats();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant]);
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {
