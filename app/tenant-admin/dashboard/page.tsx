@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,18 +54,16 @@ export default function TenantAdminDashboard() {
     }
   }, [user, router]);
 
-  // Función para cargar estadísticas
-  const loadTenantStats = async () => {
+  // Función para cargar estadísticas - memorizada para evitar recreaciones
+  const loadTenantStats = useCallback(async (tenant: typeof currentTenant) => {
+    if (!tenant) return;
+    
     try {
       setLoading(true);
-      if (!currentTenant) {
-        setLoading(false);
-        return;
-      }
       // Simular carga de estadísticas (en producción, esto vendría de APIs)
       const mockStats: TenantStats = {
-        totalUsers: currentTenant.maxUsers || 5,
-        activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
+        totalUsers: tenant.maxUsers || 5,
+        activeUsers: Math.floor(Math.random() * (tenant.maxUsers || 5)) + 1,
         totalInvoices: Math.floor(Math.random() * 50) + 10,
         monthlyRevenue: 500,
         activeModules: []
@@ -76,25 +74,37 @@ export default function TenantAdminDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  // Efecto para manejar carga inicial y reconstrucción de tenant
-  const [hasAttemptedLoad, setHasAttemptedLoad] = useState(false);
+  // Efecto único para manejar todo - evita múltiples re-renders
+  const [initDone, setInitDone] = useState(false);
   
   useEffect(() => {
-    if (hasAttemptedLoad) return;
-    setHasAttemptedLoad(true);
+    if (initDone) {
+      // Si ya inicializamos, solo recargar stats si hay tenant
+      if (currentTenant) {
+        loadTenantStats(currentTenant);
+      }
+      return;
+    }
+    
+    // Marcar como inicializado
+    setInitDone(true);
     
     if (currentTenant) {
-      loadTenantStats();
+      // Si ya hay tenant, cargar stats
+      loadTenantStats(currentTenant);
     } else {
+      // Verificar si hay datos en localStorage del onboarding
       const companyData = localStorage.getItem('companyData');
       const businessName = localStorage.getItem('businessName');
       const savedTenant = localStorage.getItem('selected_tenant');
       
       if (savedTenant) {
+        // Ya hay un tenant guardado, esperar a que TenantContext lo cargue
         setLoading(false);
       } else if (companyData && businessName) {
+        // Reconstruir tenant desde datos de onboarding y recargar
         const parsedCompany = JSON.parse(companyData);
         const reconstructedTenant = {
           id: 'temp-' + Date.now(),
@@ -111,19 +121,11 @@ export default function TenantAdminDashboard() {
         localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
         window.location.reload();
       } else {
+        // Si no hay datos de onboarding tampoco, mostrar mensaje vacío
         setLoading(false);
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Efecto para cuando currentTenant cambia (ej: carga desde localStorage)
-  useEffect(() => {
-    if (currentTenant && hasAttemptedLoad) {
-      loadTenantStats();
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentTenant]);
+  }, [currentTenant, initDone, loadTenantStats]);
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {
