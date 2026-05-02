@@ -75,7 +75,7 @@ model Tenant {
   businessAddress   String   @map("businessaddress")
   tenantCode        String   @unique @map("tenantcode")
   country           String   @default("HN")
-  phoneNumber       String?  @map("phonenumber")
+  phoneNumber       String   @map("phonenumber")
   logoUrl           String?  @map("logourl")
   timezone          String   @default("America/Tegucigalpa")
   currency          String   @default("HNL")
@@ -267,31 +267,40 @@ model Plan {
 }
 
 model Invoice {
-  id              String   @id @default(cuid())
-  tenantId        String   @map("tenant_id")
-  invoiceNumber   String   @unique @map("invoice_number")
-  invoiceDate     DateTime @map("invoice_date")
-  customerId      String   @map("customer_id")
-  customerRTN     String   @map("customer_rtn")
-  customerName    String   @map("customer_name")
-  customerAddress String   @map("customer_address")
-  issuerRTN       String   @map("issuer_rtn")
-  issuerName      String   @map("issuer_name")
-  issuerAddress   String   @map("issuer_address")
-  cai             String
-  rangeStart      Int      @map("range_start")
-  rangeEnd        Int      @map("range_end")
-  expiryDate      String   @map("expiry_date")
-  items           String // JSON array de items
-  subtotal        Float
-  totalTax        Float    @map("total_tax")
-  total           Float
-  notes           String?
-  currency        String   @default("HNL")
-  taxRate         Float    @default(15) @map("tax_rate")
-  status          String   @default("ACTIVE") // ACTIVE, PAID, CANCELLED
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                 String   @id @default(cuid())
+  tenantId           String   @map("tenant_id")
+  invoiceNumber      String   @unique @map("invoice_number")
+  invoiceDate        DateTime @map("invoice_date")
+  dueDate            DateTime? @map("due_date")
+  invoiceType        String   @default("CUSTOMER") @map("invoice_type") // CUSTOMER, SUBSCRIPTION, EXPENSE
+  customerId         String   @map("customer_id")
+  customerRTN        String   @map("customer_rtn")
+  customerName       String   @map("customer_name")
+  customerEmail      String?  @map("customer_email")
+  customerAddress    String   @map("customer_address")
+  issuerRTN          String   @map("issuer_rtn")
+  issuerName         String   @map("issuer_name")
+  issuerAddress      String   @map("issuer_address")
+  issuerPhone        String?  @map("issuer_phone")
+  issuerEmail        String?  @map("issuer_email")
+  cai                String
+  rangeStart         Int      @map("range_start")
+  rangeEnd           Int      @map("range_end")
+  expiryDate         String   @map("expiry_date")
+  establishmentCode  String   @default("0001") @map("establishment_code")
+  pointOfSaleCode    String   @default("0001") @map("point_of_sale_code")
+  items              String // JSON array de items
+  subtotal           Float
+  tax                Float    @default(0)
+  totalTax           Float    @map("total_tax")
+  total              Float
+  notes              String?
+  currency           String   @default("HNL")
+  taxRate            Float    @default(15) @map("tax_rate")
+  status             String   @default("ACTIVE") // ACTIVE, PAID, CANCELLED, PENDING, OVERDUE
+  invoiceImageUrl    String?  @map("invoice_image_url")
+  createdAt          DateTime @default(now()) @map("created_at")
+  updatedAt          DateTime @updatedAt @map("updated_at")
 
   tenant      Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   CAI         CAI?          @relation(fields: [cAIId], references: [id])
@@ -302,21 +311,28 @@ model Invoice {
   @@index([status], map: "idx_invoice_status")
   @@index([invoiceDate], map: "idx_invoice_date")
   @@index([createdAt], map: "idx_invoice_created_at")
+  @@index([invoiceType], map: "idx_invoice_type")
+  @@index([invoiceNumber], map: "idx_invoice_number")
   @@map("Invoice")
 }
 
 model InvoiceItem {
-  id        String   @id @default(cuid())
-  invoiceId String   @map("invoice_id")
-  planId    String   @map("plan_id")
-  planName  String   @map("plan_name")
-  quantity  Int
-  unitPrice Int      @map("unit_price")
-  subtotal  Int
-  createdAt DateTime @default(now()) @map("created_at")
+  id          String   @id @default(cuid())
+  invoiceId   String   @map("invoice_id")
+  planId      String?  @map("plan_id")
+  planName    String?  @map("plan_name")
+  description String?
+  quantity    Int      @default(1)
+  unitPrice   Float    @map("unit_price")
+  subtotal    Float
+  taxRate     Float    @default(15) @map("tax_rate")
+  taxAmount   Float    @default(0) @map("tax_amount")
+  total       Float
+  createdAt   DateTime @default(now()) @map("created_at")
 
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   plan    Plan?   @relation(fields: [planId], references: [id])
 
+  @@index([invoiceId], map: "idx_invoice_item_invoice_id")
   @@map("InvoiceItem")
 }
