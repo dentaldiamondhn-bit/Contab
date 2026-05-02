@@ -216,10 +216,28 @@ COMMIT;
 -- ============================================================================
 
 -- Update due dates (30 days after invoiceDate)
--- Both columns are stored as text in DD/MM/YYYY format
-UPDATE "Invoice" 
-SET "dueDate" = to_char((to_date("invoiceDate", 'DD/MM/YYYY') + INTERVAL '30 days'), 'DD/MM/YYYY')
-WHERE "dueDate" IS NULL AND "invoiceDate" IS NOT NULL AND "invoiceDate" <> '';
+-- Handle both TEXT and TIMESTAMP column types
+DO $$
+DECLARE
+    col_type TEXT;
+BEGIN
+    -- Check the actual column type
+    SELECT data_type INTO col_type
+    FROM information_schema.columns 
+    WHERE table_name = 'Invoice' AND column_name = 'dueDate';
+    
+    IF col_type = 'timestamp without time zone' OR col_type = 'timestamp with time zone' THEN
+        -- Column is TIMESTAMP, cast the result to timestamp
+        UPDATE "Invoice" 
+        SET "dueDate" = (to_date("invoiceDate", 'DD/MM/YYYY') + INTERVAL '30 days')::TIMESTAMP
+        WHERE "dueDate" IS NULL AND "invoiceDate" IS NOT NULL AND "invoiceDate" <> '';
+    ELSE
+        -- Column is TEXT/VARCHAR
+        UPDATE "Invoice" 
+        SET "dueDate" = to_char((to_date("invoiceDate", 'DD/MM/YYYY') + INTERVAL '30 days'), 'DD/MM/YYYY')
+        WHERE "dueDate" IS NULL AND "invoiceDate" IS NOT NULL AND "invoiceDate" <> '';
+    END IF;
+END $$;
 
 -- Update tax from totalTax (or total_tax if exists)
 DO $$
