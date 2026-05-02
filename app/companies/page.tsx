@@ -192,71 +192,22 @@ export default function CompaniesPage() {
     try {
       setLoading(true);
       
-      // Datos mock para desarrollo
-      const mockCompanies = [
-        {
-          id: "1",
-          business_name: "Dental Diamond Center",
-          business_rtn: "08011999012345",
-          industry: "Servicios Profesionales",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Consultoría Dental",
-          direccion_fiscal: "Colonia Palmira, Tegucigalpa, Honduras",
-          telefono_fiscal: "+504 2234-5678",
-          email_fiscal: "contacto@dentaldiamond.com",
-          is_active: true,
-          created_at: "2024-01-15T10:30:00Z",
-          _count: {
-            polizas: 156,
-            accounts: 45,
-            talonarios: 8
-          }
-        },
-        {
-          id: "2",
-          business_name: "Clínica Médica San José",
-          business_rtn: "08011999067890",
-          industry: "Salud",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Servicios Médicos",
-          direccion_fiscal: "Boulevard Suyapa, Tegucigalpa, Honduras",
-          telefono_fiscal: "+504 2255-6789",
-          email_fiscal: "contacto@clinicamedica.com",
-          is_active: true,
-          created_at: "2024-01-20T14:15:00Z",
-          _count: {
-            polizas: 89,
-            accounts: 32,
-            talonarios: 5
-          }
-        },
-        {
-          id: "3",
-          business_name: "Laboratorio Dental Pro",
-          business_rtn: "08011999054321",
-          industry: "Salud",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Laboratorio Dental",
-          direccion_fiscal: "Avenida Morazán, San Pedro Sula, Honduras",
-          telefono_fiscal: "+504 2345-1234",
-          email_fiscal: "info@labdentalpro.com",
-          is_active: false,
-          created_at: "2024-01-10T09:30:00Z",
-          _count: {
-            polizas: 0,
-            accounts: 0,
-            talonarios: 0
-          }
-        }
-      ];
+      // Obtener empresas reales del tenant actual
+      const response = await fetch('/api/companies');
       
-      setCompanies(mockCompanies);
+      if (!response.ok) {
+        throw new Error('Error al obtener empresas');
+      }
+      
+      const data = await response.json();
+      setCompanies(data.companies || []);
       
     } catch (error) {
       console.error('Error al cargar empresas:', error);
+      setCompanies([]); // Mostrar vacío en caso de error
       setMessage({ 
         type: 'error', 
-        text: 'Error al cargar datos desde la base de datos. Mostrando datos de ejemplo.' 
+        text: 'Error al cargar empresas. Por favor intenta de nuevo.' 
       });
     } finally {
       setLoading(false);
@@ -264,9 +215,9 @@ export default function CompaniesPage() {
   };
 
   const filteredCompanies = companies.filter(company =>
-    company.business_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    company.business_rtn.includes(searchTerm) ||
-    company.industry.toLowerCase().includes(searchTerm.toLowerCase())
+    (company.business_name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+    (company.business_rtn || '').includes(searchTerm) ||
+    (company.industry?.toLowerCase() || '').includes(searchTerm.toLowerCase())
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
