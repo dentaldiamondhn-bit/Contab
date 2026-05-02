@@ -57,19 +57,26 @@ export default function TenantAdminDashboard() {
   useEffect(() => {
     if (currentTenant) {
       loadTenantStats();
+    } else {
+      // Si no hay tenant seleccionado, dejar de cargar y mostrar estado vacío
+      setLoading(false);
     }
   }, [currentTenant]);
 
   const loadTenantStats = async () => {
     try {
       setLoading(true);
+      if (!currentTenant) {
+        setLoading(false);
+        return;
+      }
       // Simular carga de estadísticas (en producción, esto vendría de APIs)
       const mockStats: TenantStats = {
         totalUsers: currentTenant.maxUsers || 5,
         activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
         totalInvoices: Math.floor(Math.random() * 50) + 10,
-        monthlyRevenue: currentTenant.monthlyCost || 500,
-        activeModules: currentTenant.modules ? currentTenant.modules.split(',') : []
+        monthlyRevenue: 500, // Valor por defecto ya que monthlyCost no está en el tipo Tenant
+        activeModules: [] // Valor por defecto ya que modules no está en el tipo Tenant
       };
       setStats(mockStats);
     } catch (error) {
@@ -117,6 +124,31 @@ export default function TenantAdminDashboard() {
           <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando dashboard...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Si no hay tenant seleccionado, mostrar mensaje informativo
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center min-h-screen p-6">
+        <Card className="max-w-md w-full text-center">
+          <CardContent className="p-8">
+            <Building2 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
+            <h2 className="text-xl font-bold text-gray-900 mb-2">
+              No hay empresa seleccionada
+            </h2>
+            <p className="text-gray-600 mb-6">
+              Debes seleccionar una empresa para ver el panel de administración.
+            </p>
+            <Button 
+              onClick={() => router.push('/dashboard')}
+              className="w-full"
+            >
+              Ir al Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
     );
   }
