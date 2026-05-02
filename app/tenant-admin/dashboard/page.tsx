@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -77,24 +77,27 @@ export default function TenantAdminDashboard() {
   }, []);
 
   // Efecto único para manejar todo - evita múltiples re-renders
-  const [initDone, setInitDone] = useState(false);
+  const initDoneRef = useRef(false);
+  const tenantLoadedRef = useRef(false);
   
   useEffect(() => {
-    if (initDone) {
-      // Si ya inicializamos, solo recargar stats si hay tenant
-      if (currentTenant) {
-        loadTenantStats(currentTenant);
-      }
+    // Si ya inicializamos y el tenant ya cargó, no hacer nada
+    if (initDoneRef.current && tenantLoadedRef.current) {
       return;
     }
     
-    // Marcar como inicializado
-    setInitDone(true);
-    
-    if (currentTenant) {
-      // Si ya hay tenant, cargar stats
+    // Si hay tenant y aún no lo hemos procesado
+    if (currentTenant && !tenantLoadedRef.current) {
+      tenantLoadedRef.current = true;
+      initDoneRef.current = true;
       loadTenantStats(currentTenant);
-    } else {
+      return;
+    }
+    
+    // Si no hay tenant y aún no inicializamos
+    if (!currentTenant && !initDoneRef.current) {
+      initDoneRef.current = true;
+      
       // Verificar si hay datos en localStorage del onboarding
       const companyData = localStorage.getItem('companyData');
       const businessName = localStorage.getItem('businessName');
@@ -125,7 +128,9 @@ export default function TenantAdminDashboard() {
         setLoading(false);
       }
     }
-  }, [currentTenant, initDone, loadTenantStats]);
+  // Solo ejecutar cuando currentTenant cambia de null a un valor
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentTenant]);
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {
