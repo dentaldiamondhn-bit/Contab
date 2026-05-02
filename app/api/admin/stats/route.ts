@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase-db';
 
 export async function GET(req: NextRequest) {
   try {
@@ -29,21 +29,43 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Obtener estadísticas del sistema
-    const totalTenants = await db.tenant.count();
-    const activeTenants = await db.tenant.count({ where: { isActive: true } });
-    const totalUsers = await db.user.count();
-    const activeUsers = await db.user.count({ where: { isActive: true } });
+    // Obtener estadísticas del sistema usando Supabase
+    const { count: totalTenants, error: tenantsError } = await supabase
+      .from('Tenant')
+      .select('*', { count: 'exact', head: true });
+    
+    const { count: activeTenants, error: activeTenantsError } = await supabase
+      .from('Tenant')
+      .select('*', { count: 'exact', head: true })
+      .eq('isactive', true);
+    
+    const { count: totalUsers, error: usersError } = await supabase
+      .from('User')
+      .select('*', { count: 'exact', head: true });
+    
+    const { count: activeUsers, error: activeUsersError } = await supabase
+      .from('User')
+      .select('*', { count: 'exact', head: true })
+      .eq('isactive', true);
 
-    console.log('Stats:', { totalTenants, activeTenants, totalUsers, activeUsers });
+    if (tenantsError || usersError) {
+      console.error('Error fetching stats:', { tenantsError, usersError });
+    }
+
+    console.log('Stats:', { 
+      totalTenants: totalTenants || 0, 
+      activeTenants: activeTenants || 0, 
+      totalUsers: totalUsers || 0, 
+      activeUsers: activeUsers || 0 
+    });
 
     return NextResponse.json({
       success: true,
       stats: {
-        totalTenants,
-        activeTenants,
-        totalUsers,
-        activeUsers,
+        totalTenants: totalTenants || 0,
+        activeTenants: activeTenants || 0,
+        totalUsers: totalUsers || 0,
+        activeUsers: activeUsers || 0,
         totalRevenue: 0,
         recentActivity: []
       }

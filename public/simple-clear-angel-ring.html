@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Simple Clear Angel Ring</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; }
+        button:hover { background: #d32f2f; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .danger { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 10px 0; border: 2px solid #dc3545; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🗑️ Simple Clear Angel Ring</h1>
+    
+    <div class="danger">
+        <h2>⚠️ PROBLEMA: API anterior falló</h2>
+        <p>La herramienta anterior tuvo un error de conexión. Esta versión es más simple y robusta.</p>
+    </div>
+    
+    <div class="warning">
+        <h3>🔧 ¿Qué hará esta herramienta simple?</h3>
+        <ul>
+            <li>🔍 <strong>Buscar</strong> tenants con "Angel Ring" en business_name</li>
+            <li>🗑️ <strong>Eliminar</strong> los tenants encontrados</li>
+            <li>✅ <strong>Verificar</strong> que no queden</li>
+            <li>📊 <strong>Reportar</strong> resultados claros</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h3>🔄 Después de eliminar Angel Ring:</h3>
+        <ol>
+            <li><strong>Limpiar cache</strong> - Ctrl+F5</li>
+            <li><strong>Cerrar sesión</strong> - Logout completo</li>
+            <li><strong>Iniciar sesión</strong> - azuna22@outlook.com</li>
+            <li><strong>Completar onboarding</strong> - "casa vieja"</li>
+            <li><strong>Verificar dashboard</strong> - "casa vieja" visible</li>
+        </ol>
+    </div>
+    
+    <button onclick="simpleClearAngelRing()">🗑️ ELIMINAR ANGEL RING (VERSÃO SIMPLE)</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function simpleClearAngelRing() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!confirm('¿ESTÁS SEGURO? Esto eliminará todos los tenants con "Angel Ring".')) {
+                return;
+            }
+            
+            resultDiv.innerHTML = '🗑️ Buscando y eliminando Angel Ring...';
+            
+            try {
+                const response = await fetch('/api/debug/simple-clear-angel-ring', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    if (result.success) {
+                        resultDiv.innerHTML = `
+                            <div class="success">
+                                <h2>✅ ${result.message}</h2>
+                                <p><strong>Encontrados:</strong> ${result.found}</p>
+                                <p><strong>Eliminados:</strong> ${result.deleted}</p>
+                                <p><strong>Restantes:</strong> ${result.remaining}</p>
+                            </div>
+                            
+                            ${result.deletedTenants && result.deletedTenants.length > 0 ? `
+                                <div class="warning">
+                                    <h3>🗑️ Tenants eliminados:</h3>
+                                    <pre>${JSON.stringify(result.deletedTenants, null, 2)}</pre>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="step">
+                                <h3>🔄 SIGUIENTES PASOS:</h3>
+                                <ol>
+                                    <li><strong>Ctrl+F5</strong> - Limpiar cache del navegador</li>
+                                    <li><strong>Cerrar sesión</strong> - Logout completo</li>
+                                    <li><strong>Iniciar sesión</strong> - azuna22@outlook.com</li>
+                                    <li><strong>Completar onboarding</strong> - "casa vieja"</li>
+                                    <li><strong>Verificar dashboard</strong> - "casa vieja" visible</li>
+                                </ol>
+                                <button onclick="window.location.href='/auth/login'" style="background: #4CAF50; font-size: 18px; padding: 15px 30px;">
+                                    🔄 IR A LOGIN PARA FRESH START
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        resultDiv.innerHTML = `
+                            <div class="error">
+                                <h2>❌ Error en la operación</h2>
+                                <pre>${JSON.stringify(result, null, 2)}</pre>
+                            </div>
+                        `;
+                    }
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ Error del servidor</h2>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                        <p>Posibles causas:</p>
+                        <ul>
+                            <li>El servidor no está corriendo</li>
+                            <li>Hay un error en la API</li>
+                            <li>Problemas de red</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

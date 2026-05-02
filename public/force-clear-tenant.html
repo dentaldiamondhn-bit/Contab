@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Forzar Limpieza de Tenant</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; }
+        button:hover { background: #d32f2f; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .danger { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 10px 0; border: 1px solid #f5c6cb; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 10px 0; border: 1px solid #c3e6cb; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 10px 0; border: 1px solid #ffeaa7; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🚨 FORZAR LIMPIEZA COMPLETA DE TENANT</h1>
+    
+    <div class="danger">
+        <h2>⚠️ PROBLEMA IDENTIFICADO</h2>
+        <p>El dashboard sigue mostrando "Angel Ring" porque:</p>
+        <ul>
+            <li>🍪 <strong>localStorage</strong> tiene el tenant "Angel Ring" guardado</li>
+            <li>🔄 <strong>TenantContext</strong> está cargando datos cacheados</li>
+            <li>📱 <strong>Contexto de React</strong> no se ha limpiado</li>
+            <li>🎯 <strong>Dashboard</strong> muestra datos del localStorage en lugar de la base de datos</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h2>🔧 SOLUCIÓN INMEDIATA</h2>
+        <p>Esta herramienta eliminará FORZADAMENTE todos los datos del tenant cacheado y te redirigirá a un login limpio.</p>
+    </div>
+    
+    <button onclick="forceClearTenant()">🚨 FORZAR LIMPIEZA COMPLETA DE TENANT</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function forceClearTenant() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!confirm('¿ESTÁS SEGURO? Esto eliminará todos los datos del tenant y te redirigirá a login.')) {
+                return;
+            }
+            
+            resultDiv.innerHTML = '🔄 Eliminando datos del tenant...';
+            
+            try {
+                const cleared = [];
+                
+                // 1. Eliminar localStorage relacionado con tenant
+                const localStorageKeys = Object.keys(localStorage);
+                localStorageKeys.forEach(key => {
+                    if (key.includes('tenant') || key.includes('selected') || key.includes('current')) {
+                        const value = localStorage.getItem(key);
+                        localStorage.removeItem(key);
+                        cleared.push({ type: 'localStorage', key, removed: true });
+                    }
+                });
+                
+                // 2. Eliminar sessionStorage relacionado
+                const sessionStorageKeys = Object.keys(sessionStorage);
+                sessionStorageKeys.forEach(key => {
+                    if (key.includes('tenant') || key.includes('selected') || key.includes('current')) {
+                        sessionStorage.removeItem(key);
+                        cleared.push({ type: 'sessionStorage', key, removed: true });
+                    }
+                });
+                
+                // 3. Eliminar cookies relacionadas
+                document.cookie.split(';').forEach(cookie => {
+                    const cookieName = cookie.split('=')[0].trim();
+                    if (cookieName.includes('tenant') || cookieName.includes('selected')) {
+                        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                        cleared.push({ type: 'cookie', key: cookieName, removed: true });
+                    }
+                });
+                
+                // 4. Forzar limpieza de contexto de React
+                if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) {
+                    // Intentar limpiar contexto si está disponible
+                    try {
+                        window.dispatchEvent(new CustomEvent('clear-tenant-context'));
+                        cleared.push({ type: 'react-context', cleared: true });
+                    } catch (e) {
+                        // Ignorar errores
+                    }
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h2>✅ LIMPIEZA COMPLETADA</h2>
+                        <p>Se eliminaron ${cleared.length} elementos de datos del tenant</p>
+                        <h3>Elementos eliminados:</h3>
+                        <pre>${JSON.stringify(cleared, null, 2)}</pre>
+                        
+                        <div class="step">
+                            <h2>🔄 REDIRIGIENDO AUTOMÁTICAMENTE...</h2>
+                            <p>Seras redirigido a la página de login en 3 segundos...</p>
+                            <p>Después del login, completa el onboarding con "casa vieja".</p>
+                        </div>
+                    </div>
+                `;
+                
+                // 5. Redirigir a login después de 3 segundos
+                setTimeout(() => {
+                    window.location.href = '/auth/login?clear=' + Date.now();
+                }, 3000);
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="danger">
+                        <h2>❌ ERROR EN LA LIMPIEZA</h2>
+                        <pre>${error.message}</pre>
+                        <button onclick="window.location.href='/auth/login'">
+                            🔄 IR A LOGIN MANUALMENTE
+                        </button>
+                    </div>
+                `;
+            }
+        }
+        
+        // Mostrar datos actuales del tenant cacheado
+        window.addEventListener('load', () => {
+            const currentTenant = localStorage.getItem('selected_tenant');
+            if (currentTenant) {
+                try {
+                    const parsed = JSON.parse(currentTenant);
+                    console.log('Tenant cacheado actualmente:', parsed);
+                    
+                    // Mostrar información del tenant cacheado
+                    const info = document.createElement('div');
+                    info.className = 'warning';
+                    info.innerHTML = `
+                        <h3>🔍 TENANT CACHEADO ACTUALMENTE:</h3>
+                        <p><strong>Nombre:</strong> ${parsed.businessName || 'N/A'}</p>
+                        <p><strong>Email:</strong> ${parsed.businessEmail || 'N/A'}</p>
+                        <p><strong>RTN:</strong> ${parsed.businessRTN || 'N/A'}</p>
+                        <p><strong>ID:</strong> ${parsed.id || 'N/A'}</p>
+                        <p><strong>Este es el problema!</strong> Estos datos están cacheados y necesitan ser eliminados.</p>
+                    `;
+                    document.body.insertBefore(info, document.querySelector('button'));
+                } catch (e) {
+                    console.error('Error parsing tenant:', e);
+                }
+            }
+        });
+    </script>
+</body>
+</html>

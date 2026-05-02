@@ -285,7 +285,7 @@ export default function PlansPage() {
                 
                 <div className="mb-4">
                   <p className="text-4xl font-bold text-blue-600">
-                    L {plan.unitPrice?.toLocaleString() || '0'}
+                    L {plan.price?.toLocaleString() || '0'}
                     <span className="text-lg font-normal text-gray-500">/mes</span>
                   </p>
                 </div>

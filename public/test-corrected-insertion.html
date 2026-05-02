@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Corrected Insertion</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; }
+        button:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Corrected Insertion</h1>
+    
+    <div class="info">
+        <h3>🔧 PROBLEMA IDENTIFICADO Y CORREGIDO</h3>
+        <p><strong>Error:</strong> "value too long for type character varying(10)"</p>
+        <p><strong>Causa:</strong> El tenant_code tenía 12 caracteres pero el límite es 10</p>
+        <p><strong>Solución:</strong> generateTenantCode ahora genera códigos de 8 caracteres</p>
+    </div>
+    
+    <div class="warning">
+        <h3>🔧 ¿Qué se corrigió?</h3>
+        <ul>
+            <li><strong>Antes:</strong> 6 caracteres del nombre + 4 aleatorios = 10 caracteres (a veces más)</li>
+            <li><strong>Ahora:</strong> 6 caracteres del nombre + 2 aleatorios = 8 caracteres (siempre dentro del límite)</li>
+            <li><strong>Ejemplo:</strong> "CASAVIEJA" → "CASAVI" + "AB" → "CASAVIAB" (8 caracteres)</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h3>🧪 ¿Qué prueba esta herramienta?</h3>
+        <p>Esta herramienta creará un tenant de prueba con el tenant_code CORREGIDO (máximo 8 caracteres) para confirmar que el onboarding ahora funcionará.</p>
+    </div>
+    
+    <button onclick="testCorrectedInsertion()">🧪 PROBAR INSERCIÓN CON TENANT_CODE CORREGIDO</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testCorrectedInsertion() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🧪 Probando inserción con tenant_code corregido...';
+            
+            try {
+                const response = await fetch('/api/debug/test-corrected-insertion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h2>🎉 ${result.message}</h2>
+                            <p><strong>Longitud del tenant_code:</strong> ${result.tenantCodeLength} caracteres ✅</p>
+                            <p><strong>Tenant de prueba insertado:</strong></p>
+                            <pre>${JSON.stringify(result.insertedTenant, null, 2)}</pre>
+                            <p><strong>Limpieza:</strong> ${result.cleanupSuccess ? '✅ Exitosa' : '❌ Falló'}</p>
+                        </div>
+                        
+                        <div class="step">
+                            <h3>🎯 ¡EL ONBOARDING ESTÁ COMPLETAMENTE LISTO!</h3>
+                            <p>La inserción funciona correctamente con el tenant_code corregido.</p>
+                            <h3>🔄 Siguientes pasos inmediatos:</h3>
+                            <ol>
+                                <li><strong>Cierra sesión</strong> del usuario actual</li>
+                                <li><strong>Inicia sesión</strong> con azuna22@outlook.com</li>
+                                <li><strong>Completa onboarding</strong> con "casa vieja"</li>
+                                <li><strong>Verifica dashboard</strong> - Debería mostrar "casa vieja"</li>
+                            </ol>
+                            <button onclick="window.location.href='/auth/login'" style="background: #2196F3; font-size: 18px; padding: 15px 30px;">
+                                🔄 IR A LOGIN PARA COMPLETAR ONBOARDING
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ La inserción corregida todavía falla</h2>
+                            <p><strong>Error:</strong></p>
+                            <pre>${JSON.stringify(result.error, null, 2)}</pre>
+                            <p><strong>Longitud del tenant_code:</strong> ${result.tenantCodeLength} caracteres</p>
+                            <p><strong>Datos de prueba:</strong></p>
+                            <pre>${JSON.stringify(result.testData, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

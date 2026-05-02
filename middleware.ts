@@ -10,8 +10,10 @@ const isPublicRoute = createRouteMatcher([
   '/auth/sign-in',
   '/auth/sign-up',
   '/auth/forgot-password',
+  '/onboarding',
   '/api/webhook(.*)',
   '/api/clerk(.*)',
+  '/api/dashboard(.*)',
 ]);
 
 // Definir rutas de admin
@@ -50,6 +52,12 @@ export default clerkMiddleware(async (auth, req) => {
     const signInUrl = new URL('/auth/login', req.url);
     signInUrl.searchParams.set('redirect_url', pathname);
     return NextResponse.redirect(signInUrl);
+  }
+
+  // Si hay usuario autenticado y está en homepage, redirigir a login para verificar onboarding
+  if (userId && pathname === '/') {
+    console.log('Middleware - Authenticated user on homepage, redirecting to login');
+    return NextResponse.redirect(new URL('/auth/login', req.url));
   }
 
 

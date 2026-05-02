@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../app/contexts/SidebarContext';
 import { useUser } from '@clerk/nextjs';
+import CustomSignOutButton from './auth/SignOutButton';
 
 interface NavItem {
   name: string;
@@ -65,6 +66,56 @@ const superAdminNavigation: NavItem[] = [
     href: '/admin/plans',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>`,
     description: 'Gestión de planes de suscripción'
+  }
+];
+
+// Sidebar para ADMIN
+const adminNavigation: NavItem[] = [
+  {
+    name: 'Panel Admin',
+    href: '/tenant-admin/dashboard',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`,
+    description: 'Panel de administración de tu empresa'
+  },
+  {
+    name: 'Usuarios',
+    href: '/tenant-admin/users',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+    description: 'Gestionar usuarios de tu empresa'
+  },
+  {
+    name: 'Facturación',
+    href: '/billing',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
+    description: 'Ver y gestionar facturas'
+  },
+  {
+    name: 'Configuración',
+    href: '/tenant-admin/settings',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+    description: 'Configuración de la empresa'
+  }
+];
+
+// Sidebar para MANAGER
+const managerNavigation: NavItem[] = [
+  {
+    name: 'Panel Gerencia',
+    href: '/tenant-admin/dashboard',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`,
+    description: 'Panel de gerencia de tu empresa'
+  },
+  {
+    name: 'Usuarios',
+    href: '/tenant-admin/users',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+    description: 'Ver usuarios de tu empresa'
+  },
+  {
+    name: 'Facturación',
+    href: '/billing',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
+    description: 'Ver facturas y reportes'
   }
 ];
 
@@ -175,6 +226,15 @@ export default function RoleBasedSidebar() {
     const role = user.publicMetadata?.role || 
                  user.unsafeMetadata?.role ||
                  (user as any).privateMetadata?.role;
+    
+    // Verificar si es el email de super admin (igual que en el layout)
+    const email = user.primaryEmailAddress?.emailAddress;
+    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+
+    // Si es el email de super admin, mostrar navegación de SUPER_ADMIN
+    if (isSuperAdminEmail || role === 'SUPER_ADMIN') {
+      return superAdminNavigation;
+    }
 
     switch (role) {
       case 'SUPER_ADMIN':
@@ -182,7 +242,9 @@ export default function RoleBasedSidebar() {
       case 'SUPPORT':
         return supportNavigation;
       case 'ADMIN':
+        return adminNavigation;
       case 'MANAGER':
+        return managerNavigation;
       case 'USER':
       case 'VIEWER':
       default:
@@ -297,6 +359,26 @@ export default function RoleBasedSidebar() {
           );
         })}
       </nav>
+    
+    {/* User Section */}
+    <div className="border-t border-gray-200 p-4">
+      <div className="flex items-center space-x-3 mb-3">
+        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
+          <span className="text-white text-sm font-medium">
+            {user?.firstName?.charAt(0) || user?.primaryEmailAddress?.emailAddress?.charAt(0) || 'U'}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-gray-900 truncate">
+            {user?.firstName || 'Usuario'}
+          </p>
+          <p className="text-xs text-gray-500 truncate">
+            {user?.primaryEmailAddress?.emailAddress}
+          </p>
+        </div>
+      </div>
+      <CustomSignOutButton />
     </div>
+  </div>
   );
 }

@@ -7,8 +7,8 @@ export default function HomePage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Redirect to auth callback for proper role-based routing
-    router.push('/auth/callback');
+    // Redirect directly to login for new users
+    router.push('/auth/login');
   }, [router]);
 
   return (

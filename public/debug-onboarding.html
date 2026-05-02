@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug Onboarding Error</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #2196F3; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #1976D2; }
+        #result { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .check { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug Onboarding Error</h1>
+    
+    <div class="warning">
+        <h3>🐛 ¿Por qué falla el onboarding?</h3>
+        <p>Esta herramienta verificará:</p>
+        <ul>
+            <li>🔗 Conexión a Supabase</li>
+            <li>📋 Estado de la tabla Tenant</li>
+            <li>👥 Estado de la tabla User</li>
+            <li>🧪 Prueba de inserción</li>
+            <li>🔧 Variables de entorno</li>
+            <li>🔒 Permisos de la tabla</li>
+        </ul>
+    </div>
+    
+    <button onclick="debugOnboarding()">🔍 DEBUG ONBOARDING ERROR</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function debugOnboarding() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🔍 Analizando sistema...';
+            
+            try {
+                const response = await fetch('/api/debug/onboarding-error', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    let html = `
+                        <div class="success">
+                            <h2>✅ Debug Completado</h2>
+                            <p>${result.message}</p>
+                            <p><strong>Timestamp:</strong> ${result.debug.timestamp}</p>
+                        </div>
+                    `;
+                    
+                    // Mostrar cada check
+                    const checks = result.debug.checks;
+                    
+                    // 1. Conexión Supabase
+                    const connCheck = checks.supabase_connection;
+                    html += `
+                        <div class="check">
+                            <h3>🔗 Conexión a Supabase</h3>
+                            <p><strong>Estado:</strong> ${connCheck.success ? '✅ Conectado' : '❌ Error'}</p>
+                            ${connCheck.error ? `<pre>${JSON.stringify(connCheck.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                    
+                    // 2. Tabla Tenant
+                    const tenantCheck = checks.tenant_table;
+                    html += `
+                        <div class="check">
+                            <h3>📋 Tabla Tenant</h3>
+                            <p><strong>Estado:</strong> ${tenantCheck.success ? '✅ Accesible' : '❌ Error'}</p>
+                            <p><strong>Registros:</strong> ${tenantCheck.count}</p>
+                            ${tenantCheck.error ? `<pre>${JSON.stringify(tenantCheck.error, null, 2)}</pre>` : ''}
+                            ${tenantCheck.data && tenantCheck.data.length > 0 ? `
+                                <h4>Tenants actuales:</h4>
+                                <pre>${JSON.stringify(tenantCheck.data, null, 2)}</pre>
+                            ` : ''}
+                        </div>
+                    `;
+                    
+                    // 3. Tabla User
+                    const userCheck = checks.user_table;
+                    html += `
+                        <div class="check">
+                            <h3>👥 Tabla User</h3>
+                            <p><strong>Estado:</strong> ${userCheck.success ? '✅ Accesible' : '❌ Error'}</p>
+                            <p><strong>Registros:</strong> ${userCheck.count}</p>
+                            ${userCheck.error ? `<pre>${JSON.stringify(userCheck.error, null, 2)}</pre>` : ''}
+                        </div>
+                    `;
+                    
+                    // 4. Prueba de inserción
+                    const insertCheck = checks.insert_test;
+                    html += `
+                        <div class="check">
+                            <h3>🧪 Prueba de Inserción</h3>
+                            <p><strong>Estado:</strong> ${insertCheck.success ? '✅ Funciona' : '❌ Error'}</p>
+                            ${insertCheck.error ? `<pre>${JSON.stringify(insertCheck.error, null, 2)}</pre>` : ''}
+                            ${insertCheck.cleanup ? '<p>✅ Limpieza completada</p>' : ''}
+                        </div>
+                    `;
+                    
+                    // 5. Variables de entorno
+                    const envCheck = checks.environment;
+                    html += `
+                        <div class="check">
+                            <h3>🔧 Variables de Entorno</h3>
+                            <p><strong>SUPABASE_URL:</strong> ${envCheck.supabase_url}</p>
+                            <p><strong>SUPABASE_SERVICE_ROLE_KEY:</strong> ${envCheck.supabase_key}</p>
+                            <p><strong>NODE_ENV:</strong> ${envCheck.node_env}</p>
+                        </div>
+                    `;
+                    
+                    // 6. Permisos
+                    const permCheck = checks.table_permissions;
+                    html += `
+                        <div class="check">
+                            <h3>🔒 Permisos de Tabla</h3>
+                            <p><strong>Estado:</strong> ${permCheck.success ? '✅ Verificados' : '❌ Error'}</p>
+                            ${permCheck.error ? `<pre>${JSON.stringify(permCheck.error, null, 2)}</pre>` : ''}
+                            ${permCheck.note ? `<p><em>${permCheck.note}</em></p>` : ''}
+                        </div>
+                    `;
+                    
+                    // Diagnóstico final
+                    let diagnosis = '';
+                    let solution = '';
+                    
+                    if (!connCheck.success) {
+                        diagnosis = '❌ No hay conexión a Supabase';
+                        solution = '🔧 Verificar variables de entorno y conexión';
+                    } else if (!tenantCheck.success) {
+                        diagnosis = '❌ La tabla Tenant no es accesible';
+                        solution = '🔧 Verificar permisos o crear la tabla';
+                    } else if (!insertCheck.success) {
+                        diagnosis = '❌ No se pueden insertar tenants';
+                        solution = '🔧 Verificar permisos de inserción o RLS policies';
+                    } else {
+                        diagnosis = '✅ Todo parece funcionar correctamente';
+                        solution = '🔄 El problema puede estar en otra parte del código';
+                    }
+                    
+                    html += `
+                        <div class="check">
+                            <h3>🎯 Diagnóstico</h3>
+                            <p><strong>Problema detectado:</strong> ${diagnosis}</p>
+                            <p><strong>Solución recomendada:</strong> ${solution}</p>
+                        </div>
+                    `;
+                    
+                    html += `<h3>📊 Debug completo:</h3>
+                        <pre>${JSON.stringify(result.debug, null, 2)}</pre>`;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ Error en debug</h2>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>
