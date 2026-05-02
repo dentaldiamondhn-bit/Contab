@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -40,7 +40,8 @@ export default function TenantAdminDashboard() {
     activeModules: []
   });
   const [loading, setLoading] = useState(true);
-  const [hasChecked, setHasChecked] = useState(false);
+  const hasCheckedRef = useRef(false);
+  const statsLoadedRef = useRef(false);
 
   // Verificar rol y redirigir si no es admin de tenant
   useEffect(() => {
@@ -53,9 +54,10 @@ export default function TenantAdminDashboard() {
     }
   }, [user, router]);
 
-  // Check localStorage once on mount
+  // Check localStorage once on mount only
   useEffect(() => {
-    if (hasChecked) return;
+    if (hasCheckedRef.current) return;
+    hasCheckedRef.current = true;
     
     const companyData = localStorage.getItem('companyData');
     const businessName = localStorage.getItem('businessName');
@@ -76,21 +78,15 @@ export default function TenantAdminDashboard() {
       };
       localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
       window.location.reload();
-      return;
     }
-    
-    setHasChecked(true);
-    if (!currentTenant && savedTenant) {
-      // Waiting for TenantContext to load
-      setLoading(false);
-    }
-  }, [hasChecked, currentTenant]);
+  }, []); // Empty dependency array - run once only
 
-  // Load stats when tenant is available
+  // Load stats when tenant becomes available
   useEffect(() => {
-    if (!currentTenant || !hasChecked) return;
+    if (!currentTenant || statsLoadedRef.current) return;
     
-    // Calculate stats once
+    statsLoadedRef.current = true;
+    
     const mockStats: TenantStats = {
       totalUsers: currentTenant.maxUsers || 5,
       activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
@@ -100,7 +96,7 @@ export default function TenantAdminDashboard() {
     };
     setStats(mockStats);
     setLoading(false);
-  }, [currentTenant, hasChecked]);
+  }, [currentTenant]); // Only depends on currentTenant
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {
