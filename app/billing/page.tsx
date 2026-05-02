@@ -194,7 +194,7 @@ export default function BillingPage() {
                 {loading ? 'Cargando...' : 'Actualizar'}
               </Button>
               <Button
-                onClick={() => router.push('/admin/billing/generate-invoice')}
+                onClick={() => router.push('/support/billing/generate-invoice')}
                 className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
               >
                 <Plus className="w-4 h-4" />
@@ -377,7 +377,7 @@ export default function BillingPage() {
                               variant="ghost"
                               size="sm"
                               className="text-blue-600 hover:text-blue-800"
-                              onClick={() => router.push(`/admin/billing/generate-invoice?edit=${invoice.id}`)}
+                              onClick={() => router.push(`/support/billing/generate-invoice?edit=${invoice.id}`)}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
