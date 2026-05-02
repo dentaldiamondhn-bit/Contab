@@ -12,7 +12,10 @@ import {
   Receipt, 
   Calculator,
   ArrowLeft,
-  Building2
+  Building2,
+  Upload,
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { useTenant } from '@/lib/contexts/TenantContext';
 
@@ -60,6 +63,10 @@ export default function GenerateInvoicePage() {
   
   // Notes
   const [notes, setNotes] = useState('');
+  
+  // Invoice image
+  const [invoiceImage, setInvoiceImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
 
   // Calculate totals
   const subtotal = items.reduce((sum, item) => sum + item.total, 0);
@@ -120,33 +127,35 @@ export default function GenerateInvoicePage() {
       setLoading(true);
       setError('');
 
-      const invoiceData = {
-        tenantId: currentTenant.id,
-        invoiceType: 'CUSTOMER',
-        customerName: customer.name,
-        customerRTN: customer.rtn,
-        customerEmail: customer.email,
-        customerAddress: customer.address,
-        issueDate,
-        dueDate,
-        items: items.map(item => ({
-          description: item.description,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          total: item.total
-        })),
-        subtotal,
-        tax,
-        total,
-        notes
-      };
+      // Create FormData for file upload support
+      const formData = new FormData();
+      formData.append('tenantId', currentTenant.id);
+      formData.append('invoiceType', 'CUSTOMER');
+      formData.append('customerName', customer.name);
+      formData.append('customerRTN', customer.rtn);
+      formData.append('customerEmail', customer.email);
+      formData.append('customerAddress', customer.address);
+      formData.append('issueDate', issueDate);
+      formData.append('dueDate', dueDate);
+      formData.append('items', JSON.stringify(items.map(item => ({
+        description: item.description,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.total
+      }))));
+      formData.append('subtotal', subtotal.toString());
+      formData.append('tax', tax.toString());
+      formData.append('total', total.toString());
+      formData.append('notes', notes);
+      
+      // Append image if exists
+      if (invoiceImage) {
+        formData.append('invoiceImage', invoiceImage);
+      }
 
       const response = await fetch('/api/admin/billing/invoices', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(invoiceData)
+        body: formData
       });
 
       if (!response.ok) {
@@ -483,6 +492,71 @@ export default function GenerateInvoicePage() {
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               placeholder="Notas adicionales para la factura..."
             />
+          </CardContent>
+        </Card>
+
+        {/* Invoice Image Upload */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <ImageIcon className="w-5 h-5" />
+              Imagen de la Factura (Opcional)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!imagePreview ? (
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      setInvoiceImage(file);
+                      const reader = new FileReader();
+                      reader.onloadend = () => {
+                        setImagePreview(reader.result as string);
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                  className="hidden"
+                  id="invoice-image-upload"
+                />
+                <label
+                  htmlFor="invoice-image-upload"
+                  className="cursor-pointer flex flex-col items-center"
+                >
+                  <Upload className="w-12 h-12 text-gray-400 mb-3" />
+                  <p className="text-gray-600 font-medium mb-1">
+                    Click para subir imagen
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    PNG, JPG, JPEG (máx. 5MB)
+                  </p>
+                </label>
+              </div>
+            ) : (
+              <div className="relative">
+                <img
+                  src={imagePreview}
+                  alt="Vista previa de factura"
+                  className="max-h-64 mx-auto rounded-lg border border-gray-200"
+                />
+                <button
+                  onClick={() => {
+                    setInvoiceImage(null);
+                    setImagePreview(null);
+                  }}
+                  className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+                <p className="text-center text-sm text-gray-500 mt-2">
+                  {invoiceImage?.name}
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
 
