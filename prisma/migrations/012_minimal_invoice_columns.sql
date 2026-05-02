@@ -138,6 +138,6 @@ WHERE ("tax" IS NULL OR "tax" = 0) AND "totalTax" IS NOT NULL AND "totalTax" > 0
 -- Establecer tipo de factura por defecto
 UPDATE "Invoice" SET "invoiceType" = 'CUSTOMER' WHERE "invoiceType" IS NULL;
 
--- Calcular totales en InvoiceItem
-UPDATE "InvoiceItem" SET "total" = COALESCE("subtotal", 0) + COALESCE("taxAmount", 0)
+-- Calcular totales en InvoiceItem (usando totalamount como subtotal base)
+UPDATE "InvoiceItem" SET "total" = COALESCE("totalamount", 0) + COALESCE("taxAmount", 0)
 WHERE ("total" IS NULL OR "total" = 0);
