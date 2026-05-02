@@ -362,6 +362,7 @@ export default function ExpensesPage() {
                               variant="ghost"
                               size="sm"
                               className="text-blue-600 hover:text-blue-800"
+                              onClick={() => router.push(`/billing/${invoice.id}`)}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
