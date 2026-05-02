@@ -270,8 +270,8 @@ model Invoice {
   id                 String   @id @default(cuid())
   tenantId           String   @map("tenantid")
   invoiceNumber      String   @unique @map("invoiceNumber")
-  invoiceDate        DateTime @map("invoiceDate")
-  dueDate            DateTime? @map("dueDate")
+  invoiceDate        String   @map("invoiceDate")
+  dueDate            String?   @map("dueDate")
   invoiceType        String   @default("CUSTOMER") @map("invoiceType") // CUSTOMER, SUBSCRIPTION, EXPENSE
   customerId         String   @map("customerid")
   customerRTN        String   @map("customerRTN")
@@ -286,7 +286,7 @@ model Invoice {
   cai                String
   rangeStart         Int      @map("rangeStart")
   rangeEnd           Int      @map("rangeEnd")
-  expiryDate         String   @map("expiryDate")
+  expiryDate         String?   @map("expiryDate")
   establishmentCode  String   @default("0001") @map("establishmentCode")
   pointOfSaleCode    String   @default("0001") @map("pointOfSaleCode")
   items              String // JSON array de items

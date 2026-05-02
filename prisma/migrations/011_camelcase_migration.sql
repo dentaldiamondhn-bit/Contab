@@ -36,14 +36,14 @@ BEGIN
         RAISE NOTICE 'Added: customerEmail';
     END IF;
 
-    -- dueDate
+    -- dueDate (as TEXT to match invoiceDate format)
     SELECT EXISTS (
         SELECT 1 FROM information_schema.columns 
         WHERE table_name = 'Invoice' AND column_name = 'dueDate'
     ) INTO col_exists;
     
     IF NOT col_exists THEN
-        ALTER TABLE "Invoice" ADD COLUMN "dueDate" TIMESTAMP;
+        ALTER TABLE "Invoice" ADD COLUMN "dueDate" VARCHAR(50);
         RAISE NOTICE 'Added: dueDate';
     END IF;
 
@@ -216,9 +216,10 @@ COMMIT;
 -- ============================================================================
 
 -- Update due dates (30 days after invoiceDate)
+-- Both columns are stored as text in DD/MM/YYYY format
 UPDATE "Invoice" 
-SET "dueDate" = "invoiceDate" + INTERVAL '30 days' 
-WHERE "dueDate" IS NULL AND "invoiceDate" IS NOT NULL;
+SET "dueDate" = to_char((to_date("invoiceDate", 'DD/MM/YYYY') + INTERVAL '30 days'), 'DD/MM/YYYY')
+WHERE "dueDate" IS NULL AND "invoiceDate" IS NOT NULL AND "invoiceDate" <> '';
 
 -- Update tax from totalTax (or total_tax if exists)
 DO $$
