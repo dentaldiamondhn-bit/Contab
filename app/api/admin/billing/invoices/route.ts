@@ -5,6 +5,13 @@ import { supabase } from '@/lib/supabase-db';
 // Memoria temporal para simular persistencia de facturas
 let generatedInvoices: any[] = [];
 
+// Tipos de facturas
+enum InvoiceType {
+  SUBSCRIPTION = 'SUBSCRIPTION',    // ContabHN factura al tenant
+  CUSTOMER = 'CUSTOMER',          // Tenant factura a sus clientes
+  EXPENSE = 'EXPENSE'             // Tenant recibe facturas de proveedores
+}
+
 // Función para generar facturas mensuales basadas en los planes del tenant
 async function generateMonthlyInvoices(tenantId: string) {
   try {
@@ -45,7 +52,7 @@ async function generateMonthlyInvoices(tenantId: string) {
       'GROWTH': 750
     };
 
-    // Generar facturas para los últimos 12 meses
+    // Generar facturas para los últimos 12 meses (solo tipo SUBSCRIPTION)
     const invoices = [];
     const now = new Date();
     
@@ -58,47 +65,40 @@ async function generateMonthlyInvoices(tenantId: string) {
       const items: any[] = [];
       
       // Agregar items por cada plan
-      for (const plan of subscriptionPlans) {
-        const planCode = typeof plan === 'string' ? plan : plan.code;
-        const quantity = typeof plan === 'string' ? 1 : (plan.quantity || 1);
-        const unitPrice = planPrices[planCode] || 500;
-        const planTotal = unitPrice * quantity;
-        subtotal += planTotal;
-        
+      subscriptionPlans.forEach((plan: any) => {
+        const planPrice = planPrices[plan.code] || 0;
+        subtotal += planPrice * plan.quantity;
         items.push({
-          description: `Plan ${planCode} - ${monthYear}`,
-          quantity: quantity,
-          unitPrice: unitPrice,
-          total: planTotal
+          description: `Plan ${plan.code} - ${plan.quantity} licencia(s)`,
+          quantity: plan.quantity,
+          unitPrice: planPrice,
+          total: planPrice * plan.quantity
         });
-      }
-
-      // Agregar items por módulos adicionales
-      for (const module of modules) {
-        const modulePrice = 150; // Precio por módulo adicional
+      });
+      
+      // Agregar items por cada módulo
+      modules.forEach((module: string) => {
+        const modulePrice = 50; // Precio fijo por módulo
         subtotal += modulePrice;
         items.push({
-          description: `Módulo ${module} - ${monthYear}`,
+          description: `Módulo ${module}`,
           quantity: 1,
           unitPrice: modulePrice,
           total: modulePrice
         });
-      }
-
-      const taxRate = 0.15;
+      });
+      
+      const taxRate = 0.15; // 15% ISV
       const taxAmount = subtotal * taxRate;
       const total = subtotal + taxAmount;
-
-      const invoiceNumber = `CONTAB-${tenant.tenant_code}-${invoiceDate.getFullYear()}${(invoiceDate.getMonth() + 1).toString().padStart(2, '0')}`;
-
+      
       invoices.push({
-        id: `INV-${invoiceNumber}`,
-        tenantId: tenantId,
-        invoiceNumber: invoiceNumber,
-        invoiceDate: invoiceDate.toISOString(),
-        customerName: tenant.businessname,
-        customerRTN: tenant.businessrtn,
-        customerEmail: tenant.businessemail,
+        id: `sub-${tenantId}-${i}`,
+        invoiceNumber: `SUB-${tenantId}-${String(i + 1).padStart(3, '0')}`,
+        invoiceType: InvoiceType.SUBSCRIPTION,
+        customerName: tenant.businessname || 'Empresa Demo',
+        customerRTN: tenant.businessrtn || '0000-0000-0000-0',
+        customerEmail: tenant.businessemail || 'demo@contabhn.com',
         issuerName: 'ContabHN',
         issuerRTN: '08011989237960',
         items: items,
@@ -116,6 +116,114 @@ async function generateMonthlyInvoices(tenantId: string) {
     console.error('❌ Error generating monthly invoices:', error);
     return [];
   }
+}
+
+// Generar facturas del tenant a clientes (mock data)
+function generateCustomerInvoices(tenantId: string) {
+  const customerInvoices = [
+    {
+      id: `cust-${tenantId}-1`,
+      invoiceNumber: `CUST-${tenantId}-001`,
+      invoiceType: InvoiceType.CUSTOMER,
+      customerName: 'Cliente Ejemplo S.A.',
+      customerRTN: '0801-2000-12345',
+      customerEmail: 'cliente@ejemplo.com',
+      issueDate: '2026-04-15',
+      dueDate: '2026-05-15',
+      subtotal: 5000,
+      tax: 750,
+      total: 5750,
+      status: 'PAID',
+      items: [
+        {
+          id: 'item1',
+          description: 'Servicios de Consultoría IT',
+          quantity: 10,
+          unitPrice: 500,
+          total: 5000
+        }
+      ]
+    },
+    {
+      id: `cust-${tenantId}-2`,
+      invoiceNumber: `CUST-${tenantId}-002`,
+      invoiceType: InvoiceType.CUSTOMER,
+      customerName: 'Empresa Cliente 2',
+      customerRTN: '0801-2000-67890',
+      customerEmail: 'facturacion@cliente2.com',
+      issueDate: '2026-04-20',
+      dueDate: '2026-05-20',
+      subtotal: 2500,
+      tax: 375,
+      total: 2875,
+      status: 'PENDING',
+      items: [
+        {
+          id: 'item2',
+          description: 'Mantenimiento Preventivo',
+          quantity: 5,
+          unitPrice: 500,
+          total: 2500
+        }
+      ]
+    }
+  ];
+  
+  return customerInvoices;
+}
+
+// Generar facturas recibidas por el tenant (mock data)
+function generateExpenseInvoices(tenantId: string) {
+  const expenseInvoices = [
+    {
+      id: `exp-${tenantId}-1`,
+      invoiceNumber: `EXP-${tenantId}-001`,
+      invoiceType: InvoiceType.EXPENSE,
+      customerName: 'Microsoft Corporation',
+      customerRTN: '99-999-9999',
+      customerEmail: 'billing@microsoft.com',
+      issueDate: '2026-04-10',
+      dueDate: '2026-04-30',
+      subtotal: 1200,
+      tax: 180,
+      total: 1380,
+      status: 'PAID',
+      items: [
+        {
+          id: 'exp1',
+          description: 'Suscripción Office 365 Business',
+          quantity: 1,
+          unitPrice: 1200,
+          total: 1200
+        }
+      ]
+    },
+    {
+      id: `exp-${tenantId}-2`,
+      invoiceNumber: `EXP-${tenantId}-002`,
+      invoiceType: InvoiceType.EXPENSE,
+      customerName: 'Amazon Web Services',
+      customerRTN: '99-888-8888',
+      customerEmail: 'aws@amazon.com',
+      issueDate: '2026-04-15',
+      dueDate: '2026-05-15',
+      subtotal: 850,
+      tax: 127.50,
+      total: 977.50,
+      status: 'PENDING',
+      items: [
+        {
+          id: 'exp2',
+          description: 'Servicios AWS EC2 y S3',
+          quantity: 1,
+          unitPrice: 850,
+          total: 850
+        }
+      ]
+    }
+  ];
+  
+  return expenseInvoices;
 }
 
 export async function GET(req: NextRequest) {
@@ -163,12 +271,23 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(searchParams.get('limit') || '10');
     const tenantId = searchParams.get('tenantId');
     const status = searchParams.get('status');
+    const invoiceType = searchParams.get('type') || 'CUSTOMER'; // Default: facturas del tenant a clientes
 
-    console.log('📋 Parámetros:', { tenantId, page, limit, status });
+    console.log('📋 Parámetros:', { tenantId, page, limit, status, invoiceType });
 
     if (tenantId) {
-      // Generar facturas mensuales basadas en los planes del tenant
-      const tenantInvoices = await generateMonthlyInvoices(tenantId);
+      let tenantInvoices: any[] = [];
+      
+      if (invoiceType === 'SUBSCRIPTION') {
+        // Facturas de ContabHN al tenant
+        tenantInvoices = await generateMonthlyInvoices(tenantId);
+      } else if (invoiceType === 'CUSTOMER') {
+        // Facturas del tenant a sus clientes (mock data)
+        tenantInvoices = generateCustomerInvoices(tenantId);
+      } else if (invoiceType === 'EXPENSE') {
+        // Facturas recibidas por el tenant (mock data)
+        tenantInvoices = generateExpenseInvoices(tenantId);
+      }
       
       // Aplicar paginación
       const startIndex = (page - 1) * limit;

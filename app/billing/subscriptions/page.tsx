@@ -1,27 +1,22 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { 
   FileText, 
   DollarSign, 
-  Calendar,
   Download,
   Eye,
-  Plus,
   ArrowLeft,
   RefreshCw,
   Building2,
-  CreditCard,
   CheckCircle,
   Clock,
   AlertCircle,
-  Search,
-  Filter,
   Receipt,
-  CreditCard as CardIcon,
+  CreditCard,
   ShoppingCart
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -37,7 +32,7 @@ interface Invoice {
   subtotal: number;
   tax: number;
   total: number;
-  status: 'PAID' | 'PENDING' | 'OVERDUE';
+  status: 'PAID' | 'PENDING' | 'OVERDUE' | 'ACTIVE';
   items: InvoiceItem[];
 }
 
@@ -49,14 +44,12 @@ interface InvoiceItem {
   total: number;
 }
 
-export default function BillingPage() {
+export default function SubscriptionsPage() {
   const router = useRouter();
   const { currentTenant } = useTenant();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [filter, setFilter] = useState<'all' | 'PAID' | 'PENDING' | 'OVERDUE'>('all');
-  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (currentTenant) {
@@ -69,8 +62,8 @@ export default function BillingPage() {
       setLoading(true);
       setError('');
       
-      // Llamar a la API con el tenantId del contexto - tipo CUSTOMER (facturas del tenant a clientes)
-      const response = await fetch(`/api/admin/billing/invoices?tenantId=${currentTenant?.id || ''}&type=CUSTOMER`);
+      // Llamar a la API con tipo SUBSCRIPTION (facturas de ContabHN al tenant)
+      const response = await fetch(`/api/admin/billing/invoices?tenantId=${currentTenant?.id || ''}&type=SUBSCRIPTION`);
       
       if (!response.ok) {
         throw new Error('Error al cargar las facturas');
@@ -85,14 +78,6 @@ export default function BillingPage() {
       setLoading(false);
     }
   };
-
-  const filteredInvoices = invoices.filter(invoice => {
-    const matchesFilter = filter === 'all' || invoice.status === filter;
-    const matchesSearch = !searchTerm || 
-      invoice.invoiceNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      invoice.customerName.toLowerCase().includes(searchTerm.toLowerCase());
-    return matchesFilter && matchesSearch;
-  });
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {
@@ -113,6 +98,8 @@ export default function BillingPage() {
         return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>;
       case 'OVERDUE':
         return <Badge className="bg-red-100 text-red-800">Vencida</Badge>;
+      case 'ACTIVE':
+        return <Badge className="bg-blue-100 text-blue-800">Activa</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
@@ -126,6 +113,8 @@ export default function BillingPage() {
         return <Clock className="w-5 h-5 text-yellow-500" />;
       case 'OVERDUE':
         return <AlertCircle className="w-5 h-5 text-red-500" />;
+      case 'ACTIVE':
+        return <CheckCircle className="w-5 h-5 text-blue-500" />;
       default:
         return <FileText className="w-5 h-5 text-gray-500" />;
     }
@@ -134,7 +123,9 @@ export default function BillingPage() {
   // Calcular totales
   const totalInvoices = invoices.length;
   const paidInvoices = invoices.filter(inv => inv.status === 'PAID').length;
-  const pendingInvoices = invoices.filter(inv => inv.status === 'PENDING').length;
+  const pendingAmount = invoices
+    .filter(inv => inv.status === 'ACTIVE' || inv.status === 'PENDING')
+    .reduce((sum, inv) => sum + inv.total, 0);
   const totalAmount = invoices.reduce((sum, inv) => sum + inv.total, 0);
 
   if (!currentTenant) {
@@ -181,9 +172,9 @@ export default function BillingPage() {
           </div>
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Facturación</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Suscripción ContabHN</h1>
               <p className="text-gray-600 mt-1">
-                Gestiona las facturas de {currentTenant.businessName}
+                Facturas de servicios brindados a {currentTenant.businessName}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -196,13 +187,6 @@ export default function BillingPage() {
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 {loading ? 'Cargando...' : 'Actualizar'}
               </Button>
-              <Button
-                onClick={() => router.push('/support/billing/generate-invoice')}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-              >
-                <Plus className="w-4 h-4" />
-                Nueva Factura
-              </Button>
             </div>
           </div>
         </div>
@@ -211,18 +195,18 @@ export default function BillingPage() {
         <div className="mb-6">
           <div className="flex flex-wrap gap-2">
             <Button
-              variant="default"
-              className="flex items-center gap-2 bg-blue-600"
+              variant="outline"
+              onClick={() => router.push('/billing')}
+              className="flex items-center gap-2"
             >
               <Receipt className="w-4 h-4" />
               Mis Facturas Emitidas
             </Button>
             <Button
-              variant="outline"
-              onClick={() => router.push('/billing/subscriptions')}
-              className="flex items-center gap-2"
+              variant="default"
+              className="flex items-center gap-2 bg-blue-600"
             >
-              <CardIcon className="w-4 h-4" />
+              <CreditCard className="w-4 h-4" />
               Suscripción ContabHN
             </Button>
             <Button
@@ -266,8 +250,10 @@ export default function BillingPage() {
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium text-gray-600">Pendientes</p>
-                  <p className="text-2xl font-bold text-yellow-600">{pendingInvoices}</p>
+                  <p className="text-sm font-medium text-gray-600">Monto Pendiente</p>
+                  <p className="text-2xl font-bold text-yellow-600">
+                    {formatCurrency(pendingAmount)}
+                  </p>
                 </div>
                 <Clock className="w-8 h-8 text-yellow-400" />
               </div>
@@ -289,39 +275,6 @@ export default function BillingPage() {
           </Card>
         </div>
 
-        {/* Filters */}
-        <Card className="mb-6">
-          <CardContent className="p-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              <div className="flex-1">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
-                  <input
-                    type="text"
-                    placeholder="Buscar por número o cliente..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Filter className="w-4 h-4 text-gray-500" />
-                <select
-                  value={filter}
-                  onChange={(e) => setFilter(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                >
-                  <option value="all">Todas</option>
-                  <option value="PAID">Pagadas</option>
-                  <option value="PENDING">Pendientes</option>
-                  <option value="OVERDUE">Vencidas</option>
-                </select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
         {/* Error Message */}
         {error && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-lg">
@@ -337,9 +290,9 @@ export default function BillingPage() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5" />
-              Lista de Facturas
+              Facturas de Suscripción
               <span className="text-sm font-normal text-gray-500">
-                ({filteredInvoices.length} facturas)
+                ({invoices.length} facturas)
               </span>
             </CardTitle>
           </CardHeader>
@@ -349,12 +302,12 @@ export default function BillingPage() {
                 <RefreshCw className="w-8 h-8 animate-spin mx-auto text-gray-400 mb-4" />
                 <p className="text-gray-600">Cargando facturas...</p>
               </div>
-            ) : filteredInvoices.length === 0 ? (
+            ) : invoices.length === 0 ? (
               <div className="text-center py-8">
                 <FileText className="w-12 h-12 mx-auto text-gray-300 mb-4" />
-                <p className="text-gray-600">No hay facturas registradas</p>
+                <p className="text-gray-600">No hay facturas de suscripción</p>
                 <p className="text-sm text-gray-500 mt-1">
-                  Crea tu primera factura haciendo clic en "Nueva Factura"
+                  Las facturas mensuales aparecerán aquí
                 </p>
               </div>
             ) : (
@@ -363,42 +316,47 @@ export default function BillingPage() {
                   <thead>
                     <tr className="border-b border-gray-200">
                       <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Factura</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Cliente</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Fecha</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Vencimiento</th>
+                      <th className="text-left py-3 px-4 text-sm font-medium text-gray-700">Período</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Subtotal</th>
+                      <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">ISV (15%)</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Total</th>
                       <th className="text-center py-3 px-4 text-sm font-medium text-gray-700">Estado</th>
                       <th className="text-right py-3 px-4 text-sm font-medium text-gray-700">Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredInvoices.map((invoice) => (
+                    {invoices.map((invoice) => (
                       <tr key={invoice.id} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
                             {getStatusIcon(invoice.status)}
-                            <span className="font-medium text-gray-900">
-                              {invoice.invoiceNumber}
-                            </span>
+                            <div>
+                              <span className="font-medium text-gray-900">
+                                {invoice.invoiceNumber}
+                              </span>
+                              <p className="text-xs text-gray-500">
+                                {formatDate(invoice.issueDate)}
+                              </p>
+                            </div>
                           </div>
                         </td>
                         <td className="py-3 px-4">
                           <div>
-                            <p className="font-medium text-gray-900">{invoice.customerName}</p>
-                            <p className="text-sm text-gray-500">RTN: {invoice.customerRTN}</p>
+                            {invoice.items.map((item, idx) => (
+                              <p key={idx} className="text-sm text-gray-700">
+                                {item.description}
+                              </p>
+                            ))}
                           </div>
                         </td>
-                        <td className="py-3 px-4 text-gray-600">
-                          {formatDate(invoice.issueDate)}
+                        <td className="py-3 px-4 text-right text-gray-600">
+                          {formatCurrency(invoice.subtotal)}
                         </td>
-                        <td className="py-3 px-4 text-gray-600">
-                          {formatDate(invoice.dueDate)}
+                        <td className="py-3 px-4 text-right text-gray-600">
+                          {formatCurrency(invoice.tax)}
                         </td>
                         <td className="py-3 px-4 text-right">
                           <p className="font-bold text-gray-900">{formatCurrency(invoice.total)}</p>
-                          <p className="text-xs text-gray-500">
-                            ISV: {formatCurrency(invoice.tax)}
-                          </p>
                         </td>
                         <td className="py-3 px-4 text-center">
                           {getStatusBadge(invoice.status)}
@@ -409,7 +367,6 @@ export default function BillingPage() {
                               variant="ghost"
                               size="sm"
                               className="text-blue-600 hover:text-blue-800"
-                              onClick={() => router.push(`/support/billing/generate-invoice?edit=${invoice.id}`)}
                             >
                               <Eye className="w-4 h-4" />
                             </Button>
