@@ -123,17 +123,24 @@ export async function GET(req: NextRequest) {
     console.log('🔄 GET /api/admin/billing/invoices - Iniciando...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    let userRole = (sessionClaims?.metadata as any)?.role;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user if not in sessionClaims
     let email = '';
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Get role from Clerk metadata if not in sessionClaims
+        if (!userRole) {
+          userRole = user.publicMetadata?.role || 
+                     user.unsafeMetadata?.role || 
+                     (user.privateMetadata as any)?.role;
+        }
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
@@ -142,14 +149,14 @@ export async function GET(req: NextRequest) {
     // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
     const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
     if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado - role:', userRole);
+      console.log('❌ No autorizado - role:', userRole, 'email:', email);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
       );
     }
 
-    console.log('✅ Usuario autorizado:', email);
+    console.log('✅ Usuario autorizado:', email, 'role:', userRole);
 
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
@@ -205,17 +212,24 @@ export async function POST(req: NextRequest) {
     console.log('🔄 POST /api/admin/billing/invoices - Iniciando...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    let userRole = (sessionClaims?.metadata as any)?.role;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user if not in sessionClaims
     let email = '';
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Get role from Clerk metadata if not in sessionClaims
+        if (!userRole) {
+          userRole = user.publicMetadata?.role || 
+                     user.unsafeMetadata?.role || 
+                     (user.privateMetadata as any)?.role;
+        }
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
@@ -224,14 +238,14 @@ export async function POST(req: NextRequest) {
     // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
     const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
     if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado - role:', userRole);
+      console.log('❌ No autorizado - role:', userRole, 'email:', email);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
       );
     }
 
-    console.log('✅ Usuario autorizado:', email);
+    console.log('✅ Usuario autorizado:', email, 'role:', userRole);
 
     // Parse request body
     const invoiceData = await req.json();
@@ -311,17 +325,24 @@ export async function DELETE(req: NextRequest) {
     console.log('🔄 DELETE /api/admin/billing/invoices - Iniciando...');
     
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    let userRole = (sessionClaims?.metadata as any)?.role;
 
-    // Get email from Clerk user
+    // Get email and role from Clerk user if not in sessionClaims
     let email = '';
     if (userId) {
       try {
         const client = await clerkClient();
         const user = await client.users.getUser(userId);
         email = user.emailAddresses[0]?.emailAddress || '';
+        
+        // Get role from Clerk metadata if not in sessionClaims
+        if (!userRole) {
+          userRole = user.publicMetadata?.role || 
+                     user.unsafeMetadata?.role || 
+                     (user.privateMetadata as any)?.role;
+        }
       } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
+        console.error('Error getting user from Clerk:', error);
       }
     }
 
@@ -330,14 +351,14 @@ export async function DELETE(req: NextRequest) {
     // Permitir acceso a SUPER_ADMIN, SUPPORT, ADMIN (tenant admin), y MANAGER
     const allowedRoles = ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'];
     if (!userId || (!allowedRoles.includes(userRole as string) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado - role:', userRole);
+      console.log('❌ No autorizado - role:', userRole, 'email:', email);
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
       );
     }
 
-    console.log('✅ Usuario autorizado:', email);
+    console.log('✅ Usuario autorizado:', email, 'role:', userRole);
 
     // Parse request body
     const body = await req.json();
