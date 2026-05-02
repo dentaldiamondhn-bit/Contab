@@ -122,28 +122,34 @@ const managerNavigation: NavItem[] = [
 // Sidebar para SUPPORT
 const supportNavigation: NavItem[] = [
   {
+    name: 'Dashboard',
+    href: '/dashboard',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>`,
+    description: 'Ir al dashboard principal'
+  },
+  {
     name: 'Panel Soporte',
-    href: '/admin/dashboard',
+    href: '/support',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 5.636l-3.536 3.536m0 5.656l3.536 3.536M9.172 9.172L5.636 5.636m3.536 9.192L5.636 18.364M12 2.25a9.75 9.75 0 109.75 9.75 9.75 9.75 0 00-9.75-9.75z" /></svg>`,
     description: 'Panel de soporte técnico'
   },
   {
     name: 'Ver Usuarios',
-    href: '/admin/users',
+    href: '/support/users',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`,
     description: 'Ver información de usuarios (solo lectura)'
   },
   {
     name: 'Ver Tenants',
-    href: '/admin/tenants',
+    href: '/support/tenants',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
     description: 'Ver información de empresas (solo lectura)'
   },
   {
     name: 'Logs del Sistema',
-    href: '/admin/audit',
+    href: '/support/audit',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-    description: 'Ver logs y auditoría'
+    description: 'Ver logs de auditoría del sistema'
   },
   {
     name: 'Reportes de Soporte',
@@ -212,13 +218,6 @@ export default function RoleBasedSidebar() {
   const pathname = usePathname();
   const { user, isLoaded } = useUser();
 
-  const isActive = (href: string) => {
-    if (href === '/') {
-      return pathname === '/';
-    }
-    return pathname.startsWith(href);
-  };
-
   // Get navigation based on user role
   const getNavigationByRole = () => {
     if (!isLoaded || !user) return [];
@@ -231,16 +230,20 @@ export default function RoleBasedSidebar() {
     const email = user.primaryEmailAddress?.emailAddress;
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    // Si es el email de super admin, mostrar navegación de SUPER_ADMIN
+    // Si es el email de super admin o rol SUPER_ADMIN, mostrar navegación de SUPER_ADMIN
     if (isSuperAdminEmail || role === 'SUPER_ADMIN') {
       return superAdminNavigation;
     }
 
+    // Rol SUPPORT ve navegación de soporte (solo lectura)
+    if (role === 'SUPPORT') {
+      return supportNavigation;
+    }
+
     switch (role) {
       case 'SUPER_ADMIN':
-        return superAdminNavigation;
       case 'SUPPORT':
-        return supportNavigation;
+        return superAdminNavigation;
       case 'ADMIN':
         return adminNavigation;
       case 'MANAGER':
@@ -254,11 +257,31 @@ export default function RoleBasedSidebar() {
 
   const navigation = getNavigationByRole();
 
+  // isActive function to determine which menu item should be highlighted
+  const isActive = (href: string) => {
+    // Sort navigation by href length (longest first) to find most specific match
+    const sortedNavigation = [...navigation].sort((a, b) => b.href.length - a.href.length);
+    
+    // Find the most specific match in navigation
+    const activeItem = sortedNavigation.find(item => 
+      pathname === item.href || pathname.startsWith(item.href + '/')
+    );
+    
+    // Return true only if this href is the most specific match
+    return activeItem?.href === href;
+  };
+
+  // Determine if user is support role for theming
+  const userRole = user?.publicMetadata?.role || 
+                   user?.unsafeMetadata?.role ||
+                   (user as any)?.privateMetadata?.role;
+  const isSupport = userRole === 'SUPPORT';
+
   if (!isLoaded) {
     return (
       <div className="bg-white border-r border-gray-200 w-64 flex flex-col h-full">
         <div className="flex items-center justify-center h-full">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          <div className={`animate-spin rounded-full h-8 w-8 border-b-2 ${isSupport ? 'border-orange-600' : 'border-blue-600'}`}></div>
         </div>
       </div>
     );
@@ -271,7 +294,7 @@ export default function RoleBasedSidebar() {
       {/* Logo Section */}
       <div className="px-6 py-4 border-b border-gray-200 flex items-center">
         <Link href="/" className="flex items-center space-x-3">
-          <div className="flex-shrink-0 w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
+          <div className={`flex-shrink-0 w-10 h-10 ${isSupport ? 'bg-orange-600' : 'bg-blue-600'} rounded-lg flex items-center justify-center`}>
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
             </svg>
@@ -295,7 +318,9 @@ export default function RoleBasedSidebar() {
                 href={item.href}
                 className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   active
-                    ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                    ? isSupport 
+                      ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-600'
+                      : 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
                     : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
                 }`}
                 title={collapsed ? item.name : undefined}
@@ -303,7 +328,9 @@ export default function RoleBasedSidebar() {
                 <span
                   dangerouslySetInnerHTML={{ __html: item.icon }}
                   className={`flex-shrink-0 w-5 h-5 ${
-                    active ? 'text-blue-700' : 'text-gray-400 group-hover:text-gray-500'
+                    active 
+                      ? isSupport ? 'text-orange-700' : 'text-blue-700'
+                      : 'text-gray-400 group-hover:text-gray-500'
                   }`}
                 />
                 {!collapsed && (
@@ -311,7 +338,7 @@ export default function RoleBasedSidebar() {
                     <div className="flex items-center justify-between">
                       <span>{item.name}</span>
                       {item.badge && (
-                        <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                        <span className={`px-2 py-1 text-xs font-medium ${isSupport ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'} rounded-full`}>
                           {item.badge}
                         </span>
                       )}
@@ -334,14 +361,18 @@ export default function RoleBasedSidebar() {
                         href={child.href}
                         className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                           childActive
-                            ? 'bg-blue-50 text-blue-700'
+                            ? isSupport 
+                              ? 'bg-orange-50 text-orange-700'
+                              : 'bg-blue-50 text-blue-700'
                             : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                         }`}
                       >
                         <span
                           dangerouslySetInnerHTML={{ __html: child.icon }}
                           className={`flex-shrink-0 w-4 h-4 ${
-                            childActive ? 'text-blue-700' : 'text-gray-400 group-hover:text-gray-500'
+                            childActive 
+                              ? isSupport ? 'text-orange-700' : 'text-blue-700'
+                              : 'text-gray-400 group-hover:text-gray-500'
                           }`}
                         />
                         <div className="ml-3 flex-1">
