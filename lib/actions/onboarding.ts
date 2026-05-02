@@ -423,6 +423,10 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         tenant_id: tenantId,
         name: data.companyData.name,
         business_type: data.businessType,
+        rtn: data.companyData.rtn,
+        email: data.companyData.email,
+        address: data.companyData.address,
+        industry: data.companyData.industry,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])

@@ -1,58 +1,65 @@
 import { NextResponse } from 'next/server';
-
-const mockRevisionesLegales = [
-  {
-    id: '1',
-    categoria: 'arrendamiento',
-    titulo: 'Contrato de Arrendamiento - Consultorio Principal',
-    descripcion: 'Local comercial en Colonia Los Robles',
-    fechaVencimiento: '2026-12-31',
-    estado: 'proximo',
-    monto: 15000,
-    detalles: {
-      'Monto Alquiler': 'L 15,000.00',
-      'Ajuste Anual': '5%',
-      'Retención Aplicable': '10%',
-      'Depósito Garantía': 'L 45,000.00',
-      'Arrendador': 'Inmobiliaria Honduras S.A.'
-    }
-  },
-  {
-    id: '2',
-    categoria: 'seguro',
-    titulo: 'Póliza de Seguro - Responsabilidad Civil',
-    descripcion: 'Cobertura general para la clínica dental',
-    fechaVencimiento: '2026-06-15',
-    estado: 'proximo',
-    monto: 36000,
-    detalles: {
-      'Prima Anual': 'L 36,000.00',
-      'Forma de Pago': '12 cuotas mensuales',
-      'Cuota Mensual': 'L 3,000.00',
-      'Compañía': 'Seguros Atlántida S.A.'
-    },
-    contacto: {
-      nombre: 'Carlos Méndez',
-      telefono: '504-2234-5678',
-      email: 'carlos.mendez@segurosatlantida.hn'
-    }
-  },
-  {
-    id: '3',
-    categoria: 'licencia',
-    titulo: 'Permiso de Operación Municipal',
-    descripcion: 'Licencia de funcionamiento emitida por Alcaldía',
-    fechaVencimiento: '2026-12-31',
-    estado: 'proximo',
-    detalles: {
-      'Impuesto Municipal': 'L 8,000.00',
-      'Fecha Emisión': '2024-12-31',
-      'Número de Licencia': 'MUN-2024-12345'
-    }
-  }
-];
+import { supabase, setTenantContext } from '@/lib/supabase-db';
+import { auth } from '@clerk/nextjs/server';
 
 export async function GET() {
-  console.log('✅ API endpoint de revisiones legales funcionando');
-  return NextResponse.json(mockRevisionesLegales);
+  try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+    
+    // Obtener el tenant del usuario desde la tabla User
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('tenantid')
+      .eq('authid', userId)
+      .single();
+    
+    if (userError || !userData?.tenantid) {
+      return NextResponse.json({ companies: [] }, { status: 200 });
+    }
+    
+    // Set tenant context
+    await setTenantContext(userData.tenantid);
+    
+    // Obtener empresas del tenant actual
+    const { data: companies, error } = await supabase
+      .from('companies')
+      .select('*')
+      .eq('tenant_id', userData.tenantid)
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      console.error('Error fetching companies:', error);
+      return NextResponse.json({ error: 'Error al obtener empresas' }, { status: 500 });
+    }
+    
+    // Transformar campos de la BD al formato que espera el frontend
+    const transformedCompanies = (companies || []).map(company => ({
+      id: company.id,
+      business_name: company.name || company.business_name || 'Sin nombre',
+      business_rtn: company.rtn || company.business_rtn || '',
+      industry: company.industry || company.business_type || 'Sin industria',
+      regimen_tributario: company.regimen_tributario || 'Régimen General',
+      actividad_economica: company.actividad_economica || company.business_type || '',
+      direccion_fiscal: company.address || company.direccion_fiscal || company.business_address || '',
+      telefono_fiscal: company.phone || company.telefono_fiscal || company.contact_phone || '',
+      email_fiscal: company.email || company.email_fiscal || '',
+      is_active: company.is_active !== false, // default true unless explicitly false
+      created_at: company.created_at,
+      config_fiscal: company.config_fiscal || null,
+      _count: {
+        polizas: 0, // TODO: Calculate real counts
+        accounts: 0
+      }
+    }));
+    
+    return NextResponse.json({ companies: transformedCompanies });
+    
+  } catch (error) {
+    console.error('Error in companies API:', error);
+    return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+  }
 }
