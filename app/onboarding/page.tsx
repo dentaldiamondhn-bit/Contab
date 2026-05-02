@@ -76,6 +76,21 @@ interface BankAccount {
   currency: string;
 }
 
+interface Plan {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  unitPrice: number;
+  subtotal: number;
+  taxRate: number;
+  taxAmount: number;
+  total: number;
+  maxUsers: number;
+  features: string[];
+  isActive: boolean;
+}
+
 // Constants
 const userModes: UserMode[] = [
   {
@@ -138,10 +153,11 @@ const defaultAccounts: AccountCatalog[] = [
 
 const wizardSteps = [
   { id: 1, name: 'Datos Empresa', icon: <Building className="h-5 w-5" /> },
-  { id: 2, name: 'Catálogo Cuentas', icon: <BookOpen className="h-5 w-5" />, optional: true },
-  { id: 3, name: 'Imagen', icon: <ImageIcon className="h-5 w-5" /> },
-  { id: 4, name: 'Config. Ventas', icon: <ShoppingCart className="h-5 w-5" /> },
-  { id: 5, name: 'Cuentas Banco', icon: <Landmark className="h-5 w-5" /> }
+  { id: 2, name: 'Seleccionar Plan', icon: <Calculator className="h-5 w-5" /> },
+  { id: 3, name: 'Catálogo Cuentas', icon: <BookOpen className="h-5 w-5" />, optional: true },
+  { id: 4, name: 'Imagen', icon: <ImageIcon className="h-5 w-5" /> },
+  { id: 5, name: 'Config. Ventas', icon: <ShoppingCart className="h-5 w-5" /> },
+  { id: 6, name: 'Cuentas Banco', icon: <Landmark className="h-5 w-5" /> }
 ];
 
 export default function OnboardingPage() {
@@ -189,15 +205,25 @@ export default function OnboardingPage() {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
   const [newBankAccount, setNewBankAccount] = useState({ bankName: '', accountNumber: '', accountType: '', currency: 'HNL' });
   const [hasAccountant, setHasAccountant] = useState<boolean | null>(null);
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
 
-  // DEBUG: Disabled redirect for testing
-  // useEffect(() => {
-  //   const savedType = localStorage.getItem('businessType');
-  //   const savedMode = localStorage.getItem('userMode');
-  //   if (savedType && savedMode) {
-  //     router.push('/dashboard');
-  //   }
-  // }, [router]);
+  // Fetch plans from API
+  useEffect(() => {
+    const fetchPlans = async () => {
+      try {
+        const response = await fetch('/api/admin/plans-public');
+        if (response.ok) {
+          const data = await response.json();
+          setPlans(data.plans || []);
+        }
+      } catch (error) {
+        console.error('Error fetching plans:', error);
+      }
+    };
+    
+    fetchPlans();
+  }, []);
 
   const handleSelectMode = (mode: 'accountant' | 'business') => {
     setSelectedMode(mode);
@@ -239,30 +265,55 @@ export default function OnboardingPage() {
     // Save to database if business mode with data
     if (selectedMode === 'business' && companyData.name) {
       try {
-        await saveOnboardingData({
+        console.log('🔄 Iniciando guardado en base de datos...');
+        console.log('📊 Datos a guardar:', {
+          companyName: companyData.name,
+          businessType: selectedBusinessType,
+          selectedPlan: selectedPlan?.name,
+          bankAccountsCount: bankAccounts.length
+        });
+        
+        const result = await saveOnboardingData({
           companyData,
           bankAccounts,
           salesConfig,
-          businessType: selectedBusinessType || 'otro'
+          businessType: selectedBusinessType || 'otro',
+          selectedPlan
         });
+        
+        if (result.success) {
+          console.log('✅ Datos guardados exitosamente en la base de datos');
+          console.log('📊 Tenant ID:', result.tenantId);
+          console.log('📊 Company ID:', result.companyId);
+        } else {
+          console.log('⚠️ Onboarding completado con errores:', result.error);
+          console.log('🔄 Continuando al dashboard de todas formas...');
+        }
       } catch (error) {
-        console.error('Error saving to database:', error);
+        console.error('❌ Error saving to database:', error);
         // Continue even if database save fails - data is in localStorage
       }
     }
     
     await new Promise(resolve => setTimeout(resolve, 500));
     
-    if (selectedMode === 'accountant') {
-      router.push('/companies');
-    } else {
-      router.push('/dashboard');
-    }
+    // Redirigir al dashboard de admin después del onboarding
+    router.push('/admin/dashboard');
   };
 
   const handleAccountToggle = (index: number) => {
     const newAccounts = [...accounts];
     newAccounts[index].selected = !newAccounts[index].selected;
+    setAccounts(newAccounts);
+  };
+
+  const handleSelectAllAccounts = () => {
+    const newAccounts = accounts.map(account => ({ ...account, selected: true }));
+    setAccounts(newAccounts);
+  };
+
+  const handleDeselectAllAccounts = () => {
+    const newAccounts = accounts.map(account => ({ ...account, selected: false }));
     setAccounts(newAccounts);
   };
 
@@ -424,7 +475,7 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="mt-2 h-2 bg-gray-200 rounded-full">
-                <div className="h-2 bg-blue-600 rounded-full transition-all" style={{ width: `${(wizardStep / (hasAccountant === true ? 4 : 5)) * 100}%` }} />
+                <div className="h-2 bg-blue-600 rounded-full transition-all" style={{ width: `${(wizardStep / (hasAccountant === true ? 5 : 6)) * 100}%` }} />
               </div>
             </div>
 
@@ -520,14 +571,114 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 2: Account Catalog */}
+            {/* STEP 2: Plan Selection */}
             {wizardStep === 2 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2"><Calculator className="h-6 w-6" /> Seleccionar Plan</CardTitle>
+                  <CardDescription>Elige el plan que mejor se adapte a las necesidades de tu negocio</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
+                    {plans.map((plan) => (
+                      <div
+                        key={plan.id}
+                        className={`relative cursor-pointer rounded-lg border-2 p-6 transition-all ${
+                          selectedPlan?.id === plan.id
+                            ? 'border-blue-600 bg-blue-50 shadow-lg'
+                            : 'border-gray-200 hover:border-blue-300 hover:shadow-md'
+                        }`}
+                        onClick={() => setSelectedPlan(plan)}
+                      >
+                        {selectedPlan?.id === plan.id && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle className="h-6 w-6 text-blue-600" />
+                          </div>
+                        )}
+                        <div className="flex justify-between items-start mb-4">
+                          <div>
+                            <h3 className="text-lg font-semibold text-gray-900">{plan.name}</h3>
+                            <p className="text-sm text-gray-600 mt-1">{plan.description}</p>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-2xl font-bold text-gray-900">
+                              ${plan.total}
+                              <span className="text-sm text-gray-500 font-normal">/mes</span>
+                            </div>
+                            <p className="text-xs text-gray-500 mt-1">
+                              ${plan.unitPrice} + ${plan.taxAmount} ISV
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2 text-sm text-gray-600">
+                            <span className="font-medium">Usuarios:</span>
+                            <span className="bg-gray-100 px-2 py-1 rounded">{plan.maxUsers}</span>
+                          </div>
+                          
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 mb-2">Características:</p>
+                            <ul className="space-y-1">
+                              {plan.features.map((feature, idx) => (
+                                <li key={idx} className="flex items-center gap-2 text-sm text-gray-600">
+                                  <div className="w-1.5 h-1.5 bg-green-500 rounded-full"></div>
+                                  {feature}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-center gap-2">
+                      <Calculator className="h-5 w-5 text-blue-600" />
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium">Plan seleccionado: <span className="font-bold">{selectedPlan?.name || 'Ninguno'}</span></p>
+                        <p className="text-xs mt-1">Puedes cambiar de plan más tarde en la configuración de tu cuenta</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* STEP 3: Account Catalog */}
+            {wizardStep === 3 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><BookOpen className="h-6 w-6" /> Catálogo de Cuentas</CardTitle>
                   <CardDescription>Selecciona las cuentas contables que utilizará tu empresa</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  <div className="flex justify-between items-center mb-4">
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium">{accounts.filter(a => a.selected).length}</span> de {accounts.length} cuentas seleccionadas
+                    </p>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleSelectAllAccounts}
+                        disabled={accounts.every(a => a.selected)}
+                        className="text-xs"
+                      >
+                        Seleccionar Todas
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleDeselectAllAccounts}
+                        disabled={!accounts.some(a => a.selected)}
+                        className="text-xs"
+                      >
+                        Deseleccionar Todas
+                      </Button>
+                    </div>
+                  </div>
                   <div className="border rounded-lg overflow-hidden">
                     <table className="w-full text-sm">
                       <thead className="bg-gray-50">
@@ -552,13 +703,12 @@ export default function OnboardingPage() {
                       </tbody>
                     </table>
                   </div>
-                  <p className="text-sm text-gray-500 mt-2">{accounts.filter(a => a.selected).length} cuentas seleccionadas</p>
                 </CardContent>
               </Card>
             )}
 
-            {/* STEP 3: Company Image */}
-            {wizardStep === 3 && (
+            {/* STEP 4: Company Image */}
+            {wizardStep === 4 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ImageIcon className="h-6 w-6" /> Imagen de la Empresa</CardTitle>
@@ -590,8 +740,8 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 4: Sales Configuration */}
-            {wizardStep === 4 && (
+            {/* STEP 5: Sales Configuration */}
+            {wizardStep === 5 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-6 w-6" /> Configuración de Ventas</CardTitle>
@@ -703,8 +853,8 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 5: Bank Accounts */}
-            {wizardStep === 5 && (
+            {/* STEP 6: Bank Accounts */}
+            {wizardStep === 6 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Landmark className="h-6 w-6" /> Cuentas Bancarias</CardTitle>
@@ -793,9 +943,9 @@ export default function OnboardingPage() {
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => {
                 if (wizardStep > 1) {
-                  // Skip back from step 3 to step 1 if user has accountant (skip step 2)
-                  if (wizardStep === 3 && hasAccountant === true) {
-                    setWizardStep(1);
+                  // Skip back from step 4 to step 2 if user has accountant (skip step 3)
+                  if (wizardStep === 4 && hasAccountant === true) {
+                    setWizardStep(2);
                   } else {
                     setWizardStep(wizardStep - 1);
                   }
@@ -805,21 +955,21 @@ export default function OnboardingPage() {
               }}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> {wizardStep > 1 ? 'Anterior' : 'Volver'}
               </Button>
-              {wizardStep < (hasAccountant === true ? 4 : 5) ? (
+              {wizardStep < (hasAccountant === true ? 5 : 6) ? (
                 <Button 
                   onClick={() => {
-                    // Skip step 2 (account catalog) if user has accountant
-                    if (wizardStep === 1 && hasAccountant === true) {
-                      setWizardStep(3);
+                    // Skip step 3 (account catalog) if user has accountant
+                    if (wizardStep === 2 && hasAccountant === true) {
+                      setWizardStep(4);
                     } else {
                       setWizardStep(wizardStep + 1);
                     }
                   }}
-                  disabled={wizardStep === 1 && hasAccountant === null}
+                  disabled={(wizardStep === 1 && hasAccountant === null) || (wizardStep === 2 && !selectedPlan)}
                 >
                   Siguiente <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-              ) : wizardStep === (hasAccountant === true ? 4 : 5) ? (
+              ) : wizardStep === (hasAccountant === true ? 5 : 6) ? (
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleContinueFromWizard} disabled={isLoading}>
                     <SkipForward className="h-4 w-4 mr-2" /> Saltar y Finalizar
