@@ -119,8 +119,12 @@ export default function GenerateInvoicePage() {
       const response = await fetch('/api/admin/tenants');
       if (response.ok) {
         const data = await response.json();
+        // La API puede devolver { tenants: [...] } o un array directo
+        const tenantsData = data.tenants || data || [];
         // Filtrar solo tenants activos
-        const activeTenants = data.filter((t: Tenant) => t.isActive !== false);
+        const activeTenants = Array.isArray(tenantsData) 
+          ? tenantsData.filter((t: Tenant) => t.isActive !== false)
+          : [];
         setTenants(activeTenants);
         setError('');
       } else {
