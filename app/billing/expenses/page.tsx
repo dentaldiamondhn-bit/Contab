@@ -18,7 +18,8 @@ import {
   AlertCircle,
   Receipt,
   CreditCard,
-  ShoppingCart
+  ShoppingCart,
+  Trash2
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useTenant } from '@/lib/contexts/TenantContext';
@@ -89,6 +90,27 @@ export default function ExpensesPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('es-HN');
+  };
+
+  const handleDeleteInvoice = async (invoiceId: string) => {
+    if (!confirm('¿Está seguro de eliminar esta factura? Esta acción no se puede deshacer.')) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/billing/invoices?id=${invoiceId}`, {
+        method: 'DELETE'
+      });
+
+      if (response.ok) {
+        setInvoices(invoices.filter(inv => inv.id !== invoiceId));
+      } else {
+        throw new Error('Error al eliminar');
+      }
+    } catch (error) {
+      console.error('Error deleting invoice:', error);
+      alert('Error al eliminar la factura');
+    }
   };
 
   const getStatusBadge = (status: string) => {
@@ -372,6 +394,14 @@ export default function ExpensesPage() {
                               className="text-green-600 hover:text-green-800"
                             >
                               <Download className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="text-red-600 hover:text-red-800"
+                              onClick={() => handleDeleteInvoice(invoice.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
                             </Button>
                           </div>
                         </td>
