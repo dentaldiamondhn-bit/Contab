@@ -22,7 +22,9 @@ import {
   CheckCircle,
   RefreshCw,
   ArrowLeft,
-  Eye
+  Eye,
+  Building2,
+  ChevronDown
 } from 'lucide-react';
 import InvoicePreview from '@/components/billing/InvoicePreview';
 
@@ -71,37 +73,78 @@ interface CAIInfo {
   sequenceNumber?: number;
 }
 
+interface Tenant {
+  id: string;
+  businessName: string;
+  businessRTN: string;
+  businessEmail: string;
+  businessAddress: string;
+  tenantCode: string;
+  subscriptionPlans?: any[];
+  modules?: string[];
+  monthlyCost?: number;
+}
+
 export default function GenerateInvoicePage() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const tenantId = searchParams.get('tenantId');
+  const urlTenantId = searchParams.get('tenantId');
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [showPreview, setShowPreview] = useState(false);
   const [tenant, setTenant] = useState<any>(null);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [selectedTenantId, setSelectedTenantId] = useState<string>('');
   const [caiInfo, setCaiInfo] = useState<CAIInfo | null>(null);
   const [tenantPlans, setTenantPlans] = useState<InvoiceItem[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    if (!tenantId) {
-      setError('Tenant ID no proporcionado');
-      setLoading(false);
-      return;
+    if (urlTenantId) {
+      // Si viene tenantId en URL, usarlo directamente
+      setSelectedTenantId(urlTenantId);
+      fetchTenantData(urlTenantId);
+    } else {
+      // Si no hay tenantId, cargar lista de tenants para seleccionar
+      fetchTenants();
     }
+  }, [urlTenantId]);
 
-    fetchTenantData();
-  }, [tenantId]);
+  const fetchTenants = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('/api/admin/tenants');
+      if (response.ok) {
+        const data = await response.json();
+        // Filtrar solo tenants activos
+        const activeTenants = data.filter((t: Tenant) => t.isActive !== false);
+        setTenants(activeTenants);
+        setError('');
+      } else {
+        setError('Error al cargar lista de empresas');
+      }
+    } catch (error) {
+      console.error('Error fetching tenants:', error);
+      setError('Error al cargar empresas');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTenantSelect = (tenantId: string) => {
+    setSelectedTenantId(tenantId);
+    fetchTenantData(tenantId);
+  };
 
   const fetchCAIInfo = async () => {
-    if (!tenantId) return;
+    if (!selectedTenantId) return;
     
     console.log('🔄 Recargando información del CAI...');
     try {
-      const caiResponse = await fetch(`/api/admin/billing/cai/current?tenantId=${tenantId}`);
+      const caiResponse = await fetch(`/api/admin/billing/cai/current?tenantId=${selectedTenantId}`);
       console.log('CAI response status:', caiResponse.status);
       
       if (caiResponse.ok) {
@@ -130,13 +173,14 @@ export default function GenerateInvoicePage() {
     }
   };
 
-  const fetchTenantData = async () => {
+  const fetchTenantData = async (tenantIdToFetch: string) => {
     try {
-      console.log('Iniciando fetchTenantData para tenantId:', tenantId);
+      console.log('Iniciando fetchTenantData para tenantId:', tenantIdToFetch);
+      setLoading(true);
       
       // Obtener información del tenant (CRÍTICO - incluye subscriptionPlans)
       console.log('Obteniendo información del tenant...');
-      const tenantResponse = await fetch(`/api/admin/tenants/${tenantId}`);
+      const tenantResponse = await fetch(`/api/admin/tenants/${tenantIdToFetch}`);
       console.log('Tenant response status:', tenantResponse.status);
       
       if (tenantResponse.ok) {
@@ -230,7 +274,7 @@ export default function GenerateInvoicePage() {
       // Obtener información del CAI (NO CRÍTICO - si falla, continuamos sin CAI)
       console.log('Obteniendo información del CAI...');
       try {
-        const caiResponse = await fetch(`/api/admin/billing/cai/current?tenantId=${tenantId}`);
+        const caiResponse = await fetch(`/api/admin/billing/cai/current?tenantId=${tenantIdToFetch}`);
         console.log('CAI response status:', caiResponse.status);
         console.log('CAI response headers:', caiResponse.headers);
         
@@ -364,7 +408,7 @@ export default function GenerateInvoicePage() {
       // Crear objeto de factura con información fiscal completa
       const invoiceData = {
         // Información básica
-        tenantId,
+        tenantId: selectedTenantId,
         invoiceNumber,
         invoiceDate: new Date().toISOString(),
         
@@ -437,7 +481,7 @@ export default function GenerateInvoicePage() {
       
       // Redirigir a la página del tenant después de un breve delay
       setTimeout(() => {
-        router.push(`/admin/tenants/${tenantId}?tab=billing`);
+        router.push(`/admin/tenants/${selectedTenantId}?tab=billing`);
       }, 2000);
 
     } catch (err: any) {
@@ -466,6 +510,64 @@ export default function GenerateInvoicePage() {
     );
   }
 
+  // Si no hay tenant seleccionado, mostrar selector de tenants
+  if (!selectedTenantId && tenants.length > 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-8">
+        <div className="max-w-6xl mx-auto">
+          {/* Header */}
+          <div className="mb-8">
+            <button
+              onClick={() => router.push('/admin/tenants')}
+              className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Volver a Tenants
+            </button>
+            <h1 className="text-3xl font-bold text-gray-900">Generar Factura</h1>
+            <p className="text-gray-600 mt-2">Selecciona una empresa para generar la factura</p>
+          </div>
+
+          {/* Lista de Tenants */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {tenants.map((t) => (
+              <div
+                key={t.id}
+                onClick={() => handleTenantSelect(t.id)}
+                className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg hover:border-blue-500 border-2 border-transparent transition-all"
+              >
+                <div className="flex items-start gap-4">
+                  <div className="bg-blue-100 p-3 rounded-lg">
+                    <Building2 className="w-6 h-6 text-blue-600" />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="font-semibold text-gray-900">{t.businessName}</h3>
+                    <p className="text-sm text-gray-500">RTN: {t.businessRTN}</p>
+                    <p className="text-sm text-gray-500">{t.businessEmail}</p>
+                    <p className="text-sm text-gray-500 mt-1">Código: {t.tenantCode}</p>
+                    {t.monthlyCost && (
+                      <p className="text-sm font-medium text-blue-600 mt-2">
+                        Costo mensual: L {t.monthlyCost.toLocaleString()}
+                      </p>
+                    )}
+                  </div>
+                  <ChevronDown className="w-5 h-5 text-gray-400 rotate-[-90deg]" />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {tenants.length === 0 && (
+            <div className="text-center py-12">
+              <Building2 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">No hay empresas activas</p>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   const { subtotal, tax, total } = calculateTotals();
   console.log('🎯 Final totals to display:', { subtotal, tax, total });
 
@@ -475,7 +577,7 @@ export default function GenerateInvoicePage() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => router.push(`/admin/tenants/${tenantId}`)}
+            onClick={() => router.push(`/admin/tenants/${selectedTenantId}`)}
             className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
