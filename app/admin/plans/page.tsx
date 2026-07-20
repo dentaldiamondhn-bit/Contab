@@ -15,6 +15,14 @@ interface Plan {
   features: string[];
   modules: string[]; // Array de módulos predefinidos
   isActive: boolean;
+  tenantCount?: number;
+}
+
+interface TenantInfo {
+  id: string;
+  businessName: string;
+  tenantCode: string;
+  isActive: boolean;
 }
 
 interface Module {
@@ -40,6 +48,11 @@ export default function PlansPage() {
     itemsPerPage: 10,
   });
   const modalRef = useRef<HTMLDivElement>(null);
+  const [showTenantsModal, setShowTenantsModal] = useState(false);
+  const [tenantsModalPlanName, setTenantsModalPlanName] = useState("");
+  const [tenantsModalPlanCode, setTenantsModalPlanCode] = useState("");
+  const [tenantsList, setTenantsList] = useState<TenantInfo[]>([]);
+  const [loadingTenants, setLoadingTenants] = useState(false);
 
   const availableModules: Module[] = [
     { id: "accounting", name: "Contabilidad", description: "Gestión contable completa" },
@@ -251,6 +264,28 @@ export default function PlansPage() {
     }
   };
 
+  const handleShowTenants = async (plan: Plan) => {
+    setTenantsModalPlanName(plan.name);
+    setTenantsModalPlanCode(plan.code);
+    setShowTenantsModal(true);
+    setLoadingTenants(true);
+    setTenantsList([]);
+
+    try {
+      const res = await fetch(`/api/admin/plans?withTenants=true&planCode=${encodeURIComponent(plan.code)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTenantsList(data.tenants || []);
+      } else {
+        setError("Error al cargar los tenants del plan");
+      }
+    } catch (err) {
+      setError("Error de conexión al servidor");
+    } finally {
+      setLoadingTenants(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-7xl mx-auto">
@@ -276,11 +311,20 @@ export default function PlansPage() {
               <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-xl font-bold text-gray-900">{plan.name}</h3>
-                  <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
-                    plan.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                  }`}>
-                    {plan.isActive ? 'Activo' : 'Inactivo'}
-                  </span>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                      plan.isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
+                    }`}>
+                      {plan.isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                    <span
+                      className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                      onClick={() => handleShowTenants(plan)}
+                      title="Ver tenants"
+                    >
+                      {plan.tenantCount ?? 0} {(plan.tenantCount ?? 0) === 1 ? 'tenant' : 'tenants'}
+                    </span>
+                  </div>
                 </div>
                 
                 <div className="mb-4">
@@ -519,6 +563,61 @@ export default function PlansPage() {
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Modal de Tenants por Plan */}
+        {showTenantsModal && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[9999]">
+            <div className="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4 max-h-[80vh] overflow-y-auto relative">
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-bold text-gray-900">
+                    Tenants en {tenantsModalPlanName}
+                  </h2>
+                  <button
+                    onClick={() => setShowTenantsModal(false)}
+                    className="text-gray-400 hover:text-gray-600 text-2xl font-bold leading-none"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                {loadingTenants ? (
+                  <div className="flex items-center justify-center py-12">
+                    <svg className="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                ) : tenantsList.length === 0 ? (
+                  <p className="text-gray-500 text-center py-8">No hay tenants en este plan.</p>
+                ) : (
+                  <ul className="space-y-3">
+                    {tenantsList.map((tenant) => (
+                      <li
+                        key={tenant.id}
+                        className="flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:bg-gray-50"
+                      >
+                        <div>
+                          <p className="font-medium text-gray-900">{tenant.businessName}</p>
+                          <p className="text-sm text-gray-500">{tenant.tenantCode}</p>
+                        </div>
+                        <span
+                          className={`px-2 py-1 text-xs font-semibold rounded-full ${
+                            tenant.isActive
+                              ? 'bg-green-100 text-green-800'
+                              : 'bg-red-100 text-red-800'
+                          }`}
+                        >
+                          {tenant.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
               </div>
             </div>
           </div>

@@ -22,10 +22,30 @@ import { extractInvoiceFromImage } from '@/lib/services/ocr-service';
 import { ExtractedInvoiceData } from '@/lib/services/ocr-service';
 
 // Local synchronous helper functions
-function validateRTN(rtn: string): boolean {
-  if (!rtn) return false;
-  const cleanRTN = rtn.replace(/-/g, '');
-  return /^\d{14}$/.test(cleanRTN);
+function validateHonduranRTN(rtn: string): boolean {
+  if (!rtn) {
+    return false;
+  }
+
+  const cleanRTN = rtn.replace(/[^0-9]/g, ''); // Eliminar cualquier caracter no numérico
+
+  if (cleanRTN.length !== 14) {
+    return false;
+  }
+
+  const digits = cleanRTN.split('').map(Number);
+  const checkDigit = digits[13];
+
+  let sum = 0;
+  let weight = 2;
+  for (let i = 12; i >= 0; i--) {
+    sum += digits[i] * weight;
+    weight++;
+    if (weight > 9) weight = 2;
+  }
+  const remainder = sum % 11;
+  const calculatedCheckDigit = remainder === 0 ? 0 : 11 - remainder;
+  return calculatedCheckDigit === checkDigit;
 }
 
 function formatCurrency(amount: number, currency: string = 'L'): string {
@@ -257,8 +277,8 @@ export default function OCRInvoiceScanner({
                 <div>
                   <Label>RTN</Label>
                   <p className="font-medium">
-                    {ocrResult.supplierRTN}
-                    {validateRTN(ocrResult.supplierRTN) ? (
+                    {ocrResult.supplierRTN.replace(/[^0-9-]/g, '')}
+                    {validateHonduranRTN(ocrResult.supplierRTN) ? (
                       <CheckCircle className="w-4 h-4 text-green-600 inline ml-2" />
                     ) : (
                       <AlertCircle className="w-4 h-4 text-yellow-600 inline ml-2" />

@@ -18,6 +18,7 @@ import {
   AlertTriangle,
   Filter
 } from 'lucide-react';
+import { formatDateForDisplay } from '@/lib/date-utils';
 
 interface ComprobanteHistorico {
   id: string;
@@ -270,7 +271,7 @@ export default function HistoricoRetenciones({
                 {comprobantesFiltrados.map((comprobante) => (
                   <tr key={comprobante.id} className="hover:bg-gray-50">
                     <td className="py-3 px-4 font-mono text-xs">{comprobante.numero}</td>
-                    <td className="py-3 px-4">{comprobante.fecha}</td>
+                    <td className="py-3 px-4">{formatDateForDisplay(comprobante.fecha)}</td>
                     <td className="py-3 px-4">{comprobante.proveedor.nombre}</td>
                     <td className="py-3 px-4 font-mono text-xs">{comprobante.proveedor.rtn}</td>
                     <td className="py-3 px-4 text-right">L {comprobante.baseImponible.toFixed(2)}</td>

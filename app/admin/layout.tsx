@@ -1,106 +1,79 @@
 "use client";
 
-import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
-import RoleBasedSidebar from "@/components/RoleBasedSidebar";
+import { useEffect, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
-import { SidebarProvider } from "@/app/contexts/SidebarContext";
+import RoleBasedSidebar from "@/components/RoleBasedSidebar";
+import { TenantHeader } from "@/components/dashboard/TenantHeader";
+import { useAuthSession } from "@/hooks/use-auth-session";
 
 export default function AdminLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const { user, isLoaded } = useUser();
+  const { isLoaded, isLoading, isStaff } = useAuthSession();
   const router = useRouter();
-
-  console.log('AdminLayout - Component rendered, user:', !!user, 'isLoaded:', isLoaded);
+  const [mounted, setMounted] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (user) {
-      // Check multiple sources for role metadata
-      const userRole = user.publicMetadata?.role || 
-                       user.unsafeMetadata?.role ||
-                       (user as any).privateMetadata?.role;
-      
-      // Check if this is the specific SUPER_ADMIN email
-      const email = user.primaryEmailAddress?.emailAddress;
-      const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-      
-      console.log('AdminLayout - User check:', { email, userRole, isSuperAdminEmail });
-      
-      if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
-        console.log('AdminLayout - BLOCKING ACCESS: Not admin user');
-        router.replace('/dashboard');
-      } else {
-        console.log('AdminLayout - ALLOWING ACCESS: Admin user confirmed');
+    setMounted(true);
+  }, []);
+
+  useEffect(() => {
+    if (isLoaded && mounted) {
+      if (!isStaff) {
+        // Kill the redirect loop: if we are already on /admin, do NOT bounce
+        // back to /dashboard when the page hydrates and isStaff resolves as false
+        // because the SUPER_ADMIN email fallback hasn't been picked up yet.
+        const isImpersonatingCookie =
+          typeof document !== 'undefined' &&
+          document.cookie.includes('impersonated_tenant_id=');
+
+        // Only bounce if we are NOT already in impersonation / system mode.
+        if (!isImpersonatingCookie) {
+          console.warn('Access Denied: User is not staff. Redirecting...');
+          setIsRedirecting(true);
+          router.replace('/dashboard');
+        }
       }
     }
-  }, [user, router]);
+  }, [isLoaded, mounted, router, isStaff]);
 
-  // Show loading while user is not loaded
-  if (!isLoaded) {
-    console.log('AdminLayout - Showing loading, user not loaded yet');
+  // Pantalla de carga profesional
+  if (isLoading || !mounted || isRedirecting) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center justify-center min-h-screen bg-slate-900">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Verificando usuario...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-indigo-400 mx-auto mb-4"></div>
+          <p className="text-indigo-200 font-medium tracking-widest uppercase text-xs">Cargando Panel de Control...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
-    console.log('AdminLayout - No user found after loading');
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Usuario no encontrado...</p>
-        </div>
-      </div>
-    );
-  }
+  // Final security guard for rendering
+  if (!isStaff) return null;
 
-  // Check user role
-  const userRole = user.publicMetadata?.role || 
-                   user.unsafeMetadata?.role ||
-                   (user as any).privateMetadata?.role;
-  const email = user.primaryEmailAddress?.emailAddress;
-  const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-  
-  if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
-    console.log('AdminLayout - BLOCKING ACCESS: Not admin user');
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Acceso no autorizado...</p>
-        </div>
-      </div>
-    );
-  }
-
-  console.log('AdminLayout - Rendering children with RoleBasedSidebar');
-  
   return (
-    <SidebarProvider>
-      <div className="flex h-screen bg-gray-50">
-      {/* Admin Sidebar */}
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
+      {/* Sidebar en modo Sistema */}
       <RoleBasedSidebar />
-      
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto">
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header compartido que detectará automáticamente el Modo Sistema */}
+        <TenantHeader tenants={[]} />
+
+        {/* Contenido Administrativo */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
           <ErrorBoundary>
-            {children}
+            <div className="w-full">
+              {children}
+            </div>
           </ErrorBoundary>
         </main>
       </div>
     </div>
-    </SidebarProvider>
   );
 }

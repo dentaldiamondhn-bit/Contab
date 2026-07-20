@@ -11,6 +11,13 @@ export async function POST(
     const { userId, sessionClaims } = await auth();
     const { id } = await params;
 
+    if (!userId) {
+      return NextResponse.json(
+        { error: 'No autorizado' },
+        { status: 403 }
+      );
+    }
+
     // Get user from Clerk to check role
     let userRole: string | undefined;
     let email = '';
@@ -29,7 +36,7 @@ export async function POST(
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }

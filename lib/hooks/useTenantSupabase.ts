@@ -36,19 +36,29 @@ export function useTenantSupabase() {
   const [loading, setLoading] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
 
-  // Simular sesión (reemplazar con tu auth real)
-  useEffect(() => {
-    // Aquí deberías obtener la sesión real de tu auth system
-    // Por ahora, simulamos una sesión para pruebas
-    const mockSession: Session = {
-      user: {
-        id: 'user_001',
-        email: 'admin@empresa.com',
-        role: 'ADMIN'
-      }
-    };
-    setSession(mockSession);
-  }, []);
+  // Obtener sesión real del usuario
+   useEffect(() => {
+     const getSession = async () => {
+       try {
+         const response = await fetch('/api/auth/session');
+         if (response.ok) {
+           const data = await response.json();
+           if (data.user) {
+             setSession({
+               user: {
+                 id: data.user.id,
+                 email: data.user.email,
+                 role: data.user.role
+               }
+             });
+           }
+         }
+       } catch (error) {
+         console.error('Error getting session:', error);
+       }
+     };
+     getSession();
+   }, []);
 
   // Sincronizar tenant con el usuario autenticado
   useEffect(() => {

@@ -70,6 +70,8 @@ export default function BillingPage() {
       setLoading(true);
       setError('');
       
+      console.log('🔄 BillingPage - Fetching invoices for tenant:', currentTenant?.id);
+      
       // Llamar a la API con el tenantId del contexto - tipo CUSTOMER (facturas del tenant a clientes)
       const response = await fetch(`/api/admin/billing/invoices?tenantId=${currentTenant?.id || ''}&type=CUSTOMER`);
       
@@ -78,6 +80,9 @@ export default function BillingPage() {
       }
       
       const data = await response.json();
+      console.log('📊 BillingPage - Invoices received:', data.invoices?.length || 0);
+      console.log('📋 BillingPage - Invoice data:', data.invoices);
+      
       setInvoices(data.invoices || []);
     } catch (error: any) {
       console.error('Error fetching invoices:', error);

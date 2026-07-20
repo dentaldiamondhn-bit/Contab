@@ -11,6 +11,10 @@ import { AccountSelector } from "@/components/account-selector";
 import { Plus, Trash2, AlertCircle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 import { VOUCHER_TYPE_DESCRIPTIONS, VOUCHER_TYPES } from "@/lib/voucher-types";
+import { TrialGate } from "@/components/trial-gate";
+import { useTenant } from "@/lib/contexts/TenantContext";
+
+const TRIAL_TRANSACTION_LIMIT = 50;
 
 export function TransactionForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);

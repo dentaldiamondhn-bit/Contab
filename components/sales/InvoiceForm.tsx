@@ -18,6 +18,14 @@ import {
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { calculateTaxBreakdown, toCents } from "@/lib/accounting-utils";
 
+interface CustomTax {
+  id: string;
+  name: string;
+  rate: number;
+  enabled: boolean;
+  description?: string;
+}
+
 interface InvoiceFormProps {
   tenantId: string;
   onSuccess?: () => void;
@@ -75,6 +83,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
 
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [customTaxes, setCustomTaxes] = useState<CustomTax[]>([]);
   const [loading, setLoading] = useState(false);
   const [totals, setTotals] = useState({
     subtotal: 0,
@@ -88,6 +97,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
   useEffect(() => {
     loadCustomers();
     loadAccounts();
+    loadCustomTaxes();
   }, [tenantId]);
 
   // Calcular totales cuando cambian los items
@@ -122,14 +132,32 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
     if (data) setAccounts(data);
   };
 
+  const loadCustomTaxes = async () => {
+    try {
+      const response = await fetch('/api/taxes/custom');
+      if (response.ok) {
+        const { data } = await response.json();
+        if (data) {
+          const enabledTaxes = data.filter((tax: CustomTax) => tax.enabled);
+          setCustomTaxes(enabledTaxes);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading custom taxes:', error);
+    }
+  };
+
   const addItem = () => {
+    // Usar el primer impuesto personalizado disponible o 15% como defecto
+    const defaultTaxRate = customTaxes.length > 0 ? customTaxes[0].rate : 0.15;
+    
     setItems([...items, {
       id: crypto.randomUUID(),
       accountId: "",
       description: "",
       quantity: 1,
       unitPrice: 0,
-      taxRate: 0.15,
+      taxRate: defaultTaxRate,
       taxAmount: 0,
       totalAmount: 0
     }]);
@@ -144,12 +172,12 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
       if (item.id === id) {
         const updated = { ...item, [field]: value };
         
-        // Recalcular montos si cambia precio o cantidad
-        if (field === 'unitPrice' || field === 'quantity') {
-          const subtotal = updated.quantity * updated.unitPrice;
-          const taxBreakdown = calculateTaxBreakdown(toCents(subtotal), updated.taxRate as 0.15 | 0.18);
+        // Recalcular montos si cambia precio, cantidad o tasa de impuesto
+        if (field === 'unitPrice' || field === 'quantity' || field === 'taxRate') {
+          const itemSubtotal = updated.quantity * updated.unitPrice;
+          const taxBreakdown = calculateTaxBreakdown(toCents(itemSubtotal), updated.taxRate);
           updated.taxAmount = taxBreakdown.taxAmount;
-          updated.totalAmount = taxBreakdown.totalWithTax;
+          updated.totalAmount = toCents(itemSubtotal); // Total sin impuestos
         }
         
         return updated;
@@ -396,10 +424,10 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
                       Precio Unitario
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      ISV
+                      Total
                     </th>
                     <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Total
+                      Impuesto
                     </th>
                     <th className="px-4 py-2 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Acciones
@@ -454,11 +482,25 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
                           className="w-32"
                         />
                       </td>
-                      <td className="px-4 py-2 text-right">
-                        L. {(item.taxAmount / 100).toFixed(2)}
-                      </td>
                       <td className="px-4 py-2 text-right font-medium">
                         L. {(item.totalAmount / 100).toFixed(2)}
+                      </td>
+                      <td className="px-4 py-2">
+                        <Select
+                          value={item.taxRate.toString()}
+                          onValueChange={(value) => updateItem(item.id, 'taxRate', parseFloat(value))}
+                        >
+                          <SelectTrigger className="bg-white w-32">
+                            <SelectValue placeholder="Impuesto" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {customTaxes.map((tax) => (
+                              <SelectItem key={tax.id} value={tax.rate.toString()}>
+                                {tax.name} ({(tax.rate * 100).toFixed(1)}%)
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </td>
                       <td className="px-4 py-2 text-center">
                         <Button

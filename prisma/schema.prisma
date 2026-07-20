@@ -120,11 +120,12 @@ model CAI {
   id            String   @id @default(cuid())
   tenantId      String?  @map("tenant_id")
   cai           String   @unique
-  rangeStart    BigInt   @map("range_start")
-  rangeEnd      BigInt   @map("range_end")
+  rangeStart    BigInt   @map("start_number")
+  rangeEnd      BigInt   @map("end_number")
   currentNumber BigInt   @default(1) @map("current_number")
-  expiryDate    DateTime @map("expiry_date")
-  isActive      Boolean  @default(true) @map("is_active")
+  issueDate     DateTime @map("issue_date")
+  expiryDate    DateTime @map("expiration_date")
+  isActive      Boolean  @default(true) @map("status")
   createdAt     DateTime @default(now()) @map("created_at")
   updatedAt     DateTime @updatedAt @map("updated_at")
 
@@ -243,6 +244,8 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant    Tenant?  @relation(fields: [tenantId], references: [id])
+  sentMessages ChatMessage[] @relation("ChatMessageSender")
+  receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
 
   @@map("users")
 }
@@ -335,4 +338,39 @@ model InvoiceItem {
 
   @@index([invoiceId], map: "idx_invoiceitem_invoiceid")
   @@map("InvoiceItem")
+}
+
+model CompanyLogo {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  logoUrl     String   @map("logo_url")
+  logoName    String?  @map("logo_name")
+  logoSize    Int?     @map("logo_size")
+  logoType    String?  @map("logo_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId], map: "unique_tenant_logo")
+  @@index([tenantId], map: "idx_company_logos_tenant_id")
+  @@index([createdAt], map: "idx_company_logos_created_at")
+  @@map("company_logos")
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid())
+  senderId    String   @map("sender_id")
+  receiverId  String?  @map("receiver_id") // Null for broadcast messages to all tenants
+  message     String
+  isRead      Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  sender      User     @relation("ChatMessageSender", fields: [senderId], references: [id])
+  receiver    User?    @relation("ChatMessageReceiver", fields: [receiverId], references: [id])
+
+  @@index([senderId], map: "idx_chatmessage_sender")
+  @@index([receiverId], map: "idx_chatmessage_receiver")
+  @@index([createdAt], map: "idx_chatmessage_created")
+  @@map("chat_message")
 }

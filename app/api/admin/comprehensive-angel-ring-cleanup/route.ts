@@ -1,18 +1,24 @@
-import { NextResponse } from 'next/server';
+﻿import { NextResponse } from 'next/server';
 
 export async function POST(request: Request) {
   try {
-    console.log('🗑️ Starting COMPREHENSIVE Angel Ring cleanup...');
+    console.log('ðŸ—‘ï¸ Starting COMPREHENSIVE Angel Ring cleanup...');
     
     const { supabase } = await import('@/lib/supabase-db');
-    const cleanupResults = {
-      database: {},
-      verification: {},
-      summary: { totalDeleted: 0, errors: [] }
+    type DBResults = { tenants: any; users: any };
+    type VerificationResults = { tenants: number; users: number; companies: number; emails: number; totalRemaining: number };
+    type SummaryResults = { totalDeleted: number; errors: string[] };
+    type ClientCleanupResults = { localStorage: string[]; sessionStorage: string[]; cookies: string[]; cacheClear: boolean; hardRefresh: boolean };
+    type CleanupResults = { database: DBResults; verification: VerificationResults; summary: SummaryResults; clientCleanup: ClientCleanupResults; message: string };
+    const cleanupResults: CleanupResults = {
+      database: { tenants: {}, users: {} },
+      verification: { tenants: 0, users: 0, companies: 0, emails: 0, totalRemaining: 0 },
+      summary: { totalDeleted: 0, errors: [] },
+      clientCleanup: { localStorage: [], sessionStorage: [], cookies: [], cacheClear: false, hardRefresh: false },
+      message: ''
     };
-    
     // 1. DELETE TENANTS
-    console.log('🗄️ Step 1: Deleting Angel Ring tenants...');
+    console.log('ðŸ—„ï¸ Step 1: Deleting Angel Ring tenants...');
     try {
       const { data: tenants, error: searchError } = await supabase
         .from('Tenant')
@@ -25,7 +31,7 @@ export async function POST(request: Request) {
         const tenantIds = tenants.map(t => t.id);
         
         // Delete users first
-        const { error: usersError } = await supabase
+        const { error: usersError } = await (supabase as any)
           .from('User')
           .delete()
           .in('tenantid', tenantIds);
@@ -35,7 +41,7 @@ export async function POST(request: Request) {
         }
         
         // Delete companies
-        const { error: companiesError } = await supabase
+        const { error: companiesError } = await (supabase as any)
           .from('companies')
           .delete()
           .in('tenant_id', tenantIds);
@@ -45,7 +51,7 @@ export async function POST(request: Request) {
         }
         
         // Delete transactions
-        const { error: transactionsError } = await supabase
+        const { error: transactionsError } = await (supabase as any)
           .from('Transaction')
           .delete()
           .in('tenantId', tenantIds);
@@ -55,7 +61,7 @@ export async function POST(request: Request) {
         }
         
         // Delete accounts
-        const { error: accountsError } = await supabase
+        const { error: accountsError } = await (supabase as any)
           .from('Account')
           .delete()
           .in('tenantId', tenantIds);
@@ -65,7 +71,7 @@ export async function POST(request: Request) {
         }
         
         // Delete invoices
-        const { error: invoicesError } = await supabase
+        const { error: invoicesError } = await (supabase as any)
           .from('invoices')
           .delete()
           .in('tenant_id', tenantIds);
@@ -75,7 +81,7 @@ export async function POST(request: Request) {
         }
         
         // Finally delete tenants
-        const { error: deleteError } = await supabase
+        const { error: deleteError } = await (supabase as any)
           .from('Tenant')
           .delete()
           .in('id', tenantIds);
@@ -95,13 +101,13 @@ export async function POST(request: Request) {
         cleanupResults.database.tenants = { found: 0, deleted: 0 };
       }
     } catch (error) {
-      cleanupResults.summary.errors.push(`Tenant cleanup exception: ${error.message}`);
+      cleanupResults.summary.errors.push(`Tenant cleanup exception: ${String(error)}`);
     }
     
     // 2. DELETE USERS WITH ANGEL RING EMAILS
-    console.log('👥 Step 2: Deleting users with Angel Ring emails...');
+    console.log('ðŸ‘¥ Step 2: Deleting users with Angel Ring emails...');
     try {
-      const { data: users, error: usersSearchError } = await supabase
+      const { data: users, error: usersSearchError } = await (supabase as any)
         .from('User')
         .select('*')
         .ilike('email', '%scalix@contab.com%');
@@ -111,7 +117,7 @@ export async function POST(request: Request) {
       } else if (users && users.length > 0) {
         const userIds = users.map(u => u.id);
         
-        const { error: deleteUsersError } = await supabase
+        const { error: deleteUsersError } = await (supabase as any)
           .from('User')
           .delete()
           .in('id', userIds);
@@ -130,17 +136,17 @@ export async function POST(request: Request) {
         cleanupResults.database.users = { found: 0, deleted: 0 };
       }
     } catch (error) {
-      cleanupResults.summary.errors.push(`Users cleanup exception: ${error.message}`);
+      cleanupResults.summary.errors.push(`Users cleanup exception: ${String(error)}`);
     }
     
     // 3. VERIFICATION - Check for any remaining Angel Ring data
-    console.log('🔍 Step 3: Verifying complete deletion...');
+    console.log('ðŸ” Step 3: Verifying complete deletion...');
     try {
-      const checks = {
-        tenants: await supabase.from('Tenant').select('*').or('business_name.ilike.%Angel Ring%,businessname.ilike.%Angel Ring%'),
-        users: await supabase.from('User').select('*').ilike('email', '%scalix@contab.com%'),
-        companies: await supabase.from('companies').select('*').ilike('name,%Angel Ring%'),
-        emails: await supabase.from('Tenant').select('*').ilike('business_email,%scalix@contab.com%')
+      const checks: { tenants: any; users: any; companies: any; emails: any } = {
+        tenants: await (supabase as any).from('Tenant').select('*').or('business_name.ilike.%Angel Ring%,businessname.ilike.%Angel Ring%'),
+        users: await (supabase as any).from('User').select('*').ilike('email', '%scalix@contab.com%'),
+        companies: await (supabase as any).from('companies').select('*').ilike('name,%Angel Ring%'),
+        emails: await (supabase as any).from('Tenant').select('*').ilike('business_email,%scalix@contab.com%')
       };
       
       cleanupResults.verification = {
@@ -155,7 +161,7 @@ export async function POST(request: Request) {
         cleanupResults.summary.errors.push(`${cleanupResults.verification.totalRemaining} Angel Ring records still remain`);
       }
     } catch (error) {
-      cleanupResults.summary.errors.push(`Verification error: ${error.message}`);
+      cleanupResults.summary.errors.push(`Verification error: ${String(error)}`);
     }
     
     // 4. GENERATE CLIENT-SIDE CLEANUP INSTRUCTIONS
@@ -172,8 +178,8 @@ export async function POST(request: Request) {
     return NextResponse.json({
       success,
       message: success ? 
-        '✅ COMPREHENSIVE Angel Ring cleanup completed successfully' :
-        '⚠️ Angel Ring cleanup completed with issues',
+        'âœ… COMPREHENSIVE Angel Ring cleanup completed successfully' :
+        'âš ï¸ Angel Ring cleanup completed with issues',
       results: cleanupResults,
       nextSteps: [
         '1. Clear browser cache (Ctrl+F5)',
@@ -186,7 +192,7 @@ export async function POST(request: Request) {
     });
     
   } catch (error) {
-    console.error('❌ Comprehensive cleanup error:', error);
+    console.error('âŒ Comprehensive cleanup error:', error);
     return NextResponse.json({ 
       success: false, 
       error: 'Comprehensive cleanup failed', 

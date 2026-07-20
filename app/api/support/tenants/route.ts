@@ -1,49 +1,58 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { createServiceRoleClient } from '../../../../lib/supabase/service-role';
+import { getUserRoleFromAuth } from '../../../../lib/auth-server';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    // Get session and role for authorization
+    await auth();
+    const userRole = await getUserRoleFromAuth();
 
-    // Solo SUPER_ADMIN y SUPPORT pueden acceder
     if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    // Para SUPPORT, devolver información limitada de tenants
-    const tenants = await db.tenant.findMany({
-      select: {
-        id: true,
-        businessName: true,
-        tenantCode: true,
-        subscriptionPlan: true,
-        isActive: true,
-        createdAt: true,
-        _count: {
-          select: { 
-            users: {
-              where: { isActive: true }
-            }
-          }
-        }
-      },
-      orderBy: {
-        businessName: 'asc'
-      }
+    const supabase = createServiceRoleClient();
+
+    // Get tenants
+    const { data: tenants, error: tenantsError } = await supabase
+      .from('Tenant')
+      .select('id, business_rtn, business_email, business_address, phone_number, tenant_code, industry, max_users, is_configuration_complete, is_active')
+      .order('business_rtn', { ascending: true });
+
+    if (tenantsError) {
+      console.error('Error fetching tenants:', tenantsError);
+      return NextResponse.json(
+        { error: 'Error interno del servidor', details: tenantsError.message },
+        { status: 500 }
+      );
+    }
+
+    // Get user counts
+    const { data: userCounts, error: countError } = await supabase
+      .from('profiles')
+      .select('tenant_id')
+      .eq('is_active', true);
+
+    const userCountMap = new Map<string, number>();
+    userCounts?.forEach((u: any) => {
+      userCountMap.set(u.tenant_id, (userCountMap.get(u.tenant_id) || 0) + 1);
     });
 
-    // Formatear la respuesta
-    const formattedTenants = tenants.map(tenant => ({
-      id: tenant.id,
-      businessName: tenant.businessName,
-      tenantCode: tenant.tenantCode,
-      subscriptionPlan: tenant.subscriptionPlan,
-      isActive: tenant.isActive,
-      userCount: tenant._count.users,
-      createdAt: tenant.createdAt
-    }));
+     const formattedTenants = tenants?.map((tenant: any) => ({
+       id: tenant.id,
+       businessRTN: tenant.business_rtn,
+       businessEmail: tenant.business_email,
+       businessAddress: tenant.business_address,
+       phoneNumber: tenant.phone_number,
+       tenantCode: tenant.tenant_code,
+       industry: tenant.industry,
+       maxUsers: tenant.max_users,
+       userCount: userCountMap.get(tenant.id) || 0,
+       isConfigurationComplete: tenant.is_configuration_complete,
+       isActive: tenant.is_active
+     })) || [];
 
     return NextResponse.json({ 
       success: true,
@@ -61,10 +70,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
-    // Solo SUPER_ADMIN puede crear tenants
     if (userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
@@ -72,7 +80,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { businessName, businessRTN, businessEmail, businessAddress } = body;
 
-    // Validaciones básicas
     if (!businessName || !businessRTN || !businessEmail || !businessAddress) {
       return NextResponse.json(
         { error: 'Faltan datos requeridos' },
@@ -80,7 +87,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Generar código único
+    const supabase = createServiceRoleClient();
+
+    // Generate unique code
     const prefix = businessName
       .replace(/[^a-zA-Z]/g, '')
       .substring(0, 3)
@@ -88,38 +97,50 @@ export async function POST(req: NextRequest) {
     
     let counter = 1;
     let tenantCode = `${prefix}${counter.toString().padStart(3, '0')}`;
+    let codeExists = true;
 
-    // Verificar si el código ya existe
-    while (await db.tenant.findUnique({ where: { tenantCode } })) {
-      counter++;
-      tenantCode = `${prefix}${counter.toString().padStart(3, '0')}`;
+    while (codeExists) {
+      const { data } = await supabase
+        .from('Tenant')
+        .select('id')
+        .eq('tenant_code', tenantCode)
+        .single();
+      
+      if (data) {
+        counter++;
+        tenantCode = `${prefix}${counter.toString().padStart(3, '0')}`;
+      } else {
+        codeExists = false;
+      }
     }
 
-    // Crear tenant
-    const tenant = await db.tenant.create({
-      data: {
-        businessName,
-        businessRTN,
-        businessEmail,
-        businessAddress,
-        tenantCode,
+    // Create tenant
+    const { data: tenant, error } = await supabase
+      .from('Tenant')
+      .insert({
+        business_name: businessName,
+        business_rtn: businessRTN,
+        business_email: businessEmail,
+        business_address: businessAddress,
+        tenant_code: tenantCode,
         country: 'HN',
-        subscriptionPlan: 'BASIC',
-        maxUsers: 5,
-        maxStorage: 100,
-        maxTransactions: 10000,
-        monthlyCost: 1000,
-        isActive: true
-      },
-      select: {
-        id: true,
-        businessName: true,
-        tenantCode: true,
-        subscriptionPlan: true,
-        isActive: true,
-        createdAt: true
-      }
-    });
+        subscription_plans: 'BASIC',
+        max_users: 5,
+        max_storage: 100,
+        max_transactions: 10000,
+        monthly_cost: 1000,
+        is_active: true
+      })
+      .select('id, business_name, tenant_code, subscription_plans, is_active, created_at')
+      .single();
+
+    if (error) {
+      console.error('Error creando tenant:', error);
+      return NextResponse.json(
+        { error: 'Error creando tenant', details: error.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
@@ -128,14 +149,6 @@ export async function POST(req: NextRequest) {
 
   } catch (error: any) {
     console.error('Error creando tenant:', error);
-    
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'El RTN o email ya existe' },
-        { status: 409 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabase, getTenantUsers, createTenantUser, updateTenantUser, deleteTenantUser } from '@/lib/supabase-db';
 
@@ -44,12 +44,12 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({ error: 'Access denied to this tenant' }, { status: 403 });
       }
     } else if (accessError) {
-      console.error('❌ Error checking user access:', accessError);
+      console.error('âŒ Error checking user access:', accessError);
       return NextResponse.json({ error: 'Database error' }, { status: 500 });
     }
 
     // Get users for the tenant
-    let users = await getTenantUsers(tenantId);
+    let users: any[] = await getTenantUsers(tenantId);
 
     // Apply filters
     if (search) {
@@ -80,7 +80,7 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in GET /api/tenant/users:', error);
+    console.error('âŒ Error in GET /api/tenant/users:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -163,16 +163,14 @@ export async function POST(request: NextRequest) {
       });
 
       // Update user with Clerk ID
-      await supabase
-        .from('User')
+      await (supabase as any)        .from('User')
         .update({ authId: clerkUser.id })
         .eq('id', newUser.id);
 
     } catch (clerkError: any) {
-      console.error('❌ Error creating user in Clerk:', clerkError);
+      console.error('âŒ Error creating user in Clerk:', clerkError);
       // Rollback user creation
-      await supabase
-        .from('User')
+      await (supabase as any)        .from('User')
         .delete()
         .eq('id', newUser.id);
       
@@ -187,7 +185,7 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in POST /api/tenant/users:', error);
+    console.error('âŒ Error in POST /api/tenant/users:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -313,7 +311,7 @@ export async function PATCH(request: NextRequest) {
             }
           });
         } catch (clerkError) {
-          console.error('❌ Error updating user in Clerk:', clerkError);
+          console.error('âŒ Error updating user in Clerk:', clerkError);
         }
       }
 
@@ -327,7 +325,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
 
   } catch (error: any) {
-    console.error('❌ Error in PATCH /api/tenant/users:', error);
+    console.error('âŒ Error in PATCH /api/tenant/users:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
@@ -391,7 +389,7 @@ export async function DELETE(request: NextRequest) {
         await client.users.deleteUser(targetUser.authId);
       }
     } catch (clerkError) {
-      console.error('❌ Error deleting user from Clerk:', clerkError);
+      console.error('âŒ Error deleting user from Clerk:', clerkError);
     }
 
     return NextResponse.json({
@@ -400,7 +398,7 @@ export async function DELETE(request: NextRequest) {
     });
 
   } catch (error: any) {
-    console.error('❌ Error in DELETE /api/tenant/users:', error);
+    console.error('âŒ Error in DELETE /api/tenant/users:', error);
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

@@ -77,26 +77,47 @@ export default function TenantAdminDashboard() {
         maxUsers: 5,
       };
       localStorage.setItem('selected_tenant', JSON.stringify(reconstructedTenant));
-      window.location.reload();
+      // No hacer reload, dejar que el useEffect lo detecte automáticamente
     }
   }, []); // Empty dependency array - run once only
 
-  // Load stats when tenant becomes available
-  useEffect(() => {
-    if (!currentTenant || statsLoadedRef.current) return;
-    
-    statsLoadedRef.current = true;
-    
-    const mockStats: TenantStats = {
-      totalUsers: currentTenant.maxUsers || 5,
-      activeUsers: Math.floor(Math.random() * (currentTenant.maxUsers || 5)) + 1,
-      totalInvoices: Math.floor(Math.random() * 50) + 10,
-      monthlyRevenue: 500,
-      activeModules: []
-    };
-    setStats(mockStats);
-    setLoading(false);
-  }, [currentTenant]); // Only depends on currentTenant
+// Load stats when tenant becomes available
+   useEffect(() => {
+     if (!currentTenant || statsLoadedRef.current) return;
+     
+     statsLoadedRef.current = true;
+     
+     const loadStats = async () => {
+       try {
+         const response = await fetch(`/api/tenant/stats?tenantId=${currentTenant.id}`);
+         if (response.ok) {
+           const data = await response.json();
+           setStats(data.stats);
+         } else {
+           // Fallback to defaults if API fails
+           setStats({
+             totalUsers: currentTenant.maxUsers || 5,
+             activeUsers: currentTenant.maxUsers || 5,
+             totalInvoices: 0,
+             monthlyRevenue: currentTenant.monthlyCost || 0,
+             activeModules: []
+           });
+         }
+       } catch (error) {
+         console.error('Error loading stats:', error);
+         setStats({
+           totalUsers: currentTenant.maxUsers || 5,
+           activeUsers: currentTenant.maxUsers || 5,
+           totalInvoices: 0,
+           monthlyRevenue: currentTenant.monthlyCost || 0,
+           activeModules: []
+         });
+       }
+       setLoading(false);
+     };
+     
+     loadStats();
+   }, [currentTenant]);
 
   // Mostrar loading mientras se verifica el rol
   if (!isLoaded) {

@@ -1,9 +1,19 @@
-import { headers } from 'next/headers'
-import { supabase, getCurrentTenantFromHeaders, getCurrentUserFromHeaders } from './standard-client'
+﻿import { headers } from 'next/headers';
+import { supabase } from './standard-client';
 
 // Helper para obtener headers de la solicitud actual
 export async function getRequestHeaders(): Promise<Headers> {
-  return await headers()
+  return await headers();
+}
+
+// Reads x-tenant-id from the incoming request headers (server-side only).
+function getCurrentTenantFromHeaders(requestHeaders: Headers): string | null {
+  return requestHeaders.get('x-tenant-id');
+}
+
+// Reads x-user-id from the incoming request headers (server-side only).
+function getCurrentUserFromHeaders(requestHeaders: Headers): string | null {
+  return requestHeaders.get('x-user-id');
 }
 
 // Helper para crear un cliente con tenant filtering automático para Server Components
@@ -22,7 +32,7 @@ export async function createServerSupabaseClient() {
     ...supabase,
     from: (table: string) => {
       const query = supabase.from(table)
-      
+
       // Tablas multi-tenant que necesitan filtering
       const multiTenantTables = [
         'User', 'Account', 'Contacto', 'Transaction', 'JournalEntry',
@@ -36,7 +46,8 @@ export async function createServerSupabaseClient() {
       }
 
       return query
-    }
+    },
+    rpc: supabase.rpc.bind(supabase)
   }
 
   return client
@@ -55,4 +66,4 @@ export async function getCurrentUser(): Promise<string | null> {
 }
 
 // Helper simplificado para Server Components
-export const serverSupabase = await createServerSupabaseClient()
+export const serverSupabase = supabase

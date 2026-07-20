@@ -24,7 +24,11 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  Check
+  Check,
+  CreditCard,
+  Package,
+  DollarSign,
+  Calculator
 } from 'lucide-react';
 
 import InvoiceExample from '@/components/billing/InvoiceExample';
@@ -51,6 +55,31 @@ interface CaiConfig {
   isActive: boolean;
 }
 
+interface TaxConfig {
+  isv15Enabled: boolean;
+  isv18Enabled: boolean;
+  defaultTaxRate: number;
+  customTaxes: CustomTax[];
+}
+
+interface CustomTax {
+  id: string;
+  name: string;
+  rate: number;
+  enabled: boolean;
+  description?: string;
+}
+
+interface InvoiceItem {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  taxRate: number;
+  taxAmount: number;
+}
+
 export default function TenantSettingsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -70,6 +99,17 @@ export default function TenantSettingsPage() {
   const [caiConfigs, setCaiConfigs] = useState<CaiConfig[]>([]);
   const [showCaiForm, setShowCaiForm] = useState(false);
   const [editingCai, setEditingCai] = useState<CaiConfig | null>(null);
+  
+  const [taxConfig, setTaxConfig] = useState<TaxConfig>({
+    isv15Enabled: true,
+    isv18Enabled: true,
+    defaultTaxRate: 15,
+    customTaxes: []
+  });
+
+  // Invoice creation states
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
+  const [showInvoiceSection, setShowInvoiceSection] = useState(false);
 
   // Actividades económicas disponibles según SAR
   const economicActivities = [
@@ -99,6 +139,7 @@ export default function TenantSettingsPage() {
   const [fiscalInfoCollapsed, setFiscalInfoCollapsed] = useState(true);
   const [logoCollapsed, setLogoCollapsed] = useState(true);
   const [caiCollapsed, setCaiCollapsed] = useState(true);
+  const [taxCollapsed, setTaxCollapsed] = useState(true);
   const [previewCollapsed, setPreviewCollapsed] = useState(true);
 
   // Cargar datos cuando el componente se monta
@@ -106,17 +147,89 @@ export default function TenantSettingsPage() {
     loadCaiConfigs();
     loadFiscalInfo();
     loadLogoFromStorage();
+    loadTaxConfig();
   }, []);
 
-  const loadLogoFromStorage = () => {
+  const loadLogoFromStorage = async () => {
     try {
+      // Primero intentar cargar desde localStorage
       const savedLogo = localStorage.getItem('companyLogo');
       if (savedLogo) {
         setLogoPreview(savedLogo);
         console.log('🔍 Logo cargado desde localStorage');
+        return;
+      }
+
+      // Si no hay logo en localStorage, intentar cargar desde el servidor
+      try {
+        const response = await fetch('/api/billing/logo-get');
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.logoUrl) {
+            setLogoPreview(data.logoUrl);
+            localStorage.setItem('companyLogo', data.logoUrl);
+            console.log('🔍 Logo cargado desde servidor');
+          }
+        }
+      } catch (serverError) {
+        console.log('⚠️ No se pudo cargar logo desde servidor:', serverError);
       }
     } catch (error) {
-      console.error('Error cargando logo desde localStorage:', error);
+      console.error('Error cargando logo:', error);
+    }
+  };
+
+  const loadTaxConfig = async () => {
+    try {
+      // Cargar configuración estándar desde localStorage
+      const savedTaxConfig = localStorage.getItem('taxConfig');
+      let config;
+      
+      if (savedTaxConfig) {
+        config = JSON.parse(savedTaxConfig);
+        // Asegurar que customTaxes exista
+        if (!config.customTaxes) {
+          config.customTaxes = [];
+        }
+      } else {
+        // Configuración por defecto
+        config = {
+          isv15Enabled: true,
+          isv18Enabled: true,
+          defaultTaxRate: 15,
+          customTaxes: []
+        };
+      }
+
+      // Cargar impuestos personalizados desde la API
+      try {
+        const response = await fetch('/api/taxes/custom');
+        if (response.ok) {
+          const { data: customTaxes } = await response.json();
+          config.customTaxes = customTaxes || [];
+          console.log('🔍 Impuestos personalizados cargados desde API:', customTaxes);
+        } else {
+          console.log('⚠️ Error cargando impuestos personalizados desde API, usando localStorage');
+        }
+      } catch (apiError) {
+        console.log('⚠️ Error en API de impuestos personalizados, usando localStorage:', apiError);
+      }
+
+      // Guardar configuración combinada en localStorage
+      localStorage.setItem('taxConfig', JSON.stringify(config));
+      setTaxConfig(config);
+      console.log('� Configuración de impuestos cargada:', config);
+      
+    } catch (error) {
+      console.error('Error cargando configuración de impuestos:', error);
+      // En caso de error, establecer configuración por defecto
+      const defaultConfig = {
+        isv15Enabled: true,
+        isv18Enabled: true,
+        defaultTaxRate: 15,
+        customTaxes: []
+      };
+      setTaxConfig(defaultConfig);
     }
   };
 
@@ -161,7 +274,7 @@ export default function TenantSettingsPage() {
         const formData = new FormData();
         formData.append('logo', file);
 
-        const response = await fetch('/api/billing/logo', {
+        const response = await fetch('/api/billing/logo-upload', {
           method: 'POST',
           body: formData
         });
@@ -379,6 +492,203 @@ export default function TenantSettingsPage() {
     };
     
     saveCaiConfig(caiData);
+  };
+
+  const saveTaxConfig = () => {
+    try {
+      localStorage.setItem('taxConfig', JSON.stringify(taxConfig));
+      console.log('✅ Configuración de impuestos guardada:', taxConfig);
+      setMessage({ type: 'success', text: 'Configuración de impuestos guardada correctamente' });
+      setTimeout(() => setMessage(null), 3000);
+    } catch (error) {
+      console.error('Error guardando configuración de impuestos:', error);
+      setMessage({ type: 'error', text: 'Error al guardar la configuración de impuestos' });
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
+
+  const addCustomTax = async () => {
+    const newTax: CustomTax = {
+      id: Date.now().toString(),
+      name: 'Nuevo Impuesto',
+      rate: 15,
+      enabled: true,
+      description: 'Impuesto personalizado'
+    };
+    
+    try {
+      // Guardar en la base de datos
+      const response = await fetch('/api/taxes/custom', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newTax.name,
+          rate: newTax.rate,
+          description: newTax.description
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al crear impuesto');
+      }
+
+      const savedTax = await response.json();
+      
+      // Actualizar estado local
+      const newConfig = {
+        ...taxConfig,
+        customTaxes: [...(taxConfig.customTaxes || []), savedTax.data]
+      };
+      setTaxConfig(newConfig);
+      
+      // También guardar en localStorage como backup
+      localStorage.setItem('taxConfig', JSON.stringify(newConfig));
+      
+      console.log('✅ Nuevo impuesto agregado y guardado en BD:', savedTax.data);
+      
+      // Recargar la lista de impuestos desde la API para asegurar sincronización
+      setTimeout(async () => {
+        try {
+          const response = await fetch('/api/taxes/custom');
+          if (response.ok) {
+            const { data: customTaxes } = await response.json();
+            const updatedConfig = {
+              ...taxConfig,
+              customTaxes: customTaxes || []
+            };
+            setTaxConfig(updatedConfig);
+            localStorage.setItem('taxConfig', JSON.stringify(updatedConfig));
+            console.log('🔄 Lista de impuestos recargada desde API:', customTaxes);
+          }
+        } catch (error) {
+          console.log('⚠️ Error recargando lista de impuestos:', error);
+        }
+      }, 500);
+      setMessage({ type: 'success', text: 'Impuesto agregado correctamente' });
+      setTimeout(() => setMessage(null), 2000);
+    } catch (error) {
+      console.error('Error guardando nuevo impuesto:', error);
+      setMessage({ type: 'error', text: 'Error al guardar el impuesto' });
+      setTimeout(() => setMessage(null), 2000);
+    }
+  };
+
+  const updateCustomTax = async (id: string, field: keyof CustomTax, value: any) => {
+    try {
+      // Actualizar en la base de datos
+      const response = await fetch(`/api/taxes/custom?id=${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: id,  // Incluir el ID en el body
+          [field]: value
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al actualizar impuesto');
+      }
+
+      const updatedTax = await response.json();
+      
+      // Actualizar estado local
+      const newConfig = {
+        ...taxConfig,
+        customTaxes: (taxConfig.customTaxes || []).map(tax => 
+          tax.id === id ? { ...tax, [field]: value } : tax
+        )
+      };
+      setTaxConfig(newConfig);
+      
+      // También guardar en localStorage como backup
+      localStorage.setItem('taxConfig', JSON.stringify(newConfig));
+      
+      console.log('✅ Impuesto actualizado y guardado en BD:', updatedTax.data);
+      setMessage({ type: 'success', text: 'Impuesto actualizado correctamente' });
+      setTimeout(() => setMessage(null), 2000);
+    } catch (error) {
+      console.error('Error actualizando impuesto:', error);
+      setMessage({ type: 'error', text: 'Error al actualizar el impuesto' });
+      setTimeout(() => setMessage(null), 2000);
+    }
+  };
+
+  // Invoice functions
+  const addInvoiceItem = () => {
+    const defaultTaxRate = taxConfig.customTaxes.length > 0 ? taxConfig.customTaxes[0].rate : 0.15;
+    
+    const newItem: InvoiceItem = {
+      id: Date.now().toString(),
+      description: '',
+      quantity: 1,
+      unitPrice: 0,
+      total: 0,
+      taxRate: defaultTaxRate,
+      taxAmount: 0
+    };
+    setInvoiceItems([...invoiceItems, newItem]);
+  };
+
+  const removeInvoiceItem = (id: string) => {
+    setInvoiceItems(invoiceItems.filter(item => item.id !== id));
+  };
+
+  const updateInvoiceItem = (id: string, field: keyof InvoiceItem, value: any) => {
+    setInvoiceItems(invoiceItems.map(item => {
+      if (item.id === id) {
+        const updatedItem = { ...item, [field]: value };
+        
+        // Recalcular montos si cambia precio, cantidad o tasa de impuesto
+        if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate') {
+          const itemSubtotal = updatedItem.quantity * updatedItem.unitPrice;
+          updatedItem.taxAmount = itemSubtotal * updatedItem.taxRate;
+          updatedItem.total = itemSubtotal; // Total sin impuestos
+        }
+        
+        return updatedItem;
+      }
+      return item;
+    }));
+  };
+
+  const removeCustomTax = async (id: string) => {
+    if (!confirm('¿Está seguro de eliminar este impuesto personalizado?')) return;
+    
+    try {
+      // Eliminar de la base de datos
+      const response = await fetch(`/api/taxes/custom?id=${id}`, {
+        method: 'DELETE'
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al eliminar impuesto');
+      }
+
+      // Actualizar estado local
+      const newConfig = {
+        ...taxConfig,
+        customTaxes: (taxConfig.customTaxes || []).filter(tax => tax.id !== id)
+      };
+      setTaxConfig(newConfig);
+      
+      // También guardar en localStorage como backup
+      localStorage.setItem('taxConfig', JSON.stringify(newConfig));
+      
+      console.log('✅ Impuesto eliminado y guardado en BD:', id);
+      setMessage({ type: 'success', text: 'Impuesto eliminado correctamente' });
+      setTimeout(() => setMessage(null), 2000);
+    } catch (error) {
+      console.error('Error eliminando impuesto:', error);
+      setMessage({ type: 'error', text: 'Error al eliminar el impuesto' });
+      setTimeout(() => setMessage(null), 2000);
+    }
   };
 
   const handleEstablishConfiguration = async () => {
@@ -745,6 +1055,209 @@ export default function TenantSettingsPage() {
         )}
       </Card>
 
+      {/* Configuración de Impuestos */}
+      <Card>
+        <CardHeader 
+          className="cursor-pointer hover:bg-gray-50 transition-colors"
+          onClick={() => setTaxCollapsed(!taxCollapsed)}
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <CreditCard className="h-5 w-5" />
+                Configuración de Impuestos (ISV)
+              </CardTitle>
+              <CardDescription>
+                Habilita o deshabilita las tasas de Impuesto Sobre Ventas
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              {taxCollapsed ? (
+                <ChevronDown className="h-5 w-5 text-gray-500" />
+              ) : (
+                <ChevronUp className="h-5 w-5 text-gray-500" />
+              )}
+            </div>
+          </div>
+        </CardHeader>
+        {!taxCollapsed && (
+          <CardContent className="space-y-4">
+            <div className="space-y-6">
+              {/* Impuestos Estándar */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="isv15Enabled" className="text-sm font-medium">
+                      ISV 15%
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isv15Enabled"
+                        checked={taxConfig.isv15Enabled}
+                        onChange={(e) => setTaxConfig(prev => ({ 
+                          ...prev, 
+                          isv15Enabled: e.target.checked 
+                        }))}
+                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">
+                        {taxConfig.isv15Enabled ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Aplicable a productos y servicios básicos
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="isv18Enabled" className="text-sm font-medium">
+                      ISV 18%
+                    </Label>
+                    <div className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id="isv18Enabled"
+                        checked={taxConfig.isv18Enabled}
+                        onChange={(e) => setTaxConfig(prev => ({ 
+                          ...prev, 
+                          isv18Enabled: e.target.checked 
+                        }))}
+                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                      <span className="text-sm text-gray-600">
+                        {taxConfig.isv18Enabled ? 'Activo' : 'Inactivo'}
+                      </span>
+                    </div>
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Aplicable a licores, tabaco y servicios específicos
+                  </p>
+                </div>
+                
+                <div className="space-y-3">
+                  <Label htmlFor="defaultTaxRate" className="text-sm font-medium">
+                    Tasa por Defecto
+                  </Label>
+                  <select
+                    id="defaultTaxRate"
+                    value={taxConfig.defaultTaxRate}
+                    onChange={(e) => setTaxConfig(prev => ({ 
+                      ...prev, 
+                      defaultTaxRate: parseFloat(e.target.value) 
+                    }))}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                  >
+                    <option value={15}>15% ISV</option>
+                    <option value={18}>18% ISV</option>
+                    {(taxConfig.customTaxes || []).map(tax => (
+                      <option key={tax.id} value={tax.rate}>
+                        {tax.rate}% {tax.name}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Tasa que se aplicará por defecto en nuevas facturas
+                  </p>
+                </div>
+              </div>
+
+              {/* Impuestos Personalizados */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-medium">Impuestos Personalizados</h4>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={addCustomTax}
+                    className="bg-blue-600 hover:bg-blue-700"
+                  >
+                    <Plus className="h-3 w-3 mr-1" />
+                    Agregar Impuesto
+                  </Button>
+                </div>
+                
+                {(taxConfig.customTaxes || []).length > 0 ? (
+                  <div className="space-y-3">
+                    {(taxConfig.customTaxes || []).map((tax) => (
+                      <div key={tax.id} className="p-4 border border-gray-200 rounded-lg">
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div>
+                            <Label className="text-xs font-medium">Nombre</Label>
+                            <Input
+                              value={tax.name}
+                              onChange={(e) => updateCustomTax(tax.id, 'name', e.target.value)}
+                              placeholder="Ej: Impuesto Municipal"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">Tasa (%)</Label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={tax.rate}
+                              onChange={(e) => updateCustomTax(tax.id, 'rate', parseFloat(e.target.value) || 0)}
+                              placeholder="Ej: 2.5"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-xs font-medium">Descripción</Label>
+                            <Input
+                              value={tax.description || ''}
+                              onChange={(e) => updateCustomTax(tax.id, 'description', e.target.value)}
+                              placeholder="Descripción opcional"
+                              className="text-sm"
+                            />
+                          </div>
+                          <div className="flex items-end">
+                            <div className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={tax.enabled}
+                                onChange={(e) => updateCustomTax(tax.id, 'enabled', e.target.checked)}
+                                className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                              />
+                              <span className="text-sm text-gray-600">
+                                {tax.enabled ? 'Activo' : 'Inactivo'}
+                              </span>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => removeCustomTax(tax.id)}
+                              className="ml-auto"
+                            >
+                              <Trash2 className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p className="text-sm">No hay impuestos personalizados configurados</p>
+                    <p className="text-xs mt-1">Agrega impuestos personalizados para tipos específicos de tributos</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
+            <div className="flex justify-end pt-4 border-t">
+              <Button onClick={saveTaxConfig} className="bg-green-600 hover:bg-green-700">
+                <Save className="h-4 w-4 mr-2" />
+                Guardar Configuración de Impuestos
+              </Button>
+            </div>
+          </CardContent>
+        )}
+      </Card>
+
       {/* Configuración CAI */}
       <Card>
         <CardHeader 
@@ -1017,6 +1530,174 @@ export default function TenantSettingsPage() {
         </div>
       )}
 
+      {/* Invoice Creation Section */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Calculator className="h-5 w-5" />
+                Creación de Factura
+              </CardTitle>
+              <CardDescription>
+                Prueba la creación de facturas con la configuración actual
+              </CardDescription>
+            </div>
+            <Button
+              variant="outline"
+              onClick={() => setShowInvoiceSection(!showInvoiceSection)}
+            >
+              {showInvoiceSection ? 'Ocultar' : 'Mostrar'}
+            </Button>
+          </div>
+        </CardHeader>
+        {showInvoiceSection && (
+          <CardContent className="space-y-6">
+            {/* Calculate totals */}
+            {(() => {
+              const subtotal = invoiceItems.reduce((sum: number, item: InvoiceItem) => sum + item.total, 0);
+              const tax = invoiceItems.reduce((sum: number, item: InvoiceItem) => sum + item.taxAmount, 0);
+              const total = subtotal + tax;
+              
+              return (
+                <>
+                  {/* Invoice Items */}
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Items de Factura</h3>
+                      <Button onClick={addInvoiceItem} size="sm">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Agregar Item
+                      </Button>
+                    </div>
+                    
+                    {invoiceItems.length === 0 ? (
+                      <div className="text-center py-8 text-gray-500 border border-dashed border-gray-300 rounded-lg">
+                        <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                        <p>No hay items agregados</p>
+                        <p className="text-sm">Agrega items para crear una factura de prueba</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {invoiceItems.map((item, index) => (
+                          <div key={item.id} className="grid grid-cols-12 gap-4 p-4 border border-gray-200 rounded-lg">
+                            <div className="col-span-6">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Descripción
+                              </Label>
+                              <Input
+                                value={item.description}
+                                onChange={(e) => updateInvoiceItem(item.id, 'description', e.target.value)}
+                                placeholder="Descripción del servicio o producto"
+                                className="text-sm"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Cantidad
+                              </Label>
+                              <Input
+                                type="number"
+                                min="1"
+                                value={item.quantity}
+                                onChange={(e) => updateInvoiceItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
+                                placeholder="0"
+                                className="text-sm"
+                              />
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Precio Unitario
+                              </Label>
+                              <Input
+                                type="number"
+                                min="0"
+                                step="0.01"
+                                value={item.unitPrice}
+                                onChange={(e) => updateInvoiceItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
+                                placeholder="0.00"
+                                className="text-sm"
+                              />
+                            </div>
+                            <div className="col-span-1">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Total
+                              </Label>
+                              <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium">
+                                L. {item.total.toFixed(2)}
+                              </div>
+                            </div>
+                            <div className="col-span-2">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Impuesto
+                              </Label>
+                              <select
+                                value={item.taxRate}
+                                onChange={(e) => updateInvoiceItem(item.id, 'taxRate', parseFloat(e.target.value))}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                              >
+                                {taxConfig.customTaxes.map((tax) => (
+                                  <option key={tax.id} value={tax.rate}>
+                                    {tax.name} ({(tax.rate * 100).toFixed(1)}%)
+                                  </option>
+                                ))}
+                                <option value={0.15}>ISV 15%</option>
+                                <option value={0.18}>ISV 18%</option>
+                              </select>
+                            </div>
+                            <div className="col-span-1">
+                              <Label className="text-xs font-medium text-gray-500 mb-1">
+                                Acciones
+                              </Label>
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => removeInvoiceItem(item.id)}
+                                className="w-full"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Totals */}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Calculator className="w-5 h-5" />
+                        Totales
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="flex justify-end">
+                        <div className="w-full md:w-1/3">
+                          <div className="flex justify-between py-2">
+                            <span className="text-gray-600">Subtotal:</span>
+                            <span className="font-medium">L. {subtotal.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-2">
+                            <span className="text-gray-600">Impuestos:</span>
+                            <span className="font-medium">L. {tax.toFixed(2)}</span>
+                          </div>
+                          <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200">
+                            <span>Total:</span>
+                            <span>L. {total.toFixed(2)}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </>
+              );
+            })()}
+          </CardContent>
+        )}
+      </Card>
+
       {/* Vista Previa de Factura */}
       <Card>
         <CardHeader 
@@ -1048,6 +1729,7 @@ export default function TenantSettingsPage() {
             fiscalInfo={fiscalInfo}
             caiConfig={caiConfigs.length > 0 ? caiConfigs[0] : undefined}
             logoUrl={logoPreview || undefined}
+            invoiceItems={invoiceItems}
           />
         </CardContent>
         )}

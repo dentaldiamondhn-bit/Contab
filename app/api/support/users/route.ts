@@ -1,51 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
-    // Solo SUPER_ADMIN y SUPPORT pueden acceder
+    console.log('GET /support/users - userId:', userId, 'userRole:', userRole);
+
     if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    // Para SUPPORT, información básica de usuarios
-    const users = await db.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        tenant: {
-          select: {
-            businessName: true,
-            tenantCode: true
-          }
-        }
-      },
-      orderBy: {
-        createdAt: 'desc'
-      }
-    });
+    const supabase = createServiceRoleClient();
+    
+    // Get users with separate tenant query
+    const { data: users, error } = await supabase
+      .from('users')
+      .select('id, email, first_name, last_name, role, is_active, created_at, tenant_id')
+      .order('created_at', { ascending: false });
 
-    // Formatear la respuesta
-    const formattedUsers = users.map(user => ({
+    if (error) {
+      console.error('Error fetching users:', error);
+      return NextResponse.json(
+        { error: 'Error interno del servidor', details: error.message },
+        { status: 500 }
+      );
+    }
+
+    // Get tenant info separately
+    const tenantIds = [...new Set(users?.map(u => u.tenant_id).filter(Boolean) || [])];
+    let tenantMap = new Map();
+    
+    if (tenantIds.length > 0) {
+      const { data: tenants } = await supabase
+        .from('Tenant')
+        .select('id, business_name, tenant_code')
+        .in('id', tenantIds);
+      
+      if (tenants) {
+        tenants.forEach((t: any) => {
+          tenantMap.set(t.id, {
+            businessName: t.business_name,
+            tenantCode: t.tenant_code
+          });
+        });
+      }
+    }
+
+    const formattedUsers = users?.map((user: any) => ({
       id: user.id,
       email: user.email,
-      firstName: user.firstName,
-      lastName: user.lastName,
+      firstName: user.first_name,
+      lastName: user.last_name,
       role: user.role,
-      isActive: user.isActive,
-      tenantName: user.tenant?.businessName || 'Sin tenant',
-      tenantCode: user.tenant?.tenantCode || 'N/A',
-      createdAt: user.createdAt
-    }));
+      isActive: user.is_active,
+      tenantName: user.tenant_id ? (tenantMap.get(user.tenant_id)?.businessName || 'Sin tenant') : 'Sin tenant',
+      tenantCode: user.tenant_id ? (tenantMap.get(user.tenant_id)?.tenantCode || 'N/A') : 'N/A',
+      createdAt: user.created_at
+    })) || [];
 
     return NextResponse.json({ 
       success: true,
@@ -55,7 +70,7 @@ export async function GET(req: NextRequest) {
   } catch (error: any) {
     console.error('Error en API de support/users:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { error: 'Error interno del servidor', details: error.message },
       { status: 500 }
     );
   }
@@ -63,10 +78,9 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
-    // Solo SUPER_ADMIN puede crear usuarios
     if (userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
@@ -74,7 +88,6 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { email, firstName, lastName, role, tenantId, password } = body;
 
-    // Validaciones básicas
     if (!email || !role || !tenantId) {
       return NextResponse.json(
         { error: 'Faltan datos requeridos' },
@@ -82,20 +95,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verificar que el tenant exista
-    const tenant = await db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { id: true, businessName: true, tenantCode: true, isActive: true }
-    });
+    const supabase = createServiceRoleClient();
 
-    if (!tenant) {
+    // Verificar que el tenant exista
+    const { data: tenant, error: tenantError } = await supabase
+      .from('Tenant')
+      .select('id, isactive, maxusers')
+      .eq('id', tenantId)
+      .single();
+
+    if (tenantError || !tenant) {
       return NextResponse.json(
         { error: 'El tenant especificado no existe' },
         { status: 404 }
       );
     }
 
-    if (!tenant.isActive) {
+    if (!tenant.isactive) {
       return NextResponse.json(
         { error: 'El tenant especificado no está activo' },
         { status: 400 }
@@ -103,9 +119,11 @@ export async function POST(req: NextRequest) {
     }
 
     // Verificar que el email no exista
-    const existingUser = await db.user.findUnique({
-      where: { email }
-    });
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email)
+      .single();
 
     if (existingUser) {
       return NextResponse.json(
@@ -115,80 +133,70 @@ export async function POST(req: NextRequest) {
     }
 
     // Validar límite de usuarios del tenant
-    const currentUserCount = await db.user.count({
-      where: { 
-        tenantId: tenantId,
-        isActive: true 
-      }
-    });
+    const { count: currentUserCount, error: countError } = await supabase
+      .from('users')
+      .select('*', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId)
+      .eq('is_active', true);
 
-    const tenantDetails = await db.tenant.findUnique({
-      where: { id: tenantId },
-      select: { maxUsers: true }
-    });
-
-    if (currentUserCount >= (tenantDetails?.maxUsers || 5)) {
+    const maxUsers = tenant.maxusers || 5;
+    if ((currentUserCount || 0) >= maxUsers) {
       return NextResponse.json(
-        { error: `El tenant ha alcanzado su límite de ${tenantDetails?.maxUsers || 5} usuarios` },
+        { error: `El tenant ha alcanzado su límite de ${maxUsers} usuarios` },
         { status: 400 }
       );
     }
 
-    // Crear usuario en base de datos local
-    const newUser = await db.user.create({
-      data: {
+    // Crear usuario
+    const { data: newUser, error: createError } = await supabase
+      .from('users')
+      .insert({
         email,
-        firstName,
-        lastName,
+        first_name: firstName,
+        last_name: lastName,
         role,
-        tenantId,
-        isActive: true
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        tenant: {
-          select: {
-            businessName: true,
-            tenantCode: true
-          }
-        }
-      }
-    });
+        tenant_id: tenantId,
+        is_active: true
+      })
+      .select('id, email, first_name, last_name, role, is_active, created_at, tenant_id')
+      .single();
 
-    // TODO: Crear usuario en Clerk con metadata aislada
-    // Esto requeriría integración con Clerk SDK
+    if (createError) {
+      console.error('Error creando usuario:', createError);
+      return NextResponse.json(
+        { error: 'Error creando usuario', details: createError.message },
+        { status: 500 }
+      );
+    }
+
+    // Get tenant info
+    let tenantInfo = null;
+    if (newUser.tenant_id) {
+      const { data: t } = await supabase
+        .from('Tenant')
+        .select('business_name, tenant_code')
+        .eq('id', newUser.tenant_id)
+        .single();
+      tenantInfo = t;
+    }
 
     return NextResponse.json({
       success: true,
       user: {
         id: newUser.id,
         email: newUser.email,
-        firstName: newUser.firstName,
-        lastName: newUser.lastName,
+        firstName: newUser.first_name,
+        lastName: newUser.last_name,
         role: newUser.role,
-        isActive: newUser.isActive,
-        tenantName: newUser.tenant?.businessName,
-        tenantCode: newUser.tenant?.tenantCode,
-        createdAt: newUser.createdAt
+        isActive: newUser.is_active,
+        tenantName: tenantInfo?.business_name,
+        tenantCode: tenantInfo?.tenant_code,
+        createdAt: newUser.created_at
       }
     });
 
   } catch (error: any) {
     console.error('Error creando usuario:', error);
-    
-    if (error.code === 'P2002') {
-      return NextResponse.json(
-        { error: 'El email ya está registrado' },
-        { status: 409 }
-      );
-    }
-
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
@@ -198,10 +206,9 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
-    // Solo SUPER_ADMIN puede actualizar usuarios
     if (userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
@@ -216,13 +223,23 @@ export async function PUT(req: NextRequest) {
       );
     }
 
-    // No permitir modificar SUPER_ADMIN
-    const targetUser = await db.user.findUnique({
-      where: { id: targetUserId },
-      select: { role: true }
-    });
+    const supabase = createServiceRoleClient();
 
-    if (targetUser?.role === 'SUPER_ADMIN') {
+    // No permitir modificar SUPER_ADMIN
+    const { data: targetUser, error: checkError } = await supabase
+      .from('users')
+      .select('role')
+      .eq('id', targetUserId)
+      .single();
+
+    if (checkError || !targetUser) {
+      return NextResponse.json(
+        { error: 'Usuario no encontrado' },
+        { status: 404 }
+      );
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'No se puede modificar un SUPER_ADMIN' },
         { status: 403 }
@@ -230,27 +247,24 @@ export async function PUT(req: NextRequest) {
     }
 
     // Actualizar usuario
-    const updatedUser = await db.user.update({
-      where: { id: targetUserId },
-      data: {
-        ...(isActive !== undefined && { isActive }),
-        ...(role !== undefined && { role })
-      },
-      select: {
-        id: true,
-        email: true,
-        firstName: true,
-        lastName: true,
-        role: true,
-        isActive: true,
-        tenant: {
-          select: {
-            businessName: true,
-            tenantCode: true
-          }
-        }
-      }
-    });
+    const updateData: any = {};
+    if (isActive !== undefined) updateData.is_active = isActive;
+    if (role !== undefined) updateData.role = role;
+
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', targetUserId)
+      .select('id, email, first_name, last_name, role, is_active, tenant_id')
+      .single();
+
+    if (updateError) {
+      console.error('Error actualizando usuario:', updateError);
+      return NextResponse.json(
+        { error: 'Error actualizando usuario', details: updateError.message },
+        { status: 500 }
+      );
+    }
 
     return NextResponse.json({
       success: true,

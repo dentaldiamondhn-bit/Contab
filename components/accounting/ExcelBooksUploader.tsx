@@ -295,9 +295,6 @@ async function processEgresosPersonalizadoRow(
   tenantId: string, 
   supabase: any
 ) {
-  console.log("🔍 processEgresosPersonalizadoRow called");
-  // Establecer tenant para RLS
-  await supabase.rpc("set_tenant", { tenant_id: tenantId });
   
   // Función mejorada para encontrar valor por columna
   const getValue = (col: string) => {
@@ -509,9 +506,6 @@ async function processIngresosPersonalizadoRow(
   tenantId: string, 
   supabase: any
 ) {
-  console.log("🔍 processIngresosPersonalizadoRow called");
-  // Establecer tenant para RLS
-  await supabase.rpc("set_tenant", { tenant_id: tenantId });
   
   // Función mejorada para encontrar valor por columna
   const getValue = (col: string) => {

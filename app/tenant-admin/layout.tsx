@@ -6,6 +6,9 @@ import { useEffect, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { TenantProvider } from "@/lib/contexts/TenantContext";
+import Sidebar from "@/app/components/Sidebar";
+import Header from "@/app/components/Header";
 
 export default function TenantAdminLayout({
   children,
@@ -23,8 +26,8 @@ export default function TenantAdminLayout({
     if (user) {
       // Check multiple sources for role metadata
       const userRole = user.publicMetadata?.role ||
-                       user.unsafeMetadata?.role ||
-                       (user as any).privateMetadata?.role;
+                      user.unsafeMetadata?.role ||
+                      (user as any).privateMetadata?.role;
 
       // Check if this is the specific SUPER_ADMIN email
       const email = user.primaryEmailAddress?.emailAddress;
@@ -69,8 +72,8 @@ export default function TenantAdminLayout({
 
   // Check user role
   const userRole = user.publicMetadata?.role ||
-                   user.unsafeMetadata?.role ||
-                   (user as any).privateMetadata?.role;
+                  user.unsafeMetadata?.role ||
+                  (user as any).privateMetadata?.role;
   const email = user.primaryEmailAddress?.emailAddress;
   const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
@@ -80,56 +83,24 @@ export default function TenantAdminLayout({
     return null;
   }
 
-  console.log('TenantAdminLayout - Rendering children without SidebarProvider');
-  
+  console.log('TenantAdminLayout - Rendering children without TenantProvider');
+   
   return (
-    <div className="flex h-screen bg-gray-50">
-      {/* Main Content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Header */}
-        <header className="bg-white border-b border-gray-200 px-6 py-4 relative z-10">
-          <div className="flex items-center justify-between">
-            <div className="flex-1">
-              <h1 className="text-2xl font-bold text-gray-900">Panel de Administración</h1>
-              <p className="text-gray-600">
-                Gestión de <span className="font-medium">{currentTenant?.businessName || 'Empresa'}</span>
-              </p>
-              {currentTenant?.businessRTN && (
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge variant="outline" className="text-xs">
-                    RTN: {currentTenant.businessRTN}
-                  </Badge>
-                  {currentTenant.businessAddress && (
-                    <Badge variant="secondary" className="text-xs">
-                      {currentTenant.businessAddress}
-                    </Badge>
-                  )}
-                  <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                    Admin Activo
-                  </Badge>
-                </div>
-              )}
-            </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-sm text-gray-600">
-                {user.primaryEmailAddress?.emailAddress}
-              </span>
-              <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white text-sm font-medium">
-                  {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
-                </span>
-              </div>
-            </div>
-          </div>
-        </header>
-        
-        {/* Page Content */}
-        <main className="flex-1 overflow-auto">
-          <ErrorBoundary>
-            {children}
-          </ErrorBoundary>
-        </main>
+    <TenantProvider>
+      <div className="flex h-screen bg-gray-50">
+        {/* Sidebar */}
+        <Sidebar />
+        {/* Main Content */}
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Header */}
+          <Header tenants={[]} />
+          <main className="flex-1 overflow-auto">
+            <ErrorBoundary>
+              {children}
+            </ErrorBoundary>
+          </main>
+        </div>
       </div>
-    </div>
+    </TenantProvider>
   );
 }

@@ -26,7 +26,8 @@ import {
   ClipboardList,
   Lock,
   Cog,
-  ExternalLink
+  ExternalLink,
+  RefreshCw
 } from 'lucide-react';
 
 interface Company {
@@ -134,6 +135,16 @@ const modules = [
     color: 'text-gray-600',
     bgColor: 'bg-gray-50',
     path: '/other-features',
+    status: 'active'
+  },
+  {
+    id: 'tax-integration',
+    title: '📊 Integración Fiscal',
+    description: 'Envío automático de declaraciones al SAR.',
+    icon: RefreshCw,
+    color: 'text-orange-600',
+    bgColor: 'bg-orange-50',
+    path: '/tax-integration',
     status: 'active'
   }
 ];

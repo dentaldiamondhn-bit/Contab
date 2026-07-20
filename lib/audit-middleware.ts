@@ -1,6 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { createAuditLog } from './services/audit-service';
-import { db } from './db';
+import { createAuditLog } from './services/audit-service'; // Now imports from the service
 
 export interface AuditContext {
   userId?: string;
@@ -77,179 +76,103 @@ function cleanData(data: any): any {
 /**
  * Prisma middleware for audit logging
  */
-export const auditMiddleware = async (params: any, next: any) => {
-  const { model, action, args, data } = params;
-  
-  // Only audit Transaction and JournalEntry models
-  if (model !== 'Transaction' && model !== 'JournalEntry') {
-    return next(params);
-  }
+export const auditExtension = Prisma.defineExtension((client) => {
+  return client.$extends({
+    query: {
+      async $allOperations({ model, operation, args, query }) {
+        // Only audit Transaction and JournalEntry models
+        if (model !== 'Transaction' && model !== 'JournalEntry') {
+          return query(args); // Continue with the original query
+        }
 
-  const tableName = model.toLowerCase();
-  let result;
+        const auditContext = getAuditContext(); // Get context from global store
+        if (!auditContext.userId) {
+          console.warn(`Audit: No userId in context for ${operation} on ${model}. Skipping audit log.`);
+          return query(args);
+        }
 
-  try {
-    switch (action) {
-      case 'create':
-        // Handle create operations
-        result = await next(params);
-        
-        // Log the creation
-        if (result && Array.isArray(result)) {
-          // Bulk create - log each record
-          for (const record of result) {
-            await createAuditLog({
-              tableName,
-              recordId: record.id,
-              action: 'CREATE',
-              newValues: cleanData(record),
-            });
+        const tableName = model.toLowerCase();
+        let result;
+        let oldData: any;
+        let dataToDelete: any;
+
+        try {
+          switch (operation) {
+            case 'create':
+              result = await query(args);
+              if (result) {
+                const records = Array.isArray(result) ? result : [result];
+                for (const record of records) {
+                  await createAuditLog(client as any, { // Pass client to createAuditLog
+                    tableName,
+                    recordId: record.id,
+                    action: 'CREATE',
+                    newValues: cleanData(record),
+                    userId: auditContext.userId,
+                    userAgent: auditContext.userAgent,
+                    ipAddress: auditContext.ipAddress,
+                  });
+                }
+              }
+              break;
+
+            case 'update':
+            case 'updateMany': // Handle updateMany as well
+              // Need to fetch old data before the update
+              if (args.where && (args.where.id || (args.where as any)?.id)) {
+                const recordId = args.where.id || (args.where as any)?.id;
+                oldData = await (client as any)[tableName].findUnique({ where: { id: recordId } });
+              }
+              result = await query(args); // Perform the update
+              if (oldData && result) {
+                const changedFields = getChangedFields(oldData, result);
+                if (changedFields.length > 0) {
+                  await createAuditLog(client as any, { // Pass client to createAuditLog
+                    tableName,
+                    recordId: result.id,
+                    action: 'UPDATE',
+                    oldValues: cleanData(oldData),
+                    newValues: cleanData(result),
+                    changedFields,
+                    userId: auditContext.userId,
+                    userAgent: auditContext.userAgent,
+                    ipAddress: auditContext.ipAddress,
+                  });
+                }
+              }
+              break;
+
+            case 'delete':
+            case 'deleteMany': // Handle deleteMany as well
+              // Need to fetch data before deletion
+              if (args.where && (args.where.id || (args.where as any)?.id)) {
+                const recordId = args.where.id || (args.where as any)?.id;
+                dataToDelete = await (client as any)[tableName].findUnique({ where: { id: recordId } });
+              }
+              result = await query(args); // Perform the deletion
+              if (dataToDelete) {
+                await createAuditLog(client as any, { // Pass client to createAuditLog
+                  tableName,
+                  recordId: dataToDelete.id,
+                  action: 'DELETE',
+                  oldValues: cleanData(dataToDelete),
+                  userId: auditContext.userId,
+                  userAgent: auditContext.userAgent,
+                  ipAddress: auditContext.ipAddress,
+                });
+              }
+              break;
+
+            default:
+              result = await query(args);
+              break;
           }
-        } else if (result) {
-          // Single create
-          await createAuditLog({
-            tableName,
-            recordId: result.id,
-            action: 'CREATE',
-            newValues: cleanData(result),
-          });
+          return result;
+        } catch (error) {
+          console.error(`Audit extension error for ${operation} on ${model}:`, error);
+          throw error;
         }
-        break;
-
-      case 'update':
-        // Get old data before update
-        let oldData;
-        if (args.where && (args.where.id || (args.where as any)?.id)) {
-          const recordId = args.where.id || (args.where as any)?.id;
-          oldData = await (db as any)[model.toLowerCase()].findUnique({
-            where: { id: recordId },
-          });
-        }
-
-        // Perform the update
-        result = await next(params);
-
-        // Log the update
-        if (oldData && result) {
-          const changedFields = getChangedFields(oldData, result);
-          
-          if (changedFields.length > 0) {
-            await createAuditLog({
-              tableName,
-              recordId: result.id,
-              action: 'UPDATE',
-              oldValues: cleanData(oldData),
-              newValues: cleanData(result),
-              changedFields,
-            });
-          }
-        }
-        break;
-
-      case 'delete':
-        // Get data before deletion
-        let dataToDelete;
-        if (args.where && (args.where.id || (args.where as any)?.id)) {
-          const recordId = args.where.id || (args.where as any)?.id;
-          dataToDelete = await (db as any)[model.toLowerCase()].findUnique({
-            where: { id: recordId },
-          });
-        }
-
-        // Perform the deletion
-        result = await next(params);
-
-        // Log the deletion
-        if (dataToDelete) {
-          await createAuditLog({
-            tableName,
-            recordId: dataToDelete.id,
-            action: 'DELETE',
-            oldValues: cleanData(dataToDelete),
-          });
-        }
-        break;
-
-      default:
-        // For other actions (find, etc.), just proceed
-        result = await next(params);
-        break;
-    }
-
-    return result;
-  } catch (error) {
-    // Log the error and re-throw
-    console.error(`Audit middleware error for ${action} on ${model}:`, error);
-    throw error;
-  }
-};
-
-/**
- * Helper function to get audit logs for a specific record
- */
-export async function getAuditLogs(
-  tableName: string,
-  recordId: string,
-  limit: number = 50
-) {
-  return await (db as any).auditLog.findMany({
-    where: {
-      tableName,
-      recordId,
-    },
-    orderBy: {
-      timestamp: 'desc',
-    },
-    take: limit,
-  });
-}
-
-/**
- * Helper function to get audit logs for a user
- */
-export async function getUserAuditLogs(
-  userId: string,
-  limit: number = 100
-) {
-  return await (db as any).auditLog.findMany({
-    where: {
-      userId,
-    },
-    orderBy: {
-      timestamp: 'desc',
-    },
-    take: limit,
-  });
-}
-
-/**
- * Helper function to get all audit logs with pagination
- */
-export async function getAllAuditLogs(
-  page: number = 1,
-  limit: number = 50,
-  tableName?: string
-) {
-  const skip = (page - 1) * limit;
-  
-  const where = tableName ? { tableName } : {};
-  
-  const [logs, total] = await Promise.all([
-    (db as any).auditLog.findMany({
-      where,
-      orderBy: {
-        timestamp: 'desc',
       },
-      skip,
-      take: limit,
-    }),
-    (db as any).auditLog.count({ where }),
-  ]);
-
-  return {
-    logs,
-    total,
-    page,
-    totalPages: Math.ceil(total / limit),
-  };
-}
+    },
+  });
+});

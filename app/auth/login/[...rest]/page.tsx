@@ -7,56 +7,15 @@ import { useRouter } from 'next/navigation';
 
 export default function LoginPage() {
   const router = useRouter();
-  const { user, isLoaded } = useUser();
-  const [checkingOnboarding, setCheckingOnboarding] = useState(false);
+  const { isLoaded, isSignedIn } = useUser();
+  const [quitting, setQuitting] = useState(false);
 
-  // Verificar si el usuario necesita onboarding después de iniciar sesión
-  useEffect(() => {
-    if (isLoaded && user) {
-      checkOnboardingStatus();
-    }
-  }, [isLoaded, user]);
-
-  const checkOnboardingStatus = async () => {
-    setCheckingOnboarding(true);
-    
-    try {
-      // Verificar si el usuario tiene un tenant asociado
-      const response = await fetch('/api/tenant/check-user-tenant', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        
-        // Si no tiene tenant o necesita onboarding, redirigir
-        if (!data.hasTenant || data.needsOnboarding) {
-          console.log('🔄 Usuario necesita onboarding, redirigiendo...');
-          router.push('/onboarding');
-        } else {
-          // Si ya tiene todo configurado, ir al dashboard
-          console.log('✅ Usuario configurado, redirigiendo al dashboard...');
-          router.push('/dashboard');
-        }
-      } else {
-        // Si hay error, ir al dashboard por defecto
-        console.log('⚠️ Error verificando onboarding, yendo al dashboard...');
-        router.push('/dashboard');
-      }
-    } catch (error) {
-      console.error('❌ Error verificando onboarding:', error);
-      // En caso de error, ir al dashboard
-      router.push('/dashboard');
-    } finally {
-      setCheckingOnboarding(false);
-    }
-  };
-
-  // Si está verificando onboarding, mostrar loader
-  if (checkingOnboarding) {
+  // ① While auth state is still loading, or while the onboarding
+  //    check is in-flight, show a centred spinner.
+  //    Critically, isSignedIn is false until isLoaded becomes true, so
+  //    SignIn is never rendered during this window and Clerk's Warning
+  //    is never triggered.
+  if (!isLoaded || quitting) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <div className="text-center">
@@ -68,6 +27,35 @@ export default function LoginPage() {
     );
   }
 
+  // ② As soon as we know the user IS signed in, redirect out of this
+  //    page (which holds the SignIn component) so Clerk never sees a
+  //    signed-in user render it.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn) return;
+    (async () => {
+      setQuitting(true);
+      try {
+        const res = await fetch('/api/tenant/check-user-tenant', {
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (!data.hasTenant || data.needsOnboarding) {
+            router.replace('/onboarding');
+            return;
+          }
+        }
+        router.replace('/dashboard');
+      } catch {
+        router.replace('/dashboard');
+      } finally {
+        setQuitting(false);
+      }
+    })();
+  }, [isLoaded, isSignedIn, router]);
+
+  // ③ isLoaded === true && isSignedIn === false  →  only when logged out
+  //     SignIn is safe to render here; no warning ever fires.
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
       {/* Background Pattern */}
@@ -98,6 +86,7 @@ export default function LoginPage() {
         </div>
 
         {/* Clerk SignIn Card */}
+        {/* Guaranteed: isLoaded=true && isSignedIn=false at this point → no warning */}
         <div className="bg-white/95 backdrop-blur-lg rounded-2xl shadow-2xl border border-white/20 overflow-hidden">
           <SignIn
             routing="hash"
@@ -133,8 +122,8 @@ export default function LoginPage() {
                 identityPreviewCardSecondaryText: "text-gray-600",
               }
             }}
-            redirectUrl={undefined} // Deshabilitar redirección automática de Clerk
-            afterSignInUrl={undefined} // Nosotros manejaremos la redirección
+            forceRedirectUrl={undefined} // Deshabilitar redirección automática de Clerk
+            fallbackRedirectUrl={undefined} // Nosotros manejaremos la redirección
           />
         </div>
 

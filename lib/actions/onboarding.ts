@@ -192,7 +192,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         updated_at: new Date().toISOString(),
         logo_url: null,
         phone_number: '',
-        modules: 'basic'
+        modules: 'ACCOUNTING,BILLING,REPORTS'
       };
       
       console.log('📊 Tenant data to insert:', JSON.stringify(tenantData, null, 2));
@@ -317,7 +317,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         updated_at: new Date().toISOString(),
         logo_url: null,
         phone_number: '',
-        modules: 'basic'
+        modules: 'ACCOUNTING,BILLING,REPORTS'
       };
       
       console.log('📊 Tenant data to insert (existing user):', JSON.stringify(tenantData, null, 2));

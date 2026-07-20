@@ -6,6 +6,7 @@ export interface SessionUser {
   email: string;
   name: string;
   role: string;
+  tenantId?: string;
 }
 
 export interface Session {
@@ -40,6 +41,7 @@ export async function auth(): Promise<Session | null> {
           email: user.email,
           name: `${user.firstName} ${user.lastName}`,
           role: user.role,
+          tenantId: user.tenantId,
         },
         expires: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
       };

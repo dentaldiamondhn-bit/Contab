@@ -106,6 +106,23 @@ interface NewTalonarioData {
   fecha_vencimiento: string;
 }
 
+// Actividades económicas disponibles según SAR
+const economicActivities = [
+  "Servicios Profesionales",
+  "Comercio al por Mayor",
+  "Comercio al por Menor",
+  "Industria Manufacturera",
+  "Construcción",
+  "Transporte",
+  "Servicios de Hostelería y Restauración",
+  "Servicios de Información y Comunicación",
+  "Actividades Financieras y de Seguros",
+  "Actividades Inmobiliarias",
+  "Educación",
+  "Salud",
+  "Otras Actividades Económicas"
+];
+
 export default function CompanyDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -119,6 +136,11 @@ export default function CompanyDetailPage() {
   const [showCAIDialog, setShowCAIDialog] = useState(false);
   const [showTalonarioDialog, setShowTalonarioDialog] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  // Debug logging
+  console.log('CompanyDetailPage - companyId:', companyId);
+  console.log('CompanyDetailPage - cais:', cais);
+  console.log('CompanyDetailPage - talonarios:', talonarios);
   
   const [caiFormData, setCaiFormData] = useState<NewCAIData>({
     cai_number: '',
@@ -132,6 +154,44 @@ export default function CompanyDetailPage() {
     cantidad_recibos: 0,
     fecha_vencimiento: ''
   });
+
+  const updateCompanyField = async (field: string, value: string) => {
+    try {
+      const response = await fetch('/api/companies', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: companyId,
+          [field]: value
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Error updating company:', errorData);
+        setMessage({ 
+          type: 'error', 
+          text: errorData.error || 'Error al actualizar empresa' 
+        });
+        return;
+      }
+
+      const result = await response.json();
+      setCompany(result.company);
+      setMessage({ 
+        type: 'success', 
+        text: 'Empresa actualizada exitosamente' 
+      });
+    } catch (error) {
+      console.error('Error updating company:', error);
+      setMessage({ 
+        type: 'error', 
+        text: 'Error al actualizar empresa' 
+      });
+    }
+  };
 
   // Datos de ejemplo
   const mockCompany: Company = {
@@ -241,84 +301,66 @@ export default function CompanyDetailPage() {
   ];
 
   useEffect(() => {
-    if (companyId && !company) {
+    if (companyId && !company && !loading) {
       loadCompanyData();
     }
-  }, [companyId]);
+  }, [companyId, loading]);
 
   const loadCompanyData = async () => {
     try {
       setLoading(true);
       
-      // Datos mock para empresas
-      const mockCompanies = {
-        "1": {
-          id: "1",
-          business_name: "Dental Diamond Center",
-          business_rtn: "08011999012345",
-          industry: "Servicios Profesionales",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Consultoría Dental",
-          direccion_fiscal: "Colonia Palmira, Tegucigalpa, Honduras",
-          telefono_fiscal: "+504 2234-5678",
-          email_fiscal: "contacto@dentaldiamond.com",
-          is_active: true,
-          created_at: "2024-01-15T10:30:00Z",
-          _count: {
-            polizas: 156,
-            accounts: 45,
-            talonarios: 8
-          }
-        },
-        "2": {
-          id: "2",
-          business_name: "Clínica Médica San José",
-          business_rtn: "08011999067890",
-          industry: "Salud",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Servicios Médicos",
-          direccion_fiscal: "Boulevard Suyapa, Tegucigalpa, Honduras",
-          telefono_fiscal: "+504 2255-6789",
-          email_fiscal: "contacto@clinicamedica.com",
-          is_active: true,
-          created_at: "2024-01-20T14:15:00Z",
-          _count: {
-            polizas: 89,
-            accounts: 32,
-            talonarios: 5
-          }
-        },
-        "3": {
-          id: "3",
-          business_name: "Laboratorio Dental Pro",
-          business_rtn: "08011999054321",
-          industry: "Salud",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "Laboratorio Dental",
-          direccion_fiscal: "Avenida Morazán, San Pedro Sula, Honduras",
-          telefono_fiscal: "+504 2345-1234",
-          email_fiscal: "info@labdentalpro.com",
-          is_active: false,
-          created_at: "2024-01-10T09:30:00Z",
-          _count: {
-            polizas: 0,
-            accounts: 0,
-            talonarios: 0
-          }
-        }
-      };
+      // Cargar datos reales desde el API
+      const response = await fetch('/api/companies');
       
-      // Obtener datos de la empresa mock
-      const companyData = mockCompanies[companyId as keyof typeof mockCompanies];
+      if (!response.ok) {
+        throw new Error('Error al cargar empresas desde el API');
+      }
+      
+      const companiesData = await response.json();
+      const companyData = companiesData.companies.find((c: Company) => c.id === companyId);
+      
       if (companyData) {
         setCompany(companyData);
       } else {
-        throw new Error('Empresa no encontrada');
+        console.log('Empresa no encontrada, usando empresa por defecto');
+        setCompany(mockCompany);
       }
       
-      // Cargar datos mock de CAIs y Talonarios
-      setCAIs(mockCAIs);
-      setTalonarios(mockTalonarios);
+      // Cargar datos reales de CAIs y Talonarios desde el API
+      try {
+        // Usar el ID de la empresa
+        const companyIdentifier = companyId;
+        console.log('Loading CAIs and Talonarios for company:', companyIdentifier);
+        
+        const [caisResponse, talonariosResponse] = await Promise.all([
+          fetch(`/api/cai?company_id=${companyIdentifier}`),
+          fetch(`/api/talonarios?company_id=${companyIdentifier}`)
+        ]);
+
+        if (caisResponse.ok) {
+          const caisData = await caisResponse.json();
+          console.log('CAIs data received:', caisData);
+          setCAIs(caisData.data || []);
+        } else {
+          console.error('Error loading CAIs:', caisResponse.statusText);
+          setCAIs(mockCAIs); // Fallback a mock
+        }
+
+        if (talonariosResponse.ok) {
+          const talonariosData = await talonariosResponse.json();
+          console.log('Talonarios data received:', talonariosData);
+          setTalonarios(talonariosData.talonarios || []);
+        } else {
+          console.error('Error loading Talonarios:', talonariosResponse.statusText);
+          setTalonarios(mockTalonarios); // Fallback a mock
+        }
+      } catch (error) {
+        console.error('Error loading CAIs and Talonarios:', error);
+        // Fallback a datos mock si hay error
+        setCAIs(mockCAIs);
+        setTalonarios(mockTalonarios);
+      }
       
     } catch (error) {
       console.error('Error al cargar empresa:', error);
@@ -326,6 +368,10 @@ export default function CompanyDetailPage() {
         type: 'error', 
         text: 'Error al cargar datos desde la base de datos. Mostrando datos de ejemplo.' 
       });
+      // En caso de error, usar datos mock
+      setCompany(mockCompany);
+      setCAIs(mockCAIs);
+      setTalonarios(mockTalonarios);
     } finally {
       setLoading(false);
     }
@@ -529,7 +575,20 @@ export default function CompanyDetailPage() {
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Actividad Económica</p>
-                  <p className="font-medium">{company.actividad_economica}</p>
+                  <select
+                    value={company.actividad_economica}
+                    onChange={(e) => {
+                      // Actualizar la actividad económica en la base de datos
+                      updateCompanyField('actividad_economica', e.target.value);
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  >
+                    {economicActivities.map((activity) => (
+                      <option key={activity} value={activity}>
+                        {activity}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <p className="text-sm text-gray-600">Fecha de Creación</p>

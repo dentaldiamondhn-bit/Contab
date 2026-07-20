@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabase } from '@/lib/supabase-db';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -11,8 +12,10 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    // Get user from Clerk to check role (same as layouts)
-    let userRole: string | undefined;
+    // Obtener rol del usuario usando el helper
+    const userRole = await getUserRoleFromAuth();
+
+    // Obtener email desde Clerk para verificación adicional
     let email = '';
     let clerkUser: any = null;
     try {
@@ -25,22 +28,14 @@ export async function GET(req: NextRequest) {
       console.log('API /admin/users - Full privateMetadata:', JSON.stringify(clerkUser.privateMetadata, null, 2));
       console.log('API /admin/users - Full unsafeMetadata:', JSON.stringify(clerkUser.unsafeMetadata, null, 2));
       
-      // Check role from multiple metadata sources
-      userRole = 
-        clerkUser.publicMetadata?.role || 
-        clerkUser.unsafeMetadata?.role ||
-        (clerkUser.privateMetadata as any)?.role;
-      
       console.log('API /admin/users - Extracted role:', userRole);
-      console.log('API /admin/users - publicMetadata.role type:', typeof clerkUser.publicMetadata?.role);
-      console.log('API /admin/users - publicMetadata.role value:', clerkUser.publicMetadata?.role);
     } catch (error) {
       console.error('Error getting user from Clerk:', error);
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail) {
       console.log('API /admin/users - Access denied, role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado - Se requiere rol SUPER_ADMIN o SUPPORT' },
@@ -168,8 +163,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
     // Get email from Clerk user
     let email = '';
@@ -185,7 +180,7 @@ export async function POST(req: NextRequest) {
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail)) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }

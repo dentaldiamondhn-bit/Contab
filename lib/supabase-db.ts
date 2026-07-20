@@ -30,6 +30,8 @@ export async function setTenantContext(tenantId: string) {
 // Función para obtener usuarios del tenant actual
 export async function getTenantUsers(tenantId: string) {
   try {
+    console.log('🔍 Getting users for tenant:', tenantId);
+    
     // Configurar contexto
     await setTenantContext(tenantId);
     
@@ -44,7 +46,23 @@ export async function getTenantUsers(tenantId: string) {
       return [];
     }
     
-    return data || [];
+    console.log('✅ Users fetched from DB:', data);
+    console.log('📊 User count:', data?.length || 0);
+    
+    // Transformar datos para que coincidan con el frontend
+    const transformedUsers = (data || []).map(user => ({
+      id: user.id,
+      email: user.email,
+      firstName: user.firstname,
+      lastName: user.lastname,
+      role: user.role,
+      isActive: user.isactive,
+      createdAt: user.createdat,
+      lastLogin: user.lastlogin
+    }));
+    
+    console.log('✅ Transformed users:', transformedUsers);
+    return transformedUsers;
   } catch (error) {
     console.error('❌ Error in getTenantUsers:', error);
     return [];

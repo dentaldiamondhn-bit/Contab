@@ -49,12 +49,12 @@ export default function AdminTestPage() {
             
             <div>
               <span className="font-medium text-gray-600">Rol (Public Metadata):</span>
-              <p className="text-gray-900">{user.publicMetadata?.role || 'No definido'}</p>
+              <p className="text-gray-900">{String(user.publicMetadata?.role) || 'No definido'}</p>
             </div>
             
             <div>
               <span className="font-medium text-gray-600">Rol (Unsafe Metadata):</span>
-              <p className="text-gray-900">{user.unsafeMetadata?.role || 'No definido'}</p>
+              <p className="text-gray-900">{String(user.unsafeMetadata?.role) || 'No definido'}</p>
             </div>
           </div>
           

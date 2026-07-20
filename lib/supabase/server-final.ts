@@ -1,25 +1,38 @@
-import { headers } from 'next/headers'
-import { supabase, getCurrentTenantFromHeaders, getCurrentUserFromHeaders } from './standard-client'
+import { headers, cookies } from 'next/headers';
+import { createServerClient, type CookieOptions } from '@supabase/ssr';
 
-// Helper para obtener headers de la solicitud actual
-export async function getRequestHeaders(): Promise<Headers> {
-  return await headers()
+/**
+ * Helper interno para inicializar el cliente de Supabase en el servidor.
+ */
+async function createClient() {
+  const cookieStore = await cookies();
+
+  return createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return cookieStore.getAll();
+        },
+        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
+          try {
+            cookiesToSet.forEach(({ name, value, options }) =>
+              cookieStore.set(name, value, options)
+            );
+          } catch {
+            // Se puede ignorar en Server Components si no se están modificando cookies
+          }
+        },
+      },
+    }
+  );
 }
 
-// Helper para obtener el tenant actual
-export async function getCurrentTenant(): Promise<string | null> {
-  const requestHeaders = await getRequestHeaders()
-  return getCurrentTenantFromHeaders(requestHeaders)
-}
-
-// Helper para obtener el usuario actual
-export async function getCurrentUser(): Promise<string | null> {
-  const requestHeaders = await getRequestHeaders()
-  return getCurrentUserFromHeaders(requestHeaders)
-}
-
-// Helper para select con tenant automático - Server Component
-export async function selectWithTenant<T = any>(
+/**
+ * Realiza un SELECT filtrando automáticamente por el tenantId obtenido de los headers.
+ */
+export async function selectWithTenant<T>(
   table: string,
   options?: {
     columns?: string;
@@ -28,29 +41,23 @@ export async function selectWithTenant<T = any>(
     limit?: number;
   }
 ) {
-  const requestHeaders = await getRequestHeaders()
-  const tenantId = getCurrentTenantFromHeaders(requestHeaders)
-  
+  const headerList = await headers();
+  const tenantId = headerList.get('x-tenant-id');
+
+  // Log de depuración para verificar el Tenant ID en el servidor
+  console.log(`🔍 [Supabase Server] Query en tabla '${table}' | x-tenant-id: ${tenantId || '❌ NO ENCONTRADO'}`);
+
   if (!tenantId) {
-    throw new Error('No tenant selected');
+    return [] as T[];
   }
 
-  let query = supabase
-    .from(table)
-    .select(options?.columns || '*')
-    .eq('tenantId', tenantId);
+  const supabase = await createClient();
+  let query = supabase.from(table).select(options?.columns || '*').eq('tenantId', tenantId);
 
-  // Aplicar filtros adicionales
+  // Aplicar filtros adicionales dinámicos
   if (options?.filters) {
     Object.entries(options.filters).forEach(([key, value]) => {
       query = query.eq(key, value);
-    });
-  }
-
-  // Aplicar ordenamiento
-  if (options?.orderBy) {
-    query = query.order(options.orderBy.column, { 
-      ascending: options.orderBy.ascending ?? true 
     });
   }
 
@@ -59,127 +66,97 @@ export async function selectWithTenant<T = any>(
     query = query.limit(options.limit);
   }
 
-  const { data, error } = await query;
-
-  if (error) {
-    console.error(`Error selecting from ${table}:`, error);
-    throw error;
+  if (options?.orderBy) {
+    query = query.order(options.orderBy.column, {
+      ascending: options.orderBy.ascending ?? true,
+    });
   }
 
-  return data as T[];
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as T[];
 }
 
-// Helper para insert con tenant automático - Server Component
-export async function insertWithTenant<T = any>(
-  table: string, 
-  data: Omit<T, 'tenantId'>
-) {
-  const requestHeaders = await getRequestHeaders()
-  const tenantId = getCurrentTenantFromHeaders(requestHeaders)
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
+/**
+ * Inserta un registro inyectando automáticamente el tenantId del contexto actual.
+ */
+export async function insertWithTenant<T>(table: string, data: any) {
+  const headerList = await headers();
+  const tenantId = headerList.get('x-tenant-id');
+  if (!tenantId) throw new Error('Acceso denegado: No se identificó el tenant.');
 
-  const dataWithTenant = { ...data, tenantId } as T;
-  
+  const supabase = await createClient();
   const { data: result, error } = await supabase
     .from(table)
-    .insert(dataWithTenant)
+    .insert({ ...data, tenantId } as any)
     .select()
     .single();
 
-  if (error) {
-    console.error(`Error inserting into ${table}:`, error);
-    throw error;
-  }
-
-  return result;
+  if (error) throw error;
+  return result as T;
 }
 
-// Helper para update con tenant automático - Server Component
-export async function updateWithTenant<T = any>(
-  table: string,
-  id: string,
-  data: Partial<T>
-) {
-  const requestHeaders = await getRequestHeaders()
-  const tenantId = getCurrentTenantFromHeaders(requestHeaders)
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
+/**
+ * Actualiza un registro validando que pertenezca al tenant del usuario actual.
+ */
+export async function updateWithTenant<T>(table: string, id: string, data: any) {
+  const headerList = await headers();
+  const tenantId = headerList.get('x-tenant-id');
+  if (!tenantId) throw new Error('Acceso denegado: No se identificó el tenant.');
 
+  const supabase = await createClient();
   const { data: result, error } = await supabase
     .from(table)
-    .update(data)
+    .update(data as any)
     .eq('id', id)
     .eq('tenantId', tenantId)
     .select()
     .single();
 
-  if (error) {
-    console.error(`Error updating ${table}:`, error);
-    throw error;
-  }
-
-  return result;
+  if (error) throw error;
+  return result as T;
 }
 
-// Helper para delete con tenant automático - Server Component
-export async function deleteWithTenant(
-  table: string,
-  id: string
-) {
-  const requestHeaders = await getRequestHeaders()
-  const tenantId = getCurrentTenantFromHeaders(requestHeaders)
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
+/**
+ * Elimina un registro validando que pertenezca al tenant del usuario actual.
+ */
+export async function deleteWithTenant(table: string, id: string) {
+  const headerList = await headers();
+  const tenantId = headerList.get('x-tenant-id');
+  if (!tenantId) throw new Error('Acceso denegado: No se identificó el tenant.');
 
+  const supabase = await createClient();
   const { error } = await supabase
     .from(table)
     .delete()
     .eq('id', id)
     .eq('tenantId', tenantId);
 
-  if (error) {
-    console.error(`Error deleting from ${table}:`, error);
-    throw error;
-  }
-
+  if (error) throw error;
   return true;
 }
 
-// Helper para verificar permisos del usuario - Server Component
-export async function checkUserPermission(permission: string): Promise<boolean> {
-  const requestHeaders = await getRequestHeaders()
-  const userId = getCurrentUserFromHeaders(requestHeaders)
-  
-  if (!userId) {
-    return false;
+/**
+ * Realiza una consulta GLOBAL ignorando el filtrado por tenantId.
+ * EXCLUSIVO para uso en rutas /admin protegidas.
+ */
+export async function selectGlobalServer<T>(
+  table: string,
+  options?: {
+    columns?: string;
+    limit?: number;
+    orderBy?: { column: string; ascending?: boolean };
   }
+) {
+  const supabase = await createClient();
+  let query = supabase.from(table).select(options?.columns || '*');
 
-  try {
-    const { data: user } = await supabase
-      .from('User')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (!user) return false;
-
-    const permissions = {
-      ADMIN: ['read', 'write', 'delete', 'manage_users', 'manage_tenants'],
-      MANAGER: ['read', 'write', 'delete', 'manage_accounts'],
-      USER: ['read', 'write'],
-      VIEWER: ['read']
-    };
-
-    return permissions[user.role as keyof typeof permissions]?.includes(permission) || false;
-  } catch (error) {
-    console.error('Error checking permission:', error);
-    return false;
+  if (options?.orderBy) {
+    query = query.order(options.orderBy.column, { ascending: options.orderBy.ascending });
   }
+  if (options?.limit) query = query.limit(options.limit);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data || []) as T[];
 }

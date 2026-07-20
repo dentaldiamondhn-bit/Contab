@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getTenantUser } from '@/lib/auth';
+import { auth } from '@/lib/auth';
 import { db } from '@/lib/db';
 
 export async function GET(
@@ -7,15 +7,15 @@ export async function GET(
   { params }: { params: { tenantId: string } }
 ) {
   try {
-    const user = await getTenantUser();
-    if (!user) {
+    const session = await auth();
+    if (!session || !session.user) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const { tenantId } = params;
 
     // Solo administradores pueden ver CAI de otros tenants
-    if (user.tenantId !== tenantId && user.role !== 'admin') {
+    if (session.user.tenantId !== tenantId && session.user.role !== 'admin') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 

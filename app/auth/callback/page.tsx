@@ -35,18 +35,21 @@ export default function AuthCallbackPage() {
       
       console.log('AuthCallback - Email check:', { email, isSuperAdminEmail });
 
-      // Determine redirect based on role or email
-      let redirectUrl = '/dashboard'; // default
-      
-      if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
-        redirectUrl = '/admin/dashboard';
-        console.log('AuthCallback - Redirecting SUPER_ADMIN to admin dashboard');
-      } else if (userRole === 'SUPPORT') {
-        redirectUrl = '/support/dashboard';
-        console.log('AuthCallback - Redirecting SUPPORT to support dashboard');
-      } else {
-        console.log('AuthCallback - Redirecting to regular dashboard');
-      }
+// Determine redirect based on role or email
+       let redirectUrl = '/dashboard'; // default
+       
+       if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
+         redirectUrl = '/admin/dashboard';
+         console.log('AuthCallback - Redirecting SUPER_ADMIN to admin dashboard');
+       } else if (userRole === 'SUPPORT') {
+         redirectUrl = '/support/dashboard';
+         console.log('AuthCallback - Redirecting SUPPORT to support dashboard');
+       } else if (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') {
+         redirectUrl = '/tenant-admin/dashboard';
+         console.log('AuthCallback - Redirecting ADMIN/TENANT_ADMIN to tenant admin dashboard');
+       } else {
+         console.log('AuthCallback - Redirecting to regular dashboard');
+       }
 
       console.log('AuthCallback - Final redirect URL:', redirectUrl);
       

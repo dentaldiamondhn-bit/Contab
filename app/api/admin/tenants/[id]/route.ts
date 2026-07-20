@@ -1,7 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
-import { mockTenants } from '../mock-data';
+
+// Cache en memoria de precios de planes (evita llamadas repetidas a Supabase en la misma instancia)
+let planPricesCache: Record<string, number> | null = null;
+let planPricesTimestamp = 0;
+const PLAN_PRICES_TTL = 60_000; // 1 minuto
+
+async function getPlanPrices(): Promise<Record<string, number>> {
+  const now = Date.now();
+  if (planPricesCache && (now - planPricesTimestamp) < PLAN_PRICES_TTL) {
+    return planPricesCache;
+  }
+
+  try {
+    // Llamada directa a Supabase para evitar middleware/autenticación de la API route
+    const { data: plans, error } = await supabaseAdmin
+      .from('Plan')
+      .select('code, price')
+      .eq('is_active', true);
+
+    if (error || !plans?.length) {
+      console.warn('⚠️ No se pudieron cargar precios desde Plan table, usando fallback:', error?.message);
+      return { PREMIUM: 1000, ENTERPRISE: 2000, STARTER: 200, GROWTH: 750 };
+    }
+
+    const prices: Record<string, number> = {};
+    for (const p of plans as any[]) {
+      prices[p.code] = p.price;
+    }
+    planPricesCache = prices;
+    planPricesTimestamp = now;
+    console.log('✅ Precios de planes cargados:', prices);
+    return prices;
+  } catch (e: any) {
+    console.warn('⚠️ Error cargando precios de planes:', e.message);
+    return { PREMIUM: 1000, ENTERPRISE: 2000, STARTER: 200, GROWTH: 750 };
+  }
+}
 
 export async function GET(
   req: NextRequest,
@@ -87,19 +123,21 @@ export async function GET(
     };
 
     // Enriquecer datos del tenant
+    // NOTE: Tenant table has column "subscriptionplan" (not "subscriptionplans")
     let subscriptionPlans = [];
-    try {
-      subscriptionPlans = JSON.parse(tenant.subscriptionplans || '["BASICO"]');
-    } catch {
-      subscriptionPlans = [{ code: tenant.subscriptionplans || 'BASICO', quantity: 1 }];
+    const rawPlanData = tenant.subscriptionplan || tenant.subscription_plan || tenant.subscriptionPlans;
+    if (rawPlanData) {
+      try {
+        subscriptionPlans = JSON.parse(rawPlanData);
+      } catch {
+        subscriptionPlans = [{ code: rawPlanData, quantity: 1 }];
+      }
+    } else {
+      subscriptionPlans = [{ code: 'PREMIUM', quantity: 1 }];
     }
-    const planPrices: Record<string, number> = {
-      'BASICO': 500,
-      'PREMIUM': 1000,
-      'ENTERPRISE': 2000,
-      'STARTER': 200,
-      'GROWTH': 750
-    };
+
+    // Cargar precios reales desde la tabla Plan (la misma fuente que /admin/plans)
+    const planPrices = await getPlanPrices();
 
     const enrichedPlans = subscriptionPlans.map((plan: any) => {
       const planCode = typeof plan === 'string' ? plan : plan.code;
@@ -167,12 +205,15 @@ export async function GET(
       timezone: tenant.timezone,
       currency: tenant.currency,
       subscriptionPlans: enrichedPlans,
-      subscriptionPlan: tenant.subscriptionplans,
+      subscriptionPlan: tenant.subscriptionplan || tenant.subscription_plan || tenant.subscriptionPlans || 'PREMIUM',
       maxUsers: tenant.maxusers,
       maxStorage: tenant.maxstorage,
       maxTransactions: tenant.maxtransactions,
       monthlyCost: tenant.monthlycost,
-      modules: tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [],
+       modules: (() => {
+     const tenantModules = tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [];
+     return tenantModules;
+   })(),
       isActive: tenant.isactive,
       createdAt: tenant.createdat,
       updatedAt: tenant.updatedat,
@@ -253,45 +294,95 @@ export async function PATCH(
       );
     }
 
-    // Parse request body
-    const updateData = await req.json();
-    console.log('📦 Datos a actualizar:', updateData);
+    // Parse request body and build a clean Tenant row
+    const body = await req.json();
+    console.log('📦 Datos recibidos:', body);
+
+    // Normalize subscriptionPlans: frontend sends JSON array, Tenant stores single CSV or JSON string
+    let subscriptionPlansValue: string = '["PREMIUM"]';
+    if (body.subscriptionPlans) {
+      if (typeof body.subscriptionPlans === 'string') {
+        try {
+          const parsed = JSON.parse(body.subscriptionPlans);
+          subscriptionPlansValue = JSON.stringify(parsed);
+        } catch {
+          subscriptionPlansValue = body.subscriptionPlans;
+        }
+      } else if (Array.isArray(body.subscriptionPlans)) {
+        subscriptionPlansValue = JSON.stringify(body.subscriptionPlans);
+      }
+    }
+
+    // Build Tenant row — only fields that exist in the table
+    const tenantRow: Record<string, any> = {
+      updatedat: new Date().toISOString(),
+    };
+
+    // Map camelCase → snake_case tenant fields
+    const fieldMap: Record<string, string> = {
+      businessName:    'businessname',
+      businessEmail:   'businessemail',
+      businessRTN:     'businessrtn',
+      businessAddress: 'businessaddress',
+      phoneNumber:    'phonenumber',
+      subscriptionPlans: 'subscriptionplan',
+      maxUsers:        'maxusers',
+      maxStorage:      'maxstorage',
+      maxTransactions: 'maxtransactions',
+      monthlyCost:     'monthlycost',
+      modules:         'modules',
+      isActive:        'isactive',
+    };
+
+    for (const [camel, snake] of Object.entries(fieldMap)) {
+      if (camel === 'subscriptionPlans') {
+        tenantRow[snake] = subscriptionPlansValue;
+      } else if (body[camel] !== undefined) {
+        tenantRow[snake] = body[camel];
+      }
+    }
+
+    console.log('🔧 Payload para Supabase:', tenantRow);
 
     // Actualizar tenant en Supabase
     const { data: updatedTenant, error: updateError } = await supabaseAdmin
       .from('Tenant')
-      .update({
-        ...updateData,
-        updatedat: new Date().toISOString()
-      })
+      .update(tenantRow)
       .eq('id', id)
       .select()
       .single();
     
     if (updateError) {
-      console.error('❌ Error actualizando tenant en Supabase:', updateError);
+      console.error('❌ Error actualizando tenant en Supabase:', {
+        message: typeof updateError.message === 'string' ? updateError.message : JSON.stringify(updateError.message),
+        code: updateError.code,
+        details: typeof updateError.details === 'string' ? updateError.details : JSON.stringify(updateError.details),
+        hint: updateError.hint,
+        body: JSON.stringify(tenantRow),
+        tenantId: id,
+      });
       return NextResponse.json(
-        { error: 'Error actualizando tenant', details: updateError },
+        { error: 'Error actualizando tenant', details: typeof updateError.message === 'string' ? updateError.message : JSON.stringify(updateError.message) },
         { status: 500 }
       );
     }
     
     console.log('✅ Tenant actualizado en Supabase:', updatedTenant.businessname);
 
-    // Enriquecer los planes con precios para la respuesta
+    // Enriquecer los planes con precios para la respuesta (misma fuente que /admin/plans)
     let updatedSubscriptionPlans = [];
-    try {
-      updatedSubscriptionPlans = JSON.parse(updatedTenant.subscriptionplans || '["BASICO"]');
-    } catch {
-      updatedSubscriptionPlans = [{ code: updatedTenant.subscriptionplans || 'BASICO', quantity: 1 }];
+    const updatedRawPlanData = updatedTenant.subscriptionplan || updatedTenant.subscription_plan || updatedTenant.subscriptionPlans;
+    if (updatedRawPlanData) {
+      try {
+        updatedSubscriptionPlans = JSON.parse(updatedRawPlanData);
+      } catch {
+        updatedSubscriptionPlans = [{ code: updatedRawPlanData, quantity: 1 }];
+      }
+    } else {
+      updatedSubscriptionPlans = [{ code: 'PREMIUM', quantity: 1 }];
     }
-    const planPrices: Record<string, number> = {
-      'BASICO': 500,
-      'PREMIUM': 1000,
-      'ENTERPRISE': 2000,
-      'STARTER': 200,
-      'GROWTH': 750
-    };
+
+    const planPrices = await getPlanPrices();
 
     const enrichedUpdatedPlans = updatedSubscriptionPlans.map((plan: any) => {
       const planCode = typeof plan === 'string' ? plan : plan.code;
@@ -308,19 +399,33 @@ export async function PATCH(
       };
     });
 
-    return NextResponse.json({
-      success: true,
-      message: 'Tenant actualizado exitosamente',
-      tenant: {
-        ...updatedTenant,
-        subscriptionPlans: enrichedUpdatedPlans,
-        modules: updatedTenant.modules ? updatedTenant.modules.split(',').filter((m: string) => m.trim()) : [],
-      businessName: updatedTenant.businessname,
-      businessRTN: updatedTenant.businessrtn,
-      businessEmail: updatedTenant.businessemail,
-      businessAddress: updatedTenant.businessaddress
-      }
-    });
+     return NextResponse.json({
+       success: true,
+       message: 'Tenant actualizado exitosamente',
+       tenant: {
+         id: updatedTenant.id,
+         businessName:  updatedTenant.businessname || updatedTenant.business_name || '',
+         businessRTN:   updatedTenant.businessrtn   || updatedTenant.business_rtn   || '',
+         businessEmail: updatedTenant.businessemail || updatedTenant.business_email || '',
+         businessAddress: updatedTenant.businessaddress || updatedTenant.business_address || '',
+         phoneNumber:  updatedTenant.phonenumber   || updatedTenant.phone_number  || '',
+         tenantCode:   updatedTenant.tenant_code,
+         isActive:     updatedTenant.isactive ?? updatedTenant.is_active ?? true,
+         subscriptionPlans: enrichedUpdatedPlans,
+         subscriptionPlan:  updatedTenant.subscriptionplan || updatedTenant.subscription_plan || 'PREMIUM',
+         maxUsers:     updatedTenant.maxusers      || updatedTenant.max_users      || 5,
+         maxStorage:   updatedTenant.maxstorage    || updatedTenant.max_storage    || 100,
+         maxTransactions: updatedTenant.maxtransactions || updatedTenant.max_transactions || 10000,
+         monthlyCost:  updatedTenant.monthlycost   || updatedTenant.monthly_cost   || 0,
+         modules: (() => {
+     const updateModules = updatedTenant.modules ? updatedTenant.modules.split(',').filter((m: string) => m.trim()) : [];
+     return updateModules;
+   })(),
+         createdAt: updatedTenant.createdat   || updatedTenant.created_at,
+         updatedAt: updatedTenant.updatedat   || updatedTenant.updated_at,
+         users: [], // populate if needed
+       }
+     });
 
   } catch (error: any) {
     console.error('❌ Error en PATCH /api/admin/tenants/[id]:', error);
@@ -373,24 +478,21 @@ export async function DELETE(
       );
     }
 
-    // Buscar tenant en datos mock
-    const tenantIndex = mockTenants.findIndex(t => t.id === id);
-    
-    if (tenantIndex === -1) {
-      console.log('❌ Tenant no encontrado en datos mock');
+    // Eliminar tenant de Supabase
+    const { error: deleteError } = await supabaseAdmin
+      .from('Tenant')
+      .delete()
+      .eq('id', id);
+
+    if (deleteError) {
+      console.error('❌ Error eliminando tenant en Supabase:', deleteError);
       return NextResponse.json(
-        { error: 'Tenant no encontrado' },
-        { status: 404 }
+        { error: 'Error eliminando tenant', details: deleteError.message },
+        { status: 500 }
       );
     }
 
-    const deletedTenant = mockTenants[tenantIndex];
-    
-    // Eliminar tenant de datos mock
-    mockTenants.splice(tenantIndex, 1);
-
-    console.log('✅ Tenant eliminado exitosamente de datos mock:', deletedTenant.businessName);
-    console.log('📊 Tenants restantes en mock:', mockTenants.map(t => ({ id: t.id, name: t.businessName })));
+    console.log('✅ Tenant eliminado exitosamente de Supabase');
 
     return NextResponse.json({
       success: true,

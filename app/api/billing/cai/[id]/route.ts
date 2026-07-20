@@ -26,11 +26,11 @@ export async function PUT(
     const body = await request.json();
     const { 
       cai, 
-      start_number: true,
-      end_number: true,
-      current_number: true,
-      expiration_date: true,
-      status: true,
+      start_number,
+      end_number,
+      current_number,
+      expiration_date,
+      status,
       establishmentCode = '001',
       pointOfSaleCode = '001',
       economicActivity = 'Servicios de software',

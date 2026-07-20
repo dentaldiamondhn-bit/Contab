@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 export async function POST(req: NextRequest) {
   try {
     // Verificar autenticación
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
     
     // Get email from Clerk user
     let email = '';
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const isTestEmail = email === 'dentaldiamondhn@gmail.com';
 
     // Allow SUPPORT, SUPER_ADMIN, or test emails
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail && !isTestEmail)) {
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail && !isTestEmail)) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }

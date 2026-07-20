@@ -13,7 +13,9 @@ import {
   Percent,
   Activity,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Users,
+  DatabaseBackup
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -36,6 +38,8 @@ const modules = [
   { id: 'matrix', label: 'Matriz', icon: Calendar, href: 'matrix' },
   { id: 'retenciones', label: 'Retenciones', icon: Percent, href: 'retenciones' },
   { id: 'auditoria', label: 'Auditoría', icon: Activity, href: 'auditoria' },
+  { id: 'usuarios-restringidos', label: 'Acceso Restringido', icon: Users, href: 'usuarios-restringidos' },
+  { id: 'respaldo', label: 'Respaldo Info', icon: DatabaseBackup, href: 'respaldo' },
 ];
 
 export default function SecurityLayout({ children, params }: SecurityLayoutProps) {

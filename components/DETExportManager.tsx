@@ -19,14 +19,7 @@ import {
   Upload,
   Database
 } from 'lucide-react';
-import { 
-  DETFileType,
-  generateDETFile,
-  generateDETCSV,
-  getAvailablePeriods,
-  getDETExportStatistics,
-  validateDETFile
-} from '@/lib/services/det-live-service';
+import { DETFileType, validateDETFile } from '@/lib/services/det-live-core';
 
 interface DETExportConfig {
   fileType: DETFileType;

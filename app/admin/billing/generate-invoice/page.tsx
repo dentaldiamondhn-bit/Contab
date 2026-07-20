@@ -83,7 +83,10 @@ interface Tenant {
   subscriptionPlans?: any[];
   modules?: string[];
   monthlyCost?: number;
+  isActive: boolean;
 }
+
+type InvoiceType = 'subscription' | 'tenant-issued' | 'supplier-received';
 
 export default function GenerateInvoicePage() {
   const router = useRouter();
@@ -101,6 +104,19 @@ export default function GenerateInvoicePage() {
   const [tenantPlans, setTenantPlans] = useState<InvoiceItem[]>([]);
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [notes, setNotes] = useState('');
+  const [invoiceType, setInvoiceType] = useState<InvoiceType>('subscription');
+  
+  // Estado para información del cliente en facturas emitidas por tenant
+  const [customerInfo, setCustomerInfo] = useState({
+    name: '',
+    rtn: '',
+    email: '',
+    phone: '',
+    address: ''
+  });
+  
+  // Estado para CAI del tenant
+  const [tenantCai, setTenantCai] = useState<any>(null);
 
   useEffect(() => {
     if (urlTenantId) {
@@ -174,6 +190,34 @@ export default function GenerateInvoicePage() {
       console.log('Error en CAI API:', caiError);
       setError('Error al cargar CAI');
       setCaiInfo(null);
+    }
+  };
+
+  const fetchTenantCai = async (tenantId: string) => {
+    try {
+      console.log('🔄 Obteniendo CAI del tenant...');
+      const response = await fetch(`/api/admin/billing/cai/tenant/${tenantId}`);
+      console.log('Tenant CAI response status:', response.status);
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('Tenant CAI response data:', data);
+        
+        if (data.success && data.cai) {
+          setTenantCai(data.cai);
+          console.log('✅ CAI del tenant establecido:', data.cai);
+        } else {
+          console.log('❌ El tenant no tiene CAI configurado');
+          setTenantCai(null);
+        }
+      } else {
+        const errorText = await response.text();
+        console.log('Tenant CAI response error:', errorText);
+        setTenantCai(null);
+      }
+    } catch (error) {
+      console.log('Error obteniendo CAI del tenant:', error);
+      setTenantCai(null);
     }
   };
 
@@ -306,6 +350,10 @@ export default function GenerateInvoicePage() {
         setCaiInfo(null);
       }
 
+      // Obtener CAI del tenant (para facturas emitidas por tenant)
+      console.log('Obteniendo CAI del tenant...');
+      await fetchTenantCai(tenantIdToFetch);
+
     } catch (err) {
       console.error('Error general en fetchTenantData:', err);
       setError('Error al cargar datos');
@@ -373,15 +421,27 @@ export default function GenerateInvoicePage() {
   };
 
   const canGenerateInvoice = () => {
-    return tenant && 
-           invoiceItems.every(item => item.code && item.name && item.unitPrice > 0) &&
-           caiInfo?.isActive;
+    const hasValidItems = invoiceItems.every(item => item.code && item.name && item.unitPrice > 0);
+    const hasTenant = tenant;
+    
+    // Para facturas de suscripción y emitidas por tenant, se requiere CAI activo
+    // Para facturas recibidas de proveedores, el CAI es opcional
+    const requiresCai = invoiceType !== 'supplier-received';
+    const hasValidCai = !requiresCai || caiInfo?.isActive;
+    
+    return hasTenant && hasValidItems && hasValidCai;
   };
 
   const generateInvoice = async () => {
     try {
-      if (!tenant || !caiInfo) {
-        setError('Se requiere información del tenant y CAI para generar la factura');
+      if (!tenant) {
+        setError('Se requiere información del tenant para generar la factura');
+        return;
+      }
+      
+      // Para facturas que no son de proveedores, se requiere CAI
+      if (invoiceType !== 'supplier-received' && !caiInfo) {
+        setError('Se requiere información del CAI para generar facturas de suscripción o emitidas por tenant');
         return;
       }
 
@@ -401,13 +461,21 @@ export default function GenerateInvoicePage() {
         return;
       }
 
+      // Para facturas emitidas por tenant, validar información del cliente
+      if (invoiceType === 'tenant-issued') {
+        if (!customerInfo.name || !customerInfo.rtn) {
+          setError('Para facturas emitidas por tenant, debe completar el nombre y RTN del cliente');
+          return;
+        }
+      }
+
       // Calcular totales
       const total = invoiceItems.reduce((sum, item) => sum + item.total, 0);
       const totalTax = invoiceItems.reduce((sum, item) => sum + item.taxAmount, 0);
       const subtotal = total - totalTax;
 
       // Generar número de factura
-      const invoiceNumber = caiInfo.invoiceNumber || caiInfo.currentNumber?.toString() || '1';
+      const invoiceNumber = caiInfo?.invoiceNumber || caiInfo?.currentNumber?.toString() || '1';
 
       // Crear objeto de factura con información fiscal completa
       const invoiceData = {
@@ -415,28 +483,68 @@ export default function GenerateInvoicePage() {
         tenantId: selectedTenantId,
         invoiceNumber,
         invoiceDate: new Date().toISOString(),
+        invoiceType,
         
-        // Información del cliente (tenant)
-        customerId: tenant.id,
-        customerRTN: tenant.businessRTN,
-        customerName: tenant.businessName,
-        customerAddress: tenant.businessAddress,
-        customerEmail: tenant.businessEmail,
-        customerPhone: tenant.phoneNumber,
+        // Información del cliente/proveedor según tipo de factura
+        ...(invoiceType === 'tenant-issued' ? {
+          // Para facturas emitidas por tenant, usar información del cliente ingresada
+          customerId: customerInfo.rtn || 'temp-customer',
+          customerRTN: customerInfo.rtn,
+          customerName: customerInfo.name,
+          customerAddress: customerInfo.address,
+          customerEmail: customerInfo.email,
+          customerPhone: customerInfo.phone,
+        } : {
+          // Para suscripción y proveedor, usar información del tenant
+          customerId: tenant.id,
+          customerRTN: tenant.businessRTN,
+          customerName: tenant.businessName,
+          customerAddress: tenant.businessAddress,
+          customerEmail: tenant.businessEmail,
+          customerPhone: tenant.phoneNumber,
+        }),
         
-        // Información fiscal del emisor (CAI del sistema)
-        issuerRTN: caiInfo.rtn,
-        issuerName: caiInfo.businessName,
-        issuerAddress: caiInfo.businessAddress,
-        establishmentCode: caiInfo.establishmentCode,
-        pointOfSaleCode: caiInfo.pointOfSaleCode,
-        economicActivity: caiInfo.economicActivity,
-        
-        // Información del CAI
-        cai: caiInfo.cai,
-        rangeStart: caiInfo.rangeStart,
-        rangeEnd: caiInfo.rangeEnd,
-        expiryDate: caiInfo.expiryDate,
+        // Información fiscal del emisor según tipo de factura
+        ...(invoiceType === 'tenant-issued' ? {
+          // Para facturas emitidas por tenant, usar configuración del tenant
+          issuerRTN: tenant.businessRTN,
+          issuerName: tenant.businessName,
+          issuerAddress: tenant.businessAddress,
+          
+          // Usar configuración del CAI del tenant si está disponible
+          ...(tenantCai ? {
+            establishmentCode: tenantCai.establishmentCode || '001',
+            pointOfSaleCode: tenantCai.pointOfSaleCode || '001',
+            economicActivity: tenantCai.economicActivity || 'Servicios de software y tecnología',
+            
+            // Información del CAI del tenant
+            cai: tenantCai.cai,
+            rangeStart: tenantCai.rangeStart,
+            rangeEnd: tenantCai.rangeEnd,
+            expiryDate: tenantCai.expiryDate,
+          } : {
+            // Valores por defecto si el tenant no tiene CAI configurado
+            establishmentCode: '001',
+            pointOfSaleCode: '001',
+            economicActivity: 'Servicios de software y tecnología',
+          })
+        } : {
+          // Para suscripción, usar CAI de ContabHN
+          ...(caiInfo && {
+            issuerRTN: caiInfo.rtn,
+            issuerName: caiInfo.businessName,
+            issuerAddress: caiInfo.businessAddress,
+            establishmentCode: caiInfo.establishmentCode,
+            pointOfSaleCode: caiInfo.pointOfSaleCode,
+            economicActivity: caiInfo.economicActivity,
+            
+            // Información del CAI
+            cai: caiInfo.cai,
+            rangeStart: caiInfo.rangeStart,
+            rangeEnd: caiInfo.rangeEnd,
+            expiryDate: caiInfo.expiryDate,
+          })
+        }),
         
         // Items de la factura
         items: invoiceItems.map(item => ({
@@ -460,7 +568,7 @@ export default function GenerateInvoicePage() {
         // Información adicional
         notes: notes || '',
         currency: 'HNL',
-        taxRate: caiInfo.taxRate || 15
+        taxRate: caiInfo?.taxRate || 15
       };
 
       console.log('📄 Generando factura con datos:', invoiceData);
@@ -655,18 +763,104 @@ export default function GenerateInvoicePage() {
             </CardContent>
           </Card>
 
+          {/* Tipo de Factura */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Tipo de Factura</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-700">Selecciona el tipo de factura a generar:</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="relative">
+                    <input
+                      type="radio"
+                      id="subscription"
+                      name="invoiceType"
+                      value="subscription"
+                      checked={invoiceType === 'subscription'}
+                      onChange={(e) => setInvoiceType(e.target.value as InvoiceType)}
+                      className="sr-only peer"
+                    />
+                    <label
+                      htmlFor="subscription"
+                      className="flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50"
+                    >
+                      <Receipt className="w-8 h-8 mb-2 text-blue-600" />
+                      <span className="font-medium text-sm">Suscripciones</span>
+                      <span className="text-xs text-gray-500 mt-1">Factura de planes mensuales</span>
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="radio"
+                      id="tenant-issued"
+                      name="invoiceType"
+                      value="tenant-issued"
+                      checked={invoiceType === 'tenant-issued'}
+                      onChange={(e) => setInvoiceType(e.target.value as InvoiceType)}
+                      className="sr-only peer"
+                    />
+                    <label
+                      htmlFor="tenant-issued"
+                      className="flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all peer-checked:border-green-500 peer-checked:bg-green-50 hover:bg-gray-50"
+                    >
+                      <FileText className="w-8 h-8 mb-2 text-green-600" />
+                      <span className="font-medium text-sm">Emitida por Tenant</span>
+                      <span className="text-xs text-gray-500 mt-1">Factura de ventas del tenant</span>
+                    </label>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="radio"
+                      id="supplier-received"
+                      name="invoiceType"
+                      value="supplier-received"
+                      checked={invoiceType === 'supplier-received'}
+                      onChange={(e) => setInvoiceType(e.target.value as InvoiceType)}
+                      className="sr-only peer"
+                    />
+                    <label
+                      htmlFor="supplier-received"
+                      className="flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all peer-checked:border-orange-500 peer-checked:bg-orange-50 hover:bg-gray-50"
+                    >
+                      <Download className="w-8 h-8 mb-2 text-orange-600" />
+                      <span className="font-medium text-sm">Recibida de Proveedores</span>
+                      <span className="text-xs text-gray-500 mt-1">Factura de compras</span>
+                    </label>
+                  </div>
+                </div>
+                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                  <p className="text-sm text-blue-800">
+                    <strong>Tipo seleccionado:</strong> {
+                      invoiceType === 'subscription' ? 'Suscripciones - Factura de planes mensuales del sistema' :
+                      invoiceType === 'tenant-issued' ? 'Emitida por Tenant - Factura de ventas del cliente' :
+                      'Recibida de Proveedores - Factura de compras del tenant'
+                    }
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Columna izquierda - Cliente e items */}
           <div className="lg:col-span-2 space-y-6">
-            {/* Información del Cliente */}
+            {/* Información del Cliente/Emisor según tipo de factura */}
             <Card>
               <CardHeader>
                 <CardTitle>
                   <div className="flex items-center">
-                    Información del Cliente
-                    <Badge className="ml-2 bg-green-100 text-green-800">
+                    {invoiceType === 'supplier-received' ? 'Información del Proveedor' : 'Información del Cliente'}
+                    <Badge className={`ml-2 ${
+                      invoiceType === 'subscription' ? 'bg-green-100 text-green-800' :
+                      invoiceType === 'tenant-issued' ? 'bg-blue-100 text-blue-800' :
+                      'bg-orange-100 text-orange-800'
+                    }`}>
                       <CheckCircle className="h-3 w-3 mr-1" />
-                      Tenant
+                      {invoiceType === 'subscription' ? 'Tenant' :
+                       invoiceType === 'tenant-issued' ? 'Cliente' :
+                       'Proveedor'}
                     </Badge>
                   </div>
                 </CardTitle>
@@ -674,32 +868,97 @@ export default function GenerateInvoicePage() {
               <CardContent className="space-y-4">
                 {tenant ? (
                   <div className="p-4 bg-gray-50 rounded-lg">
-                    <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded">
-                      <p className="text-sm font-medium text-green-800">
+                    <div className={`mb-3 p-2 border rounded ${
+                      invoiceType === 'subscription' ? 'bg-green-50 border-green-200' :
+                      invoiceType === 'tenant-issued' ? 'bg-blue-50 border-blue-200' :
+                      'bg-orange-50 border-orange-200'
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        invoiceType === 'subscription' ? 'text-green-800' :
+                        invoiceType === 'tenant-issued' ? 'text-blue-800' :
+                        'text-orange-800'
+                      }`}>
                         <span className="inline-flex items-center">
                           <CheckCircle className="h-3 w-3 mr-1" />
-                          Información del Tenant Autocompletada
+                          {invoiceType === 'subscription' ? 'Información del Tenant Autocompletada' :
+                           invoiceType === 'tenant-issued' ? 'Información del Cliente (Tenant)' :
+                           'Información del Proveedor (Tenant)'}
                         </span>
                       </p>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Nombre del Cliente</p>
-                        <p className="text-lg font-semibold text-gray-900">{tenant.businessName}</p>
+                    
+                    {/* Para facturas emitidas por tenant, mostrar campos editables para cliente */}
+                    {invoiceType === 'tenant-issued' ? (
+                      <div className="space-y-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                            <Label>Nombre del Cliente</Label>
+                            <Input
+                              placeholder="Nombre completo del cliente"
+                              value={customerInfo.name}
+                              onChange={(e) => setCustomerInfo(prev => ({ ...prev, name: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>RTN del Cliente</Label>
+                            <Input
+                              placeholder="RTN del cliente"
+                              value={customerInfo.rtn}
+                              onChange={(e) => setCustomerInfo(prev => ({ ...prev, rtn: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Email del Cliente</Label>
+                            <Input
+                              type="email"
+                              placeholder="Email del cliente"
+                              value={customerInfo.email}
+                              onChange={(e) => setCustomerInfo(prev => ({ ...prev, email: e.target.value }))}
+                            />
+                          </div>
+                          <div>
+                            <Label>Teléfono del Cliente</Label>
+                            <Input
+                              placeholder="Teléfono del cliente"
+                              value={customerInfo.phone}
+                              onChange={(e) => setCustomerInfo(prev => ({ ...prev, phone: e.target.value }))}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label>Dirección del Cliente</Label>
+                          <Textarea
+                            placeholder="Dirección completa del cliente"
+                            value={customerInfo.address}
+                            onChange={(e) => setCustomerInfo(prev => ({ ...prev, address: e.target.value }))}
+                            rows={2}
+                          />
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">RTN</p>
-                        <p className="text-lg font-semibold text-gray-900">{tenant.businessRTN}</p>
+                    ) : (
+                      /* Para suscripción y proveedor, mostrar información del tenant como cliente/proveedor */
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">
+                            {invoiceType === 'supplier-received' ? 'Nombre del Proveedor' : 'Nombre del Cliente'}
+                          </p>
+                          <p className="text-lg font-semibold text-gray-900">{tenant.businessName}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">RTN</p>
+                          <p className="text-lg font-semibold text-gray-900">{tenant.businessRTN}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Email</p>
+                          <p className="text-lg font-semibold text-gray-900">{tenant.businessEmail}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700">Teléfono</p>
+                          <p className="text-lg font-semibold text-gray-900">{tenant.phoneNumber}</p>
+                        </div>
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Email</p>
-                        <p className="text-lg font-semibold text-gray-900">{tenant.businessEmail}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700">Teléfono</p>
-                        <p className="text-lg font-semibold text-gray-900">{tenant.phoneNumber}</p>
-                      </div>
-                    </div>
+                    )}
+                    
                     <div className="mt-4">
                       <p className="text-sm font-medium text-gray-700">Dirección</p>
                       <p className="text-gray-900">{tenant.businessAddress}</p>
@@ -717,18 +976,22 @@ export default function GenerateInvoicePage() {
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
-                  <CardTitle>Items de la Factura</CardTitle>
+                  <CardTitle>
+                    {invoiceType === 'subscription' ? 'Items de la Factura' :
+                     invoiceType === 'tenant-issued' ? 'Items de Venta' :
+                     'Items de Compra'}
+                  </CardTitle>
                   <div className="flex space-x-2">
                     <Button onClick={addInvoiceItem} size="sm" variant="outline">
                       <Plus className="h-4 w-4 mr-2" />
-                      Agregar Personalizado
+                      Agregar {invoiceType === 'supplier-received' ? 'Producto' : 'Item'}
                     </Button>
                   </div>
                 </div>
               </CardHeader>
               <CardContent>
-                {/* Planes disponibles del tenant */}
-                {tenantPlans.length > 0 && (
+                {/* Planes disponibles del tenant - solo para facturas de suscripción */}
+                {invoiceType === 'subscription' && tenantPlans.length > 0 && (
                   <div className="mb-6">
                     <h4 className="text-sm font-medium text-gray-700 mb-3">Planes del Tenant (Click para agregar)</h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -749,6 +1012,22 @@ export default function GenerateInvoicePage() {
                         </div>
                       ))}
                     </div>
+                  </div>
+                )}
+
+                {/* Mensaje informativo para otros tipos de factura */}
+                {invoiceType !== 'subscription' && (
+                  <div className={`mb-6 p-4 rounded-lg border ${
+                    invoiceType === 'tenant-issued' ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'
+                  }`}>
+                    <p className={`text-sm font-medium ${
+                      invoiceType === 'tenant-issued' ? 'text-blue-800' : 'text-orange-800'
+                    }`}>
+                      {invoiceType === 'tenant-issued' 
+                        ? 'Factura emitida por Tenant - Agrega los productos o servicios vendidos'
+                        : 'Factura de Proveedor - Agrega los productos o servicios comprados'
+                      }
+                    </p>
                   </div>
                 )}
                 <div className="space-y-4">
@@ -869,90 +1148,168 @@ export default function GenerateInvoicePage() {
 
           {/* Columna derecha - Resumen y CAI */}
           <div className="space-y-6">
-            {/* Información CAI */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  <div className="flex items-center">
-                    Información del CAI
-                    {caiInfo?.isSystemWide && (
-                      <Badge className="ml-2 bg-blue-100 text-blue-800">
-                        Sistema ContabHN
-                      </Badge>
+            {/* Información CAI - para facturas de suscripción (ContabHN) y emitidas por tenant */}
+            {(invoiceType === 'subscription' || invoiceType === 'tenant-issued') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <div className="flex items-center">
+                      Información del CAI
+                      {invoiceType === 'subscription' ? (
+                        <>
+                          {caiInfo?.isSystemWide && (
+                            <Badge className="ml-2 bg-blue-100 text-blue-800">
+                              Sistema ContabHN
+                            </Badge>
+                          )}
+                          {caiInfo?.isDemo && (
+                            <Badge className="ml-2 bg-yellow-100 text-yellow-800">
+                              Demostración
+                            </Badge>
+                          )}
+                        </>
+                      ) : (
+                        <Badge className="ml-2 bg-green-100 text-green-800">
+                          Tenant Emisor
+                        </Badge>
+                      )}
+                    </div>
+                    {invoiceType === 'subscription' && (
+                      <Button onClick={fetchCAIInfo} variant="outline" size="sm">
+                        <RefreshCw className="h-4 w-4 mr-2" />
+                        Recargar CAI
+                      </Button>
                     )}
-                    {caiInfo?.isDemo && (
-                      <Badge className="ml-2 bg-yellow-100 text-yellow-800">
-                        Demostración
-                      </Badge>
-                    )}
-                  </div>
-                  <Button onClick={fetchCAIInfo} variant="outline" size="sm">
-                    <RefreshCw className="h-4 w-4 mr-2" />
-                    Recargar CAI
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {caiInfo ? (
-                  <div className="space-y-2">
-                    <p><strong>CAI:</strong> {caiInfo.cai}</p>
-                    <p><strong>Rango:</strong> {caiInfo.rangeStart} - {caiInfo.rangeEnd}</p>
-                    <p><strong>Actual:</strong> {caiInfo.currentNumber}</p>
-                    <p><strong>Vence:</strong> {new Date(caiInfo.expiryDate).toLocaleDateString('es-HN')}</p>
-                    
-                    {caiInfo.isSystemWide && (
-                      <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                        <p className="text-sm font-medium text-blue-800">
-                          <span className="inline-flex items-center">
-                            <CheckCircle className="h-3 w-3 mr-1" />
-                            CAI del Sistema
-                          </span>
-                        </p>
-                        <p className="text-xs text-blue-600 mt-1">
-                          Este CAI es configurado a nivel del sistema ContabHN
-                        </p>
-                      </div>
-                    )}
-                    
-                    {caiInfo.isDemo && (
-                      <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
-                        <p className="text-sm font-medium text-yellow-800">
-                          <span className="inline-flex items-center">
-                            <AlertTriangle className="h-3 w-3 mr-1" />
-                            CAI de Demostración
-                          </span>
-                        </p>
-                        <p className="text-xs text-yellow-600 mt-1">
-                          {caiInfo.message || 'Configure el CAI real en la configuración del sistema.'}
-                        </p>
-                      </div>
-                    )}
-                    
-                    {caiInfo.rtn && (
-                      <div className="mt-3 p-2 bg-gray-50 border border-gray-200 rounded">
-                        <p className="text-sm font-medium text-gray-800">Información Fiscal</p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          RTN: {caiInfo.rtn} | {caiInfo.businessName}
-                        </p>
-                        {caiInfo.establishmentCode && (
-                          <p className="text-xs text-gray-600">
-                            Establecimiento: {caiInfo.establishmentCode} | Punto Venta: {caiInfo.pointOfSaleCode}
-                          </p>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {invoiceType === 'subscription' ? (
+                    // Para suscripción, mostrar CAI de ContabHN
+                    caiInfo ? (
+                      <div className="space-y-2">
+                        <p><strong>CAI:</strong> {caiInfo.cai}</p>
+                        <p><strong>Rango:</strong> {caiInfo.rangeStart} - {caiInfo.rangeEnd}</p>
+                        <p><strong>Actual:</strong> {caiInfo.currentNumber}</p>
+                        <p><strong>Vence:</strong> {new Date(caiInfo.expiryDate).toLocaleDateString('es-HN')}</p>
+                        
+                        {caiInfo.isSystemWide && (
+                          <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-sm font-medium text-blue-800">
+                              <span className="inline-flex items-center">
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                CAI del Sistema
+                              </span>
+                            </p>
+                            <p className="text-xs text-blue-600 mt-1">
+                              Este CAI es configurado a nivel del sistema ContabHN
+                            </p>
+                          </div>
+                        )}
+                        
+                        {caiInfo.isDemo && (
+                          <div className="mt-3 p-2 bg-yellow-50 border border-yellow-200 rounded">
+                            <p className="text-sm font-medium text-yellow-800">
+                              <span className="inline-flex items-center">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                CAI de Demostración
+                              </span>
+                            </p>
+                            <p className="text-xs text-yellow-600 mt-1">
+                              {caiInfo.message || 'Configure el CAI real en la configuración del sistema.'}
+                            </p>
+                          </div>
+                        )}
+                        
+                        {caiInfo.rtn && (
+                          <div className="mt-3 p-2 bg-gray-50 border border-gray-200 rounded">
+                            <p className="text-sm font-medium text-gray-800">Información Fiscal</p>
+                            <p className="text-xs text-gray-600 mt-1">
+                              RTN: {caiInfo.rtn} | {caiInfo.businessName}
+                            </p>
+                            {caiInfo.establishmentCode && (
+                              <p className="text-xs text-gray-600">
+                                Establecimiento: {caiInfo.establishmentCode} | Punto Venta: {caiInfo.pointOfSaleCode}
+                              </p>
+                            )}
+                          </div>
                         )}
                       </div>
-                    )}
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500">
-                    <p>No hay CAI configurado</p>
-                    <Button onClick={fetchCAIInfo} variant="outline" size="sm" className="mt-2">
-                      <RefreshCw className="h-4 w-4 mr-2" />
-                      Cargar CAI
-                    </Button>
-                  </div>
-                )}
-              </CardContent>
-            </Card>
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        <p>No hay CAI configurado</p>
+                        <Button onClick={fetchCAIInfo} variant="outline" size="sm" className="mt-2">
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Cargar CAI
+                        </Button>
+                      </div>
+                    )
+                  ) : (
+                    // Para facturas emitidas por tenant, mostrar información fiscal del tenant
+                    tenant ? (
+                      <div className="space-y-2">
+                        <div className="p-3 bg-green-50 border border-green-200 rounded">
+                          <p className="text-sm font-medium text-green-800">
+                            <span className="inline-flex items-center">
+                              <Building2 className="h-4 w-4 mr-2" />
+                              Información Fiscal del Tenant
+                            </span>
+                          </p>
+                          <p className="text-xs text-green-600 mt-1">
+                            Esta factura será emitida usando la información fiscal del tenant
+                          </p>
+                        </div>
+                        
+                        <p><strong>RTN del Emisor:</strong> {tenant.businessRTN}</p>
+                        <p><strong>Nombre del Emisor:</strong> {tenant.businessName}</p>
+                        <p><strong>Dirección Fiscal:</strong> {tenant.businessAddress}</p>
+                        <p><strong>Email:</strong> {tenant.businessEmail}</p>
+                        {tenant.phoneNumber && (
+                          <p><strong>Teléfono:</strong> {tenant.phoneNumber}</p>
+                        )}
+                        
+                        {/* Mostrar información del CAI del tenant si está disponible */}
+                        {tenantCai ? (
+                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                            <p className="text-sm font-medium text-blue-800 mb-2">
+                              <span className="inline-flex items-center">
+                                <FileText className="h-3 w-3 mr-1" />
+                                Configuración CAI del Tenant
+                              </span>
+                            </p>
+                            <div className="space-y-1">
+                              <p className="text-xs text-blue-600"><strong>CAI:</strong> {tenantCai.cai}</p>
+                              <p className="text-xs text-blue-600"><strong>Rango:</strong> {tenantCai.rangeStart} - {tenantCai.rangeEnd}</p>
+                              <p className="text-xs text-blue-600"><strong>Actual:</strong> {tenantCai.currentNumber}</p>
+                              <p className="text-xs text-blue-600"><strong>Vence:</strong> {new Date(tenantCai.expiryDate).toLocaleDateString('es-HN')}</p>
+                              <p className="text-xs text-blue-600"><strong>Establecimiento:</strong> {tenantCai.establishmentCode || '001'} | <strong>Punto Venta:</strong> {tenantCai.pointOfSaleCode || '001'}</p>
+                              {tenantCai.economicActivity && (
+                                <p className="text-xs text-blue-600"><strong>Actividad Económica:</strong> {tenantCai.economicActivity}</p>
+                              )}
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                            <p className="text-sm font-medium text-yellow-800">
+                              <span className="inline-flex items-center">
+                                <AlertTriangle className="h-3 w-3 mr-1" />
+                                CAI No Configurado
+                              </span>
+                            </p>
+                            <p className="text-xs text-yellow-600 mt-1">
+                              El tenant no tiene CAI configurado. Se usarán valores por defecto.
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-center text-gray-500">
+                        <p>Cargando información del tenant...</p>
+                      </div>
+                    )
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Resumen */}
             <Card>
