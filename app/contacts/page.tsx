@@ -276,51 +276,22 @@ export default function ContactsPage() {
 
   const loadCompanies = async () => {
     try {
-      // Usar los mismos datos mock que la página de companies para consistencia
-      const mockCompanies = [
-        {
-          id: "1",
-          businessname: "Dental Diamond Center",
-          businessrtn: "08011999012345"
-        },
-        {
-          id: "2", 
-          businessname: "Clínica Médica San José",
-          businessrtn: "08011999067890"
-        },
-        {
-          id: "3",
-          businessname: "Lab Dental Pro",
-          businessrtn: "08011999054321"
-        }
-      ];
-      
-      setCompanies(mockCompanies);
-      
-      // Opcional: Intentar cargar desde la base de datos real si existe
-      try {
-        const { data, error } = await supabase
-          .from('Tenant')
-          .select('id, businessname, businessrtn')
-          .order('businessname', { ascending: true });
+      // Obtener empresas desde Supabase
+      const { data, error } = await supabase
+        .from('Tenant')
+        .select('id, businessname, businessrtn')
+        .order('businessname', { ascending: true });
 
-        if (!error && data && data.length > 0) {
-          setCompanies(data);
-        }
-      } catch (dbError) {
-        console.log('Usando datos mock - tabla Tenant no disponible');
+      if (error) {
+        console.error('Error loading companies from database:', error);
+        setCompanies([]);
+        return;
       }
-      
+
+      setCompanies(data || []);
     } catch (error) {
       console.error('Error loading companies:', error);
-      // Asegurarse de que siempre haya datos disponibles
-      setCompanies([
-        {
-          id: "1",
-          businessname: "Dental Diamond Center", 
-          businessrtn: "08011999012345"
-        }
-      ]);
+      setCompanies([]);
     }
   };
 

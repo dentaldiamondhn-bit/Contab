@@ -1,69 +1,79 @@
-import { db } from "@/lib/db";
-import { Prisma } from "@prisma/client";
+﻿import { PrismaClient, Prisma } from '@prisma/client';
+import { AuditContext } from '@/lib/audit-middleware'; // Import AuditContext interface
 
-export type AuditAction = "CREATE" | "UPDATE" | "DELETE";
-
-export interface AuditLogData {
+export interface AuditLogPayload {
   tableName: string;
   recordId: string;
-  action: AuditAction;
-  oldValues?: Record<string, any>;
-  newValues?: Record<string, any>;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  oldValues?: any;
+  newValues?: any;
   changedFields?: string[];
   userId?: string;
   userAgent?: string;
   ipAddress?: string;
+  category?: string; // e.g., 'ADMIN', 'USER'
+  description?: string;
+  metadata?: any;
 }
 
-export async function createAuditLog(data: AuditLogData): Promise<void> {
+// This function will be called by the audit extension
+export async function createAuditLog(db: any, payload: AuditLogPayload) {
   try {
-    await (db as any).auditLog.create({
+    await db.auditLog.create({
       data: {
-        tableName: data.tableName,
-        recordId: data.recordId,
-        action: data.action,
-        oldValues: data.oldValues ? JSON.stringify(data.oldValues) : null,
-        newValues: data.newValues ? JSON.stringify(data.newValues) : null,
-        changedFields: data.changedFields ? JSON.stringify(data.changedFields) : null,
-        userId: data.userId,
-        userAgent: data.userAgent,
-        ipAddress: data.ipAddress,
-        timestamp: new Date(),
+        tableName: payload.tableName,
+        recordId: payload.recordId,
+        action: payload.action,
+        oldValues: payload.oldValues || Prisma.JsonNull,
+        newValues: payload.newValues || Prisma.JsonNull,
+        changedFields: payload.changedFields || [],
+        userId: payload.userId || 'system',
+        userAgent: payload.userAgent,
+        ipAddress: payload.ipAddress,
+        category: payload.category || 'DATA_CHANGE',
+        description: payload.description || `${payload.action} on ${payload.tableName} (ID: ${payload.recordId})`,
+        metadata: payload.metadata || Prisma.JsonNull,
       },
     });
   } catch (error) {
-    console.error("Failed to create audit log:", error);
-    // Don't throw - audit logging should not break the main operation
+    console.error('Failed to create audit log:', error);
   }
 }
 
-export function identifyChanges(oldValues: Record<string, any>, newValues: Record<string, any>): string[] {
-  const changedFields: string[] = [];
-  
-  for (const key of Object.keys(newValues)) {
-    if (oldValues[key] !== newValues[key]) {
-      changedFields.push(key);
-    }
+// Helper function to get audit logs for a specific record
+
+// Helper to get audit log trail for a date range
+export async function getPeriodAuditTrail(
+  dbClient: any,
+  from: Date,
+  to: Date,
+  tableName?: string
+) {
+  const where: any = {
+    timestamp: {
+      gte: from,
+      lte: to,
+    },
+  };
+
+  if (tableName) {
+    where.tableName = tableName;
   }
-  
-  return changedFields;
+
+  return await dbClient.auditLog.findMany({
+    where,
+    orderBy: { timestamp: 'desc' },
+  });
 }
 
-export function cleanSensitiveData(data: Record<string, any>): Record<string, any> {
-  const sensitiveFields = ['password', 'secret', 'token', 'apiKey'];
-  const cleaned = { ...data };
-  
-  for (const field of sensitiveFields) {
-    if (cleaned[field]) {
-      cleaned[field] = '***REDACTED***';
-    }
-  }
-  
-  return cleaned;
-}
-
-export async function getRecordAuditTrail(tableName: string, recordId: string) {
-  return await (db as any).auditLog.findMany({
+// Helper function to get audit logs for a specific record
+export function getAuditLogs(
+  db: any,
+  tableName: string,
+  recordId: string,
+  limit: number = 50
+) {
+  return db.auditLog.findMany({
     where: {
       tableName,
       recordId,
@@ -71,101 +81,42 @@ export async function getRecordAuditTrail(tableName: string, recordId: string) {
     orderBy: {
       timestamp: 'desc',
     },
+    take: limit,
   });
 }
 
-export async function getPeriodAuditTrail(startDate: Date, endDate: Date, tableName?: string) {
-  try {
-    const where: any = {
-      timestamp: {
-        gte: startDate,
-        lte: endDate,
-      },
-    };
-
-    if (tableName) {
-      where.tableName = tableName;
-    }
-
-    return await (db as any).auditLog.findMany({
-      where,
-      orderBy: {
-        timestamp: 'desc',
-      },
-    });
-  } catch (error) {
-    console.warn('Audit log table may not exist or database connection failed:', error);
-    // Return empty array if audit log doesn't exist
-    return [];
-  }
-}
-
-export async function revertToState(tableName: string, recordId: string, targetTimestamp: Date) {
-  const auditLogs = await (db as any).auditLog.findMany({
+// Helper function to get audit logs for a user
+export async function getUserAuditLogs(
+  db: any,
+  userId: string,
+  limit: number = 100
+) {
+  return db.auditLog.findMany({
     where: {
-      tableName,
-      recordId,
-      timestamp: {
-        lte: targetTimestamp,
-      },
+      userId,
     },
     orderBy: {
       timestamp: 'desc',
     },
+    take: limit,
   });
-
-  if (auditLogs.length === 0) {
-    throw new Error("No audit trail found for the specified time");
-  }
-
-  // Find the state at or before the target timestamp
-  const targetState = auditLogs.find((log: any) => 
-    log.timestamp <= targetTimestamp && log.newValues
-  );
-
-  if (!targetState || !targetState.newValues) {
-    throw new Error("Cannot determine target state");
-  }
-
-  const revertData = JSON.parse(targetState.newValues);
-  
-  // Log the revert action
-  await createAuditLog({
-    tableName,
-    recordId,
-    action: "UPDATE",
-    oldValues: undefined, // Current state will be captured by the update
-    newValues: revertData,
-    changedFields: Object.keys(revertData),
-  });
-
-  return revertData;
 }
 
-export async function exportToCSV(startDate: Date, endDate: Date): Promise<string> {
-  const auditLogs = await getPeriodAuditTrail(startDate, endDate);
+// Helper function to get all audit logs with pagination
+export async function getAllAuditLogs(
+  db: any,
+  page: number = 1,
+  limit: number = 50,
+  tableName?: string
+) {
+  const skip = (page - 1) * limit;
   
-  const headers = [
-    'Timestamp',
-    'Table',
-    'Record ID',
-    'Action',
-    'Changed Fields',
-    'User ID',
-    'Old Values',
-    'New Values',
-  ];
-
-  const rows = auditLogs.map((log: any) => [
-    log.timestamp.toISOString(),
-    log.tableName,
-    log.recordId,
-    log.action,
-    log.changedFields || '',
-    log.userId || '',
-    log.oldValues || '',
-    log.newValues || '',
+  const where = tableName ? { tableName } : {};
+  
+  const [logs, total] = await Promise.all([
+    db.auditLog.findMany({ where, orderBy: { timestamp: 'desc' }, skip, take: limit }),
+    db.auditLog.count({ where }),
   ]);
 
-  return [headers.join(','), ...rows.map((row: any) => row.map((cell: any) => `"${cell}"`).join(','))].join('\n');
+  return { logs, total, page, totalPages: Math.ceil(total / limit) };
 }

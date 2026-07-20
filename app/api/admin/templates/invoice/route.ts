@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, clerkClient } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 import { writeFile, mkdir, readFile } from 'fs/promises';
 import path from 'path';
@@ -7,22 +7,51 @@ import path from 'path';
 export async function POST(req: NextRequest) {
   try {
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-    const userEmail = sessionClaims?.email;
 
-    // Verificar autorización
-    if (!userId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    // Get role from multiple sources for better compatibility
+    let email = '';
+    let userRole: string | undefined;
+    if (userId) {
+      try {
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        email = user.emailAddresses[0]?.emailAddress || '';
+        userRole = 
+          user.publicMetadata?.role ||
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
+      } catch (error) {
+        console.error('Error getting user from Clerk:', error);
+      }
     }
 
-    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userEmail === 'sucachi.123@gmail.com';
-    
-    if (!isSuperAdmin) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail;
+
+    // Get user's tenant ID from metadata for authorization
+    let userTenantId: string | undefined;
+    if (userId) {
+      try {
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        userTenantId = 
+          user.publicMetadata?.tenantId ||
+          user.unsafeMetadata?.tenantId ||
+          (user.privateMetadata as any)?.tenantId ||
+          (sessionClaims?.metadata as any)?.tenantId;
+      } catch (error) {
+        console.error('Error getting user tenant from Clerk:', error);
+      }
     }
 
     const body = await req.json();
     const { tenantId, name, description } = body;
+
+    // Authorization: SUPER_ADMIN/SUPPORT can access any tenant, regular users need matching tenant
+    if (!userId || (!isSuperAdmin && !isSuperAdminEmail && userTenantId !== tenantId)) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    }
 
     // Validar datos requeridos
     if (!tenantId || !name) {
@@ -62,7 +91,7 @@ export async function POST(req: NextRequest) {
         fileName: fileName,
         originalName: 'invoice-template.html',
         mimeType: 'text/html',
-        size: Buffer.byteLength(templateContent),
+        fileSize: Buffer.byteLength(templateContent),
         filePath: `/uploads/templates/${fileName}`,
         uploadedBy: userId,
         tenantId: tenantId
@@ -129,22 +158,49 @@ export async function POST(req: NextRequest) {
 export async function GET(req: NextRequest) {
   try {
     const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
-    const userEmail = sessionClaims?.email;
+    const tenantId = req.nextUrl.searchParams.get('tenantId');
 
-    // Verificar autorización
-    if (!userId) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    // Get role from multiple sources for better compatibility
+    let email = '';
+    let userRole: string | undefined;
+    if (userId) {
+      try {
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        email = user.emailAddresses[0]?.emailAddress || '';
+        userRole = 
+          user.publicMetadata?.role ||
+          user.unsafeMetadata?.role ||
+          (user.privateMetadata as any)?.role ||
+          (sessionClaims?.metadata as any)?.role;
+      } catch (error) {
+        console.error('Error getting user from Clerk:', error);
+      }
     }
 
-    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userEmail === 'sucachi.123@gmail.com';
-    
-    if (!isSuperAdmin) {
+    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+    const isSuperAdmin = userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail;
+
+    // Get user's tenant ID from metadata for authorization
+    let userTenantId: string | undefined;
+    if (userId) {
+      try {
+        const client = await clerkClient();
+        const user = await client.users.getUser(userId);
+        userTenantId = 
+          user.publicMetadata?.tenantId ||
+          user.unsafeMetadata?.tenantId ||
+          (user.privateMetadata as any)?.tenantId ||
+          (sessionClaims?.metadata as any)?.tenantId;
+      } catch (error) {
+        console.error('Error getting user tenant from Clerk:', error);
+      }
+    }
+
+    // Authorization: SUPER_ADMIN/SUPPORT can access any tenant, regular users need matching tenant
+    if (!userId || (!isSuperAdmin && !isSuperAdminEmail && userTenantId !== tenantId)) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
-
-    const { searchParams } = new URL(req.url);
-    const tenantId = searchParams.get('tenantId');
 
     if (!tenantId) {
       return NextResponse.json(
@@ -170,7 +226,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      templates: templates.map(t => ({
+      templates: templates.map((t: any) => ({
         id: t.id,
         name: t.name,
         description: t.description,

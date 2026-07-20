@@ -139,14 +139,6 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
     }).format(amount || 0);
   };
 
-  const formatDate = (date: string) => {
-    return new Date(date).toLocaleDateString("es-HN", {
-      year: "numeric",
-      month: "short",
-      day: "numeric"
-    });
-  };
-
   // Calcular totales
   const totalIngresos = estadoResultados
     .filter(e => e.categoria === "INGRESOS")
@@ -290,7 +282,7 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
                 <tbody>
                   {libroDiario.map((entry, index) => (
                     <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="p-2 text-sm">{formatDate(entry.fecha)}</td>
+                      <td className="p-2 text-sm">{formatDateForDisplay(entry.fecha)}</td>
                       <td className="p-2 text-sm">
                         <Badge variant="outline">
                           {entry.tipo_comprobante}-{entry.numero_comprobante}
@@ -509,7 +501,7 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
                 <tbody>
                   {libroCompras.map((entry, index) => (
                     <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="p-2 text-sm">{formatDate(entry.fecha)}</td>
+                      <td className="p-2 text-sm">{formatDateForDisplay(entry.fecha)}</td>
                       <td className="p-2 text-sm">{entry.numero_factura}</td>
                       <td className="p-2 text-sm font-mono">{entry.rtn_proveedor}</td>
                       <td className="p-2 text-sm">{entry.descripcion_compra}</td>
@@ -557,7 +549,7 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
                 <tbody>
                   {libroVentas.map((entry, index) => (
                     <tr key={index} className="border-b hover:bg-gray-50">
-                      <td className="p-2 text-sm">{formatDate(entry.fecha)}</td>
+                      <td className="p-2 text-sm">{formatDateForDisplay(entry.fecha)}</td>
                       <td className="p-2 text-sm">{entry.numero_factura}</td>
                       <td className="p-2 text-sm font-mono">{entry.rtn_cliente}</td>
                       <td className="p-2 text-sm">{entry.descripcion_venta}</td>

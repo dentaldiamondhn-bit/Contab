@@ -27,12 +27,22 @@
             border-bottom: 2px solid #333;
             padding-bottom: 20px;
         }
-        .company-info h1 {
+        .company-info {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+        }
+        .company-logo {
+            max-width: 120px;
+            max-height: 80px;
+            object-fit: contain;
+        }
+        .company-details h1 {
             margin: 0;
             color: #333;
             font-size: 24px;
         }
-        .company-info p {
+        .company-details p {
             margin: 5px 0;
             color: #666;
         }
@@ -133,10 +143,15 @@
         <!-- Cabecera -->
         <div class="header">
             <div class="company-info">
-                <h1>{{companyName}}</h1>
-                <p>{{companyAddress}}</p>
-                <p>Tel: {{companyPhone}}</p>
-                <p>RTN: {{companyRTN}}</p>
+                {{#companyLogo}}
+                <img src="{{companyLogo}}" alt="Company Logo" class="company-logo">
+                {{/companyLogo}}
+                <div class="company-details">
+                    <h1>{{companyName}}</h1>
+                    <p>{{companyAddress}}</p>
+                    <p>Tel: {{companyPhone}}</p>
+                    <p>RTN: {{companyRTN}}</p>
+                </div>
             </div>
             <div class="invoice-info">
                 <h2>FACTURA</h2>

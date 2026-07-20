@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { supabase } from '../../../../lib/supabase/standard-client';
+import { SupabaseClient } from '@supabase/supabase-js';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+
+function getSupabase(): SupabaseClient {
+  return createServiceRoleClient();
+}
 
 // POST - Crear tabla CustomTaxes y configuración inicial
 export async function POST(request: NextRequest) {
@@ -48,15 +53,16 @@ export async function POST(request: NextRequest) {
     `;
 
     // Ejecutar SQL para crear la tabla
-    const { error: tableError } = await supabase.rpc('exec_sql', { 
+    const rpcResult: any = getSupabase().rpc('exec_sql', { 
       sql_query: createTableSQL 
     });
+    const { error: tableError } = rpcResult;
 
     if (tableError) {
       console.error('Error creando tabla CustomTaxes:', tableError);
       
       // Si el RPC no funciona, intentar verificar si la tabla ya existe
-      const { data: existingTable, error: checkError } = await supabase
+      const { data: existingTable, error: checkError } = await getSupabase()
         .from('CustomTaxes')
         .select('*')
         .limit(1);

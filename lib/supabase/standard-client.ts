@@ -1,151 +1,111 @@
-import { createClient } from '@supabase/supabase-js'
+﻿import { createBrowserClient } from '@supabase/ssr';
 
-// Cliente Supabase estándar
-export const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-)
+const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-// Helper para obtener el tenant actual desde localStorage - Client Component
+if (!url || !key) {
+  throw new Error(
+    'Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) are not defined.'
+  );
+}
+
+/**
+ * Supabase client singleton.
+ * Used by server-helper.ts (server-side) and multiple app pages (client-side).
+ */
+export const supabase = createBrowserClient(url, key);
+
+/**
+ * Reads the tenant id from localStorage - Client Component / Browser.
+ */
 export function getCurrentTenantFromClient(): string | null {
   try {
     if (typeof window === 'undefined') return null;
-    
     const selectedTenant = localStorage.getItem('selected_tenant');
     if (selectedTenant) {
       const tenant = JSON.parse(selectedTenant);
       return tenant.id;
     }
     return null;
-  } catch (error) {
-    console.error('Error getting tenant from localStorage:', error);
+  } catch {
     return null;
   }
 }
 
-// Helper para obtener el usuario actual desde localStorage - Client Component
+/**
+ * Reads the user id from localStorage - Client Component / Browser.
+ */
 export function getCurrentUserFromClient(): string | null {
   try {
     if (typeof window === 'undefined') return null;
-    
     const userSession = localStorage.getItem('supabase-auth-token');
     if (userSession) {
       const session = JSON.parse(userSession);
       return session.user?.id || null;
     }
     return null;
-  } catch (error) {
-    console.error('Error getting user from localStorage:', error);
+  } catch {
     return null;
   }
 }
 
-// Helper para obtener el tenant actual desde headers - Server Component
-export function getCurrentTenantFromHeaders(headers: Headers): string | null {
-  try {
-    const tenantId = headers.get('x-tenant-id');
-    return tenantId || null;
-  } catch (error) {
-    console.error('Error getting tenant from headers:', error);
-    return null;
-  }
-}
-
-// Helper para obtener el usuario actual desde headers - Server Component
-export function getCurrentUserFromHeaders(headers: Headers): string | null {
-  try {
-    const userId = headers.get('x-user-id');
-    return userId || null;
-  } catch (error) {
-    console.error('Error getting user from headers:', error);
-    return null;
-  }
-}
-
-// Helper para insert con tenant automático - Server Component
+/**
+ * Helper for tenant-scoped inserts.
+ */
 export async function insertWithTenant<T = any>(
-  table: string, 
-  data: Omit<T, 'tenantId'>,
-  headers?: Headers
-) {
-  const tenantId = headers ? getCurrentTenantFromHeaders(headers) : getCurrentTenantFromClient();
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
-
-  const dataWithTenant = { ...data, tenantId } as T;
-  
-  const { data: result, error } = await supabase
+  table: string,
+  data: Omit<T, 'tenantId'>
+): Promise<T> {
+  const tenantId = getCurrentTenantFromClient();
+  if (!tenantId) throw new Error('No tenant selected');
+  const { data: result, error } = await (supabase as any)
     .from(table)
-    .insert(dataWithTenant)
+    .insert({ ...data, tenantId })
     .select()
     .single();
-
-  if (error) {
-    console.error(`Error inserting into ${table}:`, error);
-    throw error;
-  }
-
-  return result;
+  if (error) throw error;
+  return result as T;
 }
 
-// Helper para update con tenant automático - Server Component
+/**
+ * Helper for tenant-scoped updates.
+ */
 export async function updateWithTenant<T = any>(
   table: string,
   id: string,
-  data: Partial<T>,
-  headers?: Headers
-) {
-  const tenantId = headers ? getCurrentTenantFromHeaders(headers) : getCurrentTenantFromClient();
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
-
-  const { data: result, error } = await supabase
+  data: Partial<T>
+): Promise<T> {
+  const tenantId = getCurrentTenantFromClient();
+  if (!tenantId) throw new Error('No tenant selected');
+  const { data: result, error } = await (supabase as any)
     .from(table)
-    .update(data)
+    .update(data as any)
     .eq('id', id)
     .eq('tenantId', tenantId)
     .select()
     .single();
-
-  if (error) {
-    console.error(`Error updating ${table}:`, error);
-    throw error;
-  }
-
-  return result;
+  if (error) throw error;
+  return result as T;
 }
 
-// Helper para delete con tenant automático - Server Component
-export async function deleteWithTenant(
-  table: string,
-  id: string,
-  headers?: Headers
-) {
-  const tenantId = headers ? getCurrentTenantFromHeaders(headers) : getCurrentTenantFromClient();
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
-  }
-
-  const { error } = await supabase
+/**
+ * Helper for tenant-scoped deletes.
+ */
+export async function deleteWithTenant(table: string, id: string): Promise<boolean> {
+  const tenantId = getCurrentTenantFromClient();
+  if (!tenantId) throw new Error('No tenant selected');
+  const { error } = await (supabase as any)
     .from(table)
     .delete()
     .eq('id', id)
     .eq('tenantId', tenantId);
-
-  if (error) {
-    console.error(`Error deleting from ${table}:`, error);
-    throw error;
-  }
-
+  if (error) throw error;
   return true;
 }
 
-// Helper para select con tenant automático - Server Component
+/**
+ * Helper for tenant-scoped selects.
+ */
 export async function selectWithTenant<T = any>(
   table: string,
   options?: {
@@ -153,79 +113,21 @@ export async function selectWithTenant<T = any>(
     filters?: Record<string, any>;
     orderBy?: { column: string; ascending?: boolean };
     limit?: number;
-  },
-  headers?: Headers
-) {
-  const tenantId = headers ? getCurrentTenantFromHeaders(headers) : getCurrentTenantFromClient();
-  
-  if (!tenantId) {
-    throw new Error('No tenant selected');
   }
-
-  let query = supabase
-    .from(table)
-    .select(options?.columns || '*')
-    .eq('tenantId', tenantId);
-
-  // Aplicar filtros adicionales
+): Promise<T[]> {
+  const tenantId = getCurrentTenantFromClient();
+  if (!tenantId) throw new Error('No tenant selected');
+  let query = (supabase as any).from(table).select(options?.columns || '*').eq('tenantId', tenantId);
   if (options?.filters) {
-    Object.entries(options.filters).forEach(([key, value]) => {
-      query = query.eq(key, value);
+    Object.entries(options.filters).forEach(([key, value]: [string, any]) => {
+      query = (query as any).eq(key, value);
     });
   }
-
-  // Aplicar ordenamiento
   if (options?.orderBy) {
-    query = query.order(options.orderBy.column, { 
-      ascending: options.orderBy.ascending ?? true 
-    });
+    query = (query as any).order(options.orderBy.column, { ascending: options.orderBy.ascending ?? true });
   }
-
-  // Aplicar límite
-  if (options?.limit) {
-    query = query.limit(options.limit);
-  }
-
+  if (options?.limit) query = (query as any).limit(options.limit);
   const { data, error } = await query;
-
-  if (error) {
-    console.error(`Error selecting from ${table}:`, error);
-    throw error;
-  }
-
-  return data as T[];
-}
-
-// Helper para verificar permisos del usuario - Server Component
-export async function checkUserPermission(
-  permission: string,
-  headers?: Headers
-): Promise<boolean> {
-  const userId = headers ? getCurrentUserFromHeaders(headers) : getCurrentUserFromClient();
-  
-  if (!userId) {
-    return false;
-  }
-
-  try {
-    const { data: user } = await supabase
-      .from('User')
-      .select('role')
-      .eq('id', userId)
-      .single();
-
-    if (!user) return false;
-
-    const permissions = {
-      ADMIN: ['read', 'write', 'delete', 'manage_users', 'manage_tenants'],
-      MANAGER: ['read', 'write', 'delete', 'manage_accounts'],
-      USER: ['read', 'write'],
-      VIEWER: ['read']
-    };
-
-    return permissions[user.role as keyof typeof permissions]?.includes(permission) || false;
-  } catch (error) {
-    console.error('Error checking permission:', error);
-    return false;
-  }
+  if (error) throw error;
+  return (data || []) as T[];
 }

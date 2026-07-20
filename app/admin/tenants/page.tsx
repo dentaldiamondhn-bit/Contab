@@ -214,7 +214,7 @@ export default function TenantsListPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 lg:p-8">
-      <div className="max-w-full mx-auto">
+      <div className="w-full mx-auto">
         <div className="mb-6 lg:mb-8 flex items-center justify-between">
           <div>
             <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">Gestión de Tenants</h1>
@@ -244,144 +244,144 @@ export default function TenantsListPage() {
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
             <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Empresa
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Código
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Contacto
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Plan
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Usuarios
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Estado
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Módulos
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Creado
-                    </th>
-                    <th className="px-4 lg:px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Acciones
-                    </th>
-                  </tr>
-                </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
-                {tenants.length === 0 ? (
-                  <tr>
-                    <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
-                      No hay tenants registrados
-                    </td>
-                  </tr>
-                ) : (
-                  tenants.map((tenant) => (
-                    <React.Fragment key={tenant.id}>
-                      <tr className="hover:bg-gray-50">
-                        <td className="px-6 py-4">
-                          <div className="text-lg font-semibold text-gray-900">{tenant.businessName}</div>
-                          <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
-                          <div className="text-2xl font-bold text-blue-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="space-y-1 text-sm">
-                            <div className="flex items-center space-x-2">
-                              <span className="text-gray-500">RTN:</span>
-                              <span className="font-medium text-gray-900">{tenant.businessRTN || 'No especificado'}</span>
-                            </div>
-                            <div className="flex items-center space-x-2">
-                              <span className="text-gray-500">Tel:</span>
-                              <span className="font-medium text-gray-900">{tenant.phoneNumber || 'No especificado'}</span>
-                            </div>
-                            <div className="flex items-start space-x-2">
-                              <span className="text-gray-500">Dir:</span>
-                              <span className="font-medium text-gray-900 max-w-xs truncate">{tenant.businessAddress || 'No especificada'}</span>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="space-y-1">
-                            {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 ? (
-                              tenant.subscriptionPlans.map((plan: any, idx: number) => (
-                                <div key={idx} className="flex items-center space-x-2">
-                                  <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
-                                    {plan.code}
-                                  </span>
-                                  <span className="text-xs text-gray-600">x{plan.quantity}</span>
-                                </div>
-                              ))
-                            ) : (
-                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                                Sin planes
-                              </span>
-                            )}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium text-gray-900">
-                              {tenant.activeUsers} usuarios activos
-                            </div>
-                            <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
-                              Límite: {tenant.maxUsers || 'No definido'}
-                            </div>
-                            <button
-                              onClick={() => toggleTenantUsers(tenant.id)}
-                              className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
-                            >
-                              {expandedTenantId === tenant.id ? 'Ocultar usuarios' : 'Ver usuarios'}
-                            </button>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            tenant.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {tenant.isActive ? 'Activo' : 'Suspendido'}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {(() => {
-                            let modules: string[] = [];
-                            if (Array.isArray(tenant.modules)) {
-                              modules = tenant.modules;
-                            } else if (typeof tenant.modules === 'string') {
-                              try {
-                                modules = JSON.parse(tenant.modules);
-                              } catch {
-                                modules = [];
-                              }
-                            }
-                            
-                            return modules.length > 0 ? (
-                              <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
-                                {modules.length} módulos
-                              </span>
-                            ) : (
-                              <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
-                                Sin módulos
-                              </span>
-                            );
-                          })()}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                          {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium relative actions-menu-container">
+<table className="w-full divide-y divide-gray-200 table-fixed">
+                 <thead className="bg-gray-50">
+                   <tr>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Empresa
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Código
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Contacto
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Plan
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Usuarios
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Estado
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Módulos
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-[11%]">
+                       Creado
+                     </th>
+                     <th className="px-2 lg:px-3 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider w-[12%]">
+                       Acciones
+                     </th>
+                   </tr>
+                 </thead>
+<tbody className="bg-white divide-y divide-gray-200">
+                 {tenants.length === 0 ? (
+                   <tr>
+                     <td colSpan={9} className="px-6 py-12 text-center text-gray-500">
+                       No hay tenants registrados
+                     </td>
+                   </tr>
+                 ) : (
+                   tenants.map((tenant) => (
+                     <React.Fragment key={tenant.id}>
+                       <tr className="hover:bg-gray-50">
+                         <td className="px-2 lg:px-3 py-4 w-[11%]">
+                           <div className="text-lg font-semibold text-gray-900">{tenant.businessName}</div>
+                           <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
+                           <div className="text-2xl font-bold text-blue-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
+                           <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 w-[11%]">
+                           <div className="space-y-1 text-sm">
+                             <div className="flex items-center space-x-2">
+                               <span className="text-gray-500">RTN:</span>
+                               <span className="font-medium text-gray-900">{tenant.businessRTN || 'No especificado'}</span>
+                             </div>
+                             <div className="flex items-center space-x-2">
+                               <span className="text-gray-500">Tel:</span>
+                               <span className="font-medium text-gray-900">{tenant.phoneNumber || 'No especificado'}</span>
+                             </div>
+                             <div className="flex items-start space-x-2">
+                               <span className="text-gray-500">Dir:</span>
+                               <span className="font-medium text-gray-900 max-w-xs truncate">{tenant.businessAddress || 'No especificada'}</span>
+                             </div>
+                           </div>
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
+                           <div className="space-y-1">
+                             {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 ? (
+                               tenant.subscriptionPlans.map((plan: any, idx: number) => (
+                                 <div key={idx} className="flex items-center space-x-2">
+                                   <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                                     {plan.code}
+                                   </span>
+                                   <span className="text-xs text-gray-600">x{plan.quantity}</span>
+                                 </div>
+                               ))
+                             ) : (
+                               <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                 Sin planes
+                               </span>
+                             )}
+                           </div>
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
+                           <div className="space-y-1">
+                             <div className="text-sm font-medium text-gray-900">
+                               {tenant.activeUsers} usuarios activos
+                             </div>
+                             <div className="text-xs text-gray-500 bg-gray-50 px-2 py-1 rounded">
+                               Límite: {tenant.maxUsers || 'No definido'}
+                             </div>
+                             <button
+                               onClick={() => toggleTenantUsers(tenant.id)}
+                               className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+                             >
+                               {expandedTenantId === tenant.id ? 'Ocultar usuarios' : 'Ver usuarios'}
+                             </button>
+                           </div>
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
+                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+                             tenant.isActive
+                               ? 'bg-green-100 text-green-800'
+                               : 'bg-red-100 text-red-800'
+                           }`}>
+                             {tenant.isActive ? 'Activo' : 'Suspendido'}
+                           </span>
+                         </td>
+<td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
+                           {(() => {
+                             let modules: string[] = [];
+                             if (Array.isArray(tenant.modules)) {
+                               modules = tenant.modules;
+                             } else if (typeof tenant.modules === 'string') {
+                               try {
+                                 modules = JSON.parse(tenant.modules);
+                               } catch {
+                                 modules = [];
+                               }
+                             }
+                             
+                             return modules.length > 0 ? (
+                               <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                                 {modules.length} módulos
+                               </span>
+                             ) : (
+                               <span className="px-2 py-1 text-xs bg-gray-100 text-gray-600 rounded">
+                                 Sin módulos
+                               </span>
+                             );
+                           })()}
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap text-sm text-gray-500 w-[11%]">
+                           {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
+                         </td>
+                         <td className="px-2 lg:px-3 py-4 whitespace-nowrap text-right text-sm font-medium relative actions-menu-container w-[12%]">
                           <div className="relative inline-block text-left">
                             <button
                               onClick={() => setOpenMenuId(openMenuId === tenant.id ? null : tenant.id)}

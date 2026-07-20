@@ -1,11 +1,12 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { Badge } from "@/components/ui/badge";
+import RoleBasedSidebar from "@/components/RoleBasedSidebar";
+import { TenantHeader } from "@/components/dashboard/TenantHeader";
 
 export default function UserDashboardLayout({
   children,
@@ -14,41 +15,64 @@ export default function UserDashboardLayout({
 }) {
   const { user, isLoaded } = useUser();
   const router = useRouter();
-  const { currentTenant } = useTenant();
+  const pathname = usePathname();
+  const { loading: tenantLoading, isSuperAdmin: isGlobalSuperAdmin } = useTenant();
   const [isRedirecting, setIsRedirecting] = useState(false);
+  const mountedRef = useRef(false);
 
-  console.log('UserDashboardLayout - Component rendered, user:', !!user, 'isLoaded:', isLoaded);
+  // Normalizar detección de rol al inicio del componente
+  const rawRole = ((user?.publicMetadata?.role as string) || (user?.unsafeMetadata?.role as string) || "USER").toUpperCase();
+  const email = user?.primaryEmailAddress?.emailAddress;
+  const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
   useEffect(() => {
-    if (user) {
-      // Check multiple sources for role metadata
-      const userRole = user.publicMetadata?.role ||
-                       user.unsafeMetadata?.role ||
-                       (user as any).privateMetadata?.role;
+    mountedRef.current = true;
+  }, []);
 
-      // Check if this is the specific SUPER_ADMIN email
-      const email = user.primaryEmailAddress?.emailAddress;
-      const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+  // isSystemPath: rutas "de sistema" que tienen su propio layout
+  const isSystemPath = pathname.startsWith('/admin') || pathname.startsWith('/support');
 
-      console.log('UserDashboardLayout - User check:', { email, userRole, isSuperAdminEmail });
+  // Leer cookie DIRECTAMENTE en cada render (no en un cierre) para evitar el loop
+  // de redirección de SUPER_ADMIN cuando TenantContext ya seteó la cookie de impersonación.
+  const readIsImpersonating = () =>
+    typeof document !== 'undefined' && document.cookie.includes('impersonated_tenant_id=');
 
-      // Redirect admin/support users to their respective dashboards
-      if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
+  // EVITAR DOBLE SIDEBAR: Si estamos en una ruta de sistema y NO hay impersonación,
+  // este layout no debe renderizar nada excepto delegar el contenido.
+  if (mountedRef.current && isSystemPath && !readIsImpersonating()) {
+    return <ErrorBoundary>{children}</ErrorBoundary>;
+  }
+
+  useEffect(() => {
+    if (user && mountedRef.current && !tenantLoading) {
+      const isImpersonatingCookie = readIsImpersonating();
+
+      console.log('UserDashboardLayout - User check:', { email, rawRole, isSuperAdminEmail, isImpersonatingCookie });
+
+      // Redirect admin/support users to their respective dashboards while
+      // honouring the impersonation cookie so the super-admin view is never
+      // kicked out of the client dashboard mid-flow.
+      if ((rawRole === 'SUPER_ADMIN' || isSuperAdminEmail) && !isImpersonatingCookie) {
         console.log('UserDashboardLayout - Redirecting SUPER_ADMIN to admin dashboard');
         setIsRedirecting(true);
         router.replace('/admin/dashboard');
-      } else if (userRole === 'SUPPORT') {
+      } else if (rawRole === 'SUPPORT' && !isImpersonatingCookie) {
         console.log('UserDashboardLayout - Redirecting SUPPORT to support dashboard');
         setIsRedirecting(true);
         router.replace('/support/dashboard');
+      } else if ((rawRole === 'ADMIN' || rawRole === 'MANAGER' || rawRole === 'TENANT_ADMIN') && !isImpersonatingCookie) {
+        console.log('UserDashboardLayout - Redirecting ADMIN/MANAGER/TENANT_ADMIN to tenant admin dashboard');
+        setIsRedirecting(true);
+        router.replace('/tenant-admin/dashboard');
       } else {
-        console.log('UserDashboardLayout - ALLOWING ACCESS: Regular user confirmed');
+        console.log('UserDashboardLayout - ALLOWING ACCESS: Context validated');
+        setIsRedirecting(false); // IMPORTANT: Unlock rendering
       }
     }
-  }, [user, router]);
+  }, [user, router, tenantLoading]);
 
   // Show loading while user is not loaded
-  if (!isLoaded) {
+  if (!isLoaded || !mountedRef.current || tenantLoading) {
     console.log('UserDashboardLayout - Showing loading, user not loaded yet');
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -72,86 +96,43 @@ export default function UserDashboardLayout({
     );
   }
 
-  // Check user role
-  const userRole = user.publicMetadata?.role ||
-                   user.unsafeMetadata?.role ||
-                   (user as any).privateMetadata?.role;
-  const email = user.primaryEmailAddress?.emailAddress;
-  const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+  // Verificación final para el bloqueo de renderizado
+    const isAdminRole = rawRole === 'SUPER_ADMIN' || rawRole === 'ADMIN' || rawRole === 'MANAGER' || rawRole === 'TENANT_ADMIN';
+    // Re-read the cookie at render-time so the guard uses fresh data
+    const isImpersonatingNow = readIsImpersonating();
+    const shouldBlock = (isAdminRole || isSuperAdminEmail || rawRole === 'SUPPORT') && !isImpersonatingNow;
 
-  // Don't render anything for admin/support users - let the redirect happen
-  if (isRedirecting || userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT' || isSuperAdminEmail) {
-    console.log('UserDashboardLayout - BLOCKING ACCESS: Admin/Support user, redirecting');
+    console.log('UserDashboardLayout - Access Decision:', {
+      shouldBlock,
+      isRedirecting,
+      details: {
+        userRole: rawRole,
+        isSuperAdminByEmail: isSuperAdminEmail,
+        isImpersonatingActive: isImpersonatingNow,
+        hasAdminPrivileges: isAdminRole || isSuperAdminEmail || rawRole === 'SUPPORT'
+      }
+    });
+
+  if (isRedirecting || shouldBlock) {
     return null; // Return null to allow redirect to complete
   }
 
-  console.log('UserDashboardLayout - Rendering children without sidebar (will be redirected if admin)');
-  
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b border-gray-200 px-6 py-4 relative z-10">
-        <div className="flex items-center justify-between">
-          <div className="flex-1">
-            {currentTenant ? (
-              <>
-                {console.log('🔍 Dashboard - currentTenant:', currentTenant)}
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard Contable</h1>
-                <p className="text-gray-600">
-                  Gestión contable para <span className="font-medium">{currentTenant.businessName}</span>
-                </p>
-                {currentTenant.businessRTN && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-xs">
-                      RTN: {currentTenant.businessRTN}
-                    </Badge>
-                    {currentTenant.businessAddress && (
-                      <Badge variant="secondary" className="text-xs">
-                        {currentTenant.businessAddress}
-                      </Badge>
-                    )}
-                    {currentTenant.businessEmail && (
-                      <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                        {currentTenant.businessEmail}
-                      </Badge>
-                    )}
-                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                      Dashboard Activo
-                    </Badge>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-sm text-gray-500">
-                  {userRole === 'ADMIN' ? 'Administrador' : 
-                   userRole === 'MANAGER' ? 'Gerente' : 
-                   userRole === 'USER' ? 'Usuario' : 
-                   userRole === 'VIEWER' ? 'Observador' : 'Usuario'}
-                </p>
-              </>
-            )}
-          </div>
-          <div className="flex items-center space-x-4">
-            <span className="text-sm text-gray-600">
-              {user.primaryEmailAddress?.emailAddress}
-            </span>
-            <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center">
-              <span className="text-white text-sm font-medium">
-                {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
-              </span>
-            </div>
-          </div>
-        </div>
-      </header>
-      
-      {/* Page Content */}
-      <main className="p-6">
-        <ErrorBoundary>
-          {children}
-        </ErrorBoundary>
-      </main>
+    <div className="flex h-screen bg-gray-50 overflow-hidden">
+      {/* Sidebar - Ahora incluido en el layout de dashboard */}
+      <RoleBasedSidebar />
+
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {/* Header - Usando el componente TenantHeader compartido */}
+        <TenantHeader tenants={[]} />
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          <ErrorBoundary>
+            {children}
+          </ErrorBoundary>
+        </main>
+      </div>
     </div>
   );
 }

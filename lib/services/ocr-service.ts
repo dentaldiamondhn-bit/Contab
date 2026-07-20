@@ -26,10 +26,8 @@ export interface OCRResult {
  */
 export async function extractInvoiceFromImage(imageBase64: string): Promise<OCRResult> {
   try {
-    // Check if Google Cloud credentials are available
     if (!process.env.GOOGLE_CLOUD_PROJECT_ID || !process.env.GOOGLE_CLOUD_KEY_JSON) {
-      console.warn('Google Cloud credentials not configured, using mock OCR data');
-      return getMockOCRResult(imageBase64);
+      throw new Error('Google Cloud credentials not configured');
     }
 
     // Initialize Google Cloud Vision client
@@ -174,50 +172,6 @@ function processOCRText(visionResponse: any): ExtractedInvoiceData {
   }
 
   return extractedData;
-}
-
-/**
- * Mock OCR result for development/testing when Google Cloud is not configured
- */
-async function getMockOCRResult(imageBase64: string): Promise<OCRResult> {
-  // Simulate processing delay
-  const delay = Math.random() * 1000 + 500; // 500-1500ms
-  
-  // Mock invoice data
-  const mockData: ExtractedInvoiceData = {
-    date: new Date().toLocaleDateString('es-HN'),
-    supplierName: 'SUPERMERCADO LA COLONIA S.A. DE C.V.',
-    supplierRTN: '08019001234567',
-    totalAmount: 2500.75,
-    subtotal: 2232.50,
-    taxAmount: 268.25,
-    confidence: 0.92,
-    rawText: `SUPERMERCADO LA COLONIA S.A. DE C.V.
-RTN: 08019001234567
-Fecha: ${new Date().toLocaleDateString('es-HN')}
-Factura: 001-001-0001234
-
-Descripción          Cantidad    Precio     Total
-Leche                2           25.00      50.00
-Pan                  1           15.00      15.00
-Arroz                1           45.00      45.00
-Frijoles             2           30.00      60.00
-
-Subtotal:                        2232.50
-ISV (15%):                       268.25
-TOTAL:                          2500.75
-
-Gracias por su compra`,
-  };
-
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve({
-        success: true,
-        data: mockData,
-      });
-    }, delay);
-  });
 }
 
 /**

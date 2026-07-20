@@ -466,71 +466,31 @@ BEGIN
 END $$;
 
 -- ============================================
--- Step 5: Create triggers for updated_at
+-- Step 5: Create triggers for updated columns
 -- ============================================
 
+-- El trigger para Tenant usa "updatedat" (sin guión bajo) según SUPABASE_COMPLETE.sql
+-- El trigger para "User" usa "updatedAt" (camelCase) según SUPABASE_COMPLETE.sql
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    IF TG_TABLE_NAME = 'Tenant' THEN
+      NEW."updatedat" = CURRENT_TIMESTAMP;
+    ELSIF TG_TABLE_NAME = 'User' THEN
+      NEW."updatedAt" = CURRENT_TIMESTAMP;
+    ELSE
+      NEW."updated_at" = CURRENT_TIMESTAMP;
+    END IF;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
+-- Asegurar trigger en Tenant
 DO $$
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_account_updated_at') THEN
-    CREATE TRIGGER update_account_updated_at BEFORE UPDATE ON "Account"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_transaction_updated_at') THEN
-    CREATE TRIGGER update_transaction_updated_at BEFORE UPDATE ON "Transaction"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_tenant_updated_at') THEN
-    CREATE TRIGGER update_tenant_updated_at BEFORE UPDATE ON "Tenant"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_file_updated_at') THEN
-    CREATE TRIGGER update_file_updated_at BEFORE UPDATE ON "File"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_fileprocessing_updated_at') THEN
-    CREATE TRIGGER update_fileprocessing_updated_at BEFORE UPDATE ON "FileProcessing"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_filetemplate_updated_at') THEN
-    CREATE TRIGGER update_filetemplate_updated_at BEFORE UPDATE ON "FileTemplate"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
-END $$;
-
-DO $$
-BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_trigger WHERE tgname = 'update_users_updated_at') THEN
-    CREATE TRIGGER update_users_updated_at BEFORE UPDATE ON "users"
-      FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
-  END IF;
+  DROP TRIGGER IF EXISTS update_tenant_updated_at ON "Tenant";
+  CREATE TRIGGER update_tenant_updated_at BEFORE UPDATE ON "Tenant"
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
 END $$;
 
 -- ============================================

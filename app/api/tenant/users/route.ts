@@ -30,43 +30,57 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Tenant ID is required' }, { status: 400 });
     }
 
-    // Verify user has access to this tenant
-    const { data: userTenant, error: accessError } = await supabase
-      .from('User')
-      .select('*')
-      .eq('authId', userId)
-      .eq('tenantid', tenantId)
-      .single();
+// Get users for the tenant from database
+     console.log('🔍 API: Getting users for tenant:', tenantId);
+     
+     let users = await getTenantUsers(tenantId);
 
-    if (accessError && accessError.code === 'PGRST116') {
-      // User not found, check if super admin
-      if (userRole !== 'SUPER_ADMIN') {
-        return NextResponse.json({ error: 'Access denied to this tenant' }, { status: 403 });
-      }
-    } else if (accessError) {
-      console.error('❌ Error checking user access:', accessError);
-      return NextResponse.json({ error: 'Database error' }, { status: 500 });
-    }
+     if (!users || users.length === 0) {
+       try {
+         const { data: dbUsers, error } = await supabase
+           .from('User')
+           .select('*')
+           .eq('tenantid', tenantId);
+         
+         if (!error && dbUsers) {
+           users = dbUsers.map((u: any) => ({
+             id: u.id,
+             email: u.email,
+             firstName: u.firstname,
+             lastName: u.lastname,
+             role: u.role,
+             isActive: u.isactive,
+             createdAt: u.createdat,
+             lastLogin: u.lastlogin
+           }));
+         }
+       } catch (dbError) {
+         console.error('Error fetching users from database:', dbError);
+       }
+     }
 
-    // Get users for the tenant
-    let users = await getTenantUsers(tenantId);
+     console.log('📊 API: Users found:', users.length);
 
     // Apply filters
     if (search) {
+      const searchLower = search.toLowerCase();
       users = users.filter(u => 
-        u.email.toLowerCase().includes(search.toLowerCase()) ||
-        u.firstname.toLowerCase().includes(search.toLowerCase()) ||
-        u.lastname.toLowerCase().includes(search.toLowerCase())
+        u.email.toLowerCase().includes(searchLower) ||
+        (u.firstName && u.firstName.toLowerCase().includes(searchLower)) ||
+        (u.lastName && u.lastName.toLowerCase().includes(searchLower))
       );
+      console.log('🔍 API: Users after search filter:', users.length);
     }
 
     if (role) {
       users = users.filter(u => u.role === role);
+      console.log('🔍 API: Users after role filter:', users.length);
     }
 
     if (status) {
       const isActive = status === 'active';
-      users = users.filter(u => u.isactive === isActive);
+      users = users.filter(u => u.isActive === isActive);
+      console.log('🔍 API: Users after status filter:', users.length);
     }
 
     return NextResponse.json({

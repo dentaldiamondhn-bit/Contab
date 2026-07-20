@@ -1,4 +1,4 @@
-import { Clerk } from '@clerk/clerk-sdk-node';
+import { createClerkClient } from '@clerk/clerk-sdk-node';
 
 // Script para actualizar roles de usuarios existentes en Clerk
 // Ejecutar con: npx ts-node scripts/update-user-roles.ts
@@ -9,7 +9,7 @@ interface UserUpdate {
   tenantId?: string;
 }
 
-const clerk = new Clerk({
+const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
 });
 
@@ -48,14 +48,17 @@ async function updateUserRole(update: UserUpdate) {
 
 async function listAllUsers() {
   try {
-    const { data: users } = await clerk.users.getUserList({
+    const users = await clerk.users.getUserList({
       limit: 100,
     });
 
     console.log('Usuarios actuales:');
     users.forEach(user => {
+      const primaryEmail = user.emailAddresses?.find(
+        (email: { id: string }) => email.id === user.primaryEmailAddressId
+      );
       console.log(`ID: ${user.id}`);
-      console.log(`Email: ${user.primaryEmailAddress?.emailAddress}`);
+      console.log(`Email: ${primaryEmail?.emailAddress || 'N/A'}`);
       console.log(`Rol actual: ${(user.publicMetadata as any)?.role || 'USER'}`);
       console.log(`Tenant: ${(user.publicMetadata as any)?.tenantId || 'N/A'}`);
       console.log('---');

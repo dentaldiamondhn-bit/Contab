@@ -54,7 +54,7 @@ export default function CashFlowProjectionChart({
     fetchProjectionData();
   }, [days, includeProbability]);
 
-  const fetchProjectionData = async () => {
+const fetchProjectionData = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/cash-flow-projection?days=${days}&includeProbability=${includeProbability}`);
@@ -62,61 +62,15 @@ export default function CashFlowProjectionChart({
       
       if (result.success) {
         setProjection(result.data);
+      } else {
+        setProjection(null);
       }
     } catch (error) {
       console.error('Error fetching cash flow projection:', error);
-      generateSampleData();
+      setProjection(null);
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateSampleData = () => {
-    // Generate sample projection if API fails
-    const sampleProjection: CashFlowProjection = {
-      period: {
-        start: new Date(),
-        end: new Date(Date.now() + days * 24 * 60 * 60 * 1000),
-        days
-      },
-      currentBalance: 250000,
-      projections: [],
-      summary: {
-        totalInflows: 450000,
-        totalOutflows: 380000,
-        netChange: 70000,
-        endingBalance: 320000,
-        averageDailyBalance: 285000,
-        lowestBalance: 180000,
-        lowestBalanceDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
-        daysWithNegativeBalance: 0
-      },
-      warnings: [],
-      recommendations: ['✅ Flujo de caja saludable. Mantén monitoreo continuo']
-    };
-
-    // Generate daily projections
-    let runningBalance = sampleProjection.currentBalance;
-    for (let i = 0; i < days; i++) {
-      const date = new Date(Date.now() + i * 24 * 60 * 60 * 1000);
-      const inflows = Math.random() * 20000 + 10000;
-      const outflows = Math.random() * 15000 + 8000;
-      const netFlow = inflows - outflows;
-      
-      sampleProjection.projections.push({
-        date,
-        openingBalance: runningBalance,
-        inflows,
-        outflows,
-        netFlow,
-        closingBalance: runningBalance + netFlow,
-        items: []
-      });
-      
-      runningBalance += netFlow;
-    }
-
-    setProjection(sampleProjection);
   };
 
   const formatCurrency = (value: number) => {

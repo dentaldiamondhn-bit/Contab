@@ -49,7 +49,7 @@ export default function BreakEvenChart({
     fetchBreakEvenData();
   }, [targetProfit]);
 
-  const fetchBreakEvenData = async () => {
+const fetchBreakEvenData = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/break-even?targetProfit=${targetProfit}`);
@@ -59,48 +59,19 @@ export default function BreakEvenChart({
         setAnalysis(result.data.analysis);
         setScenarios(result.data.scenarios);
         setRecommendations(result.data.recommendations);
+      } else {
+        setAnalysis(null);
+        setScenarios([]);
+        setRecommendations([]);
       }
     } catch (error) {
       console.error('Error fetching break-even data:', error);
-      generateSampleData();
+      setAnalysis(null);
+      setScenarios([]);
+      setRecommendations([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateSampleData = async () => {
-    const fixedCosts = {
-      rent: 50000,
-      salaries: 150000,
-      utilities: 15000,
-      insurance: 8000,
-      depreciation: 5000,
-      other: 7000,
-      total: 235000
-    };
-
-    const variableCosts = {
-      materials: 80000,
-      labor: 60000,
-      commissions: 25000,
-      shipping: 15000,
-      other: 10000,
-      total: 190000
-    };
-
-    // Import BreakEvenService only for sample data generation
-    const { BreakEvenService } = await import('@/lib/services/break-even-service');
-    const sampleAnalysis = await BreakEvenService.calculateBreakEven(
-      fixedCosts,
-      variableCosts,
-      1500,
-      150,
-      targetProfit
-    );
-
-    setAnalysis(sampleAnalysis);
-    const recommendations = BreakEvenService.getRecommendations(sampleAnalysis);
-    setRecommendations(recommendations);
   };
 
   const formatCurrency = (value: number) => {

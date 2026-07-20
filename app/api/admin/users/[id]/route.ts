@@ -1,32 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { auth, clerkClient } from '@clerk/nextjs/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
+import { clerkClient } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase-db';
+import { getEnhancedAuth } from '@/lib/auth-server';
+import { SUPER_ADMIN_EMAIL } from '@/lib/auth-utils';
 
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const auth = await getEnhancedAuth();
     const { id } = await params;
 
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!auth.userId || !auth.canAccessAdmin) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -45,6 +32,14 @@ export async function DELETE(
       return NextResponse.json(
         { error: 'Usuario no encontrado' },
         { status: 404 }
+      );
+    }
+
+    // Impedir que un ADMIN borre a alguien fuera de su propio tenant
+    if (auth.role !== 'SUPER_ADMIN' && userToDelete.tenantId !== auth.tenantId) {
+      return NextResponse.json(
+        { error: 'No tienes permiso para gestionar usuarios de este tenant' },
+        { status: 403 }
       );
     }
 
@@ -90,28 +85,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId, sessionClaims } = await auth();
+    const auth = await getEnhancedAuth();
     const { id } = await params;
 
-    // Get user from Clerk to check role
-    let userRole: string | undefined;
-    let email = '';
-    try {
-      const client = await clerkClient();
-      const clerkUser = await client.users.getUser(userId);
-      email = clerkUser.emailAddresses[0]?.emailAddress || '';
-      
-      userRole = 
-        clerkUser.publicMetadata?.role || 
-        clerkUser.unsafeMetadata?.role ||
-        (clerkUser.privateMetadata as any)?.role;
-    } catch (error) {
-      console.error('Error getting user from Clerk:', error);
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!auth.userId || !auth.canAccessAdmin) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -128,11 +105,11 @@ export async function PATCH(
       );
     }
 
-    // Validar que el rol sea válido
+    // Validar que el rol sea vÃ¡lido
     const validRoles = ['USER', 'VIEWER', 'MANAGER', 'ADMIN', 'SUPPORT', 'SUPER_ADMIN'];
     if (!validRoles.includes(role)) {
       return NextResponse.json(
-        { error: 'Rol inválido' },
+        { error: 'Rol invÃ¡lido' },
         { status: 400 }
       );
     }
@@ -152,15 +129,15 @@ export async function PATCH(
     }
 
     // No permitir que un usuario normal cambie a SUPER_ADMIN (solo super admin email puede hacerlo)
-    if (role === 'SUPER_ADMIN' && !isSuperAdminEmail) {
+    if (role === 'SUPER_ADMIN' && !auth.isSuperAdmin) {
       return NextResponse.json(
         { error: 'Solo el super administrador puede asignar el rol SUPER_ADMIN' },
         { status: 403 }
       );
     }
 
-    // No permitir cambiar el rol del super admin principal
-    if (existingUser.email === 'sucachi.123@gmail.com' && existingUser.role === 'SUPER_ADMIN') {
+    // ðŸ›¡ï¸ PROTECCIÃ“N CRÃTICA: No permitir modificar al super admin por email, sin importar su rol actual
+    if (existingUser.email === SUPER_ADMIN_EMAIL) {
       return NextResponse.json(
         { error: 'No se puede modificar el rol del super administrador principal' },
         { status: 403 }
@@ -168,7 +145,7 @@ export async function PATCH(
     }
 
     // No permitir que SUPPORT cambie el rol de cualquier usuario SUPER_ADMIN
-    if (userRole === 'SUPPORT' && existingUser.role === 'SUPER_ADMIN') {
+    if (auth.role === 'SUPPORT' && existingUser.role === 'SUPER_ADMIN') {
       return NextResponse.json(
         { error: 'El rol de soporte no puede modificar usuarios SUPER_ADMIN' },
         { status: 403 }
@@ -194,7 +171,7 @@ export async function PATCH(
       );
     }
 
-    // También actualizar el rol en Clerk si el usuario tiene authId
+    // TambiÃ©n actualizar el rol en Clerk si el usuario tiene authId
     if (existingUser.authId) {
       try {
         const client = await clerkClient();

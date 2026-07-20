@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from 'next/server';
+﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabase, getTenantUsers, setTenantContext } from '@/lib/supabase-db';
+import { db } from '@/lib/db';
 
 export async function GET(request: NextRequest) {
   try {
@@ -105,7 +106,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('📦 Received body:', body);
+    console.log('ðŸ“¦ Received body:', body);
     
     const {
       email,
@@ -116,11 +117,11 @@ export async function POST(request: NextRequest) {
       tenantId
     } = body;
 
-    console.log('📋 Parsed data:', { email, firstName, lastName, password: '***', role, tenantId });
+    console.log('ðŸ“‹ Parsed data:', { email, firstName, lastName, password: '***', role, tenantId });
 
     // Validate required fields
     if (!email || !password || !tenantId) {
-      console.error('❌ Missing required fields:', { hasEmail: !!email, hasPassword: !!password, hasTenantId: !!tenantId });
+      console.error('âŒ Missing required fields:', { hasEmail: !!email, hasPassword: !!password, hasTenantId: !!tenantId });
       return NextResponse.json({ error: 'Email, password, and tenantId are required' }, { status: 400 });
     }
 

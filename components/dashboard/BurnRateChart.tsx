@@ -69,7 +69,7 @@ export default function BurnRateChart({
     fetchBurnRateData();
   }, [selectedPeriod]);
 
-  const fetchBurnRateData = async () => {
+const fetchBurnRateData = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/burn-rate?period=${selectedPeriod}`);
@@ -77,44 +77,15 @@ export default function BurnRateChart({
       
       if (result.success) {
         setData(result.data);
+      } else {
+        setData([]);
       }
     } catch (error) {
       console.error('Error fetching burn rate data:', error);
-      // Generate sample data if API fails
-      generateSampleData();
+      setData([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const generateSampleData = () => {
-    const days = 30;
-    const sampleData: BurnRateData[] = [];
-    let cumulativeRevenue = 0;
-    let cumulativeExpenses = 0;
-
-    for (let i = 1; i <= days; i++) {
-      const dailyRevenue = Math.floor(Math.random() * 150000) + 80000; // L. 80,000 - 230,000
-      const dailyExpenses = Math.floor(Math.random() * 100000) + 60000; // L. 60,000 - 160,000
-      
-      cumulativeRevenue += dailyRevenue;
-      cumulativeExpenses += dailyExpenses;
-      
-      const date = new Date();
-      date.setDate(date.getDate() - (days - i));
-      
-      sampleData.push({
-        day: `Day ${i}`,
-        date: date.toLocaleDateString('es-HN', { month: 'short', day: 'numeric' }),
-        cumulativeRevenue,
-        cumulativeExpenses,
-        dailyRevenue,
-        dailyExpenses,
-        netCashFlow: dailyRevenue - dailyExpenses
-      });
-    }
-
-    setData(sampleData);
   };
 
   const formatCurrency = (value: number) => {

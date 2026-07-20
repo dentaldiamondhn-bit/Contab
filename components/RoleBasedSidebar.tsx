@@ -3,8 +3,10 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSidebar } from '../app/contexts/SidebarContext';
-import { useUser } from '@clerk/nextjs';
+import { useTenant } from '@/lib/contexts/TenantContext';
+import { useEffect, useState } from 'react';
 import CustomSignOutButton from './auth/SignOutButton';
+import { useAuthSession } from '@/hooks/use-auth-session';
 
 interface NavItem {
   name: string;
@@ -12,78 +14,65 @@ interface NavItem {
   icon: string; // SVG string
   description?: string;
   badge?: string;
+  module?: string;
   children?: NavItem[];
 }
 
 // Sidebar para SUPER_ADMIN
 const superAdminNavigation: NavItem[] = [
   {
-    name: 'Panel Admin',
+    name: 'Panel Super-Admin',
     href: '/admin/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`,
     description: 'Panel de control del sistema'
   },
   {
-    name: 'Gestión de Usuarios',
+    name: 'Gestión Global de Usuarios',
     href: '/admin/users',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
     description: 'Administrar usuarios del sistema'
   },
   {
-    name: 'Gestión de Tenants',
+    name: 'Gestión Global de Tenants',
     href: '/admin/tenants',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
     description: 'Administrar empresas/tenants'
   },
   {
-    name: 'Sistema',
+    name: 'Gestión de Planes',
+    href: '/admin/plans',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>`,
+    description: 'Administrar planes de suscripción'
+  },
+    {
+      name: 'Reportes',
+      href: '/admin/reports',
+      icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6m0 0l-3-3m3 3l3-3m3 6v-6m0 0l-3-3m3 3l3-3M3 12l3-3 3 3M3 5l3 3 3-3" /></svg>`,
+      description: 'Reportes y estadísticas del sistema'
+    },
+    {
+      name: 'Chat de Soporte',
+      href: '/admin/chat',
+      icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" /></svg>`,
+      description: 'Comunicación con tenants y usuarios'
+    },
+  {
+    name: 'Sistema Global',
     href: '/admin/system',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
     description: 'Configuración del sistema',
     children: [
       {
-        name: 'Configuración',
+        name: 'Configuración Global',
         href: '/admin/settings',
         icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
         description: 'Configuración general'
       },
       {
-        name: 'Logs y Auditoría',
+        name: 'Logs y Auditoría Global',
         href: '/admin/audit',
         icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
         description: 'Ver logs del sistema'
-      }
-    ]
-  },
-  {
-    name: 'Reportes Globales',
-    href: '/admin/reports',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>`,
-    description: 'Reportes de todo el sistema'
-  },
-  {
-    name: 'Planes',
-    href: '/admin/plans',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>`,
-    description: 'Gestión de planes de suscripción'
-  },
-  {
-    name: 'Todas las Facturas',
-    href: '/admin/billing/invoices',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-    description: 'Ver todas las facturas del sistema',
-    children: [
-      {
-        name: 'Todas las Facturas',
-        href: '/admin/billing/invoices',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-        description: 'Listado completo de facturas'
-      },
-      {
-        name: 'Generar Factura',
-        href: '/admin/billing/generate-invoice',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>`,
-        description: 'Crear nueva factura'
       }
     ]
   }
@@ -95,45 +84,22 @@ const adminNavigation: NavItem[] = [
     name: 'Panel Admin',
     href: '/tenant-admin/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`,
-    description: 'Panel de administración de tu empresa'
+    description: 'Panel de administración de tu empresa',
+    module: 'ADMIN_PANEL'
   },
   {
     name: 'Usuarios',
     href: '/tenant-admin/users',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
-    description: 'Gestionar usuarios de tu empresa'
-  },
-  {
-    name: 'Facturación',
-    href: '/billing',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-    description: 'Ver y gestionar facturas',
-    children: [
-      {
-        name: 'Mis Facturas Emitidas',
-        href: '/billing',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-        description: 'Facturas a clientes'
-      },
-      {
-        name: 'Suscripción ContabHN',
-        href: '/billing/subscriptions',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>`,
-        description: 'Facturas del servicio'
-      },
-      {
-        name: 'Facturas Recibidas',
-        href: '/billing/expenses',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>`,
-        description: 'Gastos y compras'
-      }
-    ]
+    description: 'Gestionar usuarios de tu empresa',
+    module: 'USERS'
   },
   {
     name: 'Configuración',
     href: '/tenant-admin/settings',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
-    description: 'Configuración de la empresa'
+    description: 'Configuración de la empresa',
+    module: 'SETTINGS'
   }
 ];
 
@@ -143,49 +109,25 @@ const managerNavigation: NavItem[] = [
     name: 'Panel Gerencia',
     href: '/tenant-admin/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" /></svg>`,
-    description: 'Panel de gerencia de tu empresa'
+    description: 'Panel de gerencia de tu empresa',
+    module: 'ADMIN_PANEL'
   },
   {
-    name: 'Usuarios',
-    href: '/tenant-admin/users',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1m0 0v-1a6 6 0 00-9 5v1m0 0V9a6 6 0 016 0v1m0 0a3 3 0 11-6 0 3 3 0 016 0z" /></svg>`,
-    description: 'Ver usuarios de tu empresa'
-  },
-  {
-    name: 'Facturación',
-    href: '/billing',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-    description: 'Ver facturas y reportes',
-    children: [
-      {
-        name: 'Mis Facturas Emitidas',
-        href: '/billing',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-        description: 'Facturas a clientes'
-      },
-      {
-        name: 'Suscripción ContabHN',
-        href: '/billing/subscriptions',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>`,
-        description: 'Facturas del servicio'
-      },
-      {
-        name: 'Facturas Recibidas',
-        href: '/billing/expenses',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>`,
-        description: 'Gastos y compras'
-      }
-    ]
+    name: 'Módulos del Sistema',
+    href: '/accounting/books',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>`,
+    description: 'Ver herramientas de libros contables',
+    module: 'ACCOUNTING'
   }
 ];
 
 // Sidebar para SUPPORT
 const supportNavigation: NavItem[] = [
   {
-    name: 'Dashboard',
-    href: '/dashboard',
+    name: 'Dashboard Principal',
+    href: '/support/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>`,
-    description: 'Ir al dashboard principal'
+    description: 'Ir al dashboard de operaciones'
   },
   {
     name: 'Panel Soporte',
@@ -194,140 +136,82 @@ const supportNavigation: NavItem[] = [
     description: 'Panel de soporte técnico'
   },
   {
-    name: 'Ver Usuarios',
+    name: 'Ver Usuarios Globales',
     href: '/support/users',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>`,
-    description: 'Ver información de usuarios (solo lectura)'
+    description: 'Ver información de usuarios (Auditoría)'
   },
   {
     name: 'Ver Tenants',
     href: '/support/tenants',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" /></svg>`,
-    description: 'Ver información de empresas (solo lectura)'
-  },
-  {
-    name: 'Logs del Sistema',
-    href: '/support/audit',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-    description: 'Ver logs de auditoría del sistema'
-  },
-  {
-    name: 'Reportes de Soporte',
-    href: '/support/reports',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>`,
-    description: 'Reportes de soporte técnico'
+    description: 'Ver empresas asociadas al sistema'
   }
 ];
 
-// Sidebar para usuarios normales (ADMIN, MANAGER, USER, VIEWER)
+// Sidebar para usuarios normales (USER, VIEWER)
 const userNavigation: NavItem[] = [
   {
-    name: 'Resumen',
+    name: 'Resumen Financiero',
     href: '/dashboard',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" /></svg>`,
     description: 'Resumen financiero general'
   },
   {
-    name: 'Facturación',
-    href: '/billing',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" /></svg>`,
-    description: 'Facturas y pagos',
-    children: [
-      {
-        name: 'Mis Facturas Emitidas',
-        href: '/billing',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" /></svg>`,
-        description: 'Facturas a clientes'
-      },
-      {
-        name: 'Suscripción ContabHN',
-        href: '/billing/subscriptions',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" /></svg>`,
-        description: 'Facturas del servicio'
-      },
-      {
-        name: 'Facturas Recibidas',
-        href: '/billing/expenses',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" /></svg>`,
-        description: 'Gastos y compras'
-      }
-    ]
-  },
-  {
-    name: 'Inventario',
-    href: '/inventory',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg>`,
-    description: 'Gestionar productos y existencias'
-  },
-  {
-    name: 'Contactos',
-    href: '/contacts',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>`,
-    description: 'Gestionar clientes y prospectos'
-  },
-  {
     name: 'Contabilidad',
-    href: '/accounting',
+    href: '/accounting/books',
+    module: 'ACCOUNTING',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m0 0l6 6m-6-6V4m0 6H3m6 0v6m0 0l6-6m-6-6h6m-6 0v6m0 0l6-6M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-    description: 'Gestión contable',
-    children: [
-      {
-        name: 'Libro Diario',
-        href: '/accounting/books',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>`,
-        description: 'Libro diario contable'
-      },
-      {
-        name: 'Impuestos',
-        href: '/accounting/taxes',
-        icon: `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 14l6-6m0 0l6 6m-6-6V4m0 6H3m6 0v6m0 0l6-6m-6-6h6m-6 0v6m0 0l6-6M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
-        description: 'Gestión de impuestos'
-      }
-    ]
-  },
-  {
-    name: 'Reportes',
-    href: '/reports',
-    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>`,
-    description: 'Reportes financieros'
+    description: 'Libros Contables y Balances'
   }
 ];
 
 export default function RoleBasedSidebar() {
   const { collapsed, toggleCollapsed } = useSidebar();
-  const pathname = usePathname();
-  const { user, isLoaded } = useUser();
+  const pathname = usePathname() || '';
+  const { user, isLoaded, role, isSuperAdmin, isSupport, isStaff } = useAuthSession();
+  const { currentTenant } = useTenant();
+  const [isImpersonating, setIsImpersonating] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // Get navigation based on user role
+  useEffect(() => {
+    setMounted(true);
+    if (typeof document !== 'undefined') {
+      setIsImpersonating(document.cookie.includes('impersonated_tenant_id='));
+    }
+  }, [currentTenant, pathname]);
+
+  // Cargar navegación dinámica incluyendo el nuevo mapeo para SUPPORT
   const getNavigationByRole = () => {
-    if (!isLoaded || !user) return [];
+    if (!isLoaded) return []; // Only wait for Clerk to be loaded, not necessarily for the user object to be populated
 
-    const role = user.publicMetadata?.role || 
-                 user.unsafeMetadata?.role ||
-                 (user as any).privateMetadata?.role;
-    
-    // Verificar si es el email de super admin (igual que en el layout)
-    const email = user.primaryEmailAddress?.emailAddress;
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+    const activeImpersonation = mounted && isImpersonating;
 
-    // Si es el email de super admin o rol SUPER_ADMIN, mostrar navegación de SUPER_ADMIN
-    if (isSuperAdminEmail || role === 'SUPER_ADMIN') {
-      return superAdminNavigation;
+    // 1. Rutas de administración de infraestructura
+    if (isSuperAdmin && pathname.startsWith('/admin')) {
+       return superAdminNavigation;
     }
 
-    // Rol SUPPORT ve navegación de soporte (solo lectura)
-    if (role === 'SUPPORT') {
+    // 2. Rutas del panel específico de soporte técnico
+    if (isSupport && pathname.startsWith('/support')) {
       return supportNavigation;
     }
 
+    // 3. Modos de visualización cruzada (Impersonación de empresas)
+    if (activeImpersonation) {
+      return adminNavigation;
+    }
+
+    // 4. Mapeo estructural por roles estándar
     switch (role) {
       case 'SUPER_ADMIN':
-      case 'SUPPORT':
         return superAdminNavigation;
-      case 'ADMIN':
-        return adminNavigation;
+      case 'SUPPORT':
+        return supportNavigation;
       case 'MANAGER':
         return managerNavigation;
+      case 'ADMIN':
+        return adminNavigation;
       case 'USER':
       case 'VIEWER':
       default:
@@ -335,27 +219,21 @@ export default function RoleBasedSidebar() {
     }
   };
 
-  const navigation = getNavigationByRole();
+  const rawNavigation = getNavigationByRole();
+  const activeModules = (currentTenant as any)?.activeModules || [];
 
-  // isActive function to determine which menu item should be highlighted
+  const navigation = rawNavigation.filter(item => {
+    if (isStaff) return true;
+    return !item.module || activeModules.includes(item.module);
+  });
+
   const isActive = (href: string) => {
-    // Sort navigation by href length (longest first) to find most specific match
     const sortedNavigation = [...navigation].sort((a, b) => b.href.length - a.href.length);
-    
-    // Find the most specific match in navigation
     const activeItem = sortedNavigation.find(item => 
       pathname === item.href || pathname.startsWith(item.href + '/')
     );
-    
-    // Return true only if this href is the most specific match
     return activeItem?.href === href;
   };
-
-  // Determine if user is support role for theming
-  const userRole = user?.publicMetadata?.role || 
-                   user?.unsafeMetadata?.role ||
-                   (user as any)?.privateMetadata?.role;
-  const isSupport = userRole === 'SUPPORT';
 
   if (!isLoaded) {
     return (
@@ -372,7 +250,7 @@ export default function RoleBasedSidebar() {
       collapsed ? 'w-16' : 'w-64'
     }`}>
       {/* Logo Section */}
-      <div className="px-6 py-4 border-b border-gray-200 flex items-center">
+      <div className={`px-4 py-4 border-b border-gray-200 flex items-center transition-all ${collapsed ? 'flex-col space-y-4' : 'justify-between'}`}>
         <Link href="/" className="flex items-center space-x-3">
           <div className={`flex-shrink-0 w-10 h-10 ${isSupport ? 'bg-orange-600' : 'bg-blue-600'} rounded-lg flex items-center justify-center`}>
             <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -386,6 +264,15 @@ export default function RoleBasedSidebar() {
             </div>
           )}
         </Link>
+
+        <button
+          onClick={toggleCollapsed}
+          className="p-1.5 rounded-lg bg-gray-50 hover:bg-gray-100 border border-gray-200 text-gray-500 transition-colors shadow-sm"
+        >
+          <svg className={`w-5 h-5 transition-transform duration-300 ${collapsed ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+          </svg>
+        </button>
       </div>
 
       {/* Navigation */}
@@ -398,98 +285,50 @@ export default function RoleBasedSidebar() {
                 href={item.href}
                 className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                   active
-                    ? isSupport 
+                    ? isSupport
                       ? 'bg-orange-50 text-orange-700 border-l-4 border-orange-600'
                       : 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
                     : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
-                }`}
-                title={collapsed ? item.name : undefined}
+                } ${collapsed ? 'justify-center px-0 mx-auto w-10' : ''}`}
+                title={collapsed ? `${item.name}${item.description ? ` — ${item.description}` : ''}` : undefined}
               >
                 <span
                   dangerouslySetInnerHTML={{ __html: item.icon }}
-                  className={`flex-shrink-0 w-5 h-5 ${
-                    active 
-                      ? isSupport ? 'text-orange-700' : 'text-blue-700'
-                      : 'text-gray-400 group-hover:text-gray-500'
-                  }`}
+                  className={`flex-shrink-0 w-5 h-5 ${active ? isSupport ? 'text-orange-700' : 'text-blue-700' : 'text-gray-400 group-hover:text-gray-500'}`}
                 />
                 {!collapsed && (
                   <div className="ml-3 flex-1">
                     <div className="flex items-center justify-between">
                       <span>{item.name}</span>
-                      {item.badge && (
-                        <span className={`px-2 py-1 text-xs font-medium ${isSupport ? 'bg-orange-100 text-orange-800' : 'bg-blue-100 text-blue-800'} rounded-full`}>
-                          {item.badge}
-                        </span>
-                      )}
                     </div>
-                    {!collapsed && item.description && (
-                      <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>
-                    )}
+                    {item.description && <p className="text-xs text-gray-500 mt-0.5">{item.description}</p>}
                   </div>
                 )}
               </Link>
-
-              {/* Render children if not collapsed */}
-              {!collapsed && item.children && (
-                <div className="ml-8 mt-1 space-y-1">
-                  {item.children.map((child) => {
-                    const childActive = isActive(child.href);
-                    return (
-                      <Link
-                        key={child.name}
-                        href={child.href}
-                        className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
-                          childActive
-                            ? isSupport 
-                              ? 'bg-orange-50 text-orange-700'
-                              : 'bg-blue-50 text-blue-700'
-                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                        }`}
-                      >
-                        <span
-                          dangerouslySetInnerHTML={{ __html: child.icon }}
-                          className={`flex-shrink-0 w-4 h-4 ${
-                            childActive 
-                              ? isSupport ? 'text-orange-700' : 'text-blue-700'
-                              : 'text-gray-400 group-hover:text-gray-500'
-                          }`}
-                        />
-                        <div className="ml-3 flex-1">
-                          <span className="text-xs">{child.name}</span>
-                          {!collapsed && child.description && (
-                            <p className="text-xs text-gray-400 mt-0.5">{child.description}</p>
-                          )}
-                        </div>
-                      </Link>
-                    );
-                  })}
-                </div>
-              )}
             </div>
           );
         })}
       </nav>
     
-    {/* User Section */}
-    <div className="border-t border-gray-200 p-4">
-      <div className="flex items-center space-x-3 mb-3">
-        <div className="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-medium">
-            {user?.firstName?.charAt(0) || user?.primaryEmailAddress?.emailAddress?.charAt(0) || 'U'}
-          </span>
+      {/* User Section */}
+      <div className="border-t border-gray-200 p-4">
+        <div className={`flex items-center ${collapsed ? 'justify-center' : 'space-x-3'} mb-3`}>
+          <div className={`w-8 h-8 ${isSupport ? 'bg-orange-500' : 'bg-blue-500'} rounded-full flex items-center justify-center`}>
+            <span className="text-white text-sm font-medium">
+              {user?.firstName?.charAt(0) || user?.primaryEmailAddress?.emailAddress?.charAt(0) || 'U'}
+            </span>
+          </div>
+          {!collapsed && (
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-gray-900 truncate">{user?.firstName || 'Usuario'}</p>
+              <span className={`inline-block ${isSupport ? 'bg-orange-100 text-orange-800' : 'bg-slate-100 text-slate-700'} font-mono text-[10px] uppercase px-1.5 py-0.5 rounded mt-0.5 tracking-wider`}>
+                {role}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-gray-900 truncate">
-            {user?.firstName || 'Usuario'}
-          </p>
-          <p className="text-xs text-gray-500 truncate">
-            {user?.primaryEmailAddress?.emailAddress}
-          </p>
-        </div>
+        <CustomSignOutButton />
       </div>
-      <CustomSignOutButton />
     </div>
-  </div>
   );
 }

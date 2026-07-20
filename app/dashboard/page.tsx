@@ -31,39 +31,46 @@ import InventoryStats from "@/components/dashboard/InventoryStats";
 
 export default function DashboardPage() {
   const { currentTenant } = useTenant();
-  const { user } = useUser();
+  const { user, isLoaded } = useUser();
   const router = useRouter();
+  const [mounted, setMounted] = useState(false);
 
-  // Verificar rol y redirigir si es administrador
   useEffect(() => {
-    if (user) {
-      const userRole = user.publicMetadata?.role;
-      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
-        router.replace('/admin/dashboard');
-      } else if (userRole === 'ADMIN' || userRole === 'MANAGER') {
-        router.replace('/tenant-admin/dashboard');
-      }
+    setMounted(true);
+  }, []);
+
+  // Helper: lee la cookie de impersonación en el momento de ejecución del effect,
+  // evitando el cierre obsoleto que produce un redirect loop para SUPER_ADMIN.
+  const readIsImpersonatingCookie = () =>
+    typeof document !== 'undefined' && document.cookie.includes('impersonated_tenant_id=');
+
+   useEffect(() => {
+     // Si estamos en modo impersonación (cookie seteada por TenantContext o manualmente),
+     // no redirigir por rol de administrador — el usuario está viendo el dashboard como cliente.
+     if (!user || !isLoaded || !mounted || readIsImpersonatingCookie()) return;
+     
+     // Check multiple sources for role metadata (same as in auth-utils)
+     const userRole = user.publicMetadata?.role ||
+                     user.unsafeMetadata?.role ||
+                     (user as any).privateMetadata?.role;
+                     
+     if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
+       router.replace('/admin/dashboard');
+     } else if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'TENANT_ADMIN') {
+       router.replace('/tenant-admin/dashboard');
+     }
+   }, [user, isLoaded, mounted, router]);
+
+    // Mostrar loading mientras se verifica el rol (incluye isLoaded para que Clerk termine de hidratar)
+    console.log('[DashboardPage] render check:', { user: !!user, isLoaded, mounted, currentTenant: !!currentTenant, userRole: user?.publicMetadata?.role });
+    if (!user || !isLoaded || !mounted) {
+      console.log('[DashboardPage] → spinner: !user || !isLoaded || !mounted');
+      return (
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+        </div>
+      );
     }
-  }, [user, router]);
-
-  // Mostrar loading mientras se verifica el rol
-  if (!user) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  // Si es administrador, no mostrar este dashboard (será redirigido)
-  const userRole = user.publicMetadata?.role;
-  if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {

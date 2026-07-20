@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useTenant } from '@/lib/contexts/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { 
   BookOpen, 
   Calculator, 
@@ -17,7 +19,8 @@ import {
   CheckCircle2,
   DollarSign,
   Users,
-  Receipt
+  Receipt,
+  BarChart
 } from 'lucide-react';
 
 interface DashboardStats {
@@ -38,9 +41,13 @@ interface QuickAction {
   icon: React.ReactNode;
   href: string;
   color: string;
+  module?: string;
 }
 
+const TRIAL_TRANSACTION_LIMIT = 50;
+
 export default function MasterDashboard() {
+  const { currentTenant } = useTenant();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [currentPeriod, setCurrentPeriod] = useState('');
@@ -74,6 +81,7 @@ export default function MasterDashboard() {
       icon: <Receipt className="w-5 h-5" />,
       href: '/tax-helper',
       color: 'bg-blue-500',
+      module: 'ACCOUNTING',
     },
     {
       title: 'Trial Balance',
@@ -81,6 +89,7 @@ export default function MasterDashboard() {
       icon: <Calculator className="w-5 h-5" />,
       href: '/trial-balance',
       color: 'bg-green-500',
+      module: 'ACCOUNTING',
     },
     {
       title: 'Tax Report',
@@ -88,6 +97,7 @@ export default function MasterDashboard() {
       icon: <FileText className="w-5 h-5" />,
       href: '/tax-reporting',
       color: 'bg-purple-500',
+      module: 'REPORTS',
     },
     {
       title: 'Month Closing',
@@ -95,6 +105,7 @@ export default function MasterDashboard() {
       icon: <Calendar className="w-5 h-5" />,
       href: '/book-closing',
       color: 'bg-orange-500',
+      module: 'ACCOUNTING',
     },
     {
       title: 'Import Data',
@@ -109,8 +120,36 @@ export default function MasterDashboard() {
       icon: <Download className="w-5 h-5" />,
       href: '/export',
       color: 'bg-red-500',
+      module: 'REPORTS',
     },
   ];
+
+  const activeModules = (currentTenant as any)?.activeModules || [];
+  const planId = (currentTenant as any)?.planid || 'BASIC';
+  const planName = planId === 'PRO' ? 'Plan Empresarial' : 'Plan Emprendedor';
+  const planPrice = planId === 'PRO' ? '950.00' : '450.00';
+  
+  const currentTransactions = stats?.currentMonthTransactions || 0;
+  const isUsageLimitReached = planId === 'BASIC' && currentTransactions >= TRIAL_TRANSACTION_LIMIT;
+  const usagePercentage = Math.min((currentTransactions / TRIAL_TRANSACTION_LIMIT) * 100, 100);
+  
+  const expirationDateStr = (currentTenant as any)?.expirationdate;
+  let showReminder = false;
+  let isExpired = false;
+  let daysRemaining = -1;
+
+  if (expirationDateStr) {
+    const expirationDate = new Date(expirationDateStr);
+    const today = new Date();
+    const diffTime = expirationDate.getTime() - today.getTime();
+    daysRemaining = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    isExpired = daysRemaining < 0;
+    // Mostrar recordatorio preventivo solo si faltan 7 días o menos, pero aún no ha vencido
+    showReminder = !isExpired && daysRemaining <= 7;
+  }
+
+  const filteredQuickActions = quickActions.filter(action => !action.module || activeModules.includes(action.module));
 
   if (loading) {
     return (
@@ -164,6 +203,85 @@ export default function MasterDashboard() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Subscription Alerts */}
+        {isExpired && (
+          <Card className="mb-6 border-red-200 bg-red-50">
+            <CardContent className="py-4">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-red-100 rounded-full">
+                    <AlertCircle className="w-5 h-5 text-red-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-red-900">
+                      Suscripción vencida: <span className="font-bold">{planName}</span>
+                    </p>
+                    <p className="text-xs text-red-700">
+                      Tu suscripción expiró hace {Math.abs(daysRemaining)} {Math.abs(daysRemaining) === 1 ? 'día' : 'días'}. Por favor, renueva tu plan para evitar la interrupción del servicio y seguir utilizando todas las funciones.
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="destructive" asChild>
+                  <Link href="/billing/subscriptions">Renovar Ahora</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {showReminder && (
+          <Card className="mb-6 border-amber-200 bg-amber-50">
+            <CardContent className="py-4">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex items-center space-x-3">
+                  <div className="p-2 bg-amber-100 rounded-full">
+                    <AlertCircle className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-amber-900">
+                      Suscripción próxima a vencer: <span className="font-bold">{planName}</span> (Vence en {daysRemaining} {daysRemaining === 1 ? 'día' : 'días'})
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Tu próximo cargo de <span className="font-semibold">L. {planPrice}</span> se procesará automáticamente en los próximos días.
+                    </p>
+                  </div>
+                </div>
+                <Button size="sm" variant="outline" className="bg-white border-amber-200 text-amber-700 hover:bg-amber-100" asChild>
+                  <Link href="/billing/subscriptions">Ver Facturación</Link>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {planId === 'BASIC' && (
+          <Card className="mb-6">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium flex items-center gap-2">
+                <BarChart className="w-4 h-4 text-blue-600" />
+                Uso de Transacciones Mensuales
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-between text-xs mb-1">
+                <span>{currentTransactions} de {TRIAL_TRANSACTION_LIMIT} transacciones</span>
+                <span className="font-bold">{Math.round(usagePercentage)}%</span>
+              </div>
+              <div className="w-full bg-gray-100 rounded-full h-2.5">
+                <div 
+                  className={`h-2.5 rounded-full transition-all ${usagePercentage > 90 ? 'bg-red-500' : 'bg-blue-600'}`} 
+                  style={{ width: `${usagePercentage}%` }}
+                ></div>
+              </div>
+              {isUsageLimitReached && (
+                <p className="text-xs text-red-600 mt-2 font-medium">
+                  ⚠️ Has alcanzado el límite. Actualiza a PRO para transacciones ilimitadas.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         {/* Key Metrics */}
         {stats && (
@@ -224,10 +342,15 @@ export default function MasterDashboard() {
         <div className="mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {quickActions.map((action, index) => (
-              <Link key={index} href={action.href}>
-                <Card className="hover:shadow-md transition-shadow cursor-pointer h-full">
-                  <CardContent className="p-6">
+            {filteredQuickActions.map((action, index) => (
+              <Link key={index} href={planId === 'BASIC' && action.module === 'REPORTS' ? '#' : action.href}>
+                <Card className={`hover:shadow-md transition-shadow cursor-pointer h-full ${planId === 'BASIC' && action.module === 'REPORTS' ? 'opacity-75' : ''}`}>
+                  <CardContent className="p-6 relative">
+                    {planId === 'BASIC' && action.module === 'REPORTS' && (
+                      <Badge className="absolute top-2 right-2 bg-amber-100 text-amber-700 hover:bg-amber-100 border-none">
+                        PRO
+                      </Badge>
+                    )}
                     <div className="flex items-start space-x-4">
                       <div className={`${action.color} p-3 rounded-lg text-white`}>
                         {action.icon}

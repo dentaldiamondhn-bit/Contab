@@ -7,7 +7,8 @@ CREATE TABLE IF NOT EXISTS "Plan" (
   "max_users" INTEGER NOT NULL,
   "max_storage" INTEGER NOT NULL,
   "max_transactions" INTEGER NOT NULL,
-  "features" TEXT NOT NULL,
+  "features" TEXT NOT NULL DEFAULT '[]',
+  "modules" TEXT NOT NULL DEFAULT '[]',
   "is_active" INTEGER NOT NULL DEFAULT 1,
   "created_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP

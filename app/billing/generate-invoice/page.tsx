@@ -15,9 +15,15 @@ import {
   Building2,
   Upload,
   Image as ImageIcon,
-  X
+  X,
+  Eye,
+  Package,
+  Search,
+  DollarSign
 } from 'lucide-react';
 import { useTenant } from '@/lib/contexts/TenantContext';
+import InvoicePreview from '@/components/billing/InvoicePreview';
+import { createSupabaseClient } from '@/lib/supabase/client';
 
 interface InvoiceItem {
   id: string;
@@ -25,6 +31,26 @@ interface InvoiceItem {
   quantity: number;
   unitPrice: number;
   total: number;
+  taxRate: number;
+  taxAmount: number;
+}
+
+interface Product {
+  id: string;
+  code: string;
+  name: string;
+  description: string;
+  category: string;
+  unit: string;
+  stock: number;
+  minStock: number;
+  maxStock: number;
+  unitCost: number;
+  unitPrice: number;
+  price?: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface Customer {
@@ -32,6 +58,7 @@ interface Customer {
   rtn: string;
   email: string;
   address: string;
+  requireRtn?: boolean;
 }
 
 export default function GenerateInvoicePage() {
@@ -42,16 +69,22 @@ export default function GenerateInvoicePage() {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   
-  // Customer info
+  // Customer information
   const [customer, setCustomer] = useState<Customer>({
-    name: '',
+    name: 'Consumidor Final',
     rtn: '',
     email: '',
-    address: ''
+    address: '',
+    requireRtn: false
   });
   
   // Invoice items
   const [items, setItems] = useState<InvoiceItem[]>([]);
+  
+  // Inventory products
+  const [products, setProducts] = useState<Product[]>([]);
+  const [showInventorySelector, setShowInventorySelector] = useState(false);
+  const [inventorySearch, setInventorySearch] = useState('');
   
   // Dates
   const [issueDate, setIssueDate] = useState(new Date().toISOString().split('T')[0]);
@@ -64,22 +97,131 @@ export default function GenerateInvoicePage() {
   // Notes
   const [notes, setNotes] = useState('');
   
+  // Discount
+  const [discountType, setDiscountType] = useState<'percentage' | 'fixed'>('percentage');
+  const [discountValue, setDiscountValue] = useState(0);
+  
+  // Tax configuration
+  const [enable15Tax, setEnable15Tax] = useState(true);
+  const [enable18Tax, setEnable18Tax] = useState(false);
+  const [customTaxes, setCustomTaxes] = useState<any[]>([]);
+  
   // Invoice image
   const [invoiceImage, setInvoiceImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
 
+  // Preview mode
+  const [showPreview, setShowPreview] = useState(false);
+
+  // Get CAI info from localStorage
+  const [caiInfo, setCaiInfo] = useState<any>(null);
+
+  // Load CAI info and custom taxes from localStorage and API
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        // Load CAI info
+        const savedCaiInfo = localStorage.getItem('caiInfo');
+        if (savedCaiInfo) {
+          const parsedCaiInfo = JSON.parse(savedCaiInfo);
+          setCaiInfo(parsedCaiInfo);
+          console.log('🔍 CAI info loaded:', parsedCaiInfo);
+        }
+
+        // Load custom taxes from API
+        try {
+          const response = await fetch('/api/taxes/custom');
+          if (response.ok) {
+            const { data: taxes } = await response.json();
+            setCustomTaxes(taxes || []);
+            console.log('🔍 Custom taxes loaded from API:', taxes);
+          } else {
+            console.log('⚠️ Error loading custom taxes from API');
+          }
+        } catch (apiError) {
+          console.log('⚠️ API error, using empty custom taxes:', apiError);
+          setCustomTaxes([]);
+        }
+      } catch (error) {
+        console.error('Error loading data:', error);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  const supabase = createSupabaseClient();
+
+  useEffect(() => {
+    // Load inventory products
+    if (currentTenant) {
+      loadInventory();
+    }
+  }, [currentTenant]);
+
+  const loadInventory = async () => {
+    if (!currentTenant) return;
+    
+    try {
+      // Establecer tenant context
+      await (supabase as any).rpc('set_tenant', { tenant_id: currentTenant.id });
+
+      // Cargar productos activos
+      const { data, error } = await supabase
+        .from('Product')
+        .select('*')
+        .eq('isActive', true)
+        .gt('stock', 0)
+        .order('name');
+
+      if (error) {
+        console.error('Error loading inventory:', error);
+      } else {
+        setProducts(data || []);
+      }
+    } catch (error) {
+      console.error('Error loading inventory:', error);
+    }
+  };
+
+  const addInventoryItem = (product: Product) => {
+    const unitPrice = product.unitPrice || product.price || 0;
+    const newItem: InvoiceItem = {
+      id: `inv-${Date.now()}-${Math.random()}`,
+      description: `${product.name} - ${product.description}`,
+      quantity: 1,
+      unitPrice: unitPrice,
+      total: unitPrice
+    };
+    
+    setItems([...items, newItem]);
+    setShowInventorySelector(false);
+    setInventorySearch('');
+  };
+
+  const filteredProducts = products.filter(product =>
+    (product.name && product.name.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+    (product.code && product.code.toLowerCase().includes(inventorySearch.toLowerCase())) ||
+    (product.category && product.category.toLowerCase().includes(inventorySearch.toLowerCase()))
+  );
+
   // Calculate totals
-  const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-  const tax = subtotal * 0.15; // 15% ISV
+  const subtotal = items.reduce((sum: number, item: InvoiceItem) => sum + item.total, 0);
+  const tax = items.reduce((sum: number, item: InvoiceItem) => sum + item.taxAmount, 0);
   const total = subtotal + tax;
 
   const addItem = () => {
+    // Usar el primer impuesto personalizado disponible o 15% como defecto
+    const defaultTaxRate = customTaxes.length > 0 ? customTaxes[0].rate : 0.15;
+    
     const newItem: InvoiceItem = {
       id: Date.now().toString(),
       description: '',
       quantity: 1,
       unitPrice: 0,
-      total: 0
+      total: 0,
+      taxRate: defaultTaxRate,
+      taxAmount: 0
     };
     setItems([...items, newItem]);
   };
@@ -92,10 +234,14 @@ export default function GenerateInvoicePage() {
     setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
-        // Recalculate total if quantity or unitPrice changes
-        if (field === 'quantity' || field === 'unitPrice') {
-          updatedItem.total = updatedItem.quantity * updatedItem.unitPrice;
+        
+        // Recalcular montos si cambia precio, cantidad o tasa de impuesto
+        if (field === 'quantity' || field === 'unitPrice' || field === 'taxRate') {
+          const itemSubtotal = updatedItem.quantity * updatedItem.unitPrice;
+          updatedItem.taxAmount = itemSubtotal * updatedItem.taxRate;
+          updatedItem.total = itemSubtotal; // Total sin impuestos
         }
+        
         return updatedItem;
       }
       return item;
@@ -108,8 +254,13 @@ export default function GenerateInvoicePage() {
       return;
     }
 
-    if (!customer.name || !customer.rtn) {
-      setError('Debe ingresar el nombre y RTN del cliente');
+    if (!customer.name) {
+      setError('Debe ingresar el nombre del cliente');
+      return;
+    }
+
+    if (customer.requireRtn && !customer.rtn) {
+      setError('Debe ingresar el RTN del cliente');
       return;
     }
 
@@ -127,50 +278,56 @@ export default function GenerateInvoicePage() {
       setLoading(true);
       setError('');
 
-      // Create FormData for file upload support
-      const formData = new FormData();
-      formData.append('tenantId', currentTenant.id);
-      formData.append('invoiceType', 'CUSTOMER');
-      formData.append('customerName', customer.name);
-      formData.append('customerRTN', customer.rtn);
-      formData.append('customerEmail', customer.email);
-      formData.append('customerAddress', customer.address);
-      formData.append('issueDate', issueDate);
-      formData.append('dueDate', dueDate);
-      formData.append('items', JSON.stringify(items.map(item => ({
-        description: item.description,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        total: item.total
-      }))));
-      formData.append('subtotal', subtotal.toString());
-      formData.append('tax', tax.toString());
-      formData.append('total', total.toString());
-      formData.append('notes', notes);
-      
-      // Append image if exists
-      if (invoiceImage) {
-        formData.append('invoiceImage', invoiceImage);
-      }
-
       const response = await fetch('/api/admin/billing/invoices', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          tenantId: currentTenant?.id,
+          customerName: customer.name || 'Consumidor Final',
+          customerRtn: customer.rtn || '',
+          customerEmail: customer.email,
+          customerAddress: customer.address,
+          items,
+          issueDate,
+          dueDate,
+          notes,
+          subtotal,
+          tax,
+          total,
+          discountAmount,
+          discountType,
+          enable15Tax,
+          enable18Tax,
+          invoiceImage
+        }),
       });
 
       if (!response.ok) {
-        throw new Error('Error al guardar la factura');
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al guardar la factura');
       }
 
-      setSuccess('Factura generada exitosamente');
+      const result = await response.json();
+      setSuccess('Factura guardada exitosamente!');
       
-      // Redirect after success
+      // Clear form
+      setCustomer({ name: '', rtn: '', email: '', address: '', requireRtn: false });
+      setItems([]);
+      setNotes('');
+      
       setTimeout(() => {
         router.push('/billing');
-      }, 1500);
-    } catch (error: any) {
-      console.error('Error generating invoice:', error);
-      setError('Error al generar la factura');
+        // Force refresh after navigation to show new invoice
+        setTimeout(() => {
+          window.location.reload();
+        }, 500);
+      }, 2000);
+
+    } catch (err: any) {
+      console.error('Error saving invoice:', err);
+      setError(err.message || 'Error al guardar la factura');
     } finally {
       setLoading(false);
     }
@@ -227,6 +384,15 @@ export default function GenerateInvoicePage() {
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
+                onClick={() => setShowPreview(!showPreview)}
+                disabled={loading || items.length === 0}
+                className="flex items-center gap-2"
+              >
+                <Eye className="w-4 h-4" />
+                {showPreview ? 'Ocultar Vista' : 'Vista Previa'}
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => router.push('/billing')}
                 disabled={loading}
               >
@@ -280,14 +446,15 @@ export default function GenerateInvoicePage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  RTN *
+                  RTN {customer.requireRtn ? '*' : '(Opcional)'}
                 </label>
                 <input
                   type="text"
                   value={customer.rtn}
                   onChange={(e) => setCustomer({ ...customer, rtn: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder="0801-XXXX-XXXXX"
+                  placeholder={customer.requireRtn ? "0801-XXXX-XXXXX" : "Opcional: 0801-XXXX-XXXXX"}
+                  disabled={!customer.requireRtn}
                 />
               </div>
               <div>
@@ -314,6 +481,17 @@ export default function GenerateInvoicePage() {
                   placeholder="Dirección del cliente"
                 />
               </div>
+            </div>
+            <div className="flex items-center mt-2">
+              <input
+                type="checkbox"
+                checked={customer.requireRtn}
+                onChange={(e) => setCustomer({ ...customer, requireRtn: e.target.checked })}
+                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+              />
+              <label className="ml-2 text-sm text-gray-600">
+                Requerir RTN (marcar si el cliente necesita RTN)
+              </label>
             </div>
           </CardContent>
         </Card>
@@ -362,28 +540,113 @@ export default function GenerateInvoicePage() {
                 <FileText className="w-5 h-5" />
                 Items de la Factura
               </CardTitle>
-              <Button
-                onClick={addItem}
-                variant="outline"
-                className="flex items-center gap-2"
-              >
-                <Plus className="w-4 h-4" />
-                Agregar Item
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent>
-            {items.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                <p>No hay items agregados</p>
+              <div className="flex items-center gap-2">
+                <Button
+                  onClick={() => setShowInventorySelector(!showInventorySelector)}
+                  variant="outline"
+                  className="flex items-center gap-2"
+                >
+                  <Package className="w-4 h-4" />
+                  Inventario
+                </Button>
                 <Button
                   onClick={addItem}
                   variant="outline"
-                  className="mt-4"
+                  className="flex items-center gap-2"
                 >
-                  <Plus className="w-4 h-4 mr-2" />
-                  Agregar Primer Item
+                  <Plus className="w-4 h-4" />
+                  Agregar Item
                 </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {/* Inventory Selector */}
+            {showInventorySelector && (
+              <div className="mb-6 p-4 border border-gray-200 rounded-lg bg-gray-50">
+                <div className="flex items-center gap-2 mb-4">
+                  <Search className="w-4 h-4 text-gray-500" />
+                  <input
+                    type="text"
+                    placeholder="Buscar productos por nombre, código o categoría..."
+                    value={inventorySearch}
+                    onChange={(e) => setInventorySearch(e.target.value)}
+                    className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setShowInventorySelector(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                <div className="max-h-64 overflow-y-auto">
+                  {filteredProducts.length === 0 ? (
+                    <div className="text-center py-4 text-gray-500">
+                      <Package className="w-8 h-8 mx-auto mb-2 text-gray-300" />
+                      <p>No hay productos disponibles</p>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
+                      {filteredProducts.map((product) => (
+                        <div
+                          key={product.id}
+                          className="flex items-center justify-between p-3 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 cursor-pointer"
+                          onClick={() => addInventoryItem(product)}
+                        >
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm">{product.name}</span>
+                              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                {product.code}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-500 mt-1">
+                              {product.category} • Stock: {product.stock} {product.unit}
+                            </div>
+                            <div className="text-xs text-gray-400 mt-1">
+                              {product.description}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div className="font-medium text-sm">
+                              {formatCurrency(product.unitPrice || product.price || 0)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              /{product.unit}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {items.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p className="mb-2">No hay items agregados</p>
+                <p className="text-sm mb-4">Agrega productos desde el inventario o crea items personalizados</p>
+                <div className="flex gap-2 justify-center">
+                  <Button
+                    onClick={() => setShowInventorySelector(true)}
+                    variant="outline"
+                  >
+                    <Package className="w-4 h-4 mr-2" />
+                    Ver Inventario
+                  </Button>
+                  <Button
+                    onClick={addItem}
+                    variant="outline"
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Agregar Item Manual
+                  </Button>
+                </div>
               </div>
             ) : (
               <div className="space-y-4">
@@ -411,11 +674,12 @@ export default function GenerateInvoicePage() {
                         value={item.quantity}
                         onChange={(e) => updateItem(item.id, 'quantity', parseInt(e.target.value) || 0)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="0"
                       />
                     </div>
                     <div className="col-span-2">
                       <label className="block text-xs font-medium text-gray-500 mb-1">
-                        Precio Unit.
+                        Precio Unitario
                       </label>
                       <input
                         type="number"
@@ -424,30 +688,156 @@ export default function GenerateInvoicePage() {
                         value={item.unitPrice}
                         onChange={(e) => updateItem(item.id, 'unitPrice', parseFloat(e.target.value) || 0)}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                        placeholder="0.00"
                       />
                     </div>
                     <div className="col-span-1">
                       <label className="block text-xs font-medium text-gray-500 mb-1">
                         Total
                       </label>
-                      <p className="py-2 text-sm font-medium">
+                      <div className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm font-medium">
                         {formatCurrency(item.total)}
-                      </p>
+                      </div>
                     </div>
-                    <div className="col-span-1 flex items-end justify-end">
+                    <div className="col-span-2">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Impuesto
+                      </label>
+                      <select
+                        value={item.taxRate}
+                        onChange={(e) => updateItem(item.id, 'taxRate', parseFloat(e.target.value))}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm"
+                      >
+                        {customTaxes.map((tax: any) => (
+                          <option key={tax.id} value={tax.rate}>
+                            {tax.name} ({(tax.rate * 100).toFixed(1)}%)
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="col-span-1">
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        Acciones
+                      </label>
                       <Button
-                        variant="ghost"
+                        variant="outline"
                         size="sm"
                         onClick={() => removeItem(item.id)}
-                        className="text-red-600 hover:text-red-800"
+                        className="w-full"
                       >
-                        <Trash2 className="w-4 h-4" />
+                        <Trash2 className="w-3 h-3" />
                       </Button>
                     </div>
                   </div>
                 ))}
               </div>
             )}
+          </CardContent>
+        </Card>
+
+        {/* Tax Configuration */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="w-5 h-5" />
+              Configuración de Impuestos
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ISV 15%
+                  </label>
+                  <div className="text-xs text-gray-500">
+                    Impuesto sobre ventas al 15%
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={enable15Tax}
+                    onChange={(e) => setEnable15Tax(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium">
+                    {enable15Tax ? 'Activado' : 'Desactivado'}
+                  </span>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    ISV 18%
+                  </label>
+                  <div className="text-xs text-gray-500">
+                    Impuesto sobre ventas al 18%
+                  </div>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    checked={enable18Tax}
+                    onChange={(e) => setEnable18Tax(e.target.checked)}
+                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <span className="ml-2 text-sm font-medium">
+                    {enable18Tax ? 'Activado' : 'Desactivado'}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Discount */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5" />
+              Descuento
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Descuento
+                </label>
+                <select
+                  value={discountType}
+                  onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                >
+                  <option value="percentage">Porcentaje (%)</option>
+                  <option value="fixed">Monto Fijo</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  {discountType === 'percentage' ? 'Porcentaje' : 'Monto'}
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  max={discountType === 'percentage' ? 100 : undefined}
+                  step={discountType === 'percentage' ? 0.1 : 0.01}
+                  value={discountValue}
+                  onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  placeholder={discountType === 'percentage' ? '0.0' : '0.00'}
+                />
+              </div>
+              <div className="flex items-end">
+                <div className="text-right w-full">
+                  <div className="text-sm text-gray-500">Descuento:</div>
+                  <div className="font-medium text-lg">
+                    {formatCurrency(discountAmount)}
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -466,8 +856,14 @@ export default function GenerateInvoicePage() {
                   <span className="text-gray-600">Subtotal:</span>
                   <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between py-2">
+                    <span className="text-red-600">Descuento:</span>
+                    <span className="font-medium text-red-600">-{formatCurrency(discountAmount)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between py-2">
-                  <span className="text-gray-600">ISV (15%):</span>
+                  <span className="text-gray-600">Impuestos:</span>
                   <span className="font-medium">{formatCurrency(tax)}</span>
                 </div>
                 <div className="flex justify-between py-2 text-lg font-bold border-t border-gray-200">
@@ -559,6 +955,28 @@ export default function GenerateInvoicePage() {
             )}
           </CardContent>
         </Card>
+
+        {/* Invoice Preview */}
+        {showPreview && caiInfo && (
+          <Card className="mb-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Eye className="w-5 h-5" />
+                Vista Previa de Factura - Formato SAR
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="border rounded-lg p-4 bg-gray-50">
+                <InvoicePreview
+                  tenant={currentTenant}
+                  caiInfo={caiInfo}
+                  invoiceItems={items}
+                  notes={notes}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-4">

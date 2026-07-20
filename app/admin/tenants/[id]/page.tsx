@@ -67,7 +67,7 @@ export default function TenantDetailPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [showInvoiceModal, setShowInvoiceModal] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<Payment | null>(null);
-  const [showModuleModal, setShowModuleModal] = useState(false);
+  
   const [activeTab, setActiveTab] = useState<'overview' | 'users' | 'billing' | 'templates' | 'plans' | 'modules'>('overview');
   const [showInvoiceImage, setShowInvoiceImage] = useState(false);
   const [newUser, setNewUser] = useState({
@@ -78,17 +78,19 @@ export default function TenantDetailPage() {
     password: ''
   });
 
-  // Módulos disponibles en el sistema
-  const availableModules = [
-    { id: 'accounting', name: 'Contabilidad', icon: '📊', description: 'Gestión contable completa' },
-    { id: 'billing', name: 'Facturación', icon: '🧾', description: 'Facturación electrónica' },
-    { id: 'reports', name: 'Reportes', icon: '📈', description: 'Reportes y análisis' },
-    { id: 'inventory', name: 'Inventario', icon: '📦', description: 'Control de inventario' },
-    { id: 'payroll', name: 'Nómina', icon: '💰', description: 'Gestión de nómina' },
-    { id: 'api', name: 'API Access', icon: '🔌', description: 'Acceso a API' },
-    { id: 'support', name: 'Soporte 24/7', icon: '🎧', description: 'Soporte técnico continuo' },
-    { id: 'customization', name: 'Personalización', icon: '⚙️', description: 'Personalización del sistema' }
-  ];
+   // Módulos disponibles en el sistema
+   const availableModules = [
+     { id: 'accounting-record', name: 'Registro contable', icon: '📒', description: 'Registro de transacciones contables' },
+     { id: 'legal-books', name: 'Libros legales', icon: '📕', description: 'Libros requeridos por la ley' },
+     { id: 'billing-sales', name: 'Facturación y ventas', icon: '🧾', description: 'Gestión de facturación y ventas' },
+     { id: 'inventory', name: 'Inventarios', icon: '📦', description: 'Control de inventario' },
+     { id: 'purchases-providers', name: 'Compras y proveedores', icon: '🛒', description: 'Gestión de compras y proveedores' },
+     { id: 'financial-control', name: 'Control financiero', icon: '💰', description: 'Control y análisis financiero' },
+     { id: 'reports-analysis', name: 'Reportes y análisis', icon: '📊', description: 'Generación de reportes y análisis' },
+     { id: 'security-control', name: 'Seguridad y control', icon: '🔒', description: 'Módulo de seguridad y control de acceso' },
+     { id: 'tax-reports', name: 'Generación de reportes para entidades fiscales', icon: '📑', description: 'Reportes específicos para entidades fiscales' },
+     { id: 'tax-integration', name: 'Integración con impuestos', icon: '💳', description: 'Integración con sistemas de impuestos' }
+   ];
 
   // Transformar planes de suscripción a items de factura
   const transformPlansToInvoiceItems = (plans: any[]) => {
@@ -374,46 +376,46 @@ export default function TenantDetailPage() {
     }
   };
 
-  const handleToggleModule = async (moduleCode: string, isActive: boolean) => {
-    try {
-      const newModules = isActive 
-        ? tenant?.modules?.filter((m: string) => m !== moduleCode) || []
-        : [...(tenant?.modules || []), moduleCode];
-      
-      console.log('Toggle módulo:', moduleCode, 'Nuevo estado:', !isActive);
-      console.log('📊 handleToggleModule - Módulos actuales:', tenant?.modules);
-      console.log('📊 handleToggleModule - Nuevos módulos:', newModules);
-      
-      // Actualizar en la base de datos
-      const response = await fetch(`/api/admin/tenants/${tenantId}`, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          modules: newModules.join(',')
-        }),
-      });
-      
-      if (response.ok) {
-        console.log('✅ Módulo actualizado exitosamente');
-        // Recargar datos del tenant para reflejar cambios
-        await fetchTenantDetails();
-        // Forzar actualización del estado
-        setTimeout(() => {
-          console.log('🔄 Forzando recarga de datos...');
-          fetchTenantDetails();
-        }, 100);
-      } else {
-        const data = await response.json();
-        console.error('❌ Error al actualizar módulo:', data.error);
-        alert(`Error al ${isActive ? 'desactivar' : 'activar'} módulo: ${data.error || 'Error desconocido'}`);
-      }
-    } catch (err) {
-      console.error('Error en handleToggleModule:', err);
-      alert('Error de conexión al actualizar módulo');
-    }
-  };
+   const handleToggleModule = async (moduleCode: string, isActive: boolean) => {
+     try {
+       const newModules = isActive 
+         ? tenant?.modules?.filter((m: string) => m !== moduleCode) || []
+         : [...(tenant?.modules || []), moduleCode];
+       
+       console.log('Toggle módulo:', moduleCode, 'Nuevo estado:', !isActive);
+       console.log('📊 handleToggleModule - Módulos actuales:', tenant?.modules);
+       console.log('📊 handleToggleModule - Nuevos módulos:', newModules);
+       
+       // Actualizar en la base de datos
+       const response = await fetch(`/api/admin/tenants/${tenantId}`, {
+         method: 'PATCH',
+         headers: {
+           'Content-Type': 'application/json',
+         },
+         body: JSON.stringify({
+           modules: newModules.join(',')
+         }),
+       });
+       
+       if (response.ok) {
+         console.log('✅ Módulo actualizado exitosamente');
+         // Recargar datos del tenant para reflejar cambios
+         await fetchTenantDetails();
+         // Forzar actualización del estado
+         setTimeout(() => {
+           console.log('🔄 Forzando recarga de datos...');
+           fetchTenantDetails();
+         }, 100);
+       } else {
+         const data = await response.json();
+         console.error('❌ Error al actualizar módulo:', data.error);
+         alert(`Error al ${isActive ? 'desactivar' : 'activar'} módulo: ${data.error || 'Error desconocido'}`);
+       }
+     } catch (err) {
+       console.error('Error en handleToggleModule:', err);
+       alert('Error de conexión al actualizar módulo');
+     }
+   };
 
   const handleUpdateUser = async () => {
     if (!editingUser) return;
@@ -1020,7 +1022,7 @@ export default function TenantDetailPage() {
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
-                              onClick={() => handleViewInvoice(payment)}
+                              onClick={() => router.push(`/admin/billing/invoices/${payment.id}`)}
                               className="text-blue-600 hover:text-blue-900 mr-2"
                             >
                               <Eye className="h-4 w-4 inline mr-1" />
@@ -1055,60 +1057,9 @@ export default function TenantDetailPage() {
               )}
             </div>
           </div>
-        )}
-        
-        {activeTab === 'modules' && (
-          <div className="space-y-6">
-            {/* Gestión de Módulos */}
-            <div className="bg-white rounded-lg shadow p-6">
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl font-semibold text-gray-900">Gestión de Módulos</h2>
-                <button
-                  onClick={() => setShowModuleModal(true)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-                >
-                  + Agregar Módulo
-                </button>
-              </div>
-              
-              {/* Módulos Actuales */}
-              <div className="mb-6">
-                <h3 className="text-sm font-medium text-gray-700 mb-3">Módulos Activos ({tenant?.modules?.length || 0})</h3>
-                {tenant?.modules && tenant.modules.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {tenant.modules.map((moduleId: string) => {
-                      const module = availableModules.find(m => m.id === moduleId);
-                      return (
-                        <div key={moduleId} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                          <div className="flex items-start space-x-3">
-                            <div className="text-2xl">{module?.icon || '📦'}</div>
-                            <div className="flex-1">
-                              <h4 className="font-medium text-gray-900">{module?.name || moduleId}</h4>
-                              <p className="text-sm text-gray-600">{module?.description || 'Módulo del sistema'}</p>
-                            </div>
-                            <button
-                              onClick={() => handleRemoveModule(moduleId)}
-                              className="px-2 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 text-sm font-medium"
-                            >
-                              Quitar
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <div className="text-4xl mb-2">📦</div>
-                    <p>Este tenant no tiene módulos asignados</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-        
-        {activeTab === 'templates' && (
+)}
+         
+         {activeTab === 'templates' && (
           <InvoiceTemplateManager tenantId={tenantId} />
         )}
 
@@ -1163,17 +1114,10 @@ export default function TenantDetailPage() {
               <h2 className="text-xl font-semibold text-gray-900 mb-6">Módulos Activos</h2>
               
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {[
-                  { code: 'accounting', name: 'Contabilidad', description: 'Gestión contable completa', icon: '📊' },
-                  { code: 'billing', name: 'Facturación', description: 'Facturación electrónica', icon: '🧾' },
-                  { code: 'reports', name: 'Reportes', description: 'Reportes financieros', icon: '📈' },
-                  { code: 'inventory', name: 'Inventario', description: 'Control de inventario', icon: '📦' },
-                  { code: 'payroll', name: 'Nómina', description: 'Gestión de nómina', icon: '💰' },
-                  { code: 'banking', name: 'Conciliación', description: 'Conciliación bancaria', icon: '🏦' }
-                ].map((module) => {
-                  const isActive = tenant?.modules?.includes(module.code);
+                {availableModules.map((module) => {
+                  const isActive = tenant?.modules?.includes(module.id);
                   return (
-                    <div key={module.code} className={`border rounded-lg p-4 ${isActive ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
+                    <div key={module.id} className={`border rounded-lg p-4 ${isActive ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center">
                           <span className="text-2xl mr-3">{module.icon}</span>
@@ -1193,7 +1137,7 @@ export default function TenantDetailPage() {
                         </div>
                       </div>
                       <button
-                        onClick={() => handleToggleModule(module.code, isActive)}
+                        onClick={() => handleToggleModule(module.id, isActive)}
                         className={`w-full px-3 py-2 rounded-md text-sm font-medium ${
                           isActive 
                             ? 'bg-red-600 text-white hover:bg-red-700' 
@@ -1405,53 +1349,7 @@ export default function TenantDetailPage() {
           </div>
         )}
 
-        {/* Modal para agregar módulos */}
-        {showModuleModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-lg p-6 w-full max-w-4xl max-h-[80vh] overflow-y-auto">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Agregar Módulos</h3>
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {availableModules
-                  .filter(module => !tenant?.modules?.includes(module.id))
-                  .map((module) => (
-                    <div key={module.id} className="border border-gray-200 rounded-lg p-4 hover:border-blue-500 hover:shadow-md transition-all cursor-pointer"
-                         onClick={() => handleAddModule(module.id)}>
-                      <div className="flex items-start space-x-3">
-                        <div className="text-2xl">{module.icon}</div>
-                        <div className="flex-1">
-                          <h4 className="font-medium text-gray-900">{module.name}</h4>
-                          <p className="text-sm text-gray-600">{module.description}</p>
-                        </div>
-                        <div className="text-green-600">
-                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                          </svg>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-              </div>
-
-              {availableModules.filter(module => !tenant?.modules?.includes(module.id)).length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <div className="text-4xl mb-2">✅</div>
-                  <p>Este tenant ya tiene todos los módulos disponibles</p>
-                </div>
-              )}
-
-              <div className="flex justify-end space-x-3 mt-6">
-                <button
-                  onClick={() => setShowModuleModal(false)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
+       </div>
       </div>
     </div>
   );

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTenant } from '@/lib/contexts/TenantContext';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -86,6 +87,8 @@ const regimenesTributarios = [
 ];
 
 export default function CompaniesPage() {
+  const { refreshTenantData } = useTenant();
+  
   // Tooltip wrapper component
   const TooltipWrapper = ({ title, children }: { title: string; children: React.ReactNode }) => {
     return (
@@ -261,6 +264,9 @@ export default function CompaniesPage() {
 
       // Recargar empresas desde el servidor
       await loadCompanies();
+      
+      // Refrescar datos del tenant para actualizar información mostrada
+      await refreshTenantData();
       
       setMessage({ 
         type: 'success', 

@@ -1,56 +1,70 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { getPeriodAuditTrail } from '@/lib/services/audit-service';
+import { createServiceRoleClient } from '@/lib/supabase/service-role';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 export async function GET(request: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
+    const { userId } = await auth();
 
-    // Verificar autorización
     if (!userId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Obtener email y rol del usuario desde Clerk
+    let userRole = await getUserRoleFromAuth();
+
     let email = '';
-    let userRole: string | undefined;
     try {
       const client = await clerkClient();
       const user = await client.users.getUser(userId);
       email = user.emailAddresses[0]?.emailAddress || '';
-      
-      userRole = 
-        user.publicMetadata?.role || 
-        user.unsafeMetadata?.role ||
-        (user.privateMetadata as any)?.role ||
-        (sessionClaims?.metadata as any)?.role;
     } catch (error) {
       console.error('Error getting user from Clerk:', error);
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-    const isAuthorized = ['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) || isSuperAdminEmail;
+    const isAuthorized = ['SUPER_ADMIN', 'SUPPORT'].includes(userRole) || isSuperAdminEmail;
 
     if (!isAuthorized) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
     const { searchParams } = new URL(request.url);
-    const limit = searchParams.get('limit') || '10';
+    const limit = parseInt(searchParams.get('limit') || '10');
     const filter = searchParams.get('filter') || 'all';
     const search = searchParams.get('search') || '';
     const page = parseInt(searchParams.get('page') || '1');
     const tableName = searchParams.get('table') || undefined;
 
-    // Get audit logs from the service
-    const logs = await getPeriodAuditTrail(
-      new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Last 7 days
-      new Date(),
-      tableName
-    );
+    const supabase = createServiceRoleClient();
+
+    // Build query for audit logs
+    let query = supabase
+      .from('auditlog')
+      .select(`*`, { count: 'exact' });
+
+    // Date range filter (last 7 days)
+    const fromDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+    query = query.gte('timestamp', fromDate);
+
+    if (tableName) {
+      query = query.eq('tablename', tableName);
+    }
+
+    const { data: logs, error, count } = await query
+      .order('timestamp', { ascending: false })
+      .range((page - 1) * limit, page * limit - 1);
+
+    if (error) {
+      console.error('Error fetching audit logs:', error);
+      return NextResponse.json(
+        { error: 'Failed to fetch audit logs' },
+        { status: 500 }
+      );
+    }
 
     // Ensure logs is an array
-    const logsArray = Array.isArray(logs) ? logs : [];
+    const logsArray = logs || [];
 
     // Filter logs
     let filteredLogs = logsArray;
@@ -61,28 +75,23 @@ export async function GET(request: NextRequest) {
     
     if (search) {
       filteredLogs = filteredLogs.filter((log: any) => 
-        log.recordId.toLowerCase().includes(search.toLowerCase()) ||
-        log.tableName.toLowerCase().includes(search.toLowerCase())
+        (log.recordid || '').toLowerCase().includes(search.toLowerCase()) ||
+        (log.tablename || '').toLowerCase().includes(search.toLowerCase())
       );
     }
 
-    // Pagination
-    const startIndex = (page - 1) * parseInt(limit);
-    const endIndex = startIndex + parseInt(limit);
-    const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
-
     // Transform logs to include parsed data
-    const transformedLogs = paginatedLogs.map((log: any) => ({
+    const transformedLogs = filteredLogs.map((log: any) => ({
       id: log.id,
-      tableName: log.tableName,
-      recordId: log.recordId,
+      tableName: log.tablename,
+      recordId: log.recordid,
       action: log.action,
-      oldValues: log.oldValues,
-      newValues: log.newValues,
-      changedFields: log.changedFields ? JSON.parse(log.changedFields) : null,
-      userId: log.userId,
-      userAgent: log.userAgent,
-      ipAddress: log.ipAddress,
+      oldValues: log.oldvalues,
+      newValues: log.newvalues,
+      changedFields: log.changedfields ? JSON.parse(log.changedfields) : null,
+      userId: log.userid,
+      userAgent: log.useragent,
+      ipAddress: log.ipaddress,
       timestamp: log.timestamp
     }));
 
@@ -91,8 +100,8 @@ export async function GET(request: NextRequest) {
       logs: transformedLogs,
       total: filteredLogs.length,
       page,
-      limit: parseInt(limit),
-      totalPages: Math.ceil(filteredLogs.length / parseInt(limit))
+      limit,
+      totalPages: Math.ceil(filteredLogs.length / limit)
     });
   } catch (error) {
     console.error('Error fetching audit logs:', error);

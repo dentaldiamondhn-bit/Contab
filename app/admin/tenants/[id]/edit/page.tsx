@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { MODULES } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -52,14 +53,19 @@ export default function EditTenantPage() {
   });
 
   const availableModules = [
-    { id: "accounting", name: "Contabilidad", description: "Gestión contable completa" },
-    { id: "billing", name: "Facturación", description: "Facturas y pagos" },
-    { id: "inventory", name: "Inventario", description: "Gestión de productos" },
-    { id: "contacts", name: "Contactos", description: "Clientes y prospectos" },
-    { id: "reports", name: "Reportes", description: "Reportes financieros" },
-    { id: "tax", name: "Impuestos", description: "Gestión de impuestos" },
-    { id: "multi_currency", name: "Multi-divisa", description: "Soporte para múltiples monedas" },
-    { id: "api", name: "API Access", description: "Acceso a API" },
+    { id: "ACCOUNTING", name: "Contabilidad Central", description: "Gestión contable completa" },
+    { id: "FINANCIAL_STATEMENTS", name: "Estados Financieros", description: "Balance, P&L, flujo de efectivo" },
+    { id: "LEGAL_BOOKS", name: "Libros Legales", description: "Libros legales y registros fiscales" },
+    { id: "BILLING", name: "Facturación y Ventas", description: "Facturas, ventas y clientes" },
+    { id: "INVENTORY", name: "Inventarios", description: "Gestión de productos y kardex" },
+    { id: "PURCHASES", name: "Compras y Proveedores", description: "Órdenes de compra y gastos" },
+    { id: "FINANCIAL_CONTROL", name: "Control Financiero", description: "Presupuestos y flujos de efectivo" },
+    { id: "REPORTS", name: "Reportes y Análisis", description: "Reportes personalizados" },
+    { id: "SECURITY", name: "Seguridad y Control", description: "Auditoría y control de acceso" },
+    { id: "TAX_REPORTING", name: "Reportes Fiscales", description: "SAR, ISV, retenciones" },
+    { id: "TAX_INTEGRATION", name: "Integración Fiscal", description: "Integración con sistemas fiscales" },
+    { id: "CONTACTS", name: "Contactos", description: "Clientes y prospectos" },
+    { id: "SUPPORT", name: "Soporte Técnico", description: "Soporte y actualizaciones" },
   ];
 
   useEffect(() => {
@@ -68,34 +74,38 @@ export default function EditTenantPage() {
     fetchTenant();
   }, [tenantId]);
 
-  const fetchAvailablePlans = async () => {
+  const fetchPlans = async () => {
     try {
-      console.log('Cargando planes disponibles desde /api/admin/plans...');
+      console.log('Cargando planes desde /api/admin/plans...');
       const response = await fetch("/api/admin/plans");
       console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('Planes disponibles recibidos:', data);
-        setAvailablePlans(data.plans || []);
-      } else {
-        console.error('Error en respuesta de planes disponibles:', response.status);
-        const errorData = await response.json();
-        console.error('Error data:', errorData);
-      }
-    } catch (err) {
-      console.error("Error cargando planes disponibles:", err);
-    }
-  };
-
-  const fetchPlans = async () => {
-    try {
-      console.log('Cargando planes desde /api/admin/plans-public...');
-      const response = await fetch("/api/admin/plans-public");
-      console.log('Response status:', response.status);
-      if (response.ok) {
-        const data = await response.json();
         console.log('Planes recibidos:', data);
-        setPlans(data.plans || []);
+        const apiPlans = data.plans || [];
+
+        // Transform admin plan format → subscription plan format for edit page
+        const mappedPlans = apiPlans.map((p: {
+          id: string; name: string; code: string;
+          price: number; maxUsers: number; isActive: boolean;
+          features?: string[];
+        }) => ({
+          id:        p.id,
+          code:      p.code,
+          name:      p.name,
+          description: `Plan ${p.name} - ${p.maxUsers} usuarios`,
+          unitPrice: p.price,
+          subtotal:  p.price,
+          taxRate:   15,
+          taxAmount: Math.round(p.price * 0.15),
+          total:     Math.round(p.price * 1.15),
+          maxUsers:  p.maxUsers,
+          features:  p.features || [],
+          isActive:  p.isActive,
+        }));
+
+        setPlans(mappedPlans.filter((p: Plan) => p.isActive));
+        setAvailablePlans(mappedPlans);
       } else {
         console.error('Error en respuesta de planes:', response.status);
         const errorData = await response.json();
@@ -104,6 +114,10 @@ export default function EditTenantPage() {
     } catch (err) {
       console.error("Error cargando planes:", err);
     }
+  };
+
+  const fetchAvailablePlans = async () => {
+    // Merged into fetchPlans — shared source of truth is /api/admin/plans
   };
 
   const fetchTenant = async () => {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 // Mock data para tickets - en producción esto vendría de una tabla de tickets
 const mockTickets = [
@@ -47,8 +47,8 @@ const mockTickets = [
 
 export async function GET(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
     // Solo SUPER_ADMIN y SUPPORT pueden acceder
     if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {
@@ -86,8 +86,8 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
     // Solo SUPER_ADMIN y SUPPORT pueden crear tickets
     if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {
@@ -136,8 +136,8 @@ export async function POST(req: NextRequest) {
 
 export async function PUT(req: NextRequest) {
   try {
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
 
     // Solo SUPER_ADMIN y SUPPORT pueden actualizar tickets
     if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {

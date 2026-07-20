@@ -57,6 +57,7 @@ export default function TenantUsersPage() {
 
   useEffect(() => {
     if (currentTenant) {
+      console.log('🔄 useEffect triggered, currentTenant:', currentTenant);
       fetchUsers();
     }
   }, [currentTenant, searchTerm, roleFilter, statusFilter]);
@@ -66,6 +67,8 @@ export default function TenantUsersPage() {
     
     try {
       setLoading(true);
+      console.log('🔍 Fetching users for tenant:', currentTenant.id);
+      
       const params = new URLSearchParams({
         tenantId: currentTenant.id,
         search: searchTerm,
@@ -73,14 +76,22 @@ export default function TenantUsersPage() {
         status: statusFilter === "ALL" ? "" : statusFilter,
       });
       
+      console.log('📡 API call params:', params.toString());
+      
       const response = await fetch(`/api/tenant/users?${params}`);
+      console.log('📡 API response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('✅ Users fetched:', data);
         setUsers(data.users || []);
       } else {
-        setError("Error al cargar los usuarios");
+        const errorData = await response.json();
+        console.error('❌ API Error:', errorData);
+        setError(errorData.error || "Error al cargar los usuarios");
       }
     } catch (err) {
+      console.error('❌ Network Error:', err);
       setError("Error de conexión al servidor");
     } finally {
       setLoading(false);

@@ -213,11 +213,19 @@ CREATE INDEX IF NOT EXISTS "idx_users_tenant_id" ON "users"("tenant_id");
 CREATE INDEX IF NOT EXISTS "idx_users_role" ON "users"("role");
 CREATE INDEX IF NOT EXISTS "idx_users_is_active" ON "users"("is_active");
 
--- Trigger para actualizar updated_at automáticamente
+-- Trigger para actualizar columnas de timestamp automáticamente
 CREATE OR REPLACE FUNCTION update_updated_at_column()
 RETURNS TRIGGER AS $$
 BEGIN
-  NEW.updated_at = NOW();
+  -- Columna correcta en la tabla Tenant: "updatedat" (sin guión bajo)
+  -- Columna correcta en la tabla "User": "updatedAt" (camelCase)
+  IF TG_TABLE_NAME = 'Tenant' THEN
+    NEW."updatedat" = CURRENT_TIMESTAMP;
+  ELSIF TG_TABLE_NAME = 'User' THEN
+    NEW."updatedAt" = CURRENT_TIMESTAMP;
+  ELSE
+    NEW."updated_at" = CURRENT_TIMESTAMP;
+  END IF;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

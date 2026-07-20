@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabase, getAllTenants } from '@/lib/supabase-db';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 export async function GET(req: NextRequest) {
   console.log('🚀 API TENANTS GET - Iniciando...');
@@ -15,18 +16,15 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
     
-    // Get user from Clerk to check role
-    let userRole: string | undefined;
+    // Obtener rol del usuario usando el helper
+    const userRole = await getUserRoleFromAuth();
+
+    // Obtener email desde Clerk para verificación adicional
     let email = '';
     try {
       const client = await clerkClient();
       const clerkUser = await client.users.getUser(userId);
       email = clerkUser.emailAddresses[0]?.emailAddress || '';
-      
-      userRole = 
-        clerkUser.publicMetadata?.role || 
-        clerkUser.unsafeMetadata?.role ||
-        (clerkUser.privateMetadata as any)?.role;
       
       console.log('API /admin/tenants - Clerk role:', userRole);
     } catch (error) {
@@ -37,7 +35,7 @@ export async function GET(req: NextRequest) {
 
     console.log('✅ Auth check:', { userId, userRole, email, isSuperAdminEmail });
 
-    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail) {
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail) {
       console.log('❌ No autorizado - role:', userRole);
       return NextResponse.json(
         { error: 'No autorizado' },
@@ -185,8 +183,8 @@ export async function PATCH(
   try {
     console.log('🔄 PATCH /api/admin/tenants/[id] - Actualizando tenant...');
     
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
     const { id } = await params;
 
     // Get email from Clerk user
@@ -205,7 +203,7 @@ export async function PATCH(
 
     console.log('✅ Auth check:', { userId, userRole, email, isSuperAdminEmail, tenantId: id });
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail)) {
       console.log('❌ No autorizado');
       return NextResponse.json(
         { error: 'No autorizado' },
@@ -239,8 +237,8 @@ export async function POST(req: NextRequest) {
     console.log('🔄 POST /api/admin/tenants - Creando nuevo tenant...');
     
     // Verificar autenticación
-    const { userId, sessionClaims } = await auth();
-    const userRole = (sessionClaims?.metadata as any)?.role;
+    const { userId } = await auth();
+    const userRole = await getUserRoleFromAuth();
     
     // Get email from Clerk user
     let email = '';
@@ -256,7 +254,7 @@ export async function POST(req: NextRequest) {
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) && !isSuperAdminEmail)) {
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail)) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }

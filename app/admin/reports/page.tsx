@@ -21,9 +21,11 @@ import {
   Search,
   CreditCard,
   AlertCircle,
-  CheckCircle
+  CheckCircle,
+  Package
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
+import { MODULES, MODULE_NAMES } from '@/lib/constants/modules';
 
 interface ReportData {
   totalTenants: number;
@@ -42,6 +44,7 @@ interface ReportData {
   plansByType: Record<string, number>;
   recentActivity: ActivityItem[];
   topTenants: TopTenant[];
+  tenantsByModule: Record<string, number>;
 }
 
 interface ActivityItem {
@@ -82,7 +85,8 @@ export default function AdminReportsPage() {
     totalPlans: 0,
     plansByType: {},
     recentActivity: [],
-    topTenants: []
+    topTenants: [],
+    tenantsByModule: {}
   });
 
   useEffect(() => {
@@ -207,6 +211,27 @@ export default function AdminReportsPage() {
         }))
       ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 10);
 
+      // Calculate tenants by module
+      const tenantsByModule: Record<string, number> = {};
+      getAllModuleIds().forEach(id => {
+        tenantsByModule[id] = 0;
+      });
+      tenants.forEach((t: any) => {
+        let tenantModules: string[] = [];
+        if (t.modules) {
+          if (Array.isArray(t.modules)) {
+            tenantModules = t.modules;
+          } else if (typeof t.modules === 'string') {
+            tenantModules = t.modules.split(',').map((m: string) => m.trim());
+          }
+        }
+        tenantModules.forEach((moduleId: string) => {
+          if (tenantsByModule.hasOwnProperty(moduleId)) {
+            tenantsByModule[moduleId]++;
+          }
+        });
+      });
+
       setReportData({
         totalTenants: tenants.length,
         activeTenants,
@@ -223,7 +248,8 @@ export default function AdminReportsPage() {
         totalPlans: plans.length,
         plansByType,
         recentActivity,
-        topTenants
+        topTenants,
+        tenantsByModule
       });
 
     } catch (error: any) {
@@ -260,6 +286,10 @@ export default function AdminReportsPage() {
 
   const formatNumber = (num: number) => {
     return new Intl.NumberFormat('es-HN').format(num);
+  };
+
+  const getAllModuleIds = () => {
+    return Object.keys(MODULES);
   };
 
   const exportReport = () => {
@@ -581,6 +611,51 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
             </CardContent>
           </Card>
         </div>
+
+        {/* Module Distribution Section */}
+        <Card className="mb-6">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Package className="w-5 h-5" />
+              Distribución de Módulos por Tenant
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {Object.keys(reportData.tenantsByModule).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Package className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                <p>No hay datos de módulos</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {getAllModuleIds().map((moduleId) => {
+                  const count = reportData.tenantsByModule[moduleId] || 0;
+                  const moduleInfo = MODULES[moduleId as keyof typeof MODULES];
+                  const percentage = reportData.totalTenants > 0 ? (count / reportData.totalTenants) * 100 : 0;
+                  
+                  return (
+                    <div key={moduleId} className="p-4 bg-gray-50 rounded-lg">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="font-medium text-gray-900 text-sm">
+                          {moduleInfo?.name || moduleId}
+                        </span>
+                        <span className="text-lg font-bold text-blue-600">{count}</span>
+                      </div>
+                      <p className="text-xs text-gray-500 mb-2">{moduleInfo?.description}</p>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${percentage}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">{percentage.toFixed(1)}% de tenants</p>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
         {/* Recent Activity */}
         <Card>

@@ -1,5 +1,6 @@
 // Cliente Supabase simplificado con filtering automático por tenant
 // Compatible con Next.js 13+ App Router
+import { createBrowserClient } from '@supabase/ssr';
 
 // Helper para obtener el tenant actual desde localStorage - Client Component
 export function getCurrentTenantFromClient(): string | null {
@@ -37,34 +38,16 @@ export function getCurrentUserFromClient(): string | null {
 
 // Cliente Supabase con filtering automático por tenant - Client Component
 export function createTenantSupabaseClient() {
-  // Importar dinámicamente para evitar errores de SSR
-  const { createClientComponentClient } = require('@supabase/auth-helpers-nextjs');
-  const supabase = createClientComponentClient();
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
-  // Wrapper para SELECT con filtering automático
-  const originalFrom = supabase.from.bind(supabase);
-  supabase.from = function(table: string) {
-    const query = originalFrom(table);
-    
-    // Solo aplicar filtering a tablas multi-tenant
-    const multiTenantTables = [
-      'User', 'Account', 'Contacto', 'Transaction', 'JournalEntry',
-      'ConfigFiscal', 'CAI', 'Withholding', 'Reconciliation',
-      'BookClosing', 'AuditLog', 'TaxConfig', 'ExchangeRate',
-      'CurrencyHistory', 'CAIAlert', 'GlobalSettings'
-    ];
+  if (!url || !key) {
+    throw new Error(
+      'Las variables de entorno de Supabase no están definidas. Verifica tu archivo .env.local'
+    );
+  }
 
-    if (multiTenantTables.includes(table)) {
-      const tenantId = getCurrentTenantFromClient();
-      if (tenantId) {
-        return query.eq('tenantId', tenantId);
-      }
-    }
-
-    return query;
-  };
-
-  return supabase;
+  return createBrowserClient(url, key);
 }
 
 // Cliente por defecto
@@ -75,7 +58,6 @@ export async function insertWithTenant<T = any>(
   table: string, 
   data: Omit<T, 'tenantId'>
 ) {
-  const supabase = createTenantSupabaseClient();
   const tenantId = getCurrentTenantFromClient();
   
   if (!tenantId) {
@@ -84,9 +66,9 @@ export async function insertWithTenant<T = any>(
 
   const dataWithTenant = { ...data, tenantId } as T;
   
-  const { data: result, error } = await supabase
+  const { data: result, error } = await tenantSupabase
     .from(table)
-    .insert(dataWithTenant)
+    .insert(dataWithTenant as any)
     .select()
     .single();
 
@@ -104,16 +86,15 @@ export async function updateWithTenant<T = any>(
   id: string,
   data: Partial<T>
 ) {
-  const supabase = createTenantSupabaseClient();
   const tenantId = getCurrentTenantFromClient();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  const { data: result, error } = await supabase
+  const { data: result, error } = await tenantSupabase
     .from(table)
-    .update(data)
+    .update(data as any)
     .eq('id', id)
     .eq('tenantId', tenantId)
     .select()
@@ -123,7 +104,6 @@ export async function updateWithTenant<T = any>(
     console.error(`Error updating ${table}:`, error);
     throw error;
   }
-
   return result;
 }
 
@@ -132,14 +112,13 @@ export async function deleteWithTenant(
   table: string,
   id: string
 ) {
-  const supabase = createTenantSupabaseClient();
   const tenantId = getCurrentTenantFromClient();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  const { error } = await supabase
+  const { error } = await tenantSupabase
     .from(table)
     .delete()
     .eq('id', id)
@@ -163,14 +142,13 @@ export async function selectWithTenant<T = any>(
     limit?: number;
   }
 ) {
-  const supabase = createTenantSupabaseClient();
   const tenantId = getCurrentTenantFromClient();
   
   if (!tenantId) {
     throw new Error('No tenant selected');
   }
 
-  let query = supabase
+  let query = tenantSupabase
     .from(table)
     .select(options?.columns || '*')
     .eq('tenantId', tenantId);
@@ -204,9 +182,30 @@ export async function selectWithTenant<T = any>(
   return data as T[];
 }
 
+/**
+ * Helper para consultas generales que NO requieren un tenantId previo.
+ * Útil para cargar la lista inicial de empresas (tenants) disponibles para el usuario.
+ */
+export async function selectGlobal<T = any>(table: string, columns: string = '*', filters?: Record<string, any>) {
+  let query = tenantSupabase.from(table).select(columns);
+
+  if (filters) {
+    Object.entries(filters).forEach(([key, value]) => {
+      query = query.eq(key, value);
+    });
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error(`Error in selectGlobal from ${table}:`, error);
+    throw error;
+  }
+  return data as T[];
+}
+
 // Helper para verificar permisos del usuario - Client Component
 export async function checkUserPermission(permission: string): Promise<boolean> {
-  const supabase = createTenantSupabaseClient();
   const userId = getCurrentUserFromClient();
   
   if (!userId) {
@@ -214,7 +213,7 @@ export async function checkUserPermission(permission: string): Promise<boolean> 
   }
 
   try {
-    const { data: user } = await supabase
+    const { data: user } = await tenantSupabase
       .from('User')
       .select('role')
       .eq('id', userId)

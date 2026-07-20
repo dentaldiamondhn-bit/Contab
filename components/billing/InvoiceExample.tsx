@@ -25,12 +25,22 @@ interface InvoiceExampleProps {
     economicActivity: string;
   };
   logoUrl?: string;
+  invoiceItems?: Array<{
+    id: string;
+    description: string;
+    quantity: number;
+    unitPrice: number;
+    total: number;
+    taxRate: number;
+    taxAmount: number;
+  }>;
 }
 
 export default function InvoiceExample({ 
   fiscalInfo, 
   caiConfig, 
-  logoUrl 
+  logoUrl,
+  invoiceItems = []
 }: InvoiceExampleProps) {
   
   // Estado para controlar qué elementos mostrar
@@ -51,6 +61,32 @@ export default function InvoiceExample({
     codes: true
   });
 
+  // Calcular totales de los items reales o usar datos de ejemplo
+  const calculateTotals = () => {
+    if (invoiceItems && invoiceItems.length > 0) {
+      const subtotal = invoiceItems.reduce((sum, item) => sum + item.total, 0);
+      const totalTax = invoiceItems.reduce((sum, item) => sum + item.taxAmount, 0);
+      const total = subtotal + totalTax;
+      
+      return {
+        subtotal,
+        totalDiscount: 0,
+        totalTax,
+        total
+      };
+    }
+    
+    // Datos de ejemplo para la factura cuando no hay items reales
+    return {
+      subtotal: 6200.00,
+      totalDiscount: 100.00,
+      totalTax: 930.00,
+      total: 7030.00
+    };
+  };
+
+  const totals = calculateTotals();
+
   // Datos de ejemplo para la factura
   const exampleInvoice = {
     number: caiConfig ? caiConfig.currentNumber : 1,
@@ -68,47 +104,60 @@ export default function InvoiceExample({
       email: 'facturacion@cliente.com',
       contactPerson: 'Carlos Rodríguez'
     },
-    items: [
-      {
-        code: 'SKU001',
-        description: 'Servicios de desarrollo de software - Aplicación web personalizada',
-        quantity: 1,
-        unitPrice: 5000.00,
-        discount: 0,
-        taxRate: 15,
-        subtotal: 5000.00,
-        tax: 750.00,
-        total: 5750.00
-      },
-      {
-        code: 'SKU002',
-        description: 'Mantenimiento mensual de sistema - Soporte técnico 24/7',
-        quantity: 1,
-        unitPrice: 1000.00,
-        discount: 100.00, // 10% descuento
-        taxRate: 15,
-        subtotal: 900.00,
-        tax: 135.00,
-        total: 1035.00
-      },
-      {
-        code: 'SKU003',
-        description: 'Hosting y dominio anual',
-        quantity: 1,
-        unitPrice: 300.00,
-        discount: 0,
-        taxRate: 15,
-        subtotal: 300.00,
-        tax: 45.00,
-        total: 345.00
-      }
-    ],
+    items: invoiceItems && invoiceItems.length > 0 
+      ? invoiceItems.map((item, index) => ({
+          code: `SKU${String(index + 1).padStart(3, '0')}`,
+          description: item.description || 'Descripción del item',
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: 0,
+          taxRate: item.taxRate * 100,
+          subtotal: item.total,
+          tax: item.taxAmount,
+          total: item.total + item.taxAmount
+        }))
+      : [
+          {
+            code: 'SKU001',
+            description: 'Servicios de desarrollo de software - Aplicación web personalizada',
+            quantity: 1,
+            unitPrice: 5000.00,
+            discount: 0,
+            taxRate: 15,
+            subtotal: 5000.00,
+            tax: 750.00,
+            total: 5750.00
+          },
+          {
+            code: 'SKU002',
+            description: 'Mantenimiento mensual de sistema - Soporte técnico 24/7',
+            quantity: 1,
+            unitPrice: 1000.00,
+            discount: 100.00, // 10% descuento
+            taxRate: 15,
+            subtotal: 900.00,
+            tax: 135.00,
+            total: 1035.00
+          },
+          {
+            code: 'SKU003',
+            description: 'Hosting y dominio anual',
+            quantity: 1,
+            unitPrice: 300.00,
+            discount: 0,
+            taxRate: 15,
+            subtotal: 300.00,
+            tax: 45.00,
+            total: 345.00
+          }
+        ],
+    ...totals,
     totals: {
-      subtotal: 6200.00,
-      discount: 100.00,
-      taxableBase: 6100.00,
-      tax: 915.00,
-      total: 7015.00,
+      subtotal: totals.subtotal,
+      totalDiscount: totals.totalDiscount,
+      taxableBase: totals.subtotal - totals.totalDiscount,
+      tax: totals.totalTax,
+      total: totals.total,
       totalWords: 'Siete mil quince Lempiras con 00/100'
     },
     notes: 'Los precios están expresados en Lempiras Hondureños (L). Esta factura es válida para efectos fiscales según normativa de SAR.',
@@ -331,53 +380,62 @@ export default function InvoiceExample({
 
               {/* Tabla de items */}
               {invoiceElements.itemsTable && (
-                <table className="w-full border-collapse mb-6">
+                <table className="w-full border-collapse mb-6 table-fixed">
                   <thead>
                     <tr className="border-b-2 border-gray-800">
-                      {invoiceElements.codes && <th className="text-left p-2">Código</th>}
-                      <th className="text-left p-2">Descripción</th>
-                      <th className="text-center p-2">Cantidad</th>
-                      <th className="text-right p-2">Precio Unit.</th>
-                      {invoiceElements.discounts && <th className="text-right p-2">Descuento</th>}
-                      <th className="text-right p-2">Subtotal</th>
-                      <th className="text-right p-2">ISV (15%)</th>
-                      <th className="text-right p-2">Total</th>
+                      {invoiceElements.codes && <th className="text-right p-2 w-20">Código</th>}
+                      <th className="text-left p-2 flex-1 min-w-96">Descripción</th>
+                      <th className="text-right p-2 w-16">Cantidad</th>
+                      <th className="text-right p-2 w-24">Precio Unit.</th>
+                      <th className="text-right p-2 w-24">Subtotal</th>
                     </tr>
                   </thead>
                   <tbody>
                     {exampleInvoice.items.map((item, index) => (
                       <tr key={index} className="border-b">
-                        {invoiceElements.codes && <td className="p-2 text-sm">{item.code}</td>}
-                        <td className="p-2">{item.description}</td>
-                        <td className="text-center p-2">{item.quantity}</td>
-                        <td className="text-right p-2">L. {item.unitPrice.toFixed(2)}</td>
-                        {invoiceElements.discounts && (
-                          <td className="text-right p-2">
-                            {item.discount > 0 ? `L. ${item.discount.toFixed(2)}` : '-'}
-                          </td>
-                        )}
-                        <td className="text-right p-2">L. {item.subtotal.toFixed(2)}</td>
-                        <td className="text-right p-2">L. {item.tax.toFixed(2)}</td>
-                        <td className="text-right p-2 font-bold">L. {item.total.toFixed(2)}</td>
+                        {invoiceElements.codes && <td className="p-2 text-sm text-right w-20">{item.code}</td>}
+                        <td className="p-2 flex-1 min-w-96">{item.description}</td>
+                        <td className="text-right p-2 w-16">{item.quantity}</td>
+                        <td className="text-right p-2 w-24">L. {item.unitPrice.toFixed(2)}</td>
+                        <td className="text-right p-2 font-bold w-24">L. {item.subtotal.toFixed(2)}</td>
                       </tr>
                     ))}
                   </tbody>
                   {invoiceElements.totals && (
                     <tfoot>
                       <tr className="border-t-2 border-gray-800">
-                        <td colSpan={invoiceElements.codes ? 5 : 4} className="text-right font-bold p-2">Subtotal:</td>
+                        <td colSpan={invoiceElements.codes ? 4 : 3} className="text-right font-bold p-2">Subtotal:</td>
                         <td className="text-right p-2">L. {exampleInvoice.totals.subtotal.toFixed(2)}</td>
                         <td className="text-right p-2">-</td>
                         <td className="text-right p-2">-</td>
                       </tr>
-                      {invoiceElements.discounts && exampleInvoice.totals.discount > 0 && (
+                      {invoiceElements.discounts && exampleInvoice.totals.totalDiscount > 0 && (
                         <tr>
                           <td colSpan={invoiceElements.codes ? 5 : 4} className="text-right font-bold p-2">Descuento:</td>
-                          <td className="text-right p-2 text-red-600">-L. {exampleInvoice.totals.discount.toFixed(2)}</td>
+                          <td className="text-right p-2 text-red-600">-L. {exampleInvoice.totals.totalDiscount.toFixed(2)}</td>
                           <td className="text-right p-2">-</td>
                           <td className="text-right p-2">-</td>
                         </tr>
                       )}
+                      {/* Total de Impuestos por Item */}
+                      {exampleInvoice.items.some(item => item.tax > 0) && (
+                        <tr>
+                          <td colSpan={invoiceElements.codes ? 5 : 4} className="text-right font-bold p-2">Total de Impuestos (ISV) por Item:</td>
+                          <td className="text-right p-2">-</td>
+                          <td className="text-right p-2">-</td>
+                          <td className="text-right p-2">-</td>
+                        </tr>
+                      )}
+                      {exampleInvoice.items.filter(item => item.tax > 0).map((item, index) => (
+                        <tr key={`tax-${index}`} className="text-sm">
+                          {invoiceElements.codes && <td className="p-2"></td>}
+                          <td className="p-2" colSpan={invoiceElements.codes ? 3 : 2}>
+                            {item.description} ({(item.taxRate / item.subtotal * 100).toFixed(1)}%)
+                          </td>
+                          <td className="text-right p-2">L. {item.tax.toFixed(2)}</td>
+                          <td className="text-right p-2">-</td>
+                        </tr>
+                      ))}
                       <tr>
                         <td colSpan={invoiceElements.codes ? 5 : 4} className="text-right font-bold p-2">Base Imponible:</td>
                         <td className="text-right p-2">L. {exampleInvoice.totals.taxableBase.toFixed(2)}</td>

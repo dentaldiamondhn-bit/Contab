@@ -238,7 +238,7 @@ export const calculateTrialBalance = (accounts: any[], entries: JournalEntry[]) 
  */
 export const calculateTaxBreakdown = (
   totalWithTax: number, // En centavos (ej: 115000 para L. 1,150.00)
-  taxRate: 0.15 | 0.18 = 0.15
+  taxRate: number = 0.15 // Ahora acepta cualquier tasa de impuesto
 ) => {
   // 1. Calcular el monto base (Neto)
   // Fórmula: Total / (1 + tasa)

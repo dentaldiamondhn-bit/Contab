@@ -1,33 +1,32 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { 
   Receipt, 
   Calculator, 
   Download, 
+  Edit,
   Plus, 
-  Edit, 
-  Trash2, 
-  Eye,
-  CheckCircle,
-  Clock,
+  CheckCircle, 
+  Ban,
   AlertTriangle,
+  Clock, 
   TrendingUp,
-  TrendingDown,
   RefreshCw,
-  FileText,
-  Calendar
+  FileText
 } from 'lucide-react';
+import { useTenant } from '@/lib/contexts/TenantContext';
+import { createSupabaseClient } from '@/lib/supabase/client';
 import { 
   Withholding, 
   WithholdingType, 
   WithholdingStatus,
+  WithholdingStatistics,
   getWithholdings, 
   getWithholdingStatistics,
   createWithholding,
@@ -38,12 +37,21 @@ import {
   formatCurrency,
   getCurrentPeriod,
   validateRTN,
-  generateWithholdingReceipt
 } from '@/lib/services/withholding-service';
 import { pdf } from '@react-pdf/renderer';
 import WithholdingReceiptPDF from './reports/WithholdingReceiptPDF';
 
-import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
+// Interfaces para tipado robusto
+interface CAIData {
+  id: string;
+  caiCode: string;
+  expirationDate: string;
+  currentNumber: number;
+  rangeEnd: number;
+  establishmentCode: string;
+  pointOfSaleCode: string;
+}
+
 interface WithholdingFormData {
   invoiceNumber: string;
   invoiceDate: string;
@@ -56,11 +64,17 @@ interface WithholdingFormData {
 }
 
 export default function WithholdingManager() {
+  const { currentTenant } = useTenant();
+  const supabase = createSupabaseClient();
+  
   const [withholdings, setWithholdings] = useState<Withholding[]>([]);
-  const [statistics, setStatistics] = useState<any>(null);
+  const [statistics, setStatistics] = useState<WithholdingStatistics | null>(null);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editingWithholding, setEditingWithholding] = useState<Withholding | null>(null);
+  const [generatingId, setGeneratingId] = useState<string | null>(null);
+  const [activeCAI, setActiveCAI] = useState<CAIData | null>(null);
+  
   const [formData, setFormData] = useState<WithholdingFormData>({
     invoiceNumber: '',
     invoiceDate: new Date().toISOString().split('T')[0],
@@ -71,491 +85,357 @@ export default function WithholdingManager() {
     type: 'PROFESSIONAL_SERVICES_1%',
     description: '',
   });
-  const [calculation, setCalculation] = useState<any>(null);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
 
-  // Load data
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [calculation, setCalculation] = useState<ReturnType<typeof calculateWithholding> | null>(null);
 
-  const loadData = async () => {
+  // 1. Definir getStatusBadge DENTRO del componente o antes del return
+  const getStatusBadge = (status: string) => {
+    const configs: Record<string, { label: string, className: string }> = {
+      'PENDING': { label: 'Pendiente', className: 'bg-yellow-100 text-yellow-800' },
+      'PAID': { label: 'Pagado', className: 'bg-green-100 text-green-800' },
+      'CANCELLED': { label: 'Anulado', className: 'bg-red-100 text-red-800' }
+    };
+    const config = configs[status] || { label: status, className: '' };
+    return <Badge className={config.className}>{config.label}</Badge>;
+  };
+
+  const loadData = useCallback(async () => {
+    const tenantId = currentTenant?.id;
+    if (!tenantId) return;
+
     try {
       setLoading(true);
-      const [withholdingsData, statsData] = await Promise.all([
+      // Asegurar contexto del tenant para RLS antes de cargar
+      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
+
+      const [withholdingsData, statsData, caiResult] = await Promise.all([
         getWithholdings(),
         getWithholdingStatistics(),
+        supabase
+          .from('CAI')
+          .select('*')
+          .eq('tenantId', tenantId)
+          .eq('documentType', 'COMPROBANTE')
+          .eq('status', 'ACTIVE')
+          .maybeSingle()
       ]);
-      
+
       setWithholdings(withholdingsData);
       setStatistics(statsData);
+      if (caiResult.data) {
+        setActiveCAI(caiResult.data as CAIData);
+      } else {
+        setActiveCAI(null);
+      }
     } catch (error) {
-      console.error('Error loading withholding data:', error);
+      console.error(error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentTenant?.id, supabase]);
 
-  // Handle form submission
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const amountInCents = Math.round(parseFloat(formData.amount) * 100);
-      
-      const withholdingData = {
-        ...formData,
-        invoiceDate: new Date(formData.invoiceDate),
-        amount: amountInCents,
-        period: getCurrentPeriod(),
-        withholdingRate: formData.type === 'PROFESSIONAL_SERVICES_1%' ? 0.01 : 0.125,
-      };
+  useEffect(() => { loadData(); }, [loadData]);
 
-      if (editingWithholding) {
-        // Update existing withholding (would need update function in service)
-        console.log('Update withholding:', withholdingData);
-      } else {
-        await createWithholding(withholdingData);
-      }
-
-      setShowForm(false);
-      setEditingWithholding(null);
-      setFormData({
-        invoiceNumber: '',
-        invoiceDate: new Date().toISOString().split('T')[0],
-        providerName: '',
-        providerRTN: '',
-        providerAddress: '',
-        amount: '',
-        type: 'PROFESSIONAL_SERVICES_1%',
-        description: '',
-      });
-      setCalculation(null);
-      loadData();
-    } catch (error) {
-      console.error('Error saving withholding:', error);
-    }
-  };
-
-  // Calculate withholding on amount change
-  const handleAmountChange = (value: string) => {
-    setFormData(prev => ({ ...prev, amount: value }));
-    
-    if (value && !isNaN(parseFloat(value))) {
-      const amountInCents = Math.round(parseFloat(value) * 100);
-      const calc = calculateWithholding(amountInCents, formData.type);
-      setCalculation(calc);
+  const updateCalculation = (amount: string, type: WithholdingType) => {
+    const val = parseFloat(amount);
+    if (!isNaN(val) && val > 0) {
+      const cents = Math.round(val * 100);
+      setCalculation(calculateWithholding(cents, type));
     } else {
       setCalculation(null);
     }
   };
 
-  // Generate PDF receipt
-  const generatePDF = async (withholding: Withholding) => {
-    try {
-      setGeneratingPDF(true);
-      
-      const receiptData = generateWithholdingReceipt(withholding);
-      const doc = <WithholdingReceiptPDF receiptData={receiptData} />;
-      
-      const pdfBlob = await pdf(doc).toBlob();
-      const url = URL.createObjectURL(pdfBlob);
-      
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `comprobante-retencion-${withholding.receiptNumber || withholding.id}.pdf`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-    } finally {
-      setGeneratingPDF(false);
-    }
+  const resetForm = () => {
+    setFormData({
+      invoiceNumber: '',
+      invoiceDate: new Date().toISOString().split('T')[0],
+      providerName: '',
+      providerRTN: '',
+      providerAddress: '',
+      amount: '',
+      type: 'PROFESSIONAL_SERVICES_1%',
+      description: '',
+    });
+    setCalculation(null);
+    setEditingWithholding(null);
   };
 
-  // Update withholding status
-  const updateStatus = async (id: string, status: WithholdingStatus) => {
+  // Manejar edición
+  const handleEdit = (withholding: Withholding) => {
+    setEditingWithholding(withholding);
+    setFormData({
+      invoiceNumber: withholding.invoiceNumber,
+      invoiceDate: new Date(withholding.invoiceDate).toISOString().split('T')[0],
+      providerName: withholding.providerName,
+      providerRTN: withholding.providerRTN,
+      providerAddress: withholding.providerAddress || '',
+      amount: (withholding.amount / 100).toString(),
+      type: withholding.type,
+      description: withholding.description,
+    });
+    const cents = Math.round((withholding.amount / 100) * 100);
+    setCalculation(calculateWithholding(cents, withholding.type));
+    setShowForm(true);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const tenantId = currentTenant?.id;
+    if (!calculation || !tenantId) return;
+    
     try {
-      await updateWithholdingStatus(id, status, status === 'PAID' ? new Date() : undefined);
+      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
+
+      const payload = {
+        invoiceNumber: formData.invoiceNumber,
+        invoiceDate: new Date(formData.invoiceDate),
+        providerName: formData.providerName,
+        providerRTN: formData.providerRTN,
+        providerAddress: formData.providerAddress || '',
+        amount: calculation.baseAmount,
+        withholdingAmount: calculation.withholdingAmount,
+        withholdingRate: calculation.withholdingRate,
+        type: formData.type,
+        description: formData.description,
+        period: getCurrentPeriod(),
+      };
+
+      if (editingWithholding) {
+        await (supabase.from('Withholding') as any).update(payload).eq('id', editingWithholding.id);
+      } else {
+        await createWithholding(payload);
+      }
+
+      setShowForm(false);
+      resetForm();
       loadData();
     } catch (error) {
-      console.error('Error updating status:', error);
+      alert("Error al procesar la retención.");
     }
   };
 
-  // Get status badge
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'PENDING':
-        return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>;
-      case 'PAID':
-        return <Badge className="bg-green-100 text-green-800">Pagado</Badge>;
-      case 'CANCELLED':
-        return <Badge className="bg-red-100 text-red-800">Cancelado</Badge>;
-      default:
-        return <Badge variant="secondary">{status}</Badge>;
+  // Actualizar estado (Pagado / Anulado)
+  const updateStatus = async (id: string, status: WithholdingStatus) => {
+    try {
+      let reason: string | undefined = undefined;
+
+      if (status === 'CANCELLED') {
+        const inputReason = window.prompt('Por favor, ingrese el motivo de la anulación (mínimo 5 caracteres):');
+        if (!inputReason || inputReason.trim().length < 5) {
+          alert('Debe proporcionar un motivo válido de al menos 5 caracteres para poder anular la retención.');
+          return;
+        }
+        reason = inputReason.trim();
+      }
+
+      const tenantId = currentTenant?.id || "";
+      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
+      await updateWithholdingStatus(id, status, status === 'PAID' ? new Date() : undefined, reason);
+      loadData();
+    } catch (error) {
+      console.error(error);
+      alert("Error al actualizar el estado.");
     }
   };
 
-  // Validate form
-  const validateForm = () => {
-    if (!formData.invoiceNumber || !formData.providerName || !formData.providerRTN || !formData.amount) {
-      return false;
+  const generatePDF = async (withholding: Withholding) => {
+    try {
+      setGeneratingId(withholding.id);
+      const tenantId = currentTenant?.id || "";
+      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
+
+      let correlativo = withholding.receiptNumber;
+
+      if (!correlativo) {
+        if (!activeCAI) {
+          alert("No se encontró un CAI activo para Comprobantes de Retención.");
+          return;
+        }
+
+        // Generar número atómico vía RPC para evitar duplicados y saltos de correlativo
+        const { data: generatedNumber, error: rpcError } = await (supabase as any).rpc('get_next_withholding_number', {
+          cai_id_param: activeCAI.id
+        });
+
+        if (rpcError) {
+          alert(`Error al generar correlativo: ${rpcError.message}`);
+          return;
+        }
+
+        correlativo = generatedNumber;
+        // Guardar el número asignado en la retención
+        await (supabase.from('Withholding') as any).update({ receiptNumber: correlativo }).eq('id', withholding.id);
+        loadData();
+      }
+
+      if (!activeCAI) {
+        alert("No se encontró un CAI activo para Comprobantes de Retención.");
+        return;
+      }
+
+      const receiptData = {
+        issuerName: (currentTenant as any)?.name || "Empresa",
+        issuerRTN: (currentTenant as any)?.rtn || "",
+        issuerAddress: (currentTenant as any)?.address || "",
+        cai: activeCAI.caiCode,
+        correlativo: correlativo || '',
+        fechaLimite: activeCAI.expirationDate,
+        date: new Date(withholding.invoiceDate),
+        providerName: withholding.providerName,
+        providerRTN: withholding.providerRTN,
+        invoiceNumber: withholding.invoiceNumber,
+        baseAmount: withholding.amount / 100,
+        rate: withholding.withholdingRate,
+        withheldAmount: withholding.withholdingAmount / 100,
+        description: withholding.description,
+        type: formatWithholdingType(withholding.type),
+      };
+      
+      const blob = await pdf(<WithholdingReceiptPDF receiptData={receiptData} />).toBlob();
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Retencion-${withholding.invoiceNumber}.pdf`;
+      link.click();
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setGeneratingId(null);
     }
-    
-    if (!validateRTN(formData.providerRTN)) {
-      return false;
-    }
-    
-    if (isNaN(parseFloat(formData.amount)) || parseFloat(formData.amount) <= 0) {
-      return false;
-    }
-    
-    return true;
   };
 
-  if (loading) {
+  const isFormValid = useMemo(() => {
     return (
-      <div className="flex items-center justify-center h-64">
-        <RefreshCw className="w-8 h-8 animate-spin" />
-      </div>
+      formData.invoiceNumber.length > 5 &&
+      validateRTN(formData.providerRTN) &&
+      calculation !== null &&
+      new Date(formData.invoiceDate) <= new Date()
     );
-  }
+  }, [formData, calculation]);
+
+  if (loading) return <div className="flex justify-center py-20"><RefreshCw className="animate-spin text-primary" /></div>;
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
+    <div className="container mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Receipt className="w-8 h-8" />
-            Gestión de Retenciones
-          </h1>
-          <p className="text-muted-foreground">
-            Calcula y gestiona las retenciones del 1% y 12.5% sobre honorarios profesionales
-          </p>
+          <h1 className="text-3xl font-bold flex items-center gap-2"><Receipt className="w-8 h-8" /> Retenciones</h1>
+          {activeCAI && (activeCAI.rangeEnd - activeCAI.currentNumber) <= 10 && (
+            <Badge variant="destructive" className="mt-2 animate-pulse flex items-center gap-1">
+              <AlertTriangle className="w-3 h-3" />
+              CAI Próximo a Agotarse: {activeCAI.rangeEnd - activeCAI.currentNumber} números restantes
+            </Badge>
+          )}
         </div>
-        <Button onClick={() => setShowForm(true)}>
-          <Plus className="w-4 h-4 mr-2" />
-          Nueva Retención
+        <Button onClick={() => { resetForm(); setShowForm(true); }}>
+          <Plus className="w-4 h-4 mr-2" /> Nueva Retención
         </Button>
       </div>
 
-      {/* Statistics Cards */}
       {statistics && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Retenciones</p>
-                  <p className="text-2xl font-bold">{statistics.totalWithholdings}</p>
-                </div>
-                <FileText className="w-8 h-8 text-blue-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Monto Total</p>
-                  <p className="text-2xl font-bold">{formatCurrency(statistics.totalAmount)}</p>
-                </div>
-                <TrendingUp className="w-8 h-8 text-green-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Total Retenido</p>
-                  <p className="text-2xl font-bold text-red-600">{formatCurrency(statistics.totalWithheld)}</p>
-                </div>
-                <Calculator className="w-8 h-8 text-red-600" />
-              </div>
-            </CardContent>
-          </Card>
-          
-          <Card>
-            <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground">Pendientes</p>
-                  <p className="text-2xl font-bold text-yellow-600">{statistics.pendingCount}</p>
-                </div>
-                <Clock className="w-8 h-8 text-yellow-600" />
-              </div>
-            </CardContent>
-          </Card>
+          <StatCard title="Total Recibos" value={statistics.totalWithholdings} icon={<FileText className="text-blue-500" />} />
+          <StatCard title="Monto Sujeto" value={formatCurrency(statistics.totalAmount)} icon={<TrendingUp className="text-green-500" />} />
+          <StatCard title="Total Retenido" value={formatCurrency(statistics.totalWithheld)} icon={<Calculator className="text-red-500" />} isRed />
+          <StatCard title="Pendientes" value={statistics.pendingCount} icon={<Clock className="text-orange-500" />} />
         </div>
       )}
 
-      {/* Withholding Form */}
       {showForm && (
-        <Card>
-          <CardHeader>
-            <CardTitle>
-              {editingWithholding ? 'Editar Retención' : 'Nueva Retención'}
-            </CardTitle>
-          </CardHeader>
+        <Card className="border-t-4 border-t-primary shadow-xl">
+          <CardHeader><CardTitle>{editingWithholding ? 'Modificar' : 'Registrar'} Retención</CardTitle></CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="invoiceNumber">Número de Factura</Label>
-                  <Input
-                    id="invoiceNumber"
-                    value={formData.invoiceNumber}
-                    onChange={(e) => setFormData(prev => ({ ...prev, invoiceNumber: e.target.value }))}
-                    placeholder="F001-1234"
-                    required
-                  />
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label>Factura Original #</Label>
+                  <Input value={formData.invoiceNumber} onChange={e => setFormData({...formData, invoiceNumber: e.target.value})} />
                 </div>
-                
-                <div>
-                  <Label htmlFor="invoiceDate">Fecha de Factura</Label>
-                  <Input
-                    id="invoiceDate"
-                    type="date"
-                    value={formData.invoiceDate}
-                    onChange={(e) => setFormData(prev => ({ ...prev, invoiceDate: e.target.value }))}
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label>Fecha Emisión</Label>
+                  <Input type="date" max={new Date().toISOString().split('T')[0]} value={formData.invoiceDate} onChange={e => setFormData({...formData, invoiceDate: e.target.value})} />
                 </div>
-                
-                <div>
-                  <Label htmlFor="providerName">Nombre del Proveedor</Label>
-                  <Input
-                    id="providerName"
-                    value={formData.providerName}
-                    onChange={(e) => setFormData(prev => ({ ...prev, providerName: e.target.value }))}
-                    placeholder="Nombre completo del proveedor"
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label>RTN Proveedor</Label>
+                  <Input value={formData.providerRTN} onChange={e => setFormData({...formData, providerRTN: e.target.value})} className={formData.providerRTN && !validateRTN(formData.providerRTN) ? "border-red-500" : ""} />
                 </div>
-                
-                <div>
-                  <Label htmlFor="providerRTN">RTN del Proveedor</Label>
-                  <Input
-                    id="providerRTN"
-                    value={formData.providerRTN}
-                    onChange={(e) => setFormData(prev => ({ ...prev, providerRTN: e.target.value }))}
-                    placeholder="0801-XXXXX-X"
-                    required
-                    className={formData.providerRTN && !validateRTN(formData.providerRTN) ? 'border-red-500' : ''}
-                  />
-                  {formData.providerRTN && !validateRTN(formData.providerRTN) && (
-                    <p className="text-xs text-red-600 mt-1">RTN inválido</p>
-                  )}
+                <div className="md:col-span-2 space-y-2">
+                  <Label>Nombre o Razón Social</Label>
+                  <Input value={formData.providerName} onChange={e => setFormData({...formData, providerName: e.target.value})} />
                 </div>
-                
-                <div>
-                  <Label htmlFor="providerAddress">Dirección del Proveedor</Label>
-                  <Input
-                    id="providerAddress"
-                    value={formData.providerAddress}
-                    onChange={(e) => setFormData(prev => ({ ...prev, providerAddress: e.target.value }))}
-                    placeholder="Dirección opcional"
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="amount">Monto (L)</Label>
-                  <Input
-                    id="amount"
-                    type="number"
-                    step="0.01"
-                    value={formData.amount}
-                    onChange={(e) => handleAmountChange(e.target.value)}
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor="type">Tipo de Retención</Label>
-                  <select
-                    id="type"
-                    value={formData.type}
-                    onChange={(e) => {
-                      const newType = e.target.value as WithholdingType;
-                      setFormData(prev => ({ ...prev, type: newType }));
-                      if (formData.amount && !isNaN(parseFloat(formData.amount))) {
-                        const amountInCents = Math.round(parseFloat(formData.amount) * 100);
-                        const calc = calculateWithholding(amountInCents, newType);
-                        setCalculation(calc);
-                      }
-                    }}
-                    className="w-full p-2 border rounded-md"
-                    required
-                  >
-                    <option value="PROFESSIONAL_SERVICES_1%">Servicios Profesionales (1%)</option>
-                    <option value="PROFESSIONAL_SERVICES_12_5%">Servicios Profesionales (12.5%)</option>
-                    <option value="OTHER">Otros</option>
-                  </select>
-                </div>
-                
-                <div className="md:col-span-2">
-                  <Label htmlFor="description">Descripción</Label>
-                  <Input
-                    id="description"
-                    value={formData.description}
-                    onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                    placeholder="Descripción de los servicios prestados"
-                    required
-                  />
+                <div className="space-y-2">
+                  <Label>Monto Bruto (L)</Label>
+                  <Input type="number" step="0.01" value={formData.amount} onChange={e => {
+                    setFormData({...formData, amount: e.target.value});
+                    updateCalculation(e.target.value, formData.type);
+                  }} />
                 </div>
               </div>
-              
-              {/* Calculation Preview */}
-              {calculation && (
-                <div className="border rounded-lg p-4 bg-muted/50">
-                  <h4 className="font-medium mb-2">Cálculo de Retención</h4>
-                  <div className="grid grid-cols-3 gap-4 text-sm">
-                    <div>
-                      <span className="font-medium">Monto Base:</span>
-                      <p className="font-bold">{formatCurrency(calculation.baseAmount)}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium">Tasa:</span>
-                      <p className="font-bold">{formatWithholdingRate(calculation.withholdingRate)}</p>
-                    </div>
-                    <div>
-                      <span className="font-medium">Retención:</span>
-                      <p className="font-bold text-red-600">{formatCurrency(calculation.withholdingAmount)}</p>
-                    </div>
-                  </div>
-                  <div className="mt-2 pt-2 border-t">
-                    <span className="font-medium">Monto Neto:</span>
-                    <p className="font-bold text-green-600">{formatCurrency(calculation.netAmount)}</p>
-                  </div>
-                </div>
-              )}
-              
-              <div className="flex gap-2">
-                <Button type="submit" disabled={!validateForm()}>
-                  {editingWithholding ? 'Actualizar' : 'Crear'} Retención
-                </Button>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  onClick={() => {
-                    setShowForm(false);
-                    setEditingWithholding(null);
-                    setCalculation(null);
-                  }}
-                >
-                  Cancelar
-                </Button>
+              <div className="flex gap-3 justify-end">
+                <Button variant="outline" onClick={() => { setShowForm(false); resetForm(); }}>Cancelar</Button>
+                <Button type="submit" disabled={!isFormValid}>Confirmar Retención</Button>
               </div>
             </form>
           </CardContent>
         </Card>
       )}
 
-      {/* Withholding List */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Lista de Retenciones</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-4">
-            {withholdings.map((withholding) => (
-              <div key={withholding.id} className="border rounded-lg p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="font-semibold">{withholding.invoiceNumber}</h3>
-                      {getStatusBadge(withholding.status)}
-                    </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <span className="font-medium">Proveedor:</span> {withholding.providerName}
-                      </div>
-                      <div>
-                        <span className="font-medium">RTN:</span> {withholding.providerRTN}
-                      </div>
-                      <div>
-                        <span className="font-medium">Tipo:</span> {formatWithholdingType(withholding.type)}
-                      </div>
-                      <div>
-                        <span className="font-medium">Período:</span> {withholding.period}
-                      </div>
-                    </div>
+      <div className="grid gap-3">
+        {withholdings.map(w => (
+          <Card key={w.id}>
+            <CardContent className="p-4">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="flex-1">
+                  <div className="flex items-center gap-3">
+                    <span className="font-bold">{w.invoiceNumber}</span>
+                    {getStatusBadge(w.status)}
                   </div>
-                  
-                  <div className="flex gap-2">
-                    <Button 
-                      variant="outline" 
-                      size="sm"
-                      onClick={() => generatePDF(withholding)}
-                      disabled={generatingPDF}
-                    >
-                      <Download className="w-4 h-4" />
-                    </Button>
-                    <Button variant="outline" size="sm">
-                      <Edit className="w-4 h-4" />
-                    </Button>
-                    {withholding.status === 'PENDING' && (
-                      <Button 
-                        size="sm"
-                        onClick={() => updateStatus(withholding.id, 'PAID')}
-                      >
-                        <CheckCircle className="w-4 h-4" />
+                  <p className="text-sm text-muted-foreground">{w.providerName}</p>
+                </div>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="icon" onClick={() => generatePDF(w)} disabled={generatingId === w.id} title="Descargar PDF">
+                     {generatingId === w.id ? <RefreshCw className="animate-spin h-4 w-4" /> : <Download className="h-4 w-4" />}
+                  </Button>
+                  <Button variant="outline" size="icon" onClick={() => handleEdit(w)} title="Editar">
+                    <Edit className="h-4 w-4" />
+                  </Button>
+                  {w.status === 'PENDING' && (
+                    <>
+                      <Button size="icon" className="bg-green-600 hover:bg-green-700" onClick={() => updateStatus(w.id, 'PAID')} title="Marcar como Pagado">
+                        <CheckCircle className="h-4 w-4" />
                       </Button>
-                    )}
-                  </div>
-                </div>
-                
-                {/* Amount Details */}
-                <div className="grid grid-cols-3 gap-4 text-sm bg-muted/50 p-3 rounded">
-                  <div>
-                    <span className="font-medium">Monto Base:</span>
-                    <p className="font-bold">{formatCurrency(withholding.amount)}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Retención:</span>
-                    <p className="font-bold text-red-600">{formatCurrency(withholding.withholdingAmount)}</p>
-                  </div>
-                  <div>
-                    <span className="font-medium">Neto:</span>
-                    <p className="font-bold text-green-600">{formatCurrency(withholding.amount - withholding.withholdingAmount)}</p>
-                  </div>
-                </div>
-                
-                {/* Additional Info */}
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                  <span>Fecha: {withholding.invoiceDate.toLocaleDateString('es-HN')}</span>
-                  {withholding.receiptNumber && (
-                    <span>Recibo: {withholding.receiptNumber}</span>
-                  )}
-                  {withholding.paymentDate && (
-                    <span>Pagado: {withholding.paymentDate.toLocaleDateString('es-HN')}</span>
+                      <Button variant="destructive" size="icon" onClick={() => updateStatus(w.id, 'CANCELLED')} title="Anular Retención">
+                        <Ban className="h-4 w-4" />
+                      </Button>
+                    </>
                   )}
                 </div>
               </div>
-            ))}
-            
-            {withholdings.length === 0 && (
-              <div className="text-center py-8 text-muted-foreground">
-                <Receipt className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                <p>No hay retenciones registradas</p>
-                <Button onClick={() => setShowForm(true)} className="mt-2">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Crear primera retención
-                </Button>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+              {w.status === 'CANCELLED' && (w as any).cancellationReason && (
+                <div className="mt-3 p-2 bg-red-50 border border-red-100 rounded text-xs text-red-900 flex items-start gap-2">
+                  <AlertTriangle className="w-4 h-4 mt-0.5 text-red-600 flex-shrink-0" />
+                  <p><span className="font-bold">Motivo de anulación:</span> {(w as any).cancellationReason}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
+  );
+}
+
+function StatCard({ title, value, icon, isRed = false }: { title: string, value: string | number, icon: React.ReactNode, isRed?: boolean }) {
+  return (
+    <Card className="overflow-hidden border-l-4 border-l-primary">
+      <CardContent className="p-5 flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-muted-foreground uppercase">{title}</p>
+          <p className={`text-2xl font-bold mt-1 ${isRed ? 'text-red-600' : 'text-slate-900'}`}>{value}</p>
+        </div>
+        <div className="bg-slate-100 p-3 rounded-xl">{icon}</div>
+      </CardContent>
+    </Card>
   );
 }
