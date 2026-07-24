@@ -46,16 +46,17 @@ export async function GET(request) {
        
        return {
          id: tenant.id,
-         businessName: company?.name || tenant.name,
-         businessRTN: company?.rtn || '',
-         businessEmail: company?.email || '',
-         businessAddress: company?.address || '',
-         phoneNumber: company?.phone || company?.contact_phone || '',
-         tenantCode: tenant.id,
-         industry: company?.industry || '',
-         maxUsers: company?.total_units || 5,
-         isConfigurationComplete: !!company?.rtn && !!company?.email,
-         isActive: tenant.is_active ?? true // Default to true if field doesn't exist
+         businessName: company?.name || tenant.businessname || tenant.business_name || tenant.name || '',
+         businessRTN: company?.rtn || tenant.businessrtn || tenant.business_rtn || '',
+         businessEmail: company?.email || tenant.businessemail || tenant.business_email || '',
+         businessAddress: company?.address || tenant.businessaddress || tenant.business_address || '',
+         phoneNumber: company?.phone || company?.contact_phone || tenant.phonenumber || tenant.phone_number || '',
+         tenantCode: tenant.tenant_code || tenant.tenantCode || tenant.id,
+         industry: company?.industry || tenant.industry || '',
+         maxUsers: tenant.maxusers || tenant.max_users || company?.total_units || 5,
+         maxStorage: tenant.maxstorage || tenant.max_storage || 100,
+         isConfigurationComplete: !!company?.rtn || !!tenant.businessrtn,
+         isActive: tenant.isactive ?? tenant.is_active ?? true
        };
      });
 
