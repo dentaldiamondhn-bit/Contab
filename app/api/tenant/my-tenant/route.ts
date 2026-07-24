@@ -73,3 +73,69 @@ export async function GET(request: NextRequest) {
     );
   }
 }
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const { userId } = await auth();
+    
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+
+    const body = await request.json();
+
+    // Get user's tenant
+    const { data: userData, error: userError } = await supabase
+      .from('User')
+      .select('tenantid')
+      .eq('authid', userId)
+      .single();
+
+    if (userError || !userData?.tenantid) {
+      return NextResponse.json({ error: 'Usuario no tiene tenant asociado' }, { status: 404 });
+    }
+
+    const tenantId = userData.tenantid;
+
+    // Update tenant table fields
+    const tenantUpdates: Record<string, any> = {};
+    if (body.businessRTN !== undefined) tenantUpdates.rtn = body.businessRTN;
+    if (body.phoneNumber !== undefined) tenantUpdates.phone = body.phoneNumber;
+    if (body.businessAddress !== undefined) tenantUpdates.address = body.businessAddress;
+    if (body.industry !== undefined) tenantUpdates.industry = body.industry;
+    if (body.businessEmail !== undefined) tenantUpdates.email = body.businessEmail;
+
+    if (Object.keys(tenantUpdates).length > 0) {
+      await supabase.from('Tenant').update(tenantUpdates).eq('id', tenantId);
+    }
+
+    // Update companies table if exists
+    const { data: existingCompany } = await supabase
+      .from('companies')
+      .select('id')
+      .eq('tenant_id', tenantId)
+      .limit(1)
+      .single();
+
+    const companyUpdates: Record<string, any> = {};
+    if (body.businessName !== undefined) companyUpdates.name = body.businessName;
+    if (body.businessEmail !== undefined) companyUpdates.email = body.businessEmail;
+    if (body.businessRTN !== undefined) companyUpdates.rtn = body.businessRTN;
+    if (body.phoneNumber !== undefined) companyUpdates.phone = body.phoneNumber;
+    if (body.businessAddress !== undefined) companyUpdates.address = body.businessAddress;
+    if (body.industry !== undefined) companyUpdates.industry = body.industry;
+
+    if (existingCompany && Object.keys(companyUpdates).length > 0) {
+      await supabase.from('companies').update(companyUpdates).eq('id', existingCompany.id);
+    }
+
+    return NextResponse.json({ success: true });
+
+  } catch (error: any) {
+    console.error('Error updating tenant:', error);
+    return NextResponse.json(
+      { error: 'Error interno del servidor' },
+      { status: 500 }
+    );
+  }
+}
