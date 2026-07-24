@@ -2,23 +2,32 @@
 
 import { SignIn, useUser } from '@clerk/nextjs';
 import { Building2, Shield, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { resolveUserPermissions } from '@/lib/auth-utils';
 
 export default function LoginPage() {
-  const { isLoaded, isSignedIn } = useUser();
+  const { isLoaded, isSignedIn, user } = useUser();
+  const router = useRouter();
 
-  if (!isLoaded) {
+  useEffect(() => {
+    if (isLoaded && isSignedIn && user) {
+      const perms = resolveUserPermissions(user);
+      if (perms.isStaff) {
+        router.replace('/admin/dashboard');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [isLoaded, isSignedIn, user, router]);
+
+  if (!isLoaded || isSignedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4">
         <Loader2 className="h-12 w-12 text-blue-400 animate-spin" />
       </div>
     );
   }
-
-  // If already signed in, suppress SignIn entirely and let the ratchet /
-  // custom Next.js layout handle the redirect to the appropriate dashboard.
-  // This prevents Clerk from briefly rendering the component and emitting
-  // the "SignIn cannot render when a user is already signed in" warning.
-  if (isSignedIn) return null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-slate-900 flex items-center justify-center p-4 relative overflow-hidden">
