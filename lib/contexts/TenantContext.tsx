@@ -106,9 +106,8 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         return;
       }
       
-      // Si los tenants ya están cargados y hay un tenant actual, no es necesario volver a buscar
-      // a menos que sea Super Admin (para ver todos los tenants) o se esté refrescando explícitamente.
-      if (tenants.length > 0 && currentTenant && !isSuperAdmin) {
+      // Si el usuario no está autenticado, salir
+      if (!userId) {
         setLoading(false);
         return;
       }
@@ -130,28 +129,30 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         console.log('TenantContext - Loaded tenants from database:', databaseTenants.length);
         console.log('TenantContext - Tenant data:', JSON.stringify(databaseTenants, null, 2));
 
-        if (databaseTenants.length > 0 && !currentTenant) {
-          // Evitar auto-selección para Super Admins (deben estar en Modo Sistema por defecto)
+        if (databaseTenants.length > 0) {
+          const isSystemPath = pathname.startsWith('/admin');
+          console.log('TenantContext - Loaded tenants from database:', databaseTenants.length);
+          console.log('TenantContext - Tenant data:', JSON.stringify(databaseTenants, null, 2));
+
           if (isSuperAdmin) {
             console.log('TenantContext - Super Admin en Modo Sistema, omitiendo auto-selección');
             return;
           }
 
-          const firstTenant = databaseTenants[0];
-          setCurrentTenant(firstTenant); 
+          // Always update currentTenant with fresh data from API
+          const freshTenant = currentTenant 
+            ? databaseTenants.find((t: any) => t.id === currentTenant.id) || databaseTenants[0]
+            : databaseTenants[0];
           
-          // Persistir inmediatamente para evitar pérdida en el siguiente ciclo
-          localStorage.setItem('selected_tenant', JSON.stringify(firstTenant));
-          localStorage.setItem('tenant_id', firstTenant.id);
+          setCurrentTenant(freshTenant); 
+          localStorage.setItem('selected_tenant', JSON.stringify(freshTenant));
+          localStorage.setItem('tenant_id', freshTenant.id);
 
-          // Si es Super Admin y no está en rutas de administración, debemos asegurar la cookie
-          checkAndSetImpersonationCookie(firstTenant.id);
-          console.log('TenantContext - Auto-selected tenant from database:', firstTenant.businessName);
-          console.log('TenantContext - Set tenant to:', JSON.stringify(firstTenant, null, 2));
-        } else {
-          console.log('TenantContext - No auto-selection needed. Database tenants:', databaseTenants.length, 'Current tenant exists:', !!currentTenant);
-          // Si ya hay un tenant actual, asegurar que el estado de impersonación sea correcto
-          setIsImpersonating(isSuperAdmin && !!currentTenant && document.cookie.includes(IMPERSONATION_COOKIE_NAME));
+          if (!currentTenant) {
+            checkAndSetImpersonationCookie(freshTenant.id);
+          }
+          console.log('TenantContext - Set tenant to:', freshTenant.businessName);
+        }
         }
         
       } catch (error) {
