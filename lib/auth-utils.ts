@@ -58,6 +58,6 @@ export function resolveUserPermissions(user: any): UserPermissions {
     isSupport: role === "SUPPORT",
     isAdmin: role === "ADMIN",
     isManager: role === "MANAGER",
-    isStaff: role === "SUPER_ADMIN" || role === "SUPPORT",
+    isStaff: role === "SUPER_ADMIN" || role === "SUPPORT" || role === "ADMIN" || role === "MANAGER",
   };
 }
