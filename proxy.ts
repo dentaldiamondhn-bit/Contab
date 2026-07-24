@@ -63,14 +63,14 @@ export default clerkMiddleware(async (auth, req) => {
   // Por lo tanto, buscamos por email para Super Admin
   if (userId) {
     try {
-      // Primero intentar con UUID convertido, si falla buscar por email
+      const currentUserEmail = userEmail.toLowerCase();
       const { data: userProfile } = await supabase
         .from('users')
         .select('role,email')
-        .eq('email', 'sucachi.123@gmail.com')
+        .eq('email', currentUserEmail)
         .single();
       
-      if (userProfile?.role === 'SUPER_ADMIN' || userProfile?.email === 'sucachi.123@gmail.com') {
+      if (userProfile?.role === 'SUPER_ADMIN') {
         isSuperAdmin = true;
       }
     } catch (e) {}
@@ -83,7 +83,7 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-// 3. Protección extra para rutas de administración - verificar rol desde users table
+  // 3. Protección extra para rutas de administración - verificar rol desde users table
   if (isAdmin) {
     if (!userId) {
       console.log(`🚫 [Middleware Proxy] ACCESS DENIED: No user ID for ${pathname}`);
@@ -91,11 +91,12 @@ export default clerkMiddleware(async (auth, req) => {
     }
     
     try {
-      // Buscar por email ya que auth_id es UUID y Clerk usa strings
+      // Buscar el rol del usuario actual por email
+      const currentUserEmail = userEmail.toLowerCase();
       const { data: userProfile, error: userError } = await supabase
         .from('users')
         .select('role,email')
-        .eq('email', 'sucachi.123@gmail.com')
+        .eq('email', currentUserEmail)
         .single();
       
       if (!userError && userProfile) {
