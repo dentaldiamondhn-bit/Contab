@@ -105,18 +105,12 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         setLoading(false);
         return;
       }
-      
-      // Si el usuario no está autenticado, salir
-      if (!userId) {
-        setLoading(false);
-        return;
-      }
 
       try {
         const response = await fetch('/api/tenants-api');
         
         if (!response.ok) {
-          if (response.status === 401) return; // Ignorar si no está autorizado aún
+          if (response.status === 401) return;
           console.error('TenantContext - API response not ok:', response.status, response.statusText);
           throw new Error('Failed to load tenants from database');
         }
@@ -124,22 +118,14 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         const databaseTenants = await response.json();
         setTenants(databaseTenants);
         
-        // Auto-select first tenant if no current tenant is set
-        const isSystemPath = pathname.startsWith('/admin');
         console.log('TenantContext - Loaded tenants from database:', databaseTenants.length);
-        console.log('TenantContext - Tenant data:', JSON.stringify(databaseTenants, null, 2));
 
         if (databaseTenants.length > 0) {
-          const isSystemPath = pathname.startsWith('/admin');
-          console.log('TenantContext - Loaded tenants from database:', databaseTenants.length);
-          console.log('TenantContext - Tenant data:', JSON.stringify(databaseTenants, null, 2));
-
           if (isSuperAdmin) {
             console.log('TenantContext - Super Admin en Modo Sistema, omitiendo auto-selección');
             return;
           }
 
-          // Always update currentTenant with fresh data from API
           const freshTenant = currentTenant 
             ? databaseTenants.find((t: any) => t.id === currentTenant.id) || databaseTenants[0]
             : databaseTenants[0];
@@ -152,7 +138,6 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
             checkAndSetImpersonationCookie(freshTenant.id);
           }
           console.log('TenantContext - Set tenant to:', freshTenant.businessName);
-        }
         }
         
       } catch (error) {
