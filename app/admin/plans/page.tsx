@@ -131,10 +131,12 @@ export default function PlansPage() {
   };
 
   const handleEdit = (plan: Plan) => {
-    // Asegurar que el plan tenga todos los campos necesarios
+    // Asegurar que Soporte siempre esté incluido
+    const hasSupport = plan.modules.some(m => m.id === 'SUPPORT');
+    const modules = hasSupport ? plan.modules : [...plan.modules, { id: 'SUPPORT' }];
     const planWithDefaults = {
       ...plan,
-      modules: plan.modules || [],
+      modules,
       price: plan.price || 0,
       maxUsers: plan.maxUsers || 0,
       maxStorage: plan.maxStorage || 0,
@@ -148,6 +150,8 @@ export default function PlansPage() {
   };
 
   const handleCreate = () => {
+    // Soporte siempre incluido
+    const supportConfig: PlanModuleConfig = { id: 'SUPPORT' };
     setEditingPlan({
       id: Date.now().toString(),
       name: "",
@@ -157,7 +161,7 @@ export default function PlansPage() {
       maxStorage: 100,
       maxTransactions: 10000,
       features: [],
-      modules: [], // Array vacío de módulos
+      modules: [supportConfig],
       isActive: true
     });
     setIsCreating(true);
@@ -166,6 +170,9 @@ export default function PlansPage() {
 
   const handleModuleToggle = (moduleId: string) => {
     if (!editingPlan) return;
+    
+    const moduleDef = MODULES[moduleId as keyof typeof MODULES];
+    if (moduleDef?.required) return; // No permitir desactivar módulos requeridos
     
     const existingIndex = editingPlan.modules.findIndex(m => m.id === moduleId);
     let newModules: PlanModuleConfig[];
@@ -544,21 +551,24 @@ export default function PlansPage() {
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{categoryLabels[category] || category}</p>
                           <div className="space-y-3">
                             {availableModules.filter(m => m.category === category).map((module) => {
-                              const isSelected = editingPlan.modules.some(m => m.id === module.id);
+                              const isRequired = module.required;
+                              const isSelected = isRequired || editingPlan.modules.some(m => m.id === module.id);
                               const moduleConfig = editingPlan.modules.find(m => m.id === module.id);
                               const limitDefs = getModuleLimits(module.id);
                               
                               return (
                                 <div key={module.id} className={`rounded-lg border p-2 ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
-                                  <label className="flex items-center space-x-2 cursor-pointer">
+                                  <label className={`flex items-center space-x-2 ${isRequired ? 'cursor-default' : 'cursor-pointer'}`}>
                                     <input
                                       type="checkbox"
                                       checked={isSelected}
+                                      disabled={isRequired}
                                       onChange={() => handleModuleToggle(module.id)}
                                       className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     <div className="flex-1">
                                       <span className="text-sm font-medium">{module.name}</span>
+                                      {isRequired && <span className="ml-1 text-xs text-blue-600 font-semibold">(siempre incluido)</span>}
                                       <p className="text-xs text-gray-500">{module.description}</p>
                                     </div>
                                   </label>

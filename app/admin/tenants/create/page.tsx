@@ -92,6 +92,10 @@ export default function CreateTenantPage() {
         });
       }
     });
+    // Soporte siempre incluido
+    if (!moduleMap.has('SUPPORT')) {
+      moduleMap.set('SUPPORT', { id: 'SUPPORT' });
+    }
     return Array.from(moduleMap.values());
   };
 

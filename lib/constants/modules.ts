@@ -16,6 +16,8 @@ export interface ModuleDef {
   category: string;
   /** Definiciones de límites aplicables a este módulo (vacío = sin límites) */
   limits?: ModuleLimitDef[];
+  /** Si es true, el módulo siempre está activo y no se puede desactivar */
+  required?: boolean;
 }
 
 export const MODULES: Record<string, ModuleDef> = {
@@ -134,6 +136,7 @@ export const MODULES: Record<string, ModuleDef> = {
     name: 'Soporte Técnico y Actualizaciones',
     description: 'Soporte, actualizaciones y mantenimiento del sistema',
     category: 'support',
+    required: true,
   },
 } as const;
 
