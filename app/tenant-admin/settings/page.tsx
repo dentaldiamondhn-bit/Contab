@@ -186,20 +186,20 @@ export default function TenantSettingsPage() {
       fetch('/api/tenants-api')
         .then(res => res.json())
         .then(data => {
-          const tenants = data.tenants || data || [];
-          const t = Array.isArray(tenants) && tenants.length > 0 ? tenants[0] : null;
+          const tenants = Array.isArray(data) ? data : (data.tenants || []);
+          const t = tenants.length > 0 ? tenants[0] : null;
           if (t) {
             setTenantInfo({
-              businessName: t.businessName || t.business_name || '',
-              businessEmail: t.businessEmail || t.business_email || '',
-              businessRTN: t.businessRTN || t.business_rtn || '',
-              businessAddress: t.businessAddress || t.business_address || '',
-              phoneNumber: t.phoneNumber || t.phone_number || '',
+              businessName: t.businessName || '',
+              businessEmail: t.businessEmail || '',
+              businessRTN: t.businessRTN || '',
+              businessAddress: t.businessAddress || '',
+              phoneNumber: t.phoneNumber || '',
               industry: t.industry || '',
-              tenantCode: t.tenantCode || t.tenant_code || '',
-              maxUsers: t.maxUsers || t.max_users || 0,
-              maxStorage: t.maxStorage || t.max_storage || 0,
-              isActive: t.isActive ?? t.is_active ?? true,
+              tenantCode: t.tenantCode || '',
+              maxUsers: t.maxUsers || 0,
+              maxStorage: t.maxStorage || 0,
+              isActive: t.isActive ?? true,
             });
           }
         })

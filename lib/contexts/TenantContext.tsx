@@ -15,6 +15,7 @@ interface Tenant {
   businessAddress: string;
   industry?: string;
   maxUsers?: number;
+  maxStorage?: number;
   isActive?: boolean; // Campo para el estado activo/inactivo del tenant
 }
 
