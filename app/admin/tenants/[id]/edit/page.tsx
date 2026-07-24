@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useParams } from "next/navigation";
-import { MODULES } from "@/lib/constants/modules";
+import { MODULES, getModuleLimits, type PlanModuleConfig } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -14,7 +14,7 @@ interface Plan {
   maxStorage: number;
   maxTransactions: number;
   features: string[];
-  modules: string[];
+  modules: PlanModuleConfig[];
   isActive: boolean;
 }
 
@@ -39,7 +39,7 @@ export default function EditTenantPage() {
     maxUsers: number;
     maxStorage: number;
     monthlyCost: number;
-    modules: string[];
+    modules: PlanModuleConfig[];
   }>({
     businessName: "",
     businessEmail: "",
@@ -50,7 +50,7 @@ export default function EditTenantPage() {
     maxUsers: 0,
     maxStorage: 0,
     monthlyCost: 0,
-    modules: [],
+    modules: [] as PlanModuleConfig[],
   });
 
   const availableModules = Object.values(MODULES);
@@ -69,15 +69,27 @@ export default function EditTenantPage() {
     support: 'Soporte',
   };
 
-  const computeModulesFromPlans = (selectedPlans: { code: string; quantity: number }[]): string[] => {
-    const moduleSet = new Set<string>();
+  const computeModulesFromPlans = (selectedPlans: { code: string; quantity: number }[]): PlanModuleConfig[] => {
+    const moduleMap = new Map<string, PlanModuleConfig>();
     selectedPlans.forEach(sp => {
       const plan = loadedPlans.find(lp => lp.code === sp.code);
       if (plan?.modules && Array.isArray(plan.modules)) {
-        plan.modules.forEach((m: string) => moduleSet.add(m));
+        plan.modules.forEach((m: PlanModuleConfig) => {
+          if (!moduleMap.has(m.id)) {
+            moduleMap.set(m.id, { ...m });
+          } else {
+            const existing = moduleMap.get(m.id)!;
+            const limitDefs = getModuleLimits(m.id);
+            limitDefs.forEach(ld => {
+              const val = (m as any)[ld.key] ?? ld.defaultValue;
+              const existVal = (existing as any)[ld.key] ?? ld.defaultValue;
+              (existing as any)[ld.key] = Math.max(val, existVal);
+            });
+          }
+        });
       }
     });
-    return Array.from(moduleSet);
+    return Array.from(moduleMap.values());
   };
 
   useEffect(() => {
@@ -109,6 +121,20 @@ export default function EditTenantPage() {
           ? (typeof data.subscriptionPlan === 'string' ? JSON.parse(data.subscriptionPlan) : data.subscriptionPlan)
           : [];
 
+      // Parse modules: could be comma-separated string or array of objects
+      let parsedModules: PlanModuleConfig[] = [];
+      if (data.modules) {
+        if (typeof data.modules === 'string') {
+          parsedModules = data.modules.split(',').filter(Boolean).map((m: string) => ({ id: m.trim() }));
+        } else if (Array.isArray(data.modules)) {
+          parsedModules = data.modules.map((m: any) => {
+            if (typeof m === 'string') return { id: m };
+            if (m && typeof m === 'object' && m.id) return m;
+            return null;
+          }).filter(Boolean);
+        }
+      }
+
       setFormData({
         businessName: data.businessName || "",
         businessEmail: data.businessEmail || "",
@@ -119,7 +145,7 @@ export default function EditTenantPage() {
         maxUsers: data.maxUsers || 0,
         maxStorage: data.maxStorage || 0,
         monthlyCost: data.monthlyCost || 0,
-        modules: data.modules ? (typeof data.modules === 'string' ? data.modules.split(',').filter(Boolean) : data.modules) : [],
+        modules: parsedModules,
       });
     } catch (err) {
       setError("Error al cargar el tenant");
@@ -280,7 +306,7 @@ export default function EditTenantPage() {
           maxUsers: formData.maxUsers,
           maxStorage: formData.maxStorage,
           monthlyCost: formData.monthlyCost,
-          modules: formData.modules.join(','),
+          modules: formData.modules,
         }),
       });
 
@@ -442,27 +468,40 @@ export default function EditTenantPage() {
               ) : (
                 <div className="space-y-4">
                   {moduleCategories.map((category) => {
-                    const categoryModules = availableModules.filter(m => m.category === category && formData.modules.includes(m.id));
+                    const categoryModules = availableModules.filter(m => m.category === category && formData.modules.some(fm => fm.id === m.id));
                     if (categoryModules.length === 0) return null;
                     return (
                       <div key={category}>
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{categoryLabels[category] || category}</h4>
                         <div className="grid grid-cols-2 gap-3">
-                          {categoryModules.map((module) => (
-                            <div key={module.id} className="p-3 border border-green-300 bg-green-50 rounded-lg">
-                              <div className="flex items-start">
-                                <div className="w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 bg-green-600 border-green-600">
-                                  <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{module.name}</p>
-                                  <p className="text-xs text-gray-500">{module.description}</p>
+                          {categoryModules.map((module) => {
+                            const moduleConfig = formData.modules.find(fm => fm.id === module.id);
+                            const limitDefs = getModuleLimits(module.id);
+                            return (
+                              <div key={module.id} className="p-3 border border-green-300 bg-green-50 rounded-lg">
+                                <div className="flex items-start">
+                                  <div className="w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 bg-green-600 border-green-600">
+                                    <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">{module.name}</p>
+                                    <p className="text-xs text-gray-500">{module.description}</p>
+                                    {limitDefs.length > 0 && moduleConfig && (
+                                      <div className="mt-1 space-y-0.5">
+                                        {limitDefs.map(ld => (
+                                          <p key={ld.key} className="text-xs text-blue-700 font-medium">
+                                            {ld.label}: {(moduleConfig as any)[ld.key] ?? ld.defaultValue} {ld.unit}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );

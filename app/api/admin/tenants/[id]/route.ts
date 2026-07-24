@@ -210,10 +210,16 @@ export async function GET(
       maxStorage: tenant.maxstorage,
       maxTransactions: tenant.maxtransactions,
       monthlyCost: tenant.monthlycost,
-       modules: (() => {
-     const tenantModules = tenant.modules ? tenant.modules.split(',').filter((m: string) => m.trim()) : [];
-     return tenantModules;
-   })(),
+      modules: (() => {
+        if (!tenant.modules) return [];
+        // Intentar parsear como JSON primero (nuevo formato: array de objetos)
+        try {
+          const parsed = JSON.parse(tenant.modules);
+          if (Array.isArray(parsed)) return parsed;
+        } catch {}
+        // Fallback: formato antiguo (comma-separated)
+        return tenant.modules.split(',').filter((m: string) => m.trim());
+      })(),
       isActive: tenant.isactive,
       createdAt: tenant.createdat,
       updatedAt: tenant.updatedat,
@@ -337,6 +343,13 @@ export async function PATCH(
     for (const [camel, snake] of Object.entries(fieldMap)) {
       if (camel === 'subscriptionPlans') {
         tenantRow[snake] = subscriptionPlansValue;
+      } else if (camel === 'modules' && body[camel] !== undefined) {
+        // Modules puede venir como array de objetos o string
+        if (Array.isArray(body[camel])) {
+          tenantRow[snake] = JSON.stringify(body[camel]);
+        } else {
+          tenantRow[snake] = body[camel];
+        }
       } else if (body[camel] !== undefined) {
         tenantRow[snake] = body[camel];
       }
@@ -416,11 +429,15 @@ export async function PATCH(
          maxUsers:     updatedTenant.maxusers      || updatedTenant.max_users      || 5,
          maxStorage:   updatedTenant.maxstorage    || updatedTenant.max_storage    || 100,
          maxTransactions: updatedTenant.maxtransactions || updatedTenant.max_transactions || 10000,
-         monthlyCost:  updatedTenant.monthlycost   || updatedTenant.monthly_cost   || 0,
-         modules: (() => {
-     const updateModules = updatedTenant.modules ? updatedTenant.modules.split(',').filter((m: string) => m.trim()) : [];
-     return updateModules;
-   })(),
+          monthlyCost:  updatedTenant.monthlycost   || updatedTenant.monthly_cost   || 0,
+          modules: (() => {
+            if (!updatedTenant.modules) return [];
+            try {
+              const parsed = JSON.parse(updatedTenant.modules);
+              if (Array.isArray(parsed)) return parsed;
+            } catch {}
+            return updatedTenant.modules.split(',').filter((m: string) => m.trim());
+          })(),
          createdAt: updatedTenant.createdat   || updatedTenant.created_at,
          updatedAt: updatedTenant.updatedat   || updatedTenant.updated_at,
          users: [], // populate if needed

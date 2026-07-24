@@ -5,7 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import InvoiceTemplateManager from "@/components/admin/InvoiceTemplateManager";
 import InvoiceImage from "@/components/billing/InvoiceImage";
 import { Eye, Download, Trash2 } from "lucide-react";
-import { MODULES } from "@/lib/constants/modules";
+import { MODULES, getModuleLimits, type PlanModuleConfig } from "@/lib/constants/modules";
 
 interface User {
   id: string;
@@ -31,7 +31,7 @@ interface Tenant {
   maxUsers: number;
   monthlyCost: number;
   isActive: boolean;
-  modules: string[];
+  modules: any[];
   createdAt: string;
   users: User[];
   userCounts: Record<string, number>;
@@ -172,17 +172,22 @@ export default function TenantDetailPage() {
   }, [tenantId]);
 
   // Funciones para gestión de módulos
+  const getModuleIds = (modules: any[]): string[] => {
+    return modules.map(m => typeof m === 'string' ? m : m.id).filter(Boolean);
+  };
+
   const handleAddModule = async (moduleId: string) => {
     try {
       if (!tenant) return;
 
-      const currentModules = tenant.modules || [];
-      if (currentModules.includes(moduleId)) {
+      const currentModuleIds = getModuleIds(tenant.modules || []);
+      if (currentModuleIds.includes(moduleId)) {
         console.log('El módulo ya está asignado');
         return;
       }
 
-      const updatedModules = [...currentModules, moduleId];
+      // Mantener formato existente (strings o objetos)
+      const updatedModules = [...(tenant.modules || []), moduleId];
       
       const response = await fetch(`/api/admin/tenants/${tenantId}`, {
         method: 'PATCH',
@@ -190,7 +195,7 @@ export default function TenantDetailPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          modules: updatedModules.join(',')
+          modules: updatedModules
         }),
       });
 
@@ -209,8 +214,10 @@ export default function TenantDetailPage() {
     try {
       if (!tenant) return;
 
-      const currentModules = tenant.modules || [];
-      const updatedModules = currentModules.filter((m: string) => m !== moduleId);
+      const updatedModules = (tenant.modules || []).filter((m: any) => {
+        const id = typeof m === 'string' ? m : m.id;
+        return id !== moduleId;
+      });
       
       const response = await fetch(`/api/admin/tenants/${tenantId}`, {
         method: 'PATCH',
@@ -218,7 +225,7 @@ export default function TenantDetailPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          modules: updatedModules.join(',')
+          modules: updatedModules
         }),
       });
 
@@ -829,11 +836,12 @@ export default function TenantDetailPage() {
               <h3 className="text-sm font-medium text-gray-700 mb-2">Módulos Activos</h3>
               {tenant.modules.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {tenant.modules.map((module: string, idx: number) => {
-                    const mod = MODULES[module as keyof typeof MODULES];
+                  {tenant.modules.map((module: any, idx: number) => {
+                    const moduleId = typeof module === 'string' ? module : module.id;
+                    const mod = MODULES[moduleId as keyof typeof MODULES];
                     return (
                       <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                        {mod ? mod.name : module}
+                        {mod ? mod.name : moduleId}
                       </span>
                     );
                   })}
@@ -1140,18 +1148,32 @@ export default function TenantDetailPage() {
                     <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{categoryLabels[category] || category}</h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                       {availableModules.filter(m => m.category === category).map((module) => {
-                        const isActive = tenant?.modules?.includes(module.id);
+                        const moduleIds = getModuleIds(tenant?.modules || []);
+                        const isActive = moduleIds.includes(module.id);
+                        const moduleConfig = (tenant?.modules || []).find((m: any) => {
+                          const id = typeof m === 'string' ? m : m.id;
+                          return id === module.id;
+                        });
+                        const limitDefs = getModuleLimits(module.id);
                         return (
                           <div key={module.id} className={`border rounded-lg p-4 ${isActive ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
                             <div className="flex items-center justify-between mb-2">
                               <div className="flex items-center">
-                                <span className="text-2xl mr-3">{module.icon}</span>
                                 <div>
                                   <h4 className="font-medium text-gray-900">{module.name}</h4>
                                   <p className="text-xs text-gray-500">{module.description}</p>
                                 </div>
                               </div>
                             </div>
+                            {isActive && limitDefs.length > 0 && moduleConfig && (
+                              <div className="mt-2 space-y-1">
+                                {limitDefs.map(ld => (
+                                  <p key={ld.key} className="text-xs text-blue-700 font-medium">
+                                    {ld.label}: {(moduleConfig as any)[ld.key] ?? ld.defaultValue} {ld.unit}
+                                  </p>
+                                ))}
+                              </div>
+                            )}
                             <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
                               isActive 
                                 ? 'bg-green-100 text-green-800' 

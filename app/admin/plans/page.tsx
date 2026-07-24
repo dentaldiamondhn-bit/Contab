@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import FooterPaginator from "@/components/admin/FooterPaginator";
-import { MODULES } from "@/lib/constants/modules";
+import { MODULES, getModuleLimits, type PlanModuleConfig } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -14,7 +14,7 @@ interface Plan {
   maxStorage: number;
   maxTransactions: number;
   features: string[];
-  modules: string[]; // Array de módulos predefinidos
+  modules: PlanModuleConfig[];
   isActive: boolean;
   tenantCount?: number;
 }
@@ -167,9 +167,35 @@ export default function PlansPage() {
   const handleModuleToggle = (moduleId: string) => {
     if (!editingPlan) return;
     
-    const newModules = editingPlan.modules.includes(moduleId)
-      ? editingPlan.modules.filter(m => m !== moduleId)
-      : [...editingPlan.modules, moduleId];
+    const existingIndex = editingPlan.modules.findIndex(m => m.id === moduleId);
+    let newModules: PlanModuleConfig[];
+    
+    if (existingIndex >= 0) {
+      // Quitar módulo
+      newModules = editingPlan.modules.filter(m => m.id !== moduleId);
+    } else {
+      // Agregar módulo con valores por defecto de sus límites
+      const limitDefs = getModuleLimits(moduleId);
+      const config: PlanModuleConfig = { id: moduleId };
+      limitDefs.forEach(lim => { config[lim.key] = lim.defaultValue; });
+      newModules = [...editingPlan.modules, config];
+    }
+    
+    setEditingPlan({
+      ...editingPlan,
+      modules: newModules
+    });
+  };
+
+  const handleModuleLimitChange = (moduleId: string, limitKey: string, value: number) => {
+    if (!editingPlan) return;
+    
+    const newModules = editingPlan.modules.map(m => {
+      if (m.id === moduleId) {
+        return { ...m, [limitKey]: value };
+      }
+      return m;
+    });
     
     setEditingPlan({
       ...editingPlan,
@@ -201,7 +227,10 @@ export default function PlansPage() {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(updatedPlan),
+        body: JSON.stringify({
+          ...updatedPlan,
+          modules: updatedPlan.modules,
+        }),
       });
 
       if (response.ok) {
@@ -509,25 +538,50 @@ export default function PlansPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Incluidos</label>
-                    <div className="space-y-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                    <div className="space-y-4 max-h-96 overflow-y-auto border border-gray-200 rounded-lg p-3">
                       {moduleCategories.map((category) => (
                         <div key={category}>
                           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{categoryLabels[category] || category}</p>
-                          <div className="space-y-1">
-                            {availableModules.filter(m => m.category === category).map((module) => (
-                              <label key={module.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                                <input
-                                  type="checkbox"
-                                  checked={editingPlan.modules.includes(module.id)}
-                                  onChange={() => handleModuleToggle(module.id)}
-                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                />
-                                <div>
-                                  <span className="text-sm font-medium">{module.name}</span>
-                                  <p className="text-xs text-gray-500">{module.description}</p>
+                          <div className="space-y-3">
+                            {availableModules.filter(m => m.category === category).map((module) => {
+                              const isSelected = editingPlan.modules.some(m => m.id === module.id);
+                              const moduleConfig = editingPlan.modules.find(m => m.id === module.id);
+                              const limitDefs = getModuleLimits(module.id);
+                              
+                              return (
+                                <div key={module.id} className={`rounded-lg border p-2 ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                                  <label className="flex items-center space-x-2 cursor-pointer">
+                                    <input
+                                      type="checkbox"
+                                      checked={isSelected}
+                                      onChange={() => handleModuleToggle(module.id)}
+                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                    />
+                                    <div className="flex-1">
+                                      <span className="text-sm font-medium">{module.name}</span>
+                                      <p className="text-xs text-gray-500">{module.description}</p>
+                                    </div>
+                                  </label>
+                                  {isSelected && limitDefs.length > 0 && (
+                                    <div className="mt-2 ml-6 grid grid-cols-1 gap-2">
+                                      {limitDefs.map((limitDef) => (
+                                        <div key={limitDef.key} className="flex items-center space-x-2">
+                                          <label className="text-xs text-gray-600 whitespace-nowrap">{limitDef.label}:</label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            value={(moduleConfig as any)?.[limitDef.key] ?? limitDef.defaultValue}
+                                            onChange={(e) => handleModuleLimitChange(module.id, limitDef.key, parseInt(e.target.value) || 0)}
+                                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                          />
+                                          <span className="text-xs text-gray-500">{limitDef.unit}</span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
-                              </label>
-                            ))}
+                              );
+                            })}
                           </div>
                         </div>
                       ))}

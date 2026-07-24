@@ -35,7 +35,7 @@ interface Plan {
   maxStorage: number;
   maxTransactions: number;
   features: string[];
-  modules: string[];
+  modules: { id: string; [key: string]: any }[];
   isActive: boolean;
   tenantCount?: number;
 }
@@ -86,13 +86,25 @@ function extractPlanCodes(raw?: string | null): string[] {
  */
 function mapPlanFromDB(p: PlanDB): Plan {
   let features: string[] = [];
-  let modules: string[] = [];
+  let modules: any[] = [];
 
   try { features = JSON.parse(p.features); } catch { features = []; }
   if (!Array.isArray(features)) features = [];
 
   try { modules = JSON.parse(p.modules); } catch { modules = []; }
   if (!Array.isArray(modules)) modules = [];
+
+  // Normalizar modules: aceptar tanto formato antiguo (string[])
+  // como nuevo (PlanModuleConfig[]) — array de objetos con { id, ...limits }
+  const normalizedModules = modules.map(m => {
+    if (typeof m === 'string') {
+      return { id: m };
+    }
+    if (m && typeof m === 'object' && m.id) {
+      return m;
+    }
+    return null;
+  }).filter(Boolean);
 
   return {
     id: p.id,
@@ -103,7 +115,7 @@ function mapPlanFromDB(p: PlanDB): Plan {
     maxStorage: p.max_storage,
     maxTransactions: p.max_transactions,
     features,
-    modules,
+    modules: normalizedModules,
     isActive: p.is_active,
   };
 }

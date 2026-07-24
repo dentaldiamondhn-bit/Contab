@@ -1,7 +1,24 @@
 /**
  * Módulos disponibles para tenants en Contab
  */
-export const MODULES = {
+
+export interface ModuleLimitDef {
+  key: string;
+  label: string;
+  unit: string;
+  defaultValue: number;
+}
+
+export interface ModuleDef {
+  id: string;
+  name: string;
+  description: string;
+  category: string;
+  /** Definiciones de límites aplicables a este módulo (vacío = sin límites) */
+  limits?: ModuleLimitDef[];
+}
+
+export const MODULES: Record<string, ModuleDef> = {
   // Contabilidad
   ACCOUNTING: {
     id: 'ACCOUNTING',
@@ -32,6 +49,9 @@ export const MODULES = {
     name: 'Facturación y Ventas',
     description: 'Facturación, ventas y gestión de clientes',
     category: 'sales',
+    limits: [
+      { key: 'monthlyInvoices', label: 'Facturas por mes', unit: 'facturas/mes', defaultValue: 100 },
+    ],
   },
 
   // Inventarios
@@ -40,6 +60,9 @@ export const MODULES = {
     name: 'Inventarios',
     description: 'Gestión de inventario y kardex',
     category: 'operations',
+    limits: [
+      { key: 'storageGB', label: 'Almacenamiento de archivos', unit: 'GB', defaultValue: 5 },
+    ],
   },
 
   // Compras y Proveedores
@@ -48,6 +71,9 @@ export const MODULES = {
     name: 'Compras y Proveedores',
     description: 'Órdenes de compra, proveedores y gastos',
     category: 'operations',
+    limits: [
+      { key: 'storageGB', label: 'Almacenamiento de archivos', unit: 'GB', defaultValue: 5 },
+    ],
   },
 
   // Control Financiero
@@ -90,12 +116,16 @@ export const MODULES = {
     category: 'taxes',
   },
 
-  // Contactos
+  // Contactos / CRM
   CONTACTS: {
     id: 'CONTACTS',
-    name: 'Contactos',
-    description: 'Gestión de clientes y proveedores',
+    name: 'Contactos (CRM)',
+    description: 'Gestión de clientes, proveedores y contactos',
     category: 'crm',
+    limits: [
+      { key: 'maxClients', label: 'Máximo de clientes', unit: 'clientes', defaultValue: 50 },
+      { key: 'maxSuppliers', label: 'Máximo de proveedores', unit: 'proveedores', defaultValue: 30 },
+    ],
   },
 
   // Soporte
@@ -106,6 +136,21 @@ export const MODULES = {
     category: 'support',
   },
 } as const;
+
+/**
+ * Tipo para la configuración de un módulo dentro de un plan.
+ * Ejemplo: { id: "BILLING", monthlyInvoices: 200 }
+ */
+export interface PlanModuleConfig {
+  id: string;
+  /** Límites específicos del módulo (solo si el módulo tiene limits definidos) */
+  [limitKey: string]: string | number;
+}
+
+/** Helper: retorna los límites definidos para un módulo */
+export function getModuleLimits(moduleId: string): ModuleLimitDef[] {
+  return MODULES[moduleId as keyof typeof MODULES]?.limits || [];
+}
 
 export type ModuleId = keyof typeof MODULES;
 
