@@ -8,6 +8,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useTenant } from '@/lib/contexts/TenantContext';
 import { 
   FileText, 
   Building2, 
@@ -81,6 +82,7 @@ interface InvoiceItem {
 }
 
 export default function TenantSettingsPage() {
+  const { currentTenant, loading: tenantLoading } = useTenant();
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -163,33 +165,25 @@ export default function TenantSettingsPage() {
     loadFiscalInfo();
     loadLogoFromStorage();
     loadTaxConfig();
-    loadTenantInfo();
   }, []);
 
-  const loadTenantInfo = async () => {
-    try {
-      const res = await fetch('/api/tenant/my-tenant');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.tenant) {
-          setTenantInfo({
-            businessName: data.tenant.businessName || '',
-            businessEmail: data.tenant.businessEmail || '',
-            businessRTN: data.tenant.businessRTN || '',
-            businessAddress: data.tenant.businessAddress || '',
-            phoneNumber: data.tenant.phoneNumber || '',
-            industry: data.tenant.industry || '',
-            tenantCode: data.tenant.tenantCode || '',
-            maxUsers: data.tenant.maxUsers || 0,
-            maxStorage: data.tenant.maxStorage || 0,
-            isActive: data.tenant.isActive ?? true,
-          });
-        }
-      }
-    } catch (error) {
-      console.error('Error cargando info del tenant:', error);
+  // Load tenant info from context when available
+  useEffect(() => {
+    if (currentTenant) {
+      setTenantInfo({
+        businessName: currentTenant.businessName || '',
+        businessEmail: currentTenant.businessEmail || '',
+        businessRTN: currentTenant.businessRTN || '',
+        businessAddress: currentTenant.businessAddress || '',
+        phoneNumber: currentTenant.phoneNumber || '',
+        industry: currentTenant.industry || '',
+        tenantCode: currentTenant.tenantCode || '',
+        maxUsers: currentTenant.maxUsers || 0,
+        maxStorage: 0,
+        isActive: currentTenant.isActive ?? true,
+      });
     }
-  };
+  }, [currentTenant]);
 
   const saveTenantInfo = async () => {
     try {
