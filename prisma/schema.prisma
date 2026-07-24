@@ -5,6 +5,7 @@ generator client {
 datasource db {
   provider  = "postgresql"
   url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 model Account {
@@ -73,13 +74,13 @@ model Tenant {
   businessRTN       String   @unique @map("businessrtn")
   businessEmail     String   @unique @map("businessemail")
   businessAddress   String   @map("businessaddress")
-  tenantCode        String   @unique @map("tenantcode")
+  tenantCode        String   @unique @map("tenant_code")
   country           String   @default("HN")
   phoneNumber       String   @map("phonenumber")
   logoUrl           String?  @map("logourl")
   timezone          String   @default("America/Tegucigalpa")
   currency          String   @default("HNL")
-  subscriptionPlans String   @default("BASIC") @map("subscriptionplans")
+  subscriptionPlans String   @default("BASIC") @map("subscriptionplan")
   maxUsers          Int      @default(5) @map("maxusers")
   maxStorage        Int      @default(100) @map("maxstorage")
   maxTransactions   Int      @default(10000) @map("maxtransactions")
@@ -98,6 +99,7 @@ model Tenant {
   invoices      Invoice[]
   cai           CAI[]
   SystemConfig  SystemConfig[]
+  supportTickets SupportTicket[]
 
   @@map("Tenant")
 }
@@ -232,7 +234,7 @@ model FileActivity {
 }
 
 model User {
-  id        String   @id @default(cuid())
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email     String   @unique
   authId    String?  @unique @map("auth_id")
   firstName String?  @map("first_name")
@@ -244,8 +246,7 @@ model User {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
   tenant    Tenant?  @relation(fields: [tenantId], references: [id])
-  sentMessages ChatMessage[] @relation("ChatMessageSender")
-  receivedMessages ChatMessage[] @relation("ChatMessageReceiver")
+  supportTickets SupportTicket[]
 
   @@map("users")
 }
@@ -356,21 +357,36 @@ model CompanyLogo {
   @@map("company_logos")
 }
 
-model ChatMessage {
+model SupportTicket {
   id          String   @id @default(cuid())
-  senderId    String   @map("sender_id")
-  receiverId  String?  @map("receiver_id") // Null for broadcast messages to all tenants
-  message     String
-  isRead      Boolean  @default(false)
+  subject     String
+  description String
+  priority    String   @default("MEDIUM") // LOW, MEDIUM, HIGH
+  status      String   @default("OPEN")   // OPEN, IN_PROGRESS, RESOLVED, CLOSED
+  resolutionComment String? @map("resolution_comment")
+  tenantId    String?  @map("tenant_id")
+  userId      String   @map("user_id") @db.Uuid
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
-  // Relations
-  sender      User     @relation("ChatMessageSender", fields: [senderId], references: [id])
-  receiver    User?    @relation("ChatMessageReceiver", fields: [receiverId], references: [id])
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id])
+  user        User     @relation(fields: [userId], references: [id])
+  emailLogs   TicketEmailLog[]
 
-  @@index([senderId], map: "idx_chatmessage_sender")
-  @@index([receiverId], map: "idx_chatmessage_receiver")
-  @@index([createdAt], map: "idx_chatmessage_created")
-  @@map("chat_message")
+  @@map("support_tickets")
+}
+
+model TicketEmailLog {
+  id            String   @id @default(cuid())
+  ticketId      String   @map("ticket_id")
+  emailType     String   // e.g., "RESOLVED_NOTIFICATION", "MODULE_UPDATE"
+  recipientEmail String  @map("recipient_email")
+  status        String   // "SENT", "FAILED"
+  errorMessage  String?
+  sentAt        DateTime @default(now()) @map("sent_at")
+
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id])
+
+  @@index([ticketId], map: "idx_ticket_email_log_ticket_id")
+  @@map("ticket_email_logs")
 }

@@ -47,35 +47,15 @@ export default function AccountingPage() {
     }
   ];
 
-  const recentTransactions = [
-    {
-      id: "1",
-      date: "2024-01-15",
-      description: "Venta de servicios dentales",
-      voucherType: "INGRESO",
-      voucherNumber: 1,
-      amount: 5000,
-      currency: "HNL"
-    },
-    {
-      id: "2",
-      date: "2024-01-16",
-      description: "Compra de materiales clínicos",
-      voucherType: "EGRESO",
-      voucherNumber: 1,
-      amount: 2000,
-      currency: "HNL"
-    },
-    {
-      id: "3",
-      date: "2024-01-17",
-      description: "Pago de alquiler mensual",
-      voucherType: "DIARIO",
-      voucherNumber: 1,
-      amount: 3000,
-      currency: "HNL"
-    }
-  ];
+  const recentTransactions: Array<{
+    id: string;
+    date: string;
+    description: string;
+    voucherType: string;
+    voucherNumber: number;
+    amount: number;
+    currency: string;
+  }> = [];
 
   const getVoucherTypeColor = (type: string) => {
     const colors = {
@@ -102,17 +82,7 @@ export default function AccountingPage() {
 
   // Función para ver detalles desde la página principal
   const viewDetails = (moduleTitle: string, moduleType: string) => {
-    console.log(`🔍 Debug - Viendo detalles de ${moduleTitle}...`);
-    console.log(`🔍 Debug - Tipo:`, moduleType);
-    
-    // Simplificar para prueba
-    alert(`Ver: ${moduleTitle} - ${moduleType}`);
-  };
-
-  // Función de prueba simple
-  const testFunction = () => {
-    console.log("🔍 Debug - Test function working!");
-    alert("Test function working!");
+    console.log(`Viewing details of ${moduleTitle}...`);
   };
 
   return (
@@ -123,24 +93,6 @@ export default function AccountingPage() {
         <p className="text-gray-600">
           Sistema de contabilidad por partida doble para {currentTenant?.businessName}
         </p>
-        
-        {/* Debug Information */}
-        <div className="mt-4 p-4 bg-yellow-100 rounded-lg border-2 border-yellow-500">
-          <p className="text-yellow-800 font-bold mb-2">🔍 DEBUG INFO:</p>
-          <p className="text-yellow-800">Current Tenant ID: {currentTenant?.id || 'NULL'}</p>
-          <p className="text-yellow-800">Business Name: {currentTenant?.businessName || 'NULL'}</p>
-          <p className="text-yellow-800">Generated URL: /companies/{currentTenant?.id || '1'}/accounting/books</p>
-        </div>
-        
-        {/* Botón de prueba siempre visible */}
-        <div className="mt-4 p-4 bg-red-100 rounded-lg border-2 border-red-500">
-          <p className="text-red-800 font-bold mb-2">🔴 BOTÓN DE PRUEBA SIEMPRE VISIBLE:</p>
-          <Link href={`/companies/${currentTenant?.id || '1'}/accounting/books`}>
-            <Button className="bg-red-600 text-white text-lg px-6 py-3">
-              📚 IR A LIBROS CONTABLES
-            </Button>
-          </Link>
-        </div>
       </div>
 
       {/* Visualización de Módulos Contables */}
@@ -198,9 +150,9 @@ export default function AccountingPage() {
             <FileText className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">47</div>
+            <div className="text-2xl font-bold">0</div>
             <p className="text-xs text-muted-foreground">
-              +12% respecto al mes anterior
+              +0% respecto al mes anterior
             </p>
           </CardContent>
         </Card>
@@ -211,9 +163,9 @@ export default function AccountingPage() {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(125000)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(0)}</div>
             <p className="text-xs text-muted-foreground">
-              +8% respecto al mes anterior
+              +0% respecto al mes anterior
             </p>
           </CardContent>
         </Card>
@@ -224,9 +176,9 @@ export default function AccountingPage() {
             <Receipt className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(85000)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(0)}</div>
             <p className="text-xs text-muted-foreground">
-              +5% respecto al mes anterior
+              +0% respecto al mes anterior
             </p>
           </CardContent>
         </Card>
@@ -237,9 +189,9 @@ export default function AccountingPage() {
             <PiggyBank className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(40000)}</div>
+            <div className="text-2xl font-bold">{formatCurrency(0)}</div>
             <p className="text-xs text-muted-foreground">
-              +15% respecto al mes anterior
+              +0% respecto al mes anterior
             </p>
           </CardContent>
         </Card>

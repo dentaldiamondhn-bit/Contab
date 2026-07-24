@@ -283,7 +283,7 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-teal-600">
-              4.2x
+              0x
             </div>
             <p className="text-xs text-gray-600">
               Veces por año

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import FooterPaginator from "@/components/admin/FooterPaginator";
+import { MODULES } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -23,12 +24,6 @@ interface TenantInfo {
   businessName: string;
   tenantCode: string;
   isActive: boolean;
-}
-
-interface Module {
-  id: string;
-  name: string;
-  description: string;
 }
 
 export default function PlansPage() {
@@ -54,16 +49,21 @@ export default function PlansPage() {
   const [tenantsList, setTenantsList] = useState<TenantInfo[]>([]);
   const [loadingTenants, setLoadingTenants] = useState(false);
 
-  const availableModules: Module[] = [
-    { id: "accounting", name: "Contabilidad", description: "Gestión contable completa" },
-    { id: "billing", name: "Facturación", description: "Facturas y pagos" },
-    { id: "inventory", name: "Inventario", description: "Gestión de productos" },
-    { id: "contacts", name: "Contactos", description: "Clientes y prospectos" },
-    { id: "reports", name: "Reportes", description: "Reportes financieros" },
-    { id: "tax", name: "Impuestos", description: "Gestión de impuestos" },
-    { id: "multi_currency", name: "Multi-divisa", description: "Soporte para múltiples monedas" },
-    { id: "api", name: "API Access", description: "Acceso a API" },
-  ];
+  const availableModules = Object.values(MODULES);
+
+  const moduleCategories = [...new Set(availableModules.map(m => m.category))];
+
+  const categoryLabels: Record<string, string> = {
+    main: 'Principal',
+    accounting: 'Contabilidad',
+    sales: 'Ventas',
+    operations: 'Operaciones',
+    analysis: 'Análisis',
+    security: 'Seguridad',
+    taxes: 'Impuestos',
+    crm: 'CRM',
+    support: 'Soporte',
+  };
 
   useEffect(() => {
     fetchPlans();
@@ -509,20 +509,27 @@ export default function PlansPage() {
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">Módulos Incluidos</label>
-                    <div className="space-y-2 max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-3">
-                      {availableModules.map((module) => (
-                        <label key={module.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                          <input
-                            type="checkbox"
-                            checked={editingPlan.modules.includes(module.id)}
-                            onChange={() => handleModuleToggle(module.id)}
-                            className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                          />
-                          <div>
-                            <span className="text-sm font-medium">{module.name}</span>
-                            <p className="text-xs text-gray-500">{module.description}</p>
+                    <div className="space-y-3 max-h-60 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                      {moduleCategories.map((category) => (
+                        <div key={category}>
+                          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">{categoryLabels[category] || category}</p>
+                          <div className="space-y-1">
+                            {availableModules.filter(m => m.category === category).map((module) => (
+                              <label key={module.id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                                <input
+                                  type="checkbox"
+                                  checked={editingPlan.modules.includes(module.id)}
+                                  onChange={() => handleModuleToggle(module.id)}
+                                  className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                />
+                                <div>
+                                  <span className="text-sm font-medium">{module.name}</span>
+                                  <p className="text-xs text-gray-500">{module.description}</p>
+                                </div>
+                              </label>
+                            ))}
                           </div>
-                        </label>
+                        </div>
                       ))}
                     </div>
                     {editingPlan.modules.length > 0 && (

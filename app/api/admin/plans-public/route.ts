@@ -1,77 +1,69 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase } from '@/lib/supabase-db';
 
-// Planes públicos disponibles (mismos que la API principal pero solo activos)
-const publicPlans = [
-  {
-    id: 'plan-basic',
-    code: 'BASICO',
-    name: 'Plan Básico',
-    description: 'Plan básico de contabilidad con facturación electrónica y reportes básicos',
-    unitPrice: 500,
-    subtotal: 500,
+interface PlanDB {
+  id: string;
+  name: string;
+  code: string;
+  price: number;
+  max_users: number;
+  max_storage: number;
+  max_transactions: number;
+  features: string;
+  modules: string;
+  is_active: boolean;
+}
+
+function mapPlanFromDB(p: PlanDB) {
+  let features: string[] = [];
+  let modules: string[] = [];
+  try { features = JSON.parse(p.features); } catch { features = []; }
+  try { modules = JSON.parse(p.modules); } catch { modules = []; }
+  if (!Array.isArray(features)) features = [];
+  if (!Array.isArray(modules)) modules = [];
+
+  return {
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    description: p.name,
+    unitPrice: p.price,
+    subtotal: p.price,
     taxRate: 15,
-    taxAmount: 75,
-    total: 575,
-    maxUsers: 5,
-    features: ['Contabilidad básica', 'Facturación electrónica', 'Reportes básicos'],
-    isActive: true
-  },
-  {
-    id: 'plan-premium',
-    code: 'PREMIUM',
-    name: 'Plan Premium',
-    description: 'Plan premium con contabilidad completa, nómina, inventario y reportes avanzados',
-    unitPrice: 1000,
-    subtotal: 1000,
-    taxRate: 15,
-    taxAmount: 150,
-    total: 1150,
-    maxUsers: 20,
-    features: ['Contabilidad completa', 'Facturación avanzada', 'Nómina', 'Inventario', 'Reportes avanzados'],
-    isActive: true
-  },
-  {
-    id: 'plan-enterprise',
-    code: 'ENTERPRISE',
-    name: 'Plan Enterprise',
-    description: 'Plan enterprise con todos los módulos, soporte prioritario y personalización',
-    unitPrice: 2000,
-    subtotal: 2000,
-    taxRate: 15,
-    taxAmount: 300,
-    total: 2300,
-    maxUsers: 50,
-    features: ['Todos los módulos', 'Soporte 24/7', 'Personalización', 'API access'],
-    isActive: true
-  },
-  {
-    id: 'plan-starter',
-    code: 'STARTER',
-    name: 'Plan Starter',
-    description: 'Plan inicial para pequeñas empresas con funcionalidades básicas',
-    unitPrice: 200,
-    subtotal: 200,
-    taxRate: 15,
-    taxAmount: 30,
-    total: 230,
-    maxUsers: 3,
-    features: ['Contabilidad básica', 'Facturación limitada', 'Reportes simples'],
-    isActive: true
-  }
-];
+    taxAmount: Math.round(p.price * 0.15),
+    total: Math.round(p.price * 1.15),
+    maxUsers: p.max_users,
+    maxStorage: p.max_storage,
+    maxTransactions: p.max_transactions,
+    features,
+    modules,
+    isActive: p.is_active,
+  };
+}
 
 export async function GET(req: NextRequest) {
   try {
-    console.log('🔄 GET /api/admin/plans-public - Enviando planes públicos');
+    const { data: plans, error } = await supabase
+      .from('Plan')
+      .select('*')
+      .eq('is_active', true)
+      .order('price', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching public plans:', error);
+      return NextResponse.json({ error: 'Error interno' }, { status: 500 });
+    }
+
+    const formattedPlans = (plans || []).map(mapPlanFromDB);
 
     return NextResponse.json({
       success: true,
-      plans: publicPlans,
-      total: publicPlans.length
+      plans: formattedPlans,
+      total: formattedPlans.length
     });
 
   } catch (error: any) {
-    console.error('❌ Error en GET /api/admin/plans-public:', error);
+    console.error('Error en GET /api/admin/plans-public:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

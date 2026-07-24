@@ -8,6 +8,15 @@ interface TenantStats {
   totalTenants: number;
   activeTenants: number;
   suspendedTenants: number;
+  storage: {
+    totalAllocatedGB: number;
+    tenantBreakdown: Array<{
+      tenantId: string;
+      businessName: string;
+      tenantCode: string;
+      maxStorageGB: number;
+    }>;
+  };
 }
 
 interface Tenant {
@@ -72,7 +81,8 @@ export default function SimpleAdminDashboard() {
         setTenantStats({
           totalTenants: data.stats.totalTenants,
           activeTenants: data.stats.activeTenants,
-          suspendedTenants: data.stats.totalTenants - data.stats.activeTenants
+          suspendedTenants: data.stats.totalTenants - data.stats.activeTenants,
+          storage: data.stats.storage || { totalAllocatedGB: 0, tenantBreakdown: [] }
         });
       } else {
         console.error('Stats response not ok:', response.statusText);
@@ -267,6 +277,72 @@ export default function SimpleAdminDashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Storage Capacity Summary */}
+        <div className="bg-white rounded-lg shadow p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-800 mb-4">Capacidad de Almacenamiento</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
+            <div className="bg-blue-50 rounded-lg p-4">
+              <p className="text-sm font-medium text-blue-600">Total Asignado</p>
+              <p className="text-3xl font-bold text-blue-900 mt-1">
+                {tenantStats?.storage?.totalAllocatedGB || 0} <span className="text-lg">GB</span>
+              </p>
+            </div>
+            <div className="bg-green-50 rounded-lg p-4">
+              <p className="text-sm font-medium text-green-600">Tenants Activos</p>
+              <p className="text-3xl font-bold text-green-900 mt-1">
+                {tenantStats?.activeTenants || 0}
+              </p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4">
+              <p className="text-sm font-medium text-purple-600">Promedio por Tenant</p>
+              <p className="text-3xl font-bold text-purple-900 mt-1">
+                {tenantStats?.activeTenants ? Math.round((tenantStats?.storage?.totalAllocatedGB || 0) / tenantStats.activeTenants) : 0} <span className="text-lg">GB</span>
+              </p>
+            </div>
+          </div>
+
+          {/* Per-Tenant Storage Breakdown */}
+          {tenantStats?.storage?.tenantBreakdown && tenantStats.storage.tenantBreakdown.length > 0 && (
+            <div>
+              <h3 className="text-sm font-semibold text-gray-600 mb-3">Distribución por Tenant</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenant</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Almacenamiento</th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">% del Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                    {tenantStats.storage.tenantBreakdown.map((t) => {
+                      const percent = tenantStats.storage.totalAllocatedGB > 0
+                        ? Math.round((t.maxStorageGB / tenantStats.storage.totalAllocatedGB) * 100)
+                        : 0;
+                      return (
+                        <tr key={t.tenantId}>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{t.businessName}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{t.tenantCode}</td>
+                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{t.maxStorageGB} GB</td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <div className="flex items-center">
+                              <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
+                                <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${percent}%` }}></div>
+                              </div>
+                              <span className="text-sm text-gray-600">{percent}%</span>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Tenants Table */}
@@ -483,7 +559,7 @@ export default function SimpleAdminDashboard() {
             </p>
           </div>
           
-          <div className="mt-6 space-x-4">
+          <div className="mt-6 flex flex-wrap gap-4">
             <button 
               onClick={() => window.location.href = '/admin/users'}
               className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
@@ -496,6 +572,13 @@ export default function SimpleAdminDashboard() {
               className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
             >
               Gestionar Tenants
+            </button>
+
+            <button 
+              onClick={() => window.location.href = '/admin/modules'}
+              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
+            >
+              Ver Módulos
             </button>
             
             <button 
