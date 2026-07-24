@@ -111,6 +111,21 @@ export default function TenantSettingsPage() {
   const [invoiceItems, setInvoiceItems] = useState<InvoiceItem[]>([]);
   const [showInvoiceSection, setShowInvoiceSection] = useState(false);
 
+  // Tenant info state
+  const [tenantInfo, setTenantInfo] = useState({
+    businessName: '',
+    businessEmail: '',
+    businessRTN: '',
+    businessAddress: '',
+    phoneNumber: '',
+    industry: '',
+    tenantCode: '',
+    maxUsers: 0,
+    maxStorage: 0,
+    isActive: true,
+  });
+  const [savingTenantInfo, setSavingTenantInfo] = useState(false);
+
   // Actividades económicas disponibles según SAR
   const economicActivities = [
     "Servicios Profesionales",
@@ -135,12 +150,12 @@ export default function TenantSettingsPage() {
     "Otros Servicios"
   ];
 
-  // Collapsible states
-  const [fiscalInfoCollapsed, setFiscalInfoCollapsed] = useState(true);
-  const [logoCollapsed, setLogoCollapsed] = useState(true);
-  const [caiCollapsed, setCaiCollapsed] = useState(true);
-  const [taxCollapsed, setTaxCollapsed] = useState(true);
-  const [previewCollapsed, setPreviewCollapsed] = useState(true);
+  // Collapsible states - open by default
+  const [fiscalInfoCollapsed, setFiscalInfoCollapsed] = useState(false);
+  const [logoCollapsed, setLogoCollapsed] = useState(false);
+  const [caiCollapsed, setCaiCollapsed] = useState(false);
+  const [taxCollapsed, setTaxCollapsed] = useState(false);
+  const [previewCollapsed, setPreviewCollapsed] = useState(false);
 
   // Cargar datos cuando el componente se monta
   useEffect(() => {
@@ -148,7 +163,55 @@ export default function TenantSettingsPage() {
     loadFiscalInfo();
     loadLogoFromStorage();
     loadTaxConfig();
+    loadTenantInfo();
   }, []);
+
+  const loadTenantInfo = async () => {
+    try {
+      const res = await fetch('/api/tenant/my-tenant');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.tenant) {
+          setTenantInfo({
+            businessName: data.tenant.businessName || '',
+            businessEmail: data.tenant.businessEmail || '',
+            businessRTN: data.tenant.businessRTN || '',
+            businessAddress: data.tenant.businessAddress || '',
+            phoneNumber: data.tenant.phoneNumber || '',
+            industry: data.tenant.industry || '',
+            tenantCode: data.tenant.tenantCode || '',
+            maxUsers: data.tenant.maxUsers || 0,
+            maxStorage: data.tenant.maxStorage || 0,
+            isActive: data.tenant.isActive ?? true,
+          });
+        }
+      }
+    } catch (error) {
+      console.error('Error cargando info del tenant:', error);
+    }
+  };
+
+  const saveTenantInfo = async () => {
+    try {
+      setSavingTenantInfo(true);
+      const res = await fetch('/api/tenant/my-tenant', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(tenantInfo),
+      });
+      if (res.ok) {
+        setMessage({ type: 'success', text: 'Información del tenant guardada correctamente' });
+      } else {
+        setMessage({ type: 'error', text: 'Error al guardar la información del tenant' });
+      }
+    } catch (error) {
+      console.error('Error guardando info del tenant:', error);
+      setMessage({ type: 'error', text: 'Error de conexión al guardar' });
+    } finally {
+      setSavingTenantInfo(false);
+      setTimeout(() => setMessage(null), 3000);
+    }
+  };
 
   const loadLogoFromStorage = async () => {
     try {
@@ -836,16 +899,99 @@ export default function TenantSettingsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Configuración General
+            Configuración General del Tenant
           </CardTitle>
           <CardDescription>
-            Otras configuraciones del tenant
+            Información básica de tu empresa y configuración de la cuenta
           </CardDescription>
         </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <p className="text-gray-500">Más secciones de configuración próximamente...</p>
-            <p className="text-sm text-gray-400 mt-2">Aquí podrás configurar otros aspectos de tu tenant</p>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <Label htmlFor="tenantBusinessName">Nombre de la Empresa</Label>
+              <Input
+                id="tenantBusinessName"
+                value={tenantInfo.businessName}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, businessName: e.target.value }))}
+                placeholder="Nombre de la empresa"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tenantEmail">Email de la Empresa</Label>
+              <Input
+                id="tenantEmail"
+                type="email"
+                value={tenantInfo.businessEmail}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, businessEmail: e.target.value }))}
+                placeholder="email@empresa.com"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tenantRTN">RTN</Label>
+              <Input
+                id="tenantRTN"
+                value={tenantInfo.businessRTN}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, businessRTN: e.target.value }))}
+                placeholder="08011995012345"
+              />
+            </div>
+            <div>
+              <Label htmlFor="tenantPhone">Teléfono</Label>
+              <Input
+                id="tenantPhone"
+                value={tenantInfo.phoneNumber}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, phoneNumber: e.target.value }))}
+                placeholder="+504 1234-5678"
+              />
+            </div>
+            <div className="md:col-span-2">
+              <Label htmlFor="tenantAddress">Dirección</Label>
+              <Textarea
+                id="tenantAddress"
+                value={tenantInfo.businessAddress}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, businessAddress: e.target.value }))}
+                placeholder="Calle, Avenida, Ciudad, Departamento"
+                rows={2}
+              />
+            </div>
+            <div>
+              <Label htmlFor="tenantIndustry">Giro / Industria</Label>
+              <Input
+                id="tenantIndustry"
+                value={tenantInfo.industry}
+                onChange={(e) => setTenantInfo(prev => ({ ...prev, industry: e.target.value }))}
+                placeholder="Ej: Servicios Profesionales"
+              />
+            </div>
+            <div>
+              <Label>Código de Tenant</Label>
+              <Input value={tenantInfo.tenantCode} disabled className="bg-gray-50" />
+              <p className="text-xs text-gray-500 mt-1">Identificador único (no editable)</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-4 border-t">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 uppercase font-semibold">Estado</p>
+              <p className={`text-sm font-semibold mt-1 ${tenantInfo.isActive ? 'text-green-600' : 'text-red-600'}`}>
+                {tenantInfo.isActive ? 'Activo' : 'Inactivo'}
+              </p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 uppercase font-semibold">Máx. Usuarios</p>
+              <p className="text-sm font-semibold mt-1">{tenantInfo.maxUsers || 'Sin límite'}</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <p className="text-xs text-gray-500 uppercase font-semibold">Almacenamiento</p>
+              <p className="text-sm font-semibold mt-1">{tenantInfo.maxStorage ? `${tenantInfo.maxStorage} GB` : 'Sin límite'}</p>
+            </div>
+          </div>
+
+          <div className="flex justify-end pt-4">
+            <Button onClick={saveTenantInfo} disabled={savingTenantInfo}>
+              <Save className="h-4 w-4 mr-2" />
+              {savingTenantInfo ? 'Guardando...' : 'Guardar Información del Tenant'}
+            </Button>
           </div>
         </CardContent>
       </Card>
