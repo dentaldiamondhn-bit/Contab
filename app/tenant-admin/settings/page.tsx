@@ -167,7 +167,7 @@ export default function TenantSettingsPage() {
     loadTaxConfig();
   }, []);
 
-  // Load tenant info from context when available
+  // Load tenant info from context when available, fallback to API
   useEffect(() => {
     if (currentTenant) {
       setTenantInfo({
@@ -182,8 +182,30 @@ export default function TenantSettingsPage() {
         maxStorage: 0,
         isActive: currentTenant.isActive ?? true,
       });
+    } else if (!tenantLoading) {
+      fetch('/api/tenants-api')
+        .then(res => res.json())
+        .then(data => {
+          const tenants = data.tenants || data || [];
+          const t = Array.isArray(tenants) && tenants.length > 0 ? tenants[0] : null;
+          if (t) {
+            setTenantInfo({
+              businessName: t.businessName || t.business_name || '',
+              businessEmail: t.businessEmail || t.business_email || '',
+              businessRTN: t.businessRTN || t.business_rtn || '',
+              businessAddress: t.businessAddress || t.business_address || '',
+              phoneNumber: t.phoneNumber || t.phone_number || '',
+              industry: t.industry || '',
+              tenantCode: t.tenantCode || t.tenant_code || '',
+              maxUsers: t.maxUsers || t.max_users || 0,
+              maxStorage: t.maxStorage || t.max_storage || 0,
+              isActive: t.isActive ?? t.is_active ?? true,
+            });
+          }
+        })
+        .catch(err => console.error('Error loading tenant:', err));
     }
-  }, [currentTenant]);
+  }, [currentTenant, tenantLoading]);
 
   const saveTenantInfo = async () => {
     try {
