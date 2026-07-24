@@ -4,7 +4,7 @@ import { use } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import YearSelector from '../../components/YearSelector';
+import YearSelector from '../security/components/YearSelector';
 import { 
   RefreshCw,
   Send,
