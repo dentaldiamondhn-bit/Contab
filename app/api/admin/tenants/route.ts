@@ -1,42 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, clerkClient } from '@clerk/nextjs/server';
+import { auth } from '@clerk/nextjs/server';
+import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { supabase, getAllTenants } from '@/lib/supabase-db';
-import { getUserRoleFromAuth } from '@/lib/auth-server';
+import { randomBytes } from 'crypto';
+
+const clerk = createClerkClient({
+  secretKey: process.env.CLERK_SECRET_KEY,
+});
 
 export async function GET(req: NextRequest) {
-  console.log('🚀 API TENANTS GET - Iniciando...');
-  
   try {
-    console.log('🔄 GET /api/admin/tenants - Cargando tenants...');
-    
-    // Verificar autenticación
     const { userId } = await auth();
     
     if (!userId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
     
-    // Obtener rol del usuario usando el helper
-    const userRole = await getUserRoleFromAuth();
-
-    // Obtener email desde Clerk para verificación adicional
-    let email = '';
+    let userRole: string | undefined;
     try {
-      const client = await clerkClient();
-      const clerkUser = await client.users.getUser(userId);
-      email = clerkUser.emailAddresses[0]?.emailAddress || '';
-      
-      console.log('API /admin/tenants - Clerk role:', userRole);
+      const clerkUser = await clerk.users.getUser(userId);
+      userRole = 
+        clerkUser.publicMetadata?.role || 
+        clerkUser.unsafeMetadata?.role ||
+        (clerkUser.privateMetadata as any)?.role;
     } catch (error) {
       console.error('Error getting user from Clerk:', error);
     }
 
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    console.log('✅ Auth check:', { userId, userRole, email, isSuperAdminEmail });
-
-    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail) {
-      console.log('❌ No autorizado - role:', userRole);
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string)) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -49,21 +40,14 @@ export async function GET(req: NextRequest) {
     const search = searchParams.get('search') || '';
     const status = searchParams.get('status') || 'all';
 
-    console.log('🔄 GET /api/admin/tenants - Cargando DATOS REALES de Supabase...');
-    
-    // Obtener tenants de la base de datos REAL con Supabase
     const tenants = await getAllTenants();
-    console.log('📊 TENANTS REALES:', tenants.map((t: any) => ({ id: t.id, name: t.businessname })));
-    console.log('📊 Total tenants reales:', tenants.length);
-    console.log('🎯 Incluyendo "angel ring":', tenants.some((t: any) => t.businessname === 'angel ring'));
 
-    // Obtener conteo de usuarios por tenant
     const { data: allUsers, error: usersError } = await supabase
       .from('User')
       .select('tenantid, isactive');
     
     if (usersError) {
-      console.error('❌ Error fetching users count:', usersError);
+      console.error('Error fetching users count:', usersError);
     }
 
     // Calcular conteos por tenant
@@ -181,50 +165,41 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    console.log('🔄 PATCH /api/admin/tenants/[id] - Actualizando tenant...');
-    
-    const { userId } = await auth();
-    const userRole = await getUserRoleFromAuth();
+    const { userId, sessionClaims } = await auth();
+    const userRole = (sessionClaims?.metadata as any)?.role;
     const { id } = await params;
 
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
-    }
-
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-
-    console.log('✅ Auth check:', { userId, userRole, email, isSuperAdminEmail, tenantId: id });
-
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail)) {
-      console.log('❌ No autorizado');
+    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string))) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
       );
     }
 
-    // Parse request body
     const updateData = await req.json();
-    console.log('📦 Datos a actualizar:', updateData);
 
-    // Temporal: No soportamos actualización por ahora
-    console.log('⚠️ Actualización de tenant no soportada temporalmente');
-    
-    return NextResponse.json({
-      success: false,
-      message: 'Actualización de tenant no soportada temporalmente'
-    });
+    const { data: updated, error: updateError } = await supabase
+      .from('Tenant')
+      .update({
+        ...(updateData.maxStorage !== undefined && { maxstorage: updateData.maxStorage }),
+        ...(updateData.maxUsers !== undefined && { maxusers: updateData.maxUsers }),
+        ...(updateData.maxTransactions !== undefined && { maxtransactions: updateData.maxTransactions }),
+        ...(updateData.monthlyCost !== undefined && { monthlycost: updateData.monthlyCost }),
+        ...(updateData.modules !== undefined && { modules: updateData.modules }),
+        updatedat: new Date().toISOString(),
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (updateError) {
+      return NextResponse.json({ error: updateError.message }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true, tenant: updated });
 
   } catch (error: any) {
-    console.error('❌ Error en PATCH /api/admin/tenants/[id]:', error);
+    console.error('Error en PATCH /api/admin/tenants:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }
@@ -234,27 +209,26 @@ export async function PATCH(
 
 export async function POST(req: NextRequest) {
   try {
-    console.log('🔄 POST /api/admin/tenants - Creando nuevo tenant...');
-    
-    // Verificar autenticación
     const { userId } = await auth();
-    const userRole = await getUserRoleFromAuth();
     
-    // Get email from Clerk user
-    let email = '';
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-      } catch (error) {
-        console.error('Error getting user email from Clerk:', error);
-      }
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+    let userRole: string | undefined;
+    let email = '';
+    try {
+      const clerkUser = await clerk.users.getUser(userId);
+      email = clerkUser.emailAddresses[0]?.emailAddress || '';
+      userRole = 
+        clerkUser.publicMetadata?.role || 
+        clerkUser.unsafeMetadata?.role ||
+        (clerkUser.privateMetadata as any)?.role;
+    } catch (error) {
+      console.error('Error getting user from Clerk:', error);
+    }
 
-    if (!userId || (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole) && !isSuperAdminEmail)) {
+    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string)) {
       return NextResponse.json(
         { error: 'No autorizado' },
         { status: 403 }
@@ -263,49 +237,209 @@ export async function POST(req: NextRequest) {
 
     const newTenant = await req.json();
     
-    console.log('🔄 Creando tenant en base de datos REAL con Supabase');
+    // Generar tenant_code si no viene
+    const tenantCode = newTenant.tenantCode || (newTenant.businessName || 'EMP')
+      .substring(0, 3)
+      .toUpperCase()
+      .replace(/[^A-Z]/g, 'X') + Math.random().toString(36).substring(2, 6).toUpperCase();
     
-    // Crear tenant en la base de datos REAL con Supabase
-    const { data: createdTenant, error: createError } = await supabase
+    // Manejar subscriptionPlans
+    let subscriptionPlan = newTenant.subscriptionPlans;
+    if (typeof subscriptionPlan === 'string') {
+      subscriptionPlan = subscriptionPlan;
+    } else if (Array.isArray(subscriptionPlan)) {
+      subscriptionPlan = JSON.stringify(subscriptionPlan);
+    } else {
+      subscriptionPlan = '[]';
+    }
+
+    // Generar ID único
+    const tenantId = 'c' + randomBytes(24).toString('base64url').substring(0, 24);
+    
+    const now = new Date().toISOString();
+    
+    // Usar Supabase REST client (funciona con este proyecto)
+    const { data: createdTenant, error: insertError } = await supabase
       .from('Tenant')
-      .insert([{
-        businessname: newTenant.businessName,
-        businessrtn: newTenant.businessRTN,
-        businessemail: newTenant.businessEmail,
-        businessaddress: newTenant.businessAddress,
-        tenant_code: newTenant.tenantCode,
-        phonenumber: newTenant.phoneNumber,
-        subscriptionplan: JSON.stringify(newTenant.subscriptionPlans || []),
-        maxusers: newTenant.maxUsers || 5,
+      .insert({
+        id: tenantId,
+        businessname: newTenant.businessName || '',
+        businessrtn: newTenant.businessRTN || '',
+        businessemail: newTenant.businessEmail || '',
+        businessaddress: newTenant.businessAddress || '',
+        tenant_code: tenantCode,
+        phonenumber: newTenant.phoneNumber || '',
+        subscriptionplan: subscriptionPlan,
+        maxusers: newTenant.maxUsers ?? 5,
+        maxstorage: newTenant.maxStorage ?? 100,
+        maxtransactions: newTenant.maxTransactions ?? 10000,
         monthlycost: newTenant.monthlyCost || 0,
         modules: newTenant.modules || null,
+        country: 'HN',
+        timezone: 'America/Tegucigalpa',
+        currency: 'HNL',
         isactive: true,
-        createdat: new Date().toISOString(),
-        updatedat: new Date().toISOString()
-      }])
+        createdat: now,
+        updatedat: now,
+      })
       .select()
       .single();
     
-    if (createError) {
-      console.error('❌ Error creating tenant:', createError);
+    if (insertError) {
+      console.error('Supabase insert error:', JSON.stringify(insertError, null, 2));
+      let errorMsg = `Error al crear tenant: ${insertError.message || 'Error desconocido'}`;
+      if (insertError.code === '23505') {
+        if (insertError.message?.includes('businessrtn') || insertError.message?.includes('business_rtn')) {
+          errorMsg = 'Ya existe un tenant con ese RTN. Use un RTN diferente.';
+        } else if (insertError.message?.includes('businessemail') || insertError.message?.includes('business_email')) {
+          errorMsg = 'Ya existe un tenant con ese email. Use un email diferente.';
+        } else if (insertError.message?.includes('tenant_code')) {
+          errorMsg = 'Ya existe un tenant con ese código.';
+        } else {
+          errorMsg = 'Ya existe un registro con esos datos. Verifique la información ingresada.';
+        }
+      }
       return NextResponse.json(
-        { error: 'Error creating tenant' },
+        { error: errorMsg },
+        { status: 409 }
+      );
+    }
+
+    if (!createdTenant?.id) {
+      console.error('Tenant created but no ID returned:', JSON.stringify(createdTenant, null, 2));
+      return NextResponse.json(
+        { error: 'Tenant creado pero no se pudo obtener el ID' },
         { status: 500 }
       );
     }
-    
-    console.log('✅ Tenant REAL creado:', createdTenant);
+
+    // Verificar que el tenant existe en la BD antes de crear el usuario
+    const { data: verifyTenant } = await supabase
+      .from('Tenant')
+      .select('id')
+      .eq('id', createdTenant.id)
+      .single();
+
+    if (!verifyTenant) {
+      console.error('Tenant not found after insert. ID:', createdTenant.id);
+      return NextResponse.json(
+        { error: 'Tenant creado pero no se encontró en la base de datos' },
+        { status: 500 }
+      );
+    }
+
+    // Crear usuario admin en Clerk y en la BD
+    const adminUser = newTenant.adminUser;
+    let createdAdmin = null;
+    let adminError = null;
+
+    if (adminUser?.email) {
+      try {
+        const tempPassword = 'Contab' + Math.random().toString(36).slice(-6).toUpperCase() + '1!';
+        
+        // Llamada directa a la API REST de Clerk
+        let clerkResponse = await fetch('https://api.clerk.com/v1/users', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email_address: [adminUser.email],
+            username: adminUser.email.split('@')[0],
+            first_name: adminUser.firstName || '',
+            last_name: adminUser.lastName || '',
+            password: tempPassword,
+            public_metadata: {
+              role: 'ADMIN',
+              tenant_id: tenantId,
+              tenant_code: tenantCode,
+            },
+          }),
+        });
+
+        let clerkData = await clerkResponse.json();
+        let clerkUserId = clerkData.id;
+        let isNewUser = true;
+
+        // Si el email ya existe, buscar el usuario existente y actualizar su metadata
+        if (!clerkResponse.ok && clerkData.errors?.[0]?.message?.includes('taken')) {
+          const searchResp = await fetch(`https://api.clerk.com/v1/users?email_address=${encodeURIComponent(adminUser.email)}`, {
+            headers: { 'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}` },
+          });
+          const searchData = await searchResp.json();
+          if (searchData.data?.length > 0) {
+            clerkUserId = searchData.data[0].id;
+            isNewUser = false;
+
+            // Actualizar metadata del usuario existente
+            await fetch(`https://api.clerk.com/v1/users/${clerkUserId}`, {
+              method: 'PATCH',
+              headers: {
+                'Authorization': `Bearer ${process.env.CLERK_SECRET_KEY}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                public_metadata: {
+                  role: 'ADMIN',
+                  tenant_id: tenantId,
+                  tenant_code: tenantCode,
+                },
+              }),
+            });
+          } else {
+            adminError = `Clerk API ${clerkResponse.status}: ${clerkData.errors?.[0]?.message || JSON.stringify(clerkData)}`;
+          }
+        } else if (!clerkResponse.ok) {
+          adminError = `Clerk API ${clerkResponse.status}: ${clerkData.errors?.[0]?.message || JSON.stringify(clerkData)}`;
+        }
+
+        if (!adminError) {
+          const { randomUUID } = await import('crypto');
+          const { data: insertedUser, error: userInsertError } = await supabase
+            .from('User')
+            .insert([{
+              id: randomUUID(),
+              email: adminUser.email,
+              firstname: adminUser.firstName || '',
+              lastname: adminUser.lastName || '',
+              role: 'ADMIN',
+              tenantid: tenantId,
+              isactive: true,
+              passwordhash: tempPassword,
+              createdat: now,
+              updatedat: now,
+            }])
+            .select()
+            .single();
+
+          if (userInsertError) {
+            console.error('USER INSERT ERROR:', JSON.stringify(userInsertError, null, 2));
+          }
+          createdAdmin = { email: adminUser.email, tempPassword: isNewUser ? tempPassword : '(ya existía en Clerk)', dbId: insertedUser?.id };
+        }
+      } catch (userError: any) {
+        adminError = `Clerk error: ${userError.message || String(userError)}`;
+        console.error('CLERK ERROR FULL:', JSON.stringify(userError, null, 2));
+        console.error('CLERK ERROR RESPONSE:', JSON.stringify(userError?.response, null, 2));
+        console.error('CLERK ERROR ERRORS:', JSON.stringify(userError?.errors, null, 2));
+      }
+    } else {
+      adminError = 'No se proporcionó email de administrador';
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Tenant creado exitosamente',
-      tenant: createdTenant
+      message: adminUser?.email ? 'Tenant y usuario admin creados exitosamente' : 'Tenant creado exitosamente',
+      tenant: createdTenant,
+      admin: createdAdmin,
+      ...(adminError ? { adminError } : {})
     });
 
   } catch (error: any) {
     console.error('❌ Error en POST /api/admin/tenants:', error);
     return NextResponse.json(
-      { error: 'Error interno del servidor' },
+      { error: `Error del servidor: ${error.message || String(error)}` },
       { status: 500 }
     );
   }

@@ -60,9 +60,24 @@ export async function GET(req: NextRequest) {
       .select('*', { count: 'exact', head: true })
       .eq('isactive', true);
 
+    // Obtener datos de almacenamiento por tenant
+    const { data: tenantsStorage, error: storageError } = await supabase
+      .from('Tenant')
+      .select('id, businessname, tenant_code, maxstorage, isactive')
+      .eq('isactive', true);
+
     if (tenantsError || usersError) {
       console.error('Error fetching stats:', { tenantsError, usersError });
     }
+
+    // Calcular totales de almacenamiento
+    const totalAllocatedGB = tenantsStorage?.reduce((sum, t) => sum + (t.maxstorage || 100), 0) || 0;
+    const tenantStorageBreakdown = tenantsStorage?.map(t => ({
+      tenantId: t.id,
+      businessName: t.businessname,
+      tenantCode: t.tenant_code,
+      maxStorageGB: t.maxstorage || 100,
+    })) || [];
 
     console.log('Stats:', { 
       totalTenants: totalTenants || 0, 
@@ -79,6 +94,10 @@ export async function GET(req: NextRequest) {
         totalUsers: totalUsers || 0,
         activeUsers: activeUsers || 0,
         totalRevenue: 0,
+        storage: {
+          totalAllocatedGB,
+          tenantBreakdown: tenantStorageBreakdown,
+        },
         recentActivity: []
       }
     });

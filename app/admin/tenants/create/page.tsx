@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { MODULES } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -20,6 +21,7 @@ export default function CreateTenantPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
+  const [adminTempPassword, setAdminTempPassword] = useState<string | null>(null);
   const [plans, setPlans] = useState<Plan[]>([]);
   const [loadedPlans, setLoadedPlans] = useState<any[]>([]);
 
@@ -29,75 +31,67 @@ export default function CreateTenantPage() {
     businessRTN: string;
     phoneNumber: string;
     businessAddress: string;
-    subscriptionPlans: { code: string; quantity: number }[]; // Array con código y cantidad
+    subscriptionPlans: { code: string; quantity: number }[];
     maxUsers: number;
+    maxStorage: number;
     monthlyCost: number;
     modules: string[];
-    adminEmail: string;
     adminFirstName: string;
     adminLastName: string;
-    adminPassword: string;
   }>({
     businessName: "",
     businessEmail: "",
     businessRTN: "",
     phoneNumber: "",
     businessAddress: "",
-    subscriptionPlans: [], // Array de planes con cantidad
-    maxUsers: 5,
+    subscriptionPlans: [],
+    maxUsers: 0,
+    maxStorage: 0,
     monthlyCost: 0,
     modules: [],
-    // Admin user fields
-    adminEmail: "",
     adminFirstName: "",
     adminLastName: "",
-    adminPassword: "",
   });
 
-  const availableModules = [
-    { id: "accounting", name: "Contabilidad", description: "Gestión contable completa" },
-    { id: "billing", name: "Facturación", description: "Facturas y pagos" },
-    { id: "inventory", name: "Inventario", description: "Gestión de productos" },
-    { id: "contacts", name: "Contactos", description: "Clientes y prospectos" },
-    { id: "reports", name: "Reportes", description: "Reportes financieros" },
-    { id: "tax", name: "Impuestos", description: "Gestión de impuestos" },
-    { id: "multi_currency", name: "Multi-divisa", description: "Soporte para múltiples monedas" },
-    { id: "api", name: "API Access", description: "Acceso a API" },
-  ];
+  const availableModules = Object.values(MODULES);
+
+  const moduleCategories = [...new Set(availableModules.map(m => m.category))];
+
+  const categoryLabels: Record<string, string> = {
+    main: 'Principal',
+    accounting: 'Contabilidad',
+    sales: 'Ventas',
+    operations: 'Operaciones',
+    analysis: 'Análisis',
+    security: 'Seguridad',
+    taxes: 'Impuestos',
+    crm: 'CRM',
+    support: 'Soporte',
+  };
+
+  const computeModulesFromPlans = (selectedPlans: { code: string; quantity: number }[]): string[] => {
+    const moduleSet = new Set<string>();
+    selectedPlans.forEach(sp => {
+      const plan = loadedPlans.find(lp => lp.code === sp.code);
+      if (plan?.modules && Array.isArray(plan.modules)) {
+        plan.modules.forEach((m: string) => moduleSet.add(m));
+      }
+    });
+    return Array.from(moduleSet);
+  };
 
   useEffect(() => {
     fetchPlans();
   }, []);
 
-  // Debug: Log when loadedPlans changes
-  useEffect(() => {
-    console.log('useEffect - loadedPlans.length:', loadedPlans.length, 'loadedPlans:', loadedPlans);
-  }, [loadedPlans]);
-
   const fetchPlans = async () => {
     try {
-      console.log('Cargando planes desde /api/admin/plans-public...');
       const response = await fetch("/api/admin/plans-public");
-      console.log('Response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        console.log('Planes recibidos:', data);
         const loadedPlans = data.plans || [];
         setPlans(loadedPlans);
         setLoadedPlans(loadedPlans);
-        console.log('Planes establecidos:', loadedPlans.length);
-        console.log('Estado actual de plans:', plans);
-        console.log('Estado actual de loadedPlans:', loadedPlans);
-        setFormData(prev => ({
-          ...prev,
-          subscriptionPlans: [{ code: loadedPlans[0].code, quantity: 1 }],
-          maxUsers: 5,
-          monthlyCost: loadedPlans[0].unitPrice
-        }));
-      } else {
-        console.error('Error en respuesta de planes:', response.status);
-        const errorData = await response.json();
-        console.error('Error data:', errorData);
       }
     } catch (err) {
       console.error("Error cargando planes:", err);
@@ -106,9 +100,10 @@ export default function CreateTenantPage() {
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
+    if (name === "maxUsers") return;
     setFormData(prev => ({
       ...prev,
-      [name]: name === "maxUsers" ? parseInt(value) : value
+      [name]: value
     }));
   };
 
@@ -118,23 +113,26 @@ export default function CreateTenantPage() {
       let newPlans;
       
       if (existingPlanIndex >= 0) {
-        // Si el plan ya existe, incrementar la cantidad
         newPlans = [...prev.subscriptionPlans];
         newPlans[existingPlanIndex].quantity += 1;
       } else {
-        // Si no existe, agregar con cantidad 1
         newPlans = [...prev.subscriptionPlans, { code: planCode, quantity: 1 }];
       }
       
-      // Calcular el maxUsers total basado en los planes seleccionados
       const totalMaxUsers = loadedPlans
         .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
           const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
-          return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
-        }, 5);
+          return sum + (p.maxUsers * (planWithQuantity?.quantity || 1));
+        }, 0);
       
-      // Calcular el costo total mensual
+      const totalMaxStorage = loadedPlans
+        .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
+        .reduce((sum, p) => {
+          const planWithQuantity = newPlans.find((np: { code: string; quantity: number }) => np.code === p.code);
+          return sum + ((p.maxStorage || 0) * (planWithQuantity?.quantity || 1));
+        }, 0);
+      
       const totalMonthlyCost = loadedPlans
         .filter(p => newPlans.some((np: { code: string; quantity: number }) => np.code === p.code))
         .reduce((sum, p) => {
@@ -146,7 +144,9 @@ export default function CreateTenantPage() {
         ...prev,
         subscriptionPlans: newPlans,
         maxUsers: totalMaxUsers,
-        monthlyCost: totalMonthlyCost
+        maxStorage: totalMaxStorage,
+        monthlyCost: totalMonthlyCost,
+        modules: computeModulesFromPlans(newPlans),
       };
     });
   };
@@ -158,10 +158,8 @@ export default function CreateTenantPage() {
       let newPlans;
       
       if (newQuantity === 0) {
-        // Si la cantidad es 0, eliminar el plan
         newPlans = prev.subscriptionPlans.filter(p => p.code !== planCode);
       } else {
-        // Si el plan ya existe, actualizar cantidad, si no, agregarlo
         const existingPlan = prev.subscriptionPlans.find(p => p.code === planCode);
         if (existingPlan) {
           newPlans = prev.subscriptionPlans.map(p => 
@@ -172,15 +170,20 @@ export default function CreateTenantPage() {
         }
       }
       
-      // Calcular el maxUsers total basado en los planes seleccionados
       const totalMaxUsers = loadedPlans
         .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
           const planWithQuantity = newPlans.find(np => np.code === p.code);
-          return Math.max(sum, p.maxUsers * (planWithQuantity?.quantity || 1));
-        }, 5);
+          return sum + (p.maxUsers * (planWithQuantity?.quantity || 1));
+        }, 0);
       
-      // Calcular el costo total mensual
+      const totalMaxStorage = loadedPlans
+        .filter(p => newPlans.some(np => np.code === p.code))
+        .reduce((sum, p) => {
+          const planWithQuantity = newPlans.find(np => np.code === p.code);
+          return sum + ((p.maxStorage || 0) * (planWithQuantity?.quantity || 1));
+        }, 0);
+      
       const totalMonthlyCost = loadedPlans
         .filter(p => newPlans.some(np => np.code === p.code))
         .reduce((sum, p) => {
@@ -192,7 +195,9 @@ export default function CreateTenantPage() {
         ...prev,
         subscriptionPlans: newPlans,
         maxUsers: totalMaxUsers,
-        monthlyCost: totalMonthlyCost
+        maxStorage: totalMaxStorage,
+        monthlyCost: totalMonthlyCost,
+        modules: computeModulesFromPlans(newPlans),
       };
     });
   };
@@ -201,7 +206,6 @@ export default function CreateTenantPage() {
     setFormData(prev => {
       const newPlans = prev.subscriptionPlans.filter(p => p.code !== planCode);
       
-      // Recalcular costo mensual y usuarios
       const totalMonthlyCost = newPlans.reduce((sum, p) => {
         const plan = loadedPlans.find(lp => lp.code === p.code);
         return sum + (plan?.unitPrice || 0) * p.quantity;
@@ -212,54 +216,28 @@ export default function CreateTenantPage() {
         return sum + (plan?.maxUsers || 0) * p.quantity;
       }, 0);
       
+      const totalMaxStorage = newPlans.reduce((sum, p) => {
+        const plan = loadedPlans.find(lp => lp.code === p.code);
+        return sum + (plan?.maxStorage || 0) * p.quantity;
+      }, 0);
+      
       return {
         ...prev,
         subscriptionPlans: newPlans,
         maxUsers: totalMaxUsers,
-        monthlyCost: totalMonthlyCost
+        maxStorage: totalMaxStorage,
+        monthlyCost: totalMonthlyCost,
+        modules: computeModulesFromPlans(newPlans),
       };
     });
   };
 
-  const handleModuleToggle = (moduleId: string) => {
-    setFormData(prev => ({
-      ...prev,
-      modules: prev.modules.includes(moduleId)
-        ? prev.modules.filter(m => m !== moduleId)
-        : [...prev.modules, moduleId]
-    }));
-  };
-
-  const handleSelectAllModules = () => {
-    setFormData(prev => ({
-      ...prev,
-      modules: availableModules.map(m => m.id)
-    }));
-  };
-
-  const handleDeselectAllModules = () => {
-    setFormData(prev => ({
-      ...prev,
-      modules: []
-    }));
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
-    console.log('handleSubmit llamado');
     e.preventDefault();
-    console.log('Formulario enviado:', formData);
     setLoading(true);
     setError("");
 
-    // Validar contraseña del admin
-    if (formData.adminPassword && formData.adminPassword.length < 8) {
-      setError("La contraseña del admin debe tener al menos 8 caracteres");
-      setLoading(false);
-      return;
-    }
-
     try {
-      console.log('Enviando solicitud a /api/admin/tenants...');
       const response = await fetch("/api/admin/tenants", {
         method: "POST",
         headers: {
@@ -271,36 +249,35 @@ export default function CreateTenantPage() {
           businessRTN: formData.businessRTN,
           phoneNumber: formData.phoneNumber,
           businessAddress: formData.businessAddress,
-          subscriptionPlans: JSON.stringify(formData.subscriptionPlans), // Convertir array a JSON string
+          subscriptionPlans: formData.subscriptionPlans,
           maxUsers: formData.maxUsers,
+          maxStorage: formData.maxStorage,
           monthlyCost: formData.monthlyCost,
           modules: formData.modules.join(','),
-          // Admin user data
           adminUser: {
-            email: formData.adminEmail,
+            email: formData.businessEmail,
             firstName: formData.adminFirstName,
             lastName: formData.adminLastName,
-            password: formData.adminPassword,
           }
         }),
       });
 
-      console.log('Respuesta recibida:', response.status);
-      const data = await response.json();
-      console.log('Datos de respuesta:', data);
+      const data = await response.json().catch(() => null);
 
       if (response.ok) {
-        setSuccess(true);
-        // Redirigir inmediatamente después de mostrar el mensaje de éxito
-        setTimeout(() => {
-          router.push("/admin/tenants");
-        }, 1500);
+        if (data?.adminError) {
+          setError(`Tenant creado, pero error al crear admin: ${data.adminError}`);
+        } else {
+          setAdminTempPassword(data?.admin?.tempPassword || null);
+          setSuccess(true);
+        }
       } else {
-        setError(data.error || "Error al crear el tenant");
+        const errorMsg = data?.error || data?.message || `Error ${response.status}: No se pudo crear el tenant`;
+        setError(errorMsg);
       }
-    } catch (err) {
-      console.error('Error en handleSubmit:', err);
-      setError("Error de conexión al servidor");
+    } catch (err: any) {
+      console.error("Error en handleSubmit:", err);
+      setError(err?.message || "Error de conexión al servidor");
     } finally {
       setLoading(false);
     }
@@ -308,19 +285,13 @@ export default function CreateTenantPage() {
 
   const handleDeletePlan = (planId: string) => {
     if (confirm('¿Estás seguro de que quieres eliminar este plan? Esta acción no se puede deshacer.')) {
-      // Eliminar el plan de loadedPlans
       setLoadedPlans(prev => prev.filter(plan => plan.id !== planId));
-      
-      // También eliminar del estado plans si está allí
       setPlans(prev => prev.filter(plan => plan.id !== planId));
       
-      // Si el plan estaba en el formulario, eliminarlo también
       const planToDelete = loadedPlans.find(plan => plan.id === planId);
       if (planToDelete) {
         handleRemovePlan(planToDelete.code);
       }
-      
-      console.log(`🗑️ Plan eliminado: ${planId}`);
     }
   };
 
@@ -347,27 +318,44 @@ export default function CreateTenantPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                   </svg>
                 </div>
-                <h3 className="text-2xl font-semibold text-gray-900 mb-2">¡Tenant Creado Exitosamente!</h3>
-                <p className="text-gray-600 mb-4">El tenant ha sido creado correctamente y el usuario admin ha sido asignado.</p>
-                <div className="flex items-center justify-center text-sm text-gray-500">
-                  <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                  </svg>
-                  Redirigiendo a la lista de tenants...
-                </div>
+                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Tenant Creado</h3>
+                <p className="text-gray-600 mb-4">El tenant y el usuario admin fueron creados correctamente.</p>
+                {adminTempPassword && (
+                  <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mb-4 text-left">
+                    <p className="text-sm font-medium text-yellow-800 mb-2">Password temporal del admin:</p>
+                    <code className="block bg-white border border-yellow-300 rounded px-3 py-2 text-sm font-mono text-gray-900 select-all">{adminTempPassword}</code>
+                    <p className="text-xs text-yellow-700 mt-2">El admin debe cambiar esta contraseña al iniciar sesión.</p>
+                  </div>
+                )}
+                <button
+                  onClick={() => router.push("/admin/tenants")}
+                  className="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                >
+                  Ver lista de tenants
+                </button>
               </div>
             </div>
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-            <div className="flex items-center">
-              <svg className="w-5 h-5 text-red-600 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-              <p className="text-red-800">{error}</p>
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg shadow-xl p-8 max-w-md mx-4">
+              <div className="text-center">
+                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-red-100 mb-4">
+                  <svg className="h-10 w-10 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </div>
+                <h3 className="text-2xl font-semibold text-gray-900 mb-2">Error al Crear Tenant</h3>
+                <p className="text-gray-600 mb-6">{error}</p>
+                <button
+                  onClick={() => setError("")}
+                  className="px-6 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         )}
@@ -457,20 +445,18 @@ export default function CreateTenantPage() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Planes de Suscripción
                 </label>
-                <div className="border-2 border-blue-500 p-4 bg-blue-50">
-                  <h3 className="text-lg font-bold text-blue-800 mb-4">🔍 DEPURACIÓN - Planes de Suscripción</h3>
-                  <p className="text-green-600 mb-2">✅ {loadedPlans.length} planes cargados</p>
+                <div className="border rounded-lg p-4 bg-gray-50">
+                  <p className="text-sm text-gray-600 mb-4">{loadedPlans.length} plan(es) disponible(s)</p>
                   
                   {loadedPlans.map((plan, index) => {
-                    console.log(`🔍 MAP DEBUG - Plan ${index}:`, plan);
                     const planInForm = formData.subscriptionPlans.find(p => p.code === plan.code);
                     const quantity = planInForm?.quantity || 0;
                     
                     return (
-                      <div key={plan.id} className="border-2 border-green-500 p-3 mb-2 bg-white">
+                      <div key={plan.id} className="border rounded-lg p-3 mb-2 bg-white">
                         <div className="flex justify-between items-start">
                           <div className="flex-1">
-                            <h4 className="font-bold text-lg">{plan.name}</h4>
+                            <h4 className="font-semibold text-gray-900">{plan.name}</h4>
                             <p className="text-sm text-gray-600">{plan.description}</p>
                             <p className="text-sm font-semibold text-blue-600">L. {plan.unitPrice}/mes</p>
                             <p className="text-xs text-gray-500">Máximo {plan.maxUsers} usuarios</p>
@@ -480,7 +466,6 @@ export default function CreateTenantPage() {
                             onClick={() => {
                               if (confirm('¿Estás seguro de que quieres eliminar este plan?')) {
                                 setLoadedPlans(prev => prev.filter(p => p.id !== plan.id));
-                                console.log(`🗑️ Plan eliminado: ${plan.id}`);
                               }
                             }}
                             className="ml-2 px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-sm"
@@ -546,69 +531,51 @@ export default function CreateTenantPage() {
                 )}
               </div>
 
-              <div>
-                <label htmlFor="maxUsers" className="block text-sm font-medium text-gray-700 mb-2">
-                  Máximo de Usuarios
-                </label>
-                <input
-                  type="number"
-                  id="maxUsers"
-                  name="maxUsers"
-                  min="1"
-                  max="100"
-                  value={formData.maxUsers || 5}
-                  onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="maxUsers" className="block text-sm font-medium text-gray-700 mb-2">
+                    Máximo de Usuarios
+                  </label>
+                  <input
+                    type="number"
+                    id="maxUsers"
+                    name="maxUsers"
+                    readOnly
+                    value={formData.maxUsers || 0}
+                    className="w-full px-4 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-700 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Definido por el plan</p>
+                </div>
+                <div>
+                  <label htmlFor="maxStorage" className="block text-sm font-medium text-gray-700 mb-2">
+                    Almacenamiento (GB)
+                  </label>
+                  <input
+                    type="number"
+                    id="maxStorage"
+                    name="maxStorage"
+                    readOnly
+                    value={formData.maxStorage || 0}
+                    className="w-full px-4 py-2 border border-gray-200 bg-gray-50 rounded-lg text-gray-700 cursor-not-allowed"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">Definido por el plan</p>
+                </div>
               </div>
             </div>
 
             <div className="border-t pt-6">
               <h3 className="text-lg font-medium text-gray-900 mb-4">Usuario Administrador</h3>
-              <p className="text-sm text-gray-600 mb-4">Se creará automáticamente un usuario administrador para este tenant</p>
+              <p className="text-sm text-gray-600 mb-4">Se enviará una invitación al email de la empresa (<strong>{formData.businessEmail || '...'}</strong>) para que el admin cree su cuenta</p>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label htmlFor="adminEmail" className="block text-sm font-medium text-gray-700 mb-2">
-                    Email del Admin *
-                  </label>
-                  <input
-                    type="email"
-                    id="adminEmail"
-                    name="adminEmail"
-                    required
-                    value={formData.adminEmail}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="admin@empresa.com"
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor="adminPassword" className="block text-sm font-medium text-gray-700 mb-2">
-                    Contraseña Temporal *
-                  </label>
-                  <input
-                    type="text"
-                    id="adminPassword"
-                    name="adminPassword"
-                    required
-                    value={formData.adminPassword}
-                    onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    placeholder="Contraseña temporal"
-                  />
-                </div>
-
-                <div>
                   <label htmlFor="adminFirstName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Nombre *
+                    Nombre
                   </label>
                   <input
                     type="text"
                     id="adminFirstName"
                     name="adminFirstName"
-                    required
                     value={formData.adminFirstName}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -618,13 +585,12 @@ export default function CreateTenantPage() {
 
                 <div>
                   <label htmlFor="adminLastName" className="block text-sm font-medium text-gray-700 mb-2">
-                    Apellido *
+                    Apellido
                   </label>
                   <input
                     type="text"
                     id="adminLastName"
                     name="adminLastName"
-                    required
                     value={formData.adminLastName}
                     onChange={handleChange}
                     className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -636,55 +602,47 @@ export default function CreateTenantPage() {
 
             <div>
               <div className="flex items-center justify-between mb-4">
-                <label className="block text-sm font-medium text-gray-700">Módulos Disponibles</label>
-                <div className="flex space-x-2">
-                  <button
-                    type="button"
-                    onClick={handleSelectAllModules}
-                    className="text-xs px-3 py-1 bg-blue-100 text-blue-700 rounded hover:bg-blue-200 transition-colors"
-                  >
-                    Seleccionar todos
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleDeselectAllModules}
-                    className="text-xs px-3 py-1 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 transition-colors"
-                  >
-                    Deseleccionar todos
-                  </button>
+                <label className="block text-sm font-medium text-gray-700">Módulos del Tenant</label>
+                <span className="text-xs text-gray-500 bg-gray-100 px-2 py-1 rounded">Se asignan automáticamente según el plan seleccionado</span>
+              </div>
+              {formData.modules.length === 0 ? (
+                <p className="text-sm text-gray-500 italic">Seleccioná un plan para ver los módulos que incluye</p>
+              ) : (
+                <div className="space-y-4">
+                  {moduleCategories.map((category) => {
+                    const categoryModules = availableModules.filter(m => m.category === category && formData.modules.includes(m.id));
+                    if (categoryModules.length === 0) return null;
+                    return (
+                      <div key={category}>
+                        <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{categoryLabels[category] || category}</h4>
+                        <div className="grid grid-cols-2 gap-3">
+                          {categoryModules.map((module) => (
+                            <div
+                              key={module.id}
+                              className="p-3 border border-green-300 bg-green-50 rounded-lg"
+                            >
+                              <div className="flex items-start">
+                                <div className="w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 bg-green-600 border-green-600">
+                                  <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                  </svg>
+                                </div>
+                                <div>
+                                  <p className="text-sm font-medium text-gray-900">{module.name}</p>
+                                  <p className="text-xs text-gray-500">{module.description}</p>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {availableModules.map((module) => (
-                  <div
-                    key={module.id}
-                    onClick={() => handleModuleToggle(module.id)}
-                    className={`p-3 border rounded-lg cursor-pointer transition-all ${
-                      formData.modules.includes(module.id)
-                        ? 'border-blue-500 bg-blue-50'
-                        : 'border-gray-300 hover:border-gray-400'
-                    }`}
-                  >
-                    <div className="flex items-start">
-                      <div className={`w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 ${
-                        formData.modules.includes(module.id)
-                          ? 'bg-blue-600 border-blue-600'
-                          : 'border-gray-300'
-                      }`}>
-                        {formData.modules.includes(module.id) && (
-                          <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                          </svg>
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{module.name}</p>
-                        <p className="text-xs text-gray-500">{module.description}</p>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              )}
+              {formData.modules.length > 0 && (
+                <p className="text-xs text-gray-500 mt-3">{formData.modules.length} módulo(s) asignado(s) por el plan</p>
+              )}
             </div>
 
             <div className="flex items-center justify-end space-x-4 pt-4 border-t">

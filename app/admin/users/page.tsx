@@ -85,7 +85,7 @@ export default function UsersManagementPage() {
 
   const fetchTenants = async () => {
     try {
-      const response = await fetch("/api/admin/tenants");
+      const response = await fetch("/api/admin/tenants?page=1&limit=100&search=&status=all");
       if (response.ok) {
         const data = await response.json();
         setTenants(data.tenants || []);
@@ -276,18 +276,41 @@ export default function UsersManagementPage() {
 
   const handleRoleChange = async (userId: string, newRole: string) => {
     try {
-      const response = await fetch(`/api/admin/users/${userId}/role`, {
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+      const response = await fetch(`/api/admin/users/${userId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ role: newRole }),
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: newRole, tenantId: user.tenantId || '' }),
       });
       if (response.ok) {
         fetchUsers();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Error al cambiar rol');
       }
     } catch (err) {
       console.error("Error al cambiar rol:", err);
+    }
+  };
+
+  const handleTenantChange = async (userId: string, newTenantId: string) => {
+    try {
+      const user = users.find(u => u.id === userId);
+      if (!user) return;
+      const response = await fetch(`/api/admin/users/${userId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ role: user.role, tenantId: newTenantId || '' }),
+      });
+      if (response.ok) {
+        fetchUsers();
+      } else {
+        const data = await response.json();
+        setError(data.error || 'Error al cambiar tenant');
+      }
+    } catch (err) {
+      console.error("Error al cambiar tenant:", err);
     }
   };
 
@@ -453,8 +476,19 @@ export default function UsersManagementPage() {
                           <option value="VIEWER">Observador</option>
                         </select>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.tenantName || 'Sin tenant'}
+                      <td className="px-6 py-4 whitespace-nowrap text-sm">
+                        <select
+                          value={user.tenantId || ''}
+                          onChange={(e) => handleTenantChange(user.id, e.target.value)}
+                          className="px-2 py-1 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="">Sin tenant</option>
+                          {tenants.map((t: any) => (
+                            <option key={t.id} value={t.id}>
+                              {t.businessName || t.businessname || t.tenantCode}
+                            </option>
+                          ))}
+                        </select>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${

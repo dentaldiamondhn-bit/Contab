@@ -5,6 +5,7 @@ import { useRouter, useParams, useSearchParams } from "next/navigation";
 import InvoiceTemplateManager from "@/components/admin/InvoiceTemplateManager";
 import InvoiceImage from "@/components/billing/InvoiceImage";
 import { Eye, Download, Trash2 } from "lucide-react";
+import { MODULES } from "@/lib/constants/modules";
 
 interface User {
   id: string;
@@ -78,19 +79,36 @@ export default function TenantDetailPage() {
     password: ''
   });
 
-   // Módulos disponibles en el sistema
-   const availableModules = [
-     { id: 'accounting-record', name: 'Registro contable', icon: '📒', description: 'Registro de transacciones contables' },
-     { id: 'legal-books', name: 'Libros legales', icon: '📕', description: 'Libros requeridos por la ley' },
-     { id: 'billing-sales', name: 'Facturación y ventas', icon: '🧾', description: 'Gestión de facturación y ventas' },
-     { id: 'inventory', name: 'Inventarios', icon: '📦', description: 'Control de inventario' },
-     { id: 'purchases-providers', name: 'Compras y proveedores', icon: '🛒', description: 'Gestión de compras y proveedores' },
-     { id: 'financial-control', name: 'Control financiero', icon: '💰', description: 'Control y análisis financiero' },
-     { id: 'reports-analysis', name: 'Reportes y análisis', icon: '📊', description: 'Generación de reportes y análisis' },
-     { id: 'security-control', name: 'Seguridad y control', icon: '🔒', description: 'Módulo de seguridad y control de acceso' },
-     { id: 'tax-reports', name: 'Generación de reportes para entidades fiscales', icon: '📑', description: 'Reportes específicos para entidades fiscales' },
-     { id: 'tax-integration', name: 'Integración con impuestos', icon: '💳', description: 'Integración con sistemas de impuestos' }
-   ];
+   // Módulos disponibles en el sistema (fuente canónica)
+   const availableModules = Object.values(MODULES).map(m => ({
+     id: m.id,
+     name: m.name,
+     icon: m.category === 'main' ? '📒' :
+           m.category === 'accounting' ? '📕' :
+           m.category === 'sales' ? '🧾' :
+           m.category === 'operations' ? '📦' :
+           m.category === 'analysis' ? '📊' :
+           m.category === 'security' ? '🔒' :
+           m.category === 'taxes' ? '📑' :
+           m.category === 'crm' ? '👥' :
+           m.category === 'support' ? '🛠️' : '📋',
+     description: m.description,
+     category: m.category,
+   }));
+
+   const moduleCategories = [...new Set(availableModules.map(m => m.category))];
+
+   const categoryLabels: Record<string, string> = {
+     main: 'Principal',
+     accounting: 'Contabilidad',
+     sales: 'Ventas',
+     operations: 'Operaciones',
+     analysis: 'Análisis',
+     security: 'Seguridad',
+     taxes: 'Impuestos',
+     crm: 'CRM',
+     support: 'Soporte',
+   };
 
   // Transformar planes de suscripción a items de factura
   const transformPlansToInvoiceItems = (plans: any[]) => {
@@ -811,11 +829,14 @@ export default function TenantDetailPage() {
               <h3 className="text-sm font-medium text-gray-700 mb-2">Módulos Activos</h3>
               {tenant.modules.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {tenant.modules.map((module: string, idx: number) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                      {module}
-                    </span>
-                  ))}
+                  {tenant.modules.map((module: string, idx: number) => {
+                    const mod = MODULES[module as keyof typeof MODULES];
+                    return (
+                      <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                        {mod ? mod.name : module}
+                      </span>
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-gray-500">Sin módulos asignados</p>
@@ -1109,46 +1130,41 @@ export default function TenantDetailPage() {
 
         {activeTab === 'modules' && (
           <div className="space-y-6">
-            {/* Gestión de Módulos */}
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold text-gray-900 mb-6">Módulos Activos</h2>
+              <h2 className="text-xl font-semibold text-gray-900 mb-2">Módulos del Tenant</h2>
+              <p className="text-sm text-gray-500 mb-6">Módulos asignados según el plan de suscripción</p>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {availableModules.map((module) => {
-                  const isActive = tenant?.modules?.includes(module.id);
-                  return (
-                    <div key={module.id} className={`border rounded-lg p-4 ${isActive ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center">
-                          <span className="text-2xl mr-3">{module.icon}</span>
-                          <div>
-                            <h3 className="font-medium text-gray-900">{module.name}</h3>
-                            <p className="text-sm text-gray-600">{module.description}</p>
+              <div className="space-y-6">
+                {moduleCategories.map((category) => (
+                  <div key={category}>
+                    <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider mb-3">{categoryLabels[category] || category}</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {availableModules.filter(m => m.category === category).map((module) => {
+                        const isActive = tenant?.modules?.includes(module.id);
+                        return (
+                          <div key={module.id} className={`border rounded-lg p-4 ${isActive ? 'border-green-300 bg-green-50' : 'border-gray-200 bg-gray-50 opacity-60'}`}>
+                            <div className="flex items-center justify-between mb-2">
+                              <div className="flex items-center">
+                                <span className="text-2xl mr-3">{module.icon}</span>
+                                <div>
+                                  <h4 className="font-medium text-gray-900">{module.name}</h4>
+                                  <p className="text-xs text-gray-500">{module.description}</p>
+                                </div>
+                              </div>
+                            </div>
+                            <span className={`inline-block px-2 py-1 text-xs font-medium rounded-full ${
+                              isActive 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-gray-100 text-gray-500'
+                            }`}>
+                              {isActive ? 'Activo' : 'Inactivo'}
+                            </span>
                           </div>
-                        </div>
-                        <div className="flex items-center">
-                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                            isActive 
-                              ? 'bg-green-100 text-green-800' 
-                              : 'bg-gray-100 text-gray-800'
-                          }`}>
-                            {isActive ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleToggleModule(module.id, isActive)}
-                        className={`w-full px-3 py-2 rounded-md text-sm font-medium ${
-                          isActive 
-                            ? 'bg-red-600 text-white hover:bg-red-700' 
-                            : 'bg-green-600 text-white hover:bg-green-700'
-                        }`}
-                      >
-                        {isActive ? 'Desactivar' : 'Activar'}
-                      </button>
+                        );
+                      })}
                     </div>
-                  );
-                })}
+                  </div>
+                ))}
               </div>
             </div>
           </div>
