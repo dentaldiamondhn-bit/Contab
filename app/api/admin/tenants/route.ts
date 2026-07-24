@@ -105,9 +105,14 @@ export async function GET(req: NextRequest) {
         subscriptionPlans = [];
       }
 
-      let modules: string[] = [];
+      let modules: any[] = [];
       if (tenant.modules) {
-        modules = tenant.modules.split(',').filter((m: string) => m.trim());
+        try {
+          const parsed = JSON.parse(tenant.modules);
+          if (Array.isArray(parsed)) modules = parsed;
+        } catch {
+          modules = tenant.modules.split(',').filter((m: string) => m.trim());
+        }
       }
 
       // Obtener conteos de usuarios para este tenant
@@ -253,6 +258,16 @@ export async function POST(req: NextRequest) {
       subscriptionPlan = '[]';
     }
 
+    // Manejar modules: puede venir como string (legacy) o array de objetos (nuevo)
+    let modulesValue: string | null = null;
+    if (newTenant.modules) {
+      if (typeof newTenant.modules === 'string') {
+        modulesValue = newTenant.modules;
+      } else if (Array.isArray(newTenant.modules)) {
+        modulesValue = JSON.stringify(newTenant.modules);
+      }
+    }
+
     // Generar ID único
     const tenantId = 'c' + randomBytes(24).toString('base64url').substring(0, 24);
     
@@ -274,7 +289,7 @@ export async function POST(req: NextRequest) {
         maxstorage: newTenant.maxStorage ?? 100,
         maxtransactions: newTenant.maxTransactions ?? 10000,
         monthlycost: newTenant.monthlyCost || 0,
-        modules: newTenant.modules || null,
+        modules: modulesValue,
         country: 'HN',
         timezone: 'America/Tegucigalpa',
         currency: 'HNL',

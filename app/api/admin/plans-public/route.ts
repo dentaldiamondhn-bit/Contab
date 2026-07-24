@@ -16,11 +16,18 @@ interface PlanDB {
 
 function mapPlanFromDB(p: PlanDB) {
   let features: string[] = [];
-  let modules: string[] = [];
+  let modules: any[] = [];
   try { features = JSON.parse(p.features); } catch { features = []; }
   try { modules = JSON.parse(p.modules); } catch { modules = []; }
   if (!Array.isArray(features)) features = [];
   if (!Array.isArray(modules)) modules = [];
+
+  // Normalizar modules: string[] → { id }[], object[] → tal cual
+  const normalizedModules = modules.map(m => {
+    if (typeof m === 'string') return { id: m };
+    if (m && typeof m === 'object' && m.id) return m;
+    return null;
+  }).filter(Boolean);
 
   return {
     id: p.id,
@@ -36,7 +43,7 @@ function mapPlanFromDB(p: PlanDB) {
     maxStorage: p.max_storage,
     maxTransactions: p.max_transactions,
     features,
-    modules,
+    modules: normalizedModules,
     isActive: p.is_active,
   };
 }

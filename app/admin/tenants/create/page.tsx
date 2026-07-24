@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { MODULES } from "@/lib/constants/modules";
+import { MODULES, getModuleLimits, type PlanModuleConfig } from "@/lib/constants/modules";
 
 interface Plan {
   id: string;
@@ -13,6 +13,7 @@ interface Plan {
   maxStorage: number;
   maxTransactions: number;
   features: string[];
+  modules: PlanModuleConfig[];
   isActive: boolean;
 }
 
@@ -35,7 +36,7 @@ export default function CreateTenantPage() {
     maxUsers: number;
     maxStorage: number;
     monthlyCost: number;
-    modules: string[];
+    modules: PlanModuleConfig[];
     adminFirstName: string;
     adminLastName: string;
   }>({
@@ -48,7 +49,7 @@ export default function CreateTenantPage() {
     maxUsers: 0,
     maxStorage: 0,
     monthlyCost: 0,
-    modules: [],
+    modules: [] as PlanModuleConfig[],
     adminFirstName: "",
     adminLastName: "",
   });
@@ -69,15 +70,29 @@ export default function CreateTenantPage() {
     support: 'Soporte',
   };
 
-  const computeModulesFromPlans = (selectedPlans: { code: string; quantity: number }[]): string[] => {
-    const moduleSet = new Set<string>();
+  const computeModulesFromPlans = (selectedPlans: { code: string; quantity: number }[]): PlanModuleConfig[] => {
+    const moduleMap = new Map<string, PlanModuleConfig>();
     selectedPlans.forEach(sp => {
       const plan = loadedPlans.find(lp => lp.code === sp.code);
       if (plan?.modules && Array.isArray(plan.modules)) {
-        plan.modules.forEach((m: string) => moduleSet.add(m));
+        plan.modules.forEach((m: PlanModuleConfig) => {
+          if (!moduleMap.has(m.id)) {
+            // Primera vez que vemos este módulo, copiar su config completa
+            moduleMap.set(m.id, { ...m });
+          } else {
+            // Ya existe, fusionar límites (tomar el mayor)
+            const existing = moduleMap.get(m.id)!;
+            const limitDefs = getModuleLimits(m.id);
+            limitDefs.forEach(ld => {
+              const val = (m as any)[ld.key] ?? ld.defaultValue;
+              const existVal = (existing as any)[ld.key] ?? ld.defaultValue;
+              (existing as any)[ld.key] = Math.max(val, existVal);
+            });
+          }
+        });
       }
     });
-    return Array.from(moduleSet);
+    return Array.from(moduleMap.values());
   };
 
   useEffect(() => {
@@ -253,7 +268,7 @@ export default function CreateTenantPage() {
           maxUsers: formData.maxUsers,
           maxStorage: formData.maxStorage,
           monthlyCost: formData.monthlyCost,
-          modules: formData.modules.join(','),
+          modules: formData.modules,
           adminUser: {
             email: formData.businessEmail,
             firstName: formData.adminFirstName,
@@ -610,30 +625,43 @@ export default function CreateTenantPage() {
               ) : (
                 <div className="space-y-4">
                   {moduleCategories.map((category) => {
-                    const categoryModules = availableModules.filter(m => m.category === category && formData.modules.includes(m.id));
+                    const categoryModules = availableModules.filter(m => m.category === category && formData.modules.some(fm => fm.id === m.id));
                     if (categoryModules.length === 0) return null;
                     return (
                       <div key={category}>
                         <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">{categoryLabels[category] || category}</h4>
                         <div className="grid grid-cols-2 gap-3">
-                          {categoryModules.map((module) => (
-                            <div
-                              key={module.id}
-                              className="p-3 border border-green-300 bg-green-50 rounded-lg"
-                            >
-                              <div className="flex items-start">
-                                <div className="w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 bg-green-600 border-green-600">
-                                  <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                  </svg>
-                                </div>
-                                <div>
-                                  <p className="text-sm font-medium text-gray-900">{module.name}</p>
-                                  <p className="text-xs text-gray-500">{module.description}</p>
+                          {categoryModules.map((module) => {
+                            const moduleConfig = formData.modules.find(fm => fm.id === module.id);
+                            const limitDefs = getModuleLimits(module.id);
+                            return (
+                              <div
+                                key={module.id}
+                                className="p-3 border border-green-300 bg-green-50 rounded-lg"
+                              >
+                                <div className="flex items-start">
+                                  <div className="w-5 h-5 rounded border-2 mr-3 mt-0.5 flex-shrink-0 bg-green-600 border-green-600">
+                                    <svg className="w-3 h-3 text-white mt-0.5 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  </div>
+                                  <div className="flex-1">
+                                    <p className="text-sm font-medium text-gray-900">{module.name}</p>
+                                    <p className="text-xs text-gray-500">{module.description}</p>
+                                    {limitDefs.length > 0 && moduleConfig && (
+                                      <div className="mt-1 space-y-0.5">
+                                        {limitDefs.map(ld => (
+                                          <p key={ld.key} className="text-xs text-blue-700 font-medium">
+                                            {ld.label}: {(moduleConfig as any)[ld.key] ?? ld.defaultValue} {ld.unit}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
