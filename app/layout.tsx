@@ -6,6 +6,7 @@ import { SidebarProvider } from "./contexts/SidebarContext";
 import { TenantProvider } from "@/lib/contexts/TenantContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { Toaster } from "sonner";
+import LayoutWrapper from "./components/LayoutWrapper";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -40,7 +41,9 @@ export default function RootLayout({
           <UserProvider>
             <TenantProvider>
               <SidebarProvider>
-                {children}
+                <LayoutWrapper tenants={[]}>
+                  {children}
+                </LayoutWrapper>
                 <Toaster position="top-right" richColors />
               </SidebarProvider>
             </TenantProvider>
