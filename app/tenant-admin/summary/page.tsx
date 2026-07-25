@@ -125,7 +125,13 @@ export default function TenantSummaryPage() {
     try {
       setLoading(true);
       
-      const tenantId = currentTenant?.id || "DENTALWD";
+      const tenantId = currentTenant?.id;
+      if (!tenantId) {
+        console.log('⚠️ No tenant selected, showing empty state');
+        setSummary(null);
+        setLoading(false);
+        return;
+      }
       console.log('🔍 Cargando resumen para tenant:', tenantId);
       
       const response = await fetch(`/api/tenant/summary?tenantId=${tenantId}`, {
