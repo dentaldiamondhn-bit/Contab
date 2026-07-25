@@ -3,7 +3,6 @@
 import { usePathname } from 'next/navigation';
 import RoleBasedSidebar from '@/components/RoleBasedSidebar';
 import Header from './Header';
-import { useTenant } from '@/lib/contexts/TenantContext';
 
 interface LayoutWrapperProps {
   children: React.ReactNode;
@@ -12,16 +11,13 @@ interface LayoutWrapperProps {
 
 export default function LayoutWrapper({ children, tenants }: LayoutWrapperProps) {
   const pathname = usePathname() || '';
-  const { isSuperAdmin: isGlobalSuperAdmin } = useTenant();
-  const rawRole = (useTenant() as any).currentTenant?.currentUserRole;
-  const userRole = isGlobalSuperAdmin ? 'SUPER_ADMIN' : (rawRole || 'VIEWER');
 
   // Rutas que NO deben mostrar sidebar/header (tienen su propio layout o son públicas)
   const isAuthPage = pathname.startsWith('/auth/') || pathname === '/login' || pathname === '/register';
   const isOnboarding = pathname === '/onboarding' || pathname.startsWith('/onboarding/');
   const isSupportPage = pathname.startsWith('/support');
   const isAdminPage = pathname.startsWith('/admin');
-  const isDashboardPage = pathname.startsWith('/dashboard');
+  const isDashboardPage = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
   const isTenantAdminPage = pathname.startsWith('/tenant-admin');
   const isAccountantPage = pathname.startsWith('/accountant');
 
@@ -35,7 +31,7 @@ export default function LayoutWrapper({ children, tenants }: LayoutWrapperProps)
     <div className="min-h-screen bg-gray-50 flex flex-col">
       <Header tenants={tenants} />
       <div className="flex flex-1 overflow-hidden">
-        <RoleBasedSidebar currentRole={userRole} />
+        <RoleBasedSidebar />
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">
             {children}
