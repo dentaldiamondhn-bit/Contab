@@ -179,7 +179,7 @@ export default function TenantSettingsPage() {
         industry: currentTenant.industry || '',
         tenantCode: currentTenant.tenantCode || '',
         maxUsers: currentTenant.maxUsers || 0,
-        maxStorage: 0,
+        maxStorage: currentTenant.maxStorage || 0,
         isActive: currentTenant.isActive ?? true,
       });
     } else if (!tenantLoading) {
@@ -1012,20 +1012,6 @@ export default function TenantSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Billing Configuration Section */}
-      <Card>
-        <CardHeader>
-          <div>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Configuración de Facturación
-            </CardTitle>
-            <CardDescription>
-              Configura tu información fiscal, CAI y personaliza tus facturas
-            </CardDescription>
-          </div>
-        </CardHeader>
-        <CardContent>
       {/* Messages */}
       {message && (
         <Alert className={message.type === 'error' ? 'border-red-200' : 'border-green-200'}>
@@ -1895,8 +1881,6 @@ export default function TenantSettingsPage() {
           />
         </CardContent>
         )}
-      </Card>
-        </CardContent>
       </Card>
     </div>
   );
