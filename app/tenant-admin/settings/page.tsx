@@ -34,14 +34,6 @@ import {
 
 import InvoiceExample from '@/components/billing/InvoiceExample';
 
-interface FiscalInfo {
-  rtn: string;
-  businessName: string;
-  businessAddress: string;
-  email: string;
-  phone: string;
-}
-
 interface CaiConfig {
   id?: string;
   cai: string;
@@ -89,14 +81,6 @@ export default function TenantSettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [establishingConfig, setEstablishingConfig] = useState(false);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  
-  const [fiscalInfo, setFiscalInfo] = useState<FiscalInfo>({
-    rtn: '',
-    businessName: '',
-    businessAddress: '',
-    email: '',
-    phone: ''
-  });
   
   const [caiConfigs, setCaiConfigs] = useState<CaiConfig[]>([]);
   const [showCaiForm, setShowCaiForm] = useState(false);
@@ -153,7 +137,6 @@ export default function TenantSettingsPage() {
   ];
 
   // Collapsible states - open by default
-  const [fiscalInfoCollapsed, setFiscalInfoCollapsed] = useState(false);
   const [logoCollapsed, setLogoCollapsed] = useState(false);
   const [caiCollapsed, setCaiCollapsed] = useState(false);
   const [taxCollapsed, setTaxCollapsed] = useState(false);
@@ -162,7 +145,6 @@ export default function TenantSettingsPage() {
   // Cargar datos cuando el componente se monta
   useEffect(() => {
     loadCaiConfigs();
-    loadFiscalInfo();
     loadLogoFromStorage();
     loadTaxConfig();
   }, []);
@@ -774,9 +756,18 @@ export default function TenantSettingsPage() {
     try {
       setEstablishingConfig(true);
       
+      // Derivar información fiscal desde tenantInfo
+      const fiscalInfo = {
+        rtn: tenantInfo.businessRTN,
+        businessName: tenantInfo.businessName,
+        businessAddress: tenantInfo.businessAddress,
+        email: tenantInfo.businessEmail,
+        phone: tenantInfo.phoneNumber
+      };
+      
       // Validar que haya información fiscal
       if (!fiscalInfo.rtn || !fiscalInfo.businessName || !fiscalInfo.businessAddress) {
-        setMessage({ type: 'error', text: 'Debes completar la información fiscal antes de establecer la configuración' });
+        setMessage({ type: 'error', text: 'Debes completar la información del tenant (RTN, nombre, dirección) antes de establecer la configuración' });
         setTimeout(() => setMessage(null), 3000);
         return;
       }
@@ -823,44 +814,6 @@ export default function TenantSettingsPage() {
       setTimeout(() => setMessage(null), 3000);
     } finally {
       setEstablishingConfig(false);
-    }
-  };
-
-  const loadFiscalInfo = async () => {
-    try {
-      // Cargar desde localStorage como solución temporal
-      const savedFiscalInfo = localStorage.getItem('fiscalInfo');
-      if (savedFiscalInfo) {
-        const data = JSON.parse(savedFiscalInfo);
-        setFiscalInfo(data);
-      }
-    } catch (error) {
-      console.error('Error cargando información fiscal:', error);
-    }
-  };
-
-  const handleFiscalInfoChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    const { name, value } = e.target;
-    setFiscalInfo(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  const saveFiscalInfo = async () => {
-    try {
-      setSaving(true);
-      
-      // Guardar en localStorage como solución temporal
-      localStorage.setItem('fiscalInfo', JSON.stringify(fiscalInfo));
-      
-      setMessage({ type: 'success', text: 'Información fiscal guardada correctamente' });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (error) {
-      console.error('Error guardando información fiscal:', error);
-      setMessage({ type: 'error', text: 'Error al guardar información fiscal' });
-    } finally {
-      setSaving(false);
     }
   };
 
@@ -1038,93 +991,6 @@ export default function TenantSettingsPage() {
           </Button>
         </div>
       </div>
-
-      {/* Información Fiscal */}
-      <Card>
-        <CardHeader 
-          className="cursor-pointer hover:bg-gray-50 transition-colors"
-          onClick={() => setFiscalInfoCollapsed(!fiscalInfoCollapsed)}
-        >
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-5 w-5" />
-                Información Fiscal (SAR)
-              </CardTitle>
-              <CardDescription>
-                Datos fiscales requeridos por la Secretaría de Administración Tributaria
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              {fiscalInfoCollapsed ? (
-                <ChevronDown className="h-5 w-5 text-gray-500" />
-              ) : (
-                <ChevronUp className="h-5 w-5 text-gray-500" />
-              )}
-            </div>
-          </div>
-        </CardHeader>
-        {!fiscalInfoCollapsed && (
-          <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="rtn">RTN *</Label>
-              <Input
-                id="rtn"
-                value={fiscalInfo.rtn}
-                onChange={(e) => setFiscalInfo(prev => ({ ...prev, rtn: e.target.value }))}
-                placeholder="08011995012345"
-              />
-              <p className="text-xs text-gray-500 mt-1">Formato: 14 dígitos</p>
-            </div>
-            <div>
-              <Label htmlFor="businessName">Nombre o Razón Social *</Label>
-              <Input
-                id="businessName"
-                value={fiscalInfo.businessName}
-                onChange={(e) => setFiscalInfo(prev => ({ ...prev, businessName: e.target.value }))}
-                placeholder="Nombre completo de la empresa"
-              />
-            </div>
-            <div>
-              <Label htmlFor="email">Email Fiscal *</Label>
-              <Input
-                id="email"
-                type="email"
-                value={fiscalInfo.email}
-                onChange={(e) => setFiscalInfo(prev => ({ ...prev, email: e.target.value }))}
-                placeholder="email@empresa.com"
-              />
-            </div>
-            <div>
-              <Label htmlFor="phone">Teléfono *</Label>
-              <Input
-                id="phone"
-                value={fiscalInfo.phone}
-                onChange={(e) => setFiscalInfo(prev => ({ ...prev, phone: e.target.value }))}
-                placeholder="+504 1234-5678"
-              />
-            </div>
-            <div className="md:col-span-2">
-              <Label htmlFor="businessAddress">Dirección Fiscal Completa *</Label>
-              <Textarea
-                id="businessAddress"
-                value={fiscalInfo.businessAddress}
-                onChange={(e) => setFiscalInfo(prev => ({ ...prev, businessAddress: e.target.value }))}
-                placeholder="Calle, Avenida, Ciudad, Departamento"
-                rows={3}
-              />
-            </div>
-          </div>
-          <div className="flex justify-end">
-            <Button onClick={saveFiscalInfo} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Guardando...' : 'Guardar Información'}
-            </Button>
-          </div>
-        </CardContent>
-        )}
-      </Card>
 
       {/* Logo Upload */}
       <Card>
@@ -1874,7 +1740,13 @@ export default function TenantSettingsPage() {
         {!previewCollapsed && (
           <CardContent>
           <InvoiceExample 
-            fiscalInfo={fiscalInfo}
+            fiscalInfo={{
+              rtn: tenantInfo.businessRTN,
+              businessName: tenantInfo.businessName,
+              businessAddress: tenantInfo.businessAddress,
+              email: tenantInfo.businessEmail,
+              phone: tenantInfo.phoneNumber
+            }}
             caiConfig={caiConfigs.length > 0 ? caiConfigs[0] : undefined}
             logoUrl={logoPreview || undefined}
             invoiceItems={invoiceItems}
