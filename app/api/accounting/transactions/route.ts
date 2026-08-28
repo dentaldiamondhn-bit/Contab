@@ -96,6 +96,21 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Validar que debitos = creditos (partida doble)
+    const totalDebitos = body.entries
+      .filter((e: any) => e.isDebit)
+      .reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+    const totalCreditos = body.entries
+      .filter((e: any) => !e.isDebit)
+      .reduce((sum: number, e: any) => sum + Number(e.amount), 0);
+
+    if (Math.abs(totalDebitos - totalCreditos) > 0.01) {
+      return NextResponse.json(
+        { error: `La partida no esta cuadrada. Debitos: ${totalDebitos.toFixed(2)} != Creditos: ${totalCreditos.toFixed(2)}` },
+        { status: 400 }
+      );
+    }
+
     // Convertir fechas de string a Date
     if (body.date) {
       body.date = new Date(body.date);

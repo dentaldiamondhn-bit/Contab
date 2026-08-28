@@ -3,21 +3,41 @@
 import { SignIn, useUser } from '@clerk/nextjs';
 import { Building2, Shield, Loader2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
-import { resolveUserPermissions } from '@/lib/auth-utils';
+import { useEffect, useRef } from 'react';
 
 export default function LoginPage() {
   const { isLoaded, isSignedIn, user } = useUser();
   const router = useRouter();
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    if (isLoaded && isSignedIn && user) {
-      const perms = resolveUserPermissions(user);
-      if (perms.isStaff) {
-        router.replace('/admin/dashboard');
-      } else {
-        router.replace('/dashboard');
-      }
+    if (isLoaded && isSignedIn && user && !redirectedRef.current) {
+      redirectedRef.current = true;
+
+      // Fetch role from DB (Supabase users table via /api/user/profile)
+      fetch('/api/user/profile')
+        .then(res => res.json())
+        .then(data => {
+          const dbRole = data?.user?.role;
+          const email = user.primaryEmailAddress?.emailAddress;
+          const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
+
+          console.log('Login redirect - DB role:', dbRole, 'email:', email);
+
+          if (dbRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
+            router.replace('/admin/dashboard');
+          } else if (dbRole === 'SUPPORT') {
+            router.replace('/support');
+          } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER') {
+            router.replace('/tenant-admin/dashboard');
+          } else {
+            router.replace('/dashboard');
+          }
+        })
+        .catch(() => {
+          // Fallback if API fails
+          router.replace('/dashboard');
+        });
     }
   }, [isLoaded, isSignedIn, user, router]);
 

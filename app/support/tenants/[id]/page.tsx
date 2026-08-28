@@ -144,16 +144,20 @@ export default function SupportTenantDetailPage() {
     return email.replace(/\+[^@]+@/, '@');
   };
 
-  // Módulos disponibles en el sistema
+  // Módulos disponibles en el sistema (excluyendo hidden y required)
   const availableModules = [
-    { id: 'accounting', name: 'Contabilidad', icon: '📊', description: 'Gestión contable completa' },
-    { id: 'billing', name: 'Facturación', icon: '🧾', description: 'Facturación electrónica' },
-    { id: 'reports', name: 'Reportes', icon: '📈', description: 'Reportes y análisis' },
-    { id: 'inventory', name: 'Inventario', icon: '📦', description: 'Control de inventario' },
-    { id: 'payroll', name: 'Nómina', icon: '💰', description: 'Gestión de nómina' },
-    { id: 'api', name: 'API Access', icon: '🔌', description: 'Acceso a API' },
-    { id: 'support', name: 'Soporte 24/7', icon: '🎧', description: 'Soporte técnico continuo' },
-    { id: 'customization', name: 'Personalización', icon: '⚙️', description: 'Personalización del sistema' }
+    { id: 'ACCOUNTING', name: 'Contabilidad Central', icon: '📊', description: 'Libros contables, asientos y transacciones' },
+    { id: 'FINANCIAL_STATEMENTS', name: 'Estados Financieros', icon: '📈', description: 'Balance General, Estado de Resultados, Flujo de Efectivo' },
+    { id: 'LEGAL_BOOKS', name: 'Libros Legales', icon: '📕', description: 'Libros legales y registros fiscales obligatorios' },
+    { id: 'BILLING', name: 'Facturación y Ventas', icon: '🧾', description: 'Facturación, ventas y gestión de clientes' },
+    { id: 'INVENTORY', name: 'Inventarios', icon: '📦', description: 'Gestión de inventario y kardex' },
+    { id: 'PURCHASES', name: 'Compras y Proveedores', icon: '🛒', description: 'Órdenes de compra, proveedores y gastos' },
+    { id: 'FINANCIAL_CONTROL', name: 'Control Financiero', icon: '💰', description: 'Presupuestos, flujos de efectivo y KPIs financieros' },
+    { id: 'REPORTS', name: 'Reportes y Análisis', icon: '📊', description: 'Reportes personalizados y análisis de datos' },
+    { id: 'SECURITY', name: 'Seguridad y Control', icon: '🔒', description: 'Auditoría, control de acceso y bitácoras' },
+    { id: 'TAX_REPORTING', name: 'Reportes Fiscales', icon: '🏛️', description: 'Reportes SAR, ISV, retenciones y declaraciones fiscales' },
+    { id: 'TAX_INTEGRATION', name: 'Integración con Impuestos', icon: '🔗', description: 'Integración automática con sistemas fiscales' },
+    { id: 'CONTACTS', name: 'Contactos (CRM)', icon: '👥', description: 'Gestión de clientes, proveedores y contactos' },
   ];
 
   const handleAddModule = async (moduleId: string) => {

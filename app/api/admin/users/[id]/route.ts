@@ -2,6 +2,7 @@
 import { auth } from '@clerk/nextjs/server';
 import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { supabase } from '@/lib/supabase-db';
+import { getUserRoleFromAuth } from '@/lib/auth-server';
 
 const clerk = createClerkClient({
   secretKey: process.env.CLERK_SECRET_KEY,
@@ -87,6 +88,12 @@ export async function PATCH(
 
     if (existingUser.email === SUPER_ADMIN_EMAIL) {
       return NextResponse.json({ error: 'No se puede modificar el super administrador principal' }, { status: 403 });
+    }
+
+    // SUPPORT role cannot modify SUPER_ADMIN users
+    const callerRole = (await getUserRoleFromAuth()).toUpperCase();
+    if (callerRole === 'SUPPORT' && existingUser.role?.toUpperCase() === 'SUPER_ADMIN') {
+      return NextResponse.json({ error: 'Los usuarios de soporte no pueden modificar super administradores' }, { status: 403 });
     }
 
     const updateData: any = {

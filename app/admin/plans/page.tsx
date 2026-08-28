@@ -49,7 +49,7 @@ export default function PlansPage() {
   const [tenantsList, setTenantsList] = useState<TenantInfo[]>([]);
   const [loadingTenants, setLoadingTenants] = useState(false);
 
-  const availableModules = Object.values(MODULES);
+  const availableModules = Object.values(MODULES).filter(m => !m.hidden && !m.required);
 
   const moduleCategories = [...new Set(availableModules.map(m => m.category))];
 

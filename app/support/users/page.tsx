@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import FooterPaginator from "@/components/admin/FooterPaginator";
-import { Eye, Key, Settings } from "lucide-react";
+import { Eye, Key, Settings, UserPlus } from "lucide-react";
 
 interface User {
   id: string;
@@ -14,6 +14,13 @@ interface User {
   tenantId?: string;
   tenantName?: string;
   createdAt: string;
+}
+
+interface Tenant {
+  id: string;
+  businessName: string;
+  businessRtn?: string;
+  tenantCode?: string;
 }
 
 // Función para limpiar email en frontend
@@ -42,38 +49,131 @@ export default function SupportUsersPage() {
   const [newPassword, setNewPassword] = useState('');
   const [showPasswordValue, setShowPasswordValue] = useState(false);
   const [updatingUser, setUpdatingUser] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [tenants, setTenants] = useState<Tenant[]>([]);
+  const [createFormData, setCreateFormData] = useState({
+    email: '',
+    firstName: '',
+    lastName: '',
+    tenantId: '',
+    role: 'USER',
+    password: ''
+  });
+  const [creatingUser, setCreatingUser] = useState(false);
+
+  // Fetch tenants
+  const fetchTenants = async () => {
+    try {
+      const response = await fetch('/api/tenants-api', { cache: 'no-store' });
+      if (response.ok) {
+        const data = await response.json();
+        const list = Array.isArray(data) ? data : (data.tenants || []);
+        setTenants(list.map((t: any) => ({
+          id: t.id,
+          businessName: t.businessName || t.businessname || t.business_name || '',
+          businessRtn: t.businessRtn || t.businessrtn || '',
+          tenantCode: t.tenantCode || t.tenant_code || '',
+        })));
+      }
+    } catch (err) {
+      console.warn('Error fetching tenants:', err);
+    }
+  };
+
+  useEffect(() => {
+    fetchTenants();
+  }, []);
+
+  const handleCreateUser = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCreatingUser(true);
+
+    if (!createFormData.tenantId) {
+      alert('Debe seleccionar una empresa');
+      setCreatingUser(false);
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/admin/tenants/${createFormData.tenantId}/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: createFormData.email,
+          firstName: createFormData.firstName,
+          lastName: createFormData.lastName,
+          username: `${createFormData.firstName.toLowerCase()}_${createFormData.lastName.toLowerCase()}`,
+          password: createFormData.password,
+          role: createFormData.role,
+        }),
+      });
+
+      if (response.ok) {
+        setShowCreateModal(false);
+        setCreateFormData({ email: '', firstName: '', lastName: '', tenantId: '', role: 'USER', password: '' });
+        fetchUsers(pagination.currentPage);
+      } else {
+        const error = await response.json();
+        alert(error.error || 'Error al crear usuario');
+      }
+    } catch (err) {
+      alert('Error al crear usuario');
+    } finally {
+      setCreatingUser(false);
+    }
+  };
 
   // Fetch users
   const fetchUsers = async (page = 1) => {
     try {
       setLoading(true);
-      const response = await fetch(
-        `/api/admin/users?page=${page}&limit=${pagination.itemsPerPage}&search=${searchTerm}&role=${roleFilter}&t=${Date.now()}`,
-        { cache: 'no-store' }
-      );
+      const response = await fetch(`/api/support/users`, { cache: 'no-store' });
       
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        console.error('API Error:', response.status, errorData);
-        throw new Error(errorData.error || `Error ${response.status}: ${response.statusText}`);
+        setUsers([]);
+        return;
+      }
+
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        setUsers([]);
+        return;
       }
 
       const data = await response.json();
-      console.log('Frontend API Response:', data);
-      console.log('Frontend Users count:', data.users?.length || 0);
-      console.log('Frontend First user:', data.users?.[0]);
-      console.log('Frontend First user email:', data.users?.[0]?.email);
-      console.log('Frontend First user role:', data.users?.[0]?.role);
-      setUsers(data.users || []);
+      const allUsers = data.users || [];
+
+      // Client-side filter
+      let filtered = allUsers;
+      if (searchTerm) {
+        const term = searchTerm.toLowerCase();
+        filtered = filtered.filter((u: User) =>
+          u.email?.toLowerCase().includes(term) ||
+          u.firstName?.toLowerCase().includes(term) ||
+          u.lastName?.toLowerCase().includes(term) ||
+          u.tenantName?.toLowerCase().includes(term)
+        );
+      }
+      if (roleFilter !== 'ALL') {
+        filtered = filtered.filter((u: User) => u.role === roleFilter);
+      }
+
+      // Client-side pagination
+      const totalItems = filtered.length;
+      const totalPages = Math.ceil(totalItems / pagination.itemsPerPage) || 1;
+      const start = (page - 1) * pagination.itemsPerPage;
+      const paged = filtered.slice(start, start + pagination.itemsPerPage);
+
+      setUsers(paged);
       setPagination({
         ...pagination,
         currentPage: page,
-        totalPages: data.pagination?.pages || 1,
-        totalItems: data.pagination?.total || 0,
+        totalPages,
+        totalItems,
       });
     } catch (err: any) {
-      console.error('Error fetching users:', err);
-      setError(err.message || 'Error al cargar usuarios');
+      console.warn('Error fetching users:', err.message);
+      setUsers([]);
     } finally {
       setLoading(false);
     }
@@ -167,9 +267,18 @@ export default function SupportUsersPage() {
   return (
     <div className="p-6">
       {/* Header */}
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">Ver Usuarios</h1>
-        <p className="text-gray-600">Vista de usuarios del sistema (solo lectura)</p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Usuarios</h1>
+          <p className="text-gray-600">Gestión de usuarios del sistema</p>
+        </div>
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 flex items-center"
+        >
+          <UserPlus className="w-4 h-4 mr-2" />
+          Crear Usuario
+        </button>
       </div>
 
       {/* Error Alert */}
@@ -282,7 +391,7 @@ export default function SupportUsersPage() {
                     {user.isActive ? "Activo" : "Inactivo"}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                   <div className="flex space-x-2">
                     <button
                       onClick={() => handleViewUser(user)}
@@ -291,20 +400,24 @@ export default function SupportUsersPage() {
                     >
                       <Eye className="w-5 h-5" />
                     </button>
-                    <button
-                      onClick={() => handleEditRole(user)}
-                      className="text-blue-600 hover:text-blue-900"
-                      title="Cambiar rol"
-                    >
-                      <Settings className="w-5 h-5" />
-                    </button>
-                    <button
-                      onClick={() => handleResetPassword(user)}
-                      className="text-green-600 hover:text-green-900"
-                      title="Resetear contraseña"
-                    >
-                      <Key className="w-5 h-5" />
-                    </button>
+                    {user.role?.toUpperCase() !== 'SUPER_ADMIN' && (
+                      <>
+                        <button
+                          onClick={() => handleEditRole(user)}
+                          className="text-blue-600 hover:text-blue-900"
+                          title="Cambiar rol"
+                        >
+                          <Settings className="w-5 h-5" />
+                        </button>
+                        <button
+                          onClick={() => handleResetPassword(user)}
+                          className="text-green-600 hover:text-green-900"
+                          title="Resetear contraseña"
+                        >
+                          <Key className="w-5 h-5" />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </td>
               </tr>
@@ -469,6 +582,7 @@ export default function SupportUsersPage() {
                 <div className="text-sm text-gray-500">
                   Usuario del sistema - Vista de solo lectura
                 </div>
+                {selectedUser?.role?.toUpperCase() !== 'SUPER_ADMIN' && (
                 <div className="flex space-x-3">
                   <button
                     onClick={() => {
@@ -496,6 +610,7 @@ export default function SupportUsersPage() {
                     Resetear Contraseña
                   </button>
                 </div>
+                )}
               </div>
             </div>
             
@@ -631,6 +746,129 @@ export default function SupportUsersPage() {
               >
                 {updatingUser ? 'Actualizando...' : 'Resetear Contraseña'}
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create User Modal */}
+      {showCreateModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg shadow-xl max-w-md w-full mx-4 max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">Crear Usuario</h2>
+              
+              <form onSubmit={handleCreateUser} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Empresa *</label>
+                  <select
+                    required
+                    value={createFormData.tenantId}
+                    onChange={(e) => setCreateFormData({...createFormData, tenantId: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="">Seleccionar empresa...</option>
+                    {tenants.map((tenant) => (
+                      <option key={tenant.id} value={tenant.id}>
+                        {tenant.businessName} {tenant.tenantCode ? `(${tenant.tenantCode})` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Email *</label>
+                  <input
+                    type="email"
+                    required
+                    value={createFormData.email}
+                    onChange={(e) => setCreateFormData({...createFormData, email: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    placeholder="usuario@ejemplo.com"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Nombre *</label>
+                    <input
+                      type="text"
+                      required
+                      value={createFormData.firstName}
+                      onChange={(e) => setCreateFormData({...createFormData, firstName: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Juan"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Apellido *</label>
+                    <input
+                      type="text"
+                      required
+                      value={createFormData.lastName}
+                      onChange={(e) => setCreateFormData({...createFormData, lastName: e.target.value})}
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                      placeholder="Pérez"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Rol *</label>
+                  <select
+                    value={createFormData.role}
+                    onChange={(e) => setCreateFormData({...createFormData, role: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                  >
+                    <option value="USER">Usuario</option>
+                    <option value="VIEWER">Viewer</option>
+                    <option value="MANAGER">Manager</option>
+                    <option value="ADMIN">Admin</option>
+                    <option value="ACCOUNTANT">Contador</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Contraseña *</label>
+                  <input
+                    type="password"
+                    required
+                    value={createFormData.password}
+                    onChange={(e) => setCreateFormData({...createFormData, password: e.target.value})}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-orange-500"
+                    placeholder="Mínimo 8 caracteres"
+                    minLength={8}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCreateModal(false);
+                      setCreateFormData({ email: '', firstName: '', lastName: '', tenantId: '', role: 'USER', password: '' });
+                    }}
+                    className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+                    disabled={creatingUser}
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 disabled:opacity-50 flex items-center"
+                    disabled={creatingUser}
+                  >
+                    {creatingUser ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Creando...
+                      </>
+                    ) : (
+                      'Crear Usuario'
+                    )}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </div>

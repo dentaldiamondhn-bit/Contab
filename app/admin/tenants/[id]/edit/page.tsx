@@ -53,7 +53,7 @@ export default function EditTenantPage() {
     modules: [] as PlanModuleConfig[],
   });
 
-  const availableModules = Object.values(MODULES);
+  const availableModules = Object.values(MODULES).filter(m => !m.hidden && !m.required);
 
   const moduleCategories = [...new Set(availableModules.map(m => m.category))];
 

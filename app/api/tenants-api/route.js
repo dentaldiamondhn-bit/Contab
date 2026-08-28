@@ -7,25 +7,34 @@ export async function GET(request) {
   try {
     console.log('API: Loading tenants with enriched data from database...');
 
-    const supabase = createServiceRoleClient();
-
-    // 1. Cargamos tenants y companies por separado para evitar el error PGRST200 (falta de FK)
-    // Usamos 'Tenant' (capitalizado) como sugiere el error de PostgREST y tu documentación
-    const [tenantsRes, companiesRes] = await Promise.all([
-      supabase.from('Tenant').select('*'),
-      supabase.from('companies').select('*')
-    ]);
-
-    if (tenantsRes.error || companiesRes.error) {
-      console.error('API: Database error:', tenantsRes.error || companiesRes.error);
-      return NextResponse.json(
-        { error: 'Failed to load tenants data' },
-        { status: 500 }
-      );
+    let supabase;
+    try {
+      supabase = createServiceRoleClient();
+    } catch (e) {
+      console.warn('Supabase client creation failed:', e.message);
+      return NextResponse.json([], { status: 200 });
     }
 
-    const tenants = tenantsRes.data;
-    const companies = companiesRes.data;
+    // 1. Cargamos tenants y companies por separado para evitar el error PGRST200 (falta de FK)
+    // Wrap both queries in try-catch so DNS/network failures don't crash the app
+    let tenants = null;
+    let companies = [];
+
+    try {
+      const tenantsResult = await supabase.from('Tenant').select('*');
+      tenants = tenantsResult.data;
+      if (tenantsResult.error) throw tenantsResult.error;
+    } catch (e) {
+      console.warn('Tenant query failed (Supabase unreachable?):', e.message || e);
+      return NextResponse.json([], { status: 200 });
+    }
+
+    try {
+      const companiesResult = await supabase.from('companies').select('*');
+      companies = companiesResult.data || [];
+    } catch (e) {
+      companies = [];
+    }
 
     if (!tenants || tenants.length === 0) {
       return NextResponse.json([], { status: 200 });
@@ -44,20 +53,34 @@ export async function GET(request) {
        // Buscamos la empresa en el mapa de forma ultra rápida
        const company = companiesMap.get(tenant.id);
        
-       return {
-         id: tenant.id,
-         businessName: company?.name || tenant.businessname || tenant.business_name || tenant.name || '',
-         businessRTN: company?.rtn || tenant.businessrtn || tenant.business_rtn || '',
-         businessEmail: company?.email || tenant.businessemail || tenant.business_email || '',
-         businessAddress: company?.address || tenant.businessaddress || tenant.business_address || '',
-         phoneNumber: company?.phone || company?.contact_phone || tenant.phonenumber || tenant.phone_number || '',
-         tenantCode: tenant.tenant_code || tenant.tenantCode || tenant.id,
-         industry: company?.industry || tenant.industry || '',
-         maxUsers: tenant.maxusers || tenant.max_users || company?.total_units || 5,
-         maxStorage: tenant.maxstorage || tenant.max_storage || 100,
-         isConfigurationComplete: !!company?.rtn || !!tenant.businessrtn,
-         isActive: tenant.isactive ?? tenant.is_active ?? true
-       };
+        // Parse modules from Tenant table - can be JSON array or comma-separated string
+        let activeModules = [];
+        try {
+          if (tenant.modules) {
+            if (typeof tenant.modules === 'string' && tenant.modules.startsWith('[')) {
+              const parsed = JSON.parse(tenant.modules);
+              activeModules = Array.isArray(parsed) ? parsed.map(function(m) { return typeof m === 'string' ? m : m.id || m.name; }) : [];
+            } else if (typeof tenant.modules === 'string') {
+              activeModules = tenant.modules.split(',').map(function(m) { return m.trim(); }).filter(Boolean);
+            }
+          }
+        } catch(e) { activeModules = []; }
+
+        return {
+          id: tenant.id,
+          businessName: company?.name || tenant.businessname || tenant.business_name || tenant.name || '',
+          businessRTN: company?.rtn || tenant.businessrtn || tenant.business_rtn || '',
+          businessEmail: company?.email || tenant.businessemail || tenant.business_email || '',
+          businessAddress: company?.address || tenant.businessaddress || tenant.business_address || '',
+          phoneNumber: company?.phone || company?.contact_phone || tenant.phonenumber || tenant.phone_number || '',
+          tenantCode: tenant.tenant_code || tenant.tenantCode || tenant.id,
+          industry: company?.industry || tenant.industry || '',
+          maxUsers: tenant.maxusers || tenant.max_users || company?.total_units || 5,
+          maxStorage: tenant.maxstorage || tenant.max_storage || 100,
+          isConfigurationComplete: !!company?.rtn || !!tenant.businessrtn,
+          isActive: tenant.isactive ?? tenant.is_active ?? true,
+          activeModules,
+        };
      });
 
     console.log(`API: Successfully loaded ${enrichedTenants.length} tenants from database`);
@@ -65,9 +88,7 @@ export async function GET(request) {
 
   } catch (error) {
     console.error('API: Unexpected error loading tenants:', error);
-    return NextResponse.json(
-      { error: 'Internal server error' },
-      { status: 500 }
-    );
+    // Return empty array instead of 500 — app degrades gracefully
+    return NextResponse.json([], { status: 200 });
   }
 }

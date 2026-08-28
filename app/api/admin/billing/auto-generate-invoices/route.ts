@@ -86,7 +86,35 @@ async function generateInvoiceForTenant(tenant: any, caiInfo: any) {
     }
 
     const totalTax = subtotal * 0.15;
-    const total = subtotal + totalTax;
+    let total = subtotal + totalTax;
+
+    // Aplicar créditos no usados del tenant
+    let creditApplied = 0;
+    let creditCompIds: string[] = [];
+    try {
+      const { data: credits } = await supabase
+        .from('TenantCompensation')
+        .select('id, amount')
+        .eq('tenantid', tenant.id)
+        .eq('type', 'CREDIT')
+        .eq('used', false)
+        .order('createdat', { ascending: true });
+
+      if (credits && credits.length > 0) {
+        let remaining = total;
+        for (const credit of credits) {
+          if (remaining <= 0) break;
+          const available = credit.amount || 0;
+          if (available <= 0) continue;
+          const toApply = Math.min(available, remaining);
+          creditApplied += toApply;
+          remaining -= toApply;
+          creditCompIds.push(credit.id);
+        }
+      }
+    } catch (e) {
+      // Table may not have 'used' column yet - ignore
+    }
 
     // Generar número de factura
     const invoiceNumber = `CONTAB-${tenant.tenant_code}-${now.getFullYear()}${(now.getMonth() + 1).toString().padStart(2, '0')}`;
@@ -112,7 +140,11 @@ async function generateInvoiceForTenant(tenant: any, caiInfo: any) {
       subtotal: subtotal,
       totalTax: totalTax,
       total: total,
-      notes: 'Factura generada automáticamente por el sistema',
+      creditApplied: creditApplied,
+      creditCompIds: creditCompIds,
+      notes: creditApplied > 0
+        ? `Factura generada automáticamente. Crédito aplicado: L ${creditApplied.toLocaleString()}`
+        : 'Factura generada automáticamente por el sistema',
       currency: 'HNL',
       taxRate: 15,
       status: 'ACTIVE',
@@ -195,7 +227,18 @@ export async function POST(req: NextRequest) {
         
         if (invoice) {
           generatedInvoices.push(invoice);
-          console.log(`✅ Factura generada para ${tenant.businessname}: ${invoice.invoiceNumber}`);
+          // Marcar créditos usados como utilizados
+          if (invoice.creditApplied > 0 && invoice.creditCompIds?.length > 0) {
+            try {
+              await supabase
+                .from('TenantCompensation')
+                .update({ used: true, usedat: new Date().toISOString() })
+                .in('id', invoice.creditCompIds);
+            } catch (e) {
+              // 'used' column may not exist yet
+            }
+          }
+          console.log(`✅ Factura generada para ${tenant.businessname}: ${invoice.invoiceNumber}${invoice.creditApplied > 0 ? ` (crédito: L${invoice.creditApplied})` : ''}`);
         }
       } catch (error) {
         console.error(`❌ Error procesando tenant ${tenant.id}:`, error);

@@ -18,6 +18,8 @@ export interface ModuleDef {
   limits?: ModuleLimitDef[];
   /** Si es true, el módulo siempre está activo y no se puede desactivar */
   required?: boolean;
+  /** Si es true, el módulo no se muestra en la UI pero sigue funcional */
+  hidden?: boolean;
 }
 
 export const MODULES: Record<string, ModuleDef> = {
@@ -137,6 +139,15 @@ export const MODULES: Record<string, ModuleDef> = {
     description: 'Soporte, actualizaciones y mantenimiento del sistema',
     category: 'support',
     required: true,
+  },
+
+  // API Access (hidden module - functional but not shown in UI)
+  API_ACCESS: {
+    id: 'API_ACCESS',
+    name: 'API Access',
+    description: 'Acceso a API para integraciones externas',
+    category: 'integration',
+    hidden: true,
   },
 } as const;
 

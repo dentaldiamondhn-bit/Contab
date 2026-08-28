@@ -35,17 +35,20 @@ export default function LoginPage() {
     (async () => {
       setQuitting(true);
       try {
-        const res = await fetch('/api/tenant/check-user-tenant', {
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (res.ok) {
-          const data = await res.json();
-          if (!data.hasTenant || data.needsOnboarding) {
-            router.replace('/onboarding');
-            return;
-          }
+        // Fetch role from DB to redirect to correct dashboard
+        const profileRes = await fetch('/api/user/profile');
+        const profileData = await profileRes.json();
+        const dbRole = profileData?.user?.role;
+
+        if (dbRole === 'SUPER_ADMIN') {
+          router.replace('/admin/dashboard');
+        } else if (dbRole === 'SUPPORT') {
+          router.replace('/support');
+        } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER') {
+          router.replace('/tenant-admin/dashboard');
+        } else {
+          router.replace('/dashboard');
         }
-        router.replace('/dashboard');
       } catch {
         router.replace('/dashboard');
       } finally {

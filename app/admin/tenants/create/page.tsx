@@ -54,7 +54,7 @@ export default function CreateTenantPage() {
     adminLastName: "",
   });
 
-  const availableModules = Object.values(MODULES);
+  const availableModules = Object.values(MODULES).filter(m => !m.hidden && !m.required);
 
   const moduleCategories = [...new Set(availableModules.map(m => m.category))];
 

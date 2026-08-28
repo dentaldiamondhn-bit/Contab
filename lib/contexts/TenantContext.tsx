@@ -16,7 +16,8 @@ interface Tenant {
   industry?: string;
   maxUsers?: number;
   maxStorage?: number;
-  isActive?: boolean; // Campo para el estado activo/inactivo del tenant
+  isActive?: boolean;
+  activeModules?: string[];
 }
 
 interface TenantContextType {
@@ -76,12 +77,21 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
     const savedTenant = localStorage.getItem('selected_tenant');
     
     if (isSuperAdmin) {
-      // REQUERIMIENTO: Al inicio, el modo cliente debe estar desactivado para Super Admin.
-      // Limpiamos el tenant seleccionado y la cookie para forzar el Modo Sistema por defecto.
-      setCurrentTenant(null);
-      document.cookie = `${IMPERSONATION_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;`;
-      setIsImpersonating(false); // Actualizar estado
-      console.log('TenantContext - Super Admin iniciado en Modo Sistema (Vista de cliente desactivada)');
+      // Verificar si hay cookie de impersonación activa (super admin entrando como tenant)
+      const impersonationCookie = document.cookie
+        .split('; ')
+        .find(c => c.startsWith(`${IMPERSONATION_COOKIE_NAME}=`));
+      const impersonatedTenantId = impersonationCookie?.split('=')[1];
+
+      if (impersonatedTenantId) {
+        setIsImpersonating(true);
+        console.log('TenantContext - Super Admin en modo impersonación, tenant:', impersonatedTenantId);
+      } else {
+        // Sin impersonación: modo sistema por defecto
+        setCurrentTenant(null);
+        setIsImpersonating(false);
+        console.log('TenantContext - Super Admin iniciado en Modo Sistema (Vista de cliente desactivada)');
+      }
       setHasCheckedInitialAdminState(true);
     } else if (savedTenant) {
       try {
@@ -111,8 +121,9 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         
         if (!response.ok) {
           if (response.status === 401) return;
-          console.error('TenantContext - API response not ok:', response.status, response.statusText);
-          throw new Error('Failed to load tenants from database');
+          // Don't throw on 500 — degrade gracefully with empty tenants
+          console.warn('TenantContext - API response not ok:', response.status, response.statusText);
+          return;
         }
         
         const databaseTenants = await response.json();
@@ -121,6 +132,31 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
         console.log('TenantContext - Loaded tenants from database:', databaseTenants.length);
 
         if (databaseTenants.length > 0) {
+          // Leer cookie directamente (evitar stale closure con isImpersonating)
+          const hasImpersonationCookie = document.cookie
+            .split('; ')
+            .some(c => c.startsWith(`${IMPERSONATION_COOKIE_NAME}=`));
+
+          // Si es super admin en modo impersonación, cargar el tenant de la cookie
+          if (isSuperAdmin && hasImpersonationCookie) {
+            const impersonationCookie = document.cookie
+              .split('; ')
+              .find(c => c.startsWith(`${IMPERSONATION_COOKIE_NAME}=`));
+            const impersonatedTenantId = impersonationCookie?.split('=')[1];
+
+            if (impersonatedTenantId) {
+              const tenant = databaseTenants.find((t: any) => t.id === impersonatedTenantId);
+              if (tenant) {
+                setCurrentTenant(tenant);
+                localStorage.setItem('selected_tenant', JSON.stringify(tenant));
+                localStorage.setItem('tenant_id', tenant.id);
+                setIsImpersonating(true);
+                console.log('TenantContext - Super Admin impersonando tenant:', tenant.businessName);
+              }
+            }
+            return;
+          }
+
           if (isSuperAdmin) {
             console.log('TenantContext - Super Admin en Modo Sistema, omitiendo auto-selección');
             return;
@@ -167,7 +203,7 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
      // Super Admin solo está impersonando si tiene currentTenant Y cookie de impersonación
      if (isSuperAdmin && currentTenant) {
        setIsImpersonating(document.cookie.includes(IMPERSONATION_COOKIE_NAME));
-     } else {
+     } else if (!currentTenant) {
        setIsImpersonating(false);
      }
    }, [isSuperAdmin, currentTenant]);

@@ -21,7 +21,11 @@ import {
   XCircle,
   Key,
   EyeOff,
-  Shield
+  Shield,
+  Paperclip,
+  X,
+  FileIcon,
+  Database
 } from "lucide-react";
 
 interface SupportTicket {
@@ -29,11 +33,28 @@ interface SupportTicket {
   subject: string;
   description: string;
   priority: 'low' | 'medium' | 'high' | 'urgent';
+  ticket_type: string;
   status: 'open' | 'in_progress' | 'resolved' | 'closed';
   user_email: string;
   user_name: string;
   tenant_name: string;
   tenant_code: string;
+  assigned_name?: string;
+  comments?: string;
+  attachments?: Array<{
+    name: string;
+    url: string;
+    size: number;
+    type: string;
+  }>;
+  timeline?: Array<{
+    type: 'created' | 'status_change' | 'comment';
+    message?: string;
+    from?: string;
+    to?: string;
+    user?: string;
+    timestamp: string;
+  }>;
   created_at: string;
   updated_at: string;
 }
@@ -107,6 +128,17 @@ export default function SupportDashboard() {
   const [showPassword, setShowPassword] = useState(false);
   const [resettingPassword, setResettingPassword] = useState(false);
   const [resetMessage, setResetMessage] = useState<{type: 'success' | 'error', text: string} | null>(null);
+
+  // Ticket detail modal state
+  const [selectedTicket, setSelectedTicket] = useState<SupportTicket | null>(null);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketReply, setTicketReply] = useState('');
+  const [updatingTicket, setUpdatingTicket] = useState(false);
+  const [confirmStatusModal, setConfirmStatusModal] = useState<{status: string} | null>(null);
+  const [commentFiles, setCommentFiles] = useState<File[]>([]);
+  const [selectedUserDetail, setSelectedUserDetail] = useState<SupportUser | null>(null);
+  const [showUserModal, setShowUserModal] = useState(false);
+  const [helpMessage, setHelpMessage] = useState('');
 
   useEffect(() => {
     loadSupportData();
@@ -323,6 +355,13 @@ export default function SupportDashboard() {
           <h1 className="text-2xl font-bold">Panel de Soporte Técnico</h1>
           <p className="text-gray-600">Gestión de soporte técnico y ayuda a usuarios</p>
         </div>
+        <a
+          href="/support/databases"
+          className="flex items-center gap-2 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
+        >
+          <Database className="h-4 w-4" />
+          Bases de Datos
+        </a>
       </div>
 
       {/* Estadísticas */}
@@ -441,11 +480,11 @@ export default function SupportDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedTicket(ticket); setShowTicketModal(true); setTicketReply(''); }}>
                           <Eye className="h-4 w-4 mr-1" />
                           Ver
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedTicket(ticket); setShowTicketModal(true); setTicketReply(''); }}>
                           <MessageSquare className="h-4 w-4 mr-1" />
                           Responder
                         </Button>
@@ -507,11 +546,11 @@ export default function SupportDashboard() {
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedUserDetail(user); setShowUserModal(true); }}>
                           <Eye className="h-4 w-4 mr-1" />
                           Ver
                         </Button>
-                        <Button size="sm" variant="outline">
+                        <Button size="sm" variant="outline" onClick={() => { setSelectedUserDetail(user); setHelpMessage(''); setShowUserModal(true); }}>
                           <MessageSquare className="h-4 w-4 mr-1" />
                           Ayudar
                         </Button>
@@ -773,6 +812,382 @@ export default function SupportDashboard() {
                   ) : (
                     'Actualizar Contraseña'
                   )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ticket Detail Modal */}
+      {showTicketModal && selectedTicket && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold text-gray-900">Detalle del Ticket</h2>
+                <button onClick={() => setShowTicketModal(false)} className="text-gray-400 hover:text-gray-600 text-2xl">&times;</button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <h3 className="text-lg font-semibold">{selectedTicket.subject}</h3>
+                  <div className="flex items-center space-x-2 mt-2">
+                    <Badge className={getPriorityColor(selectedTicket.priority)}>{selectedTicket.priority}</Badge>
+                    <Badge className={getStatusColor(selectedTicket.status)}>{selectedTicket.status}</Badge>
+                    {selectedTicket.ticket_type && (
+                      <Badge className="bg-purple-100 text-purple-800">{selectedTicket.ticket_type}</Badge>
+                    )}
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-1">Descripcion:</p>
+                  <p className="text-sm text-gray-600 whitespace-pre-wrap bg-gray-50 p-3 rounded">{selectedTicket.description}</p>
+                </div>
+
+                {selectedTicket.attachments && selectedTicket.attachments.length > 0 && (
+                  <div className="border-t pt-4">
+                    <p className="text-sm font-medium text-gray-700 mb-2">Archivos adjuntos:</p>
+                    <div className="space-y-1">
+                      {selectedTicket.attachments.map((att: any, i: number) => (
+                        <a
+                          key={i}
+                          href={att.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          <Paperclip className="w-3.5 h-3.5" />
+                          <span>{att.name}</span>
+                          <span className="text-xs text-gray-400">({att.size < 1024 * 1024 ? (att.size / 1024).toFixed(1) + ' KB' : (att.size / (1024 * 1024)).toFixed(1) + ' MB'})</span>
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-700">Solicitado por:</p>
+                    <p className="text-gray-600">{selectedTicket.user_name} ({selectedTicket.user_email})</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700">Tenant:</p>
+                    <p className="text-gray-600">{selectedTicket.tenant_name} ({selectedTicket.tenant_code})</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700">Asignado a:</p>
+                    <p className="text-gray-600">{selectedTicket.assigned_name || 'Sin asignar'}</p>
+                  </div>
+                  <div>
+                    <p className="font-medium text-gray-700">Fecha:</p>
+                    <p className="text-gray-600">{new Date(selectedTicket.created_at).toLocaleString('es-HN')}</p>
+                  </div>
+                </div>
+
+                <div className="border-t pt-4">
+                  <p className="text-sm font-medium text-gray-700 mb-3">Historial:</p>
+                  <div className="space-y-3 max-h-60 overflow-y-auto mb-4">
+                    {(!selectedTicket.timeline || selectedTicket.timeline.length === 0) ? (
+                      <p className="text-sm text-gray-400 italic">Sin eventos registrados</p>
+                    ) : (
+                      selectedTicket.timeline.slice().reverse().map((event: any, i: number) => (
+                        <div key={i} className="flex gap-3">
+                          <div className="flex flex-col items-center">
+                            <div className={`w-3 h-3 rounded-full mt-1 ${
+                              event.type === 'created' ? 'bg-green-500' :
+                              event.type === 'status_change' ? 'bg-blue-500' :
+                              event.type === 'comment' ? 'bg-yellow-500' :
+                              'bg-gray-400'
+                            }`} />
+                            {i < (selectedTicket.timeline?.length || 0) - 1 && <div className="w-px flex-1 bg-gray-200 mt-1" />}
+                          </div>
+                          <div className="pb-3 flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded ${
+                                event.type === 'created' ? 'bg-green-100 text-green-700' :
+                                event.type === 'status_change' ? 'bg-blue-100 text-blue-700' :
+                                event.type === 'comment' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {event.type === 'created' ? 'Creado' :
+                                 event.type === 'status_change' ? `${event.from || 'abierto'} → ${event.to}` :
+                                 event.type === 'comment' ? 'Comentario' :
+                                 event.type}
+                              </span>
+                              <span className="text-xs text-gray-400">{event.timestamp}</span>
+                              {event.user && <span className="text-xs text-gray-500">por {event.user}</span>}
+                            </div>
+                            {event.message && <p className="text-sm text-gray-600 mt-1">{event.message}</p>}
+                            {event.attachments && event.attachments.length > 0 && (
+                              <div className="mt-1 space-y-0.5">
+                                {event.attachments.map((att: any, j: number) => (
+                                  <a key={j} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                                    <Paperclip className="w-3 h-3" />{att.name}
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                   {!['closed', 'resolved'].includes(selectedTicket.status) && (
+                    <>
+                      <p className="text-sm font-medium text-gray-700 mb-2">Comentario:</p>
+                      <textarea
+                        value={ticketReply}
+                        onChange={(e) => setTicketReply(e.target.value)}
+                        placeholder="Escribe un comentario sobre la actualizacion del ticket..."
+                        rows={3}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-2"
+                      />
+                      <label className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 cursor-pointer mb-2">
+                        <Paperclip className="w-3.5 h-3.5" />
+                        <span>Adjuntar archivos</span>
+                        <input
+                          type="file"
+                          multiple
+                          className="hidden"
+                          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip"
+                          onChange={e => {
+                            if (e.target.files) {
+                              setCommentFiles(prev => [...prev, ...Array.from(e.target.files!)]);
+                            }
+                          }}
+                        />
+                      </label>
+                      {commentFiles.length > 0 && (
+                        <div className="mb-2 space-y-1">
+                          {commentFiles.map((file, i) => (
+                            <div key={i} className="flex items-center justify-between bg-white border rounded px-2 py-1">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <FileIcon className="w-3 h-3 text-gray-400 shrink-0" />
+                                <span className="text-xs text-gray-600 truncate">{file.name}</span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setCommentFiles(prev => prev.filter((_, j) => j !== i))}
+                                className="text-gray-400 hover:text-red-500 shrink-0"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        disabled={updatingTicket || (!ticketReply.trim() && commentFiles.length === 0)}
+                        onClick={async () => {
+                          setUpdatingTicket(true);
+                          try {
+                            let uploadedAttachments: Array<{ name: string; url: string; size: number; type: string }> = [];
+                            if (commentFiles.length > 0) {
+                              for (const file of commentFiles) {
+                                const fd = new FormData();
+                                fd.append('file', file);
+                                fd.append('ticketId', selectedTicket.id);
+                                const uploadRes = await fetch('/api/support/tickets/attachments', { method: 'POST', body: fd });
+                                if (uploadRes.ok) {
+                                  const uploadData = await uploadRes.json();
+                                  uploadedAttachments.push(uploadData.attachment);
+                                }
+                              }
+                            }
+                            const res = await fetch('/api/support/tickets', {
+                              method: 'PUT',
+                              headers: { 'Content-Type': 'application/json' },
+                              body: JSON.stringify({
+                                ticketId: selectedTicket.id,
+                                comment: ticketReply || undefined,
+                                attachments: uploadedAttachments.length > 0 ? uploadedAttachments : undefined
+                              })
+                            });
+                            const data = await res.json();
+                            if (data.ticket) {
+                              setSelectedTicket(data.ticket);
+                              setTickets(prev => prev.map(t => t.id === selectedTicket.id ? data.ticket : t));
+                            }
+                            setTicketReply('');
+                            setCommentFiles([]);
+                          } catch (e) { console.error(e); }
+                          setUpdatingTicket(false);
+                        }}
+                      >
+                        Comentar
+                      </Button>
+                      <p className="text-sm font-medium text-gray-700 mt-3 mb-2">Actualizar estado:</p>
+                      <div className="flex gap-2 flex-wrap">
+                        {['open', 'in_progress', 'resolved', 'closed'].map(s => (
+                          <Button
+                            key={s}
+                            size="sm"
+                            variant={selectedTicket.status === s ? 'default' : 'outline'}
+                            disabled={updatingTicket}
+                            onClick={() => {
+                              if (s === 'resolved' || s === 'closed') {
+                                setConfirmStatusModal({ status: s });
+                              } else {
+                                setUpdatingTicket(true);
+                                fetch('/api/support/tickets', {
+                                  method: 'PUT',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ ticketId: selectedTicket.id, status: s, comment: ticketReply || undefined })
+                                }).then(r => r.json()).then(data => {
+                                  if (data.ticket) {
+                                    setSelectedTicket(data.ticket);
+                                    setTickets(prev => prev.map(t => t.id === selectedTicket.id ? data.ticket : t));
+                                  }
+                                  setTicketReply('');
+                                }).catch(e => console.error(e)).finally(() => setUpdatingTicket(false));
+                              }
+                            }}
+                      >
+                        {s === 'open' ? 'Abierto' : s === 'in_progress' ? 'En Progreso' : s === 'resolved' ? 'Resuelto' : 'Cerrado'}
+                      </Button>
+                    ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-4 flex justify-end">
+                <Button variant="outline" onClick={() => setShowTicketModal(false)}>Cerrar</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {confirmStatusModal && selectedTicket && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 w-full max-w-sm shadow-xl">
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">
+              Cambiar estado a {confirmStatusModal.status === 'resolved' ? 'Resuelto' : 'Cerrado'}
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              {confirmStatusModal.status === 'resolved'
+                ? '¿Seguro que deseas marcar este ticket como Resuelto? Una vez resuelto, no se podran agregar mas comentarios ni cambios de estado.'
+                : '¿Seguro que deseas cerrar este ticket? Una vez cerrado, no se podran agregar mas comentarios ni cambios de estado.'}
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" size="sm" onClick={() => setConfirmStatusModal(null)}>
+                Cancelar
+              </Button>
+              <Button
+                size="sm"
+                className={confirmStatusModal.status === 'resolved' ? 'bg-green-600 hover:bg-green-700 text-white' : 'bg-red-600 hover:bg-red-700 text-white'}
+                disabled={updatingTicket}
+                onClick={async () => {
+                  setUpdatingTicket(true);
+                  try {
+                    const res = await fetch('/api/support/tickets', {
+                      method: 'PUT',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ ticketId: selectedTicket.id, status: confirmStatusModal.status, comment: ticketReply || undefined })
+                    });
+                    const data = await res.json();
+                    if (data.ticket) {
+                      setSelectedTicket(data.ticket);
+                      setTickets(prev => prev.map(t => t.id === selectedTicket.id ? data.ticket : t));
+                    }
+                    setTicketReply('');
+                  } catch (e) { console.error(e); }
+                  setUpdatingTicket(false);
+                  setConfirmStatusModal(null);
+                }}
+              >
+                {updatingTicket ? 'Procesando...' : 'Confirmar'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showUserModal && selectedUserDetail && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60]">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md shadow-xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Detalle del Usuario</h3>
+              <button onClick={() => setShowUserModal(false)} className="text-gray-400 hover:text-gray-600">
+                <XCircle className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="space-y-3 text-sm">
+              <div>
+                <p className="font-medium text-gray-700">Nombre:</p>
+                <p className="text-gray-600">{selectedUserDetail.firstName} {selectedUserDetail.lastName}</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Email:</p>
+                <p className="text-gray-600">{selectedUserDetail.email}</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Rol:</p>
+                <p className="text-gray-600">{selectedUserDetail.role}</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Tenant:</p>
+                <p className="text-gray-600">{selectedUserDetail.tenant_name} ({selectedUserDetail.tenant_code})</p>
+              </div>
+              <div>
+                <p className="font-medium text-gray-700">Estado:</p>
+                <Badge variant={selectedUserDetail.isActive ? 'default' : 'secondary'}>
+                  {selectedUserDetail.isActive ? 'Activo' : 'Inactivo'}
+                </Badge>
+              </div>
+              {selectedUserDetail.last_login && (
+                <div>
+                  <p className="font-medium text-gray-700">Ultimo login:</p>
+                  <p className="text-gray-600">{new Date(selectedUserDetail.last_login).toLocaleString('es-HN')}</p>
+                </div>
+              )}
+            </div>
+            <div className="mt-4 pt-4 border-t">
+              <p className="text-sm font-medium text-gray-700 mb-2">Enviar mensaje de ayuda:</p>
+              <textarea
+                value={helpMessage}
+                onChange={e => setHelpMessage(e.target.value)}
+                placeholder="Escribe un mensaje o instruccion para el usuario..."
+                rows={3}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-2"
+              />
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" size="sm" onClick={() => setShowUserModal(false)}>Cerrar</Button>
+                <Button
+                  size="sm"
+                  disabled={!helpMessage.trim()}
+                  onClick={async () => {
+                    try {
+                      const res = await fetch('/api/support/tickets', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          subject: `Ayuda para ${selectedUserDetail.firstName} ${selectedUserDetail.lastName}`,
+                          description: helpMessage,
+                          priority: 'medium',
+                          ticketType: 'support',
+                          userEmail: selectedUserDetail.email,
+                          userName: `${selectedUserDetail.firstName} ${selectedUserDetail.lastName}`.trim(),
+                          assignedTo: null,
+                          assignedName: null
+                        })
+                      });
+                      if (res.ok) {
+                        setHelpMessage('');
+                        setShowUserModal(false);
+                        fetchTickets();
+                      }
+                    } catch (e) { console.error(e); }
+                  }}
+                >
+                  Enviar Ayuda
                 </Button>
               </div>
             </div>

@@ -79,8 +79,8 @@ export default function TenantDetailPage() {
     password: ''
   });
 
-   // Módulos disponibles en el sistema (fuente canónica)
-   const availableModules = Object.values(MODULES).map(m => ({
+   // Módulos disponibles en el sistema (fuente canónica, excluyendo hidden y required)
+   const availableModules = Object.values(MODULES).filter(m => !m.hidden && !m.required).map(m => ({
      id: m.id,
      name: m.name,
      icon: m.category === 'main' ? '📒' :

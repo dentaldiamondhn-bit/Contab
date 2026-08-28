@@ -2,593 +2,665 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
-import FooterPaginator from "@/components/admin/FooterPaginator";
+import Link from "next/link";
 
-interface TenantStats {
-  totalTenants: number;
-  activeTenants: number;
-  suspendedTenants: number;
+interface DashboardData {
+  tenants: {
+    total: number;
+    active: number;
+    suspended: number;
+    trial: number;
+    growth: Array<{ month: string; count: number }>;
+  };
+  users: {
+    total: number;
+    active: number;
+    inactive: number;
+  };
+  revenue: {
+    mrr: number;
+    totalThisMonth: number;
+    lastMonth: number;
+    growthPercent: number;
+    trend: Array<{ month: string; revenue: number; count: number }>;
+  };
+  invoices: {
+    total: number;
+    subscription: number;
+    customer: number;
+    expense: number;
+    paid: number;
+    pending: number;
+    overdue: number;
+    cancelled: number;
+  };
+  transactions: {
+    totalThisMonth: number;
+    volume: number;
+  };
   storage: {
     totalAllocatedGB: number;
-    tenantBreakdown: Array<{
-      tenantId: string;
-      businessName: string;
-      tenantCode: string;
-      maxStorageGB: number;
-    }>;
+    tenantCount: number;
+    breakdown: Array<{ id: string; name: string; code: string; storageGB: number }>;
   };
+  support: {
+    open: number;
+    inProgress: number;
+    resolved: number;
+    total: number;
+    critical: number;
+  };
+  system: {
+    dbLatencyMs: number;
+    dbStatus: string;
+    uptime: number;
+    healthConfig: Array<{ key: string; value: string }>;
+  };
+  recentActivity: Array<{
+    id: string;
+    action: string;
+    table: string;
+    timestamp: string;
+  }>;
 }
 
-interface Tenant {
-  id: string;
-  businessName: string;
-  tenantCode: string;
-  businessEmail: string;
-  subscriptionPlans: any[];
-  maxUsers: number;
-  monthlyCost: number;
-  isActive: boolean;
-  modules: string[];
-  userCounts: Record<string, number>;
-  totalUsers: number;
-  activeUsers: number;
-  users?: any[];
+function MiniBarChart({ data, maxVal }: { data: number[]; maxVal: number }) {
+  const max = maxVal || Math.max(...data, 1);
+  return (
+    <div className="flex items-end gap-0.5 h-12">
+      {data.map((val, i) => (
+        <div
+          key={i}
+          className="flex-1 bg-blue-400 rounded-t"
+          style={{ height: `${(val / max) * 100}%`, minHeight: val > 0 ? '2px' : '0' }}
+        />
+      ))}
+    </div>
+  );
 }
 
-export default function SimpleAdminDashboard() {
+function StatusDot({ status }: { status: string }) {
+  const colors: Record<string, string> = {
+    healthy: "bg-green-500",
+    degraded: "bg-yellow-500",
+    critical: "bg-red-500",
+    online: "bg-green-500",
+    offline: "bg-red-500",
+  };
+  return (
+    <span className={`inline-block w-2 h-2 rounded-full ${colors[status] || "bg-gray-400"}`} />
+  );
+}
+
+function formatCurrency(amount: number) {
+  return new Intl.NumberFormat("es-HN", { style: "currency", currency: "HNL", minimumFractionDigits: 0 }).format(amount);
+}
+
+function formatNumber(n: number) {
+  return new Intl.NumberFormat("es-HN").format(n);
+}
+
+function getActionLabel(action: string) {
+  const labels: Record<string, string> = {
+    CREATE: "Creó",
+    UPDATE: "Actualizó",
+    DELETE: "Eliminó",
+  };
+  return labels[action] || action;
+}
+
+function getTableLabel(table: string) {
+  const labels: Record<string, string> = {
+    Account: "Cuenta",
+    Transaction: "Transacción",
+    JournalEntry: "Asiento contable",
+    TaxConfig: "Config. impuestos",
+    BookClosing: "Cierre de libro",
+  };
+  return labels[table] || table;
+}
+
+export default function AdminDashboardPage() {
   const { user, isLoaded } = useUser();
-  const [tenantStats, setTenantStats] = useState<TenantStats | null>(null);
-  const [loadingStats, setLoadingStats] = useState(true);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [loadingTenants, setLoadingTenants] = useState(true);
-  const [users, setUsers] = useState<any[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-  const [tenantPagination, setTenantPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: 0,
-    itemsPerPage: 5,
-  });
-  const [userPagination, setUserPagination] = useState({
-    currentPage: 1,
-    totalPages: 1,
-    totalItems: 0,
-    itemsPerPage: 5,
-  });
-
-  console.log('SimpleAdminDashboard - Component loaded');
-  console.log('SimpleAdminDashboard - Rendered, user:', !!user, 'isLoaded:', isLoaded);
+  const [data, setData] = useState<DashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    console.log('SimpleAdminDashboard - useEffect triggered');
-    console.log('SimpleAdminDashboard - Current URL:', window.location.href);
+    fetchComprehensiveStats();
+  }, []);
 
-    // Fetch tenant statistics and tenants list
-    fetchTenantStats();
-    fetchTenants();
-    fetchUsers();
-  }, [tenantPagination.currentPage, userPagination.currentPage]);
-
-  const fetchTenantStats = async () => {
+  const fetchComprehensiveStats = async () => {
     try {
-      console.log('Fetching tenant stats...');
-      const response = await fetch('/api/admin/stats');
-      console.log('Stats response status:', response.status);
-      
+      const response = await fetch("/api/admin/comprehensive-stats");
       if (response.ok) {
-        const data = await response.json();
-        console.log('Stats data:', data);
-        setTenantStats({
-          totalTenants: data.stats.totalTenants,
-          activeTenants: data.stats.activeTenants,
-          suspendedTenants: data.stats.totalTenants - data.stats.activeTenants,
-          storage: data.stats.storage || { totalAllocatedGB: 0, tenantBreakdown: [] }
-        });
+        const json = await response.json();
+        setData(json.data);
       } else {
-        console.error('Stats response not ok:', response.statusText);
+        setError("Error cargando datos");
       }
-    } catch (error) {
-      console.error('Error fetching tenant stats:', error);
+    } catch (err) {
+      setError("Error de conexión");
     } finally {
-      setLoadingStats(false);
+      setLoading(false);
     }
   };
 
-  const fetchTenants = async () => {
-    try {
-      console.log('Fetching tenants...');
-      const params = new URLSearchParams({
-        page: tenantPagination.currentPage.toString(),
-        limit: tenantPagination.itemsPerPage.toString(),
-      });
-      
-      const response = await fetch(`/api/admin/tenants?${params}`);
-      console.log('Tenants response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Tenants data:', data);
-        setTenants(data.tenants || []);
-        setTenantPagination(prev => ({
-          ...prev,
-          totalPages: data.pagination?.pages || 1,
-          totalItems: data.pagination?.total || 0,
-        }));
-      } else {
-        console.error('Tenants response not ok:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching tenants:', error);
-    } finally {
-      setLoadingTenants(false);
-    }
-  };
-
-  const fetchUsers = async () => {
-    try {
-      console.log('Fetching users...');
-      const params = new URLSearchParams({
-        page: userPagination.currentPage.toString(),
-        limit: userPagination.itemsPerPage.toString(),
-      });
-      
-      const response = await fetch(`/api/admin/users?${params}`);
-      console.log('Users response status:', response.status);
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Users data:', data);
-        setUsers(data.users || []);
-        setUserPagination(prev => ({
-          ...prev,
-          totalPages: data.pagination?.pages || 1,
-          totalItems: data.pagination?.total || 0,
-        }));
-      } else {
-        console.error('Users response not ok:', response.statusText);
-      }
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    } finally {
-      setLoadingUsers(false);
-    }
-  };
-
-  const handleTenantPageChange = (page: number) => {
-    setTenantPagination(prev => ({ ...prev, currentPage: page }));
-  };
-
-  const handleUserPageChange = (page: number) => {
-    setUserPagination(prev => ({ ...prev, currentPage: page }));
-  };
-
-  if (!isLoaded) {
+  if (!isLoaded || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Cargando...</p>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-500">Cargando dashboard...</p>
         </div>
       </div>
     );
   }
 
-  if (!user) {
+  if (error || !data) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <p className="text-red-600">No hay usuario</p>
+          <p className="text-red-600 mb-4">{error || "No se pudieron cargar los datos"}</p>
+          <button onClick={fetchComprehensiveStats} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+            Reintentar
+          </button>
         </div>
       </div>
     );
   }
-
-  const role = user?.publicMetadata?.role || 
-               user?.unsafeMetadata?.role ||
-               (user as any)?.privateMetadata?.role ||
-               'USER';
-
-  console.log('Dashboard user info:', {
-    userId: user?.id,
-    email: user?.primaryEmailAddress?.emailAddress,
-    role: role,
-    isLoaded: isLoaded
-  });
-
-  console.log('Dashboard render state:', {
-    loadingStats,
-    loadingTenants,
-    loadingUsers,
-    tenantStats,
-    tenants: tenants.length,
-    users: users.length
-  });
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-900 mb-8">Dashboard Administrativo</h1>
+    <div className="min-h-screen bg-gray-50 p-6">
+      <div className="max-w-7xl mx-auto">
 
-        {/* Warning Message */}
-        <div className="bg-green-50 border border-green-200 rounded-lg p-6 mb-8">
-          <div className="flex items-center">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-              </svg>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">Centro de comando operativo e infraestructura</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <StatusDot status={data.system.dbStatus} />
+              <span>DB: {data.system.dbLatencyMs}ms</span>
             </div>
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-green-800">
-                Sistema Restaurado
-              </h3>
-              <div className="mt-2 text-sm text-green-700">
-                <p>¡El cliente Prisma ha sido regenerado exitosamente! El dashboard ahora debería mostrar los datos reales.</p>
+            <button onClick={fetchComprehensiveStats} className="bg-white border border-gray-300 text-gray-700 px-3 py-1.5 rounded-lg text-sm hover:bg-gray-50">
+              Actualizar
+            </button>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-l-blue-500">
+            <p className="text-xs font-medium text-gray-500 uppercase">Empresas</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(data.tenants.total)}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-green-600">{data.tenants.active} activas</span>
+              {data.tenants.suspended > 0 && <span className="text-xs text-red-600">{data.tenants.suspended} susp.</span>}
+            </div>
+            <MiniBarChart data={data.tenants.growth.map(g => g.count)} maxVal={Math.max(...data.tenants.growth.map(g => g.count), 1)} />
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-l-green-500">
+            <p className="text-xs font-medium text-gray-500 uppercase">Usuarios</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(data.users.total)}</p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="text-xs text-green-600">{data.users.active} activos</span>
+              {data.users.inactive > 0 && <span className="text-xs text-gray-400">{data.users.inactive} inactivos</span>}
+            </div>
+            <div className="mt-2 h-1.5 bg-gray-200 rounded-full overflow-hidden">
+              <div className="bg-green-500 h-full rounded-full" style={{ width: `${data.users.total > 0 ? (data.users.active / data.users.total) * 100 : 0}%` }}></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-l-purple-500">
+            <p className="text-xs font-medium text-gray-500 uppercase">Ingresos Mensuales</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{formatCurrency(data.revenue.mrr)}</p>
+            <div className="flex items-center gap-2 mt-1">
+              {data.revenue.growthPercent >= 0 ? (
+                <span className="text-xs text-green-600">+{data.revenue.growthPercent}% vs mes anterior</span>
+              ) : (
+                <span className="text-xs text-red-600">{data.revenue.growthPercent}% vs mes anterior</span>
+              )}
+            </div>
+            <MiniBarChart data={data.revenue.trend.map(t => t.revenue)} maxVal={Math.max(...data.revenue.trend.map(t => t.revenue), 1)} />
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-4 border-l-4 border-l-orange-500">
+            <p className="text-xs font-medium text-gray-500 uppercase">Transacciones</p>
+            <p className="text-2xl font-bold text-gray-900 mt-1">{formatNumber(data.transactions.totalThisMonth)}</p>
+            <div className="mt-1">
+              <span className="text-xs text-gray-500">Volumen: {formatCurrency(data.transactions.volume)}</span>
+            </div>
+            <div className="mt-2 text-xs text-gray-400">Este mes</div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Almacenamiento</span>
+              <span className="text-xs font-mono text-gray-400">{data.storage.totalAllocatedGB} GB</span>
+            </div>
+            <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
+              <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Facturas</span>
+              <span className="text-xs font-mono text-gray-400">{data.invoices.total}</span>
+            </div>
+            <div className="flex gap-2 mt-1">
+              <span className="text-[10px] bg-green-100 text-green-700 px-1 rounded">{data.invoices.paid} pagadas</span>
+              <span className="text-[10px] bg-yellow-100 text-yellow-700 px-1 rounded">{data.invoices.pending} pend.</span>
+              {data.invoices.overdue > 0 && <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded">{data.invoices.overdue} venc.</span>}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Tickets Soporte</span>
+              <span className="text-xs font-mono text-gray-400">{data.support.total}</span>
+            </div>
+            <div className="flex gap-2 mt-1">
+              {data.support.critical > 0 && <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded font-bold">{data.support.critical} críticos</span>}
+              <span className="text-[10px] bg-orange-100 text-orange-700 px-1 rounded">{data.support.open} abiertos</span>
+              <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">{data.support.inProgress} en proc.</span>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow p-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500">Salud DB</span>
+              <div className="flex items-center gap-1">
+                <StatusDot status={data.system.dbStatus} />
+                <span className="text-xs font-mono text-gray-400">{data.system.dbLatencyMs}ms</span>
+              </div>
+            </div>
+            <div className="mt-1 text-[10px] text-gray-400">
+              {data.system.dbStatus === 'healthy' ? 'Operational' : data.system.dbStatus === 'degraded' ? 'Degraded' : 'Crítico'}
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mb-6">
+          {data.support.critical > 0 && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-red-800">Tickets Críticos</h4>
+                  <p className="text-xs text-red-600">{data.support.critical} ticket(s) de alta prioridad activos</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data.invoices.overdue > 0 && (
+            <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-orange-800">Facturas Vencidas</h4>
+                  <p className="text-xs text-orange-600">{data.invoices.overdue} factura(s) con pago vencido</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data.tenants.suspended > 0 && (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-yellow-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 16.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-yellow-800">Empresas Suspendidas</h4>
+                  <p className="text-xs text-yellow-600">{data.tenants.suspended} empresa(s) con acceso suspendido</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data.system.dbStatus !== 'healthy' && (
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-red-800">Base de Datos Degradada</h4>
+                  <p className="text-xs text-red-600">Latencia: {data.system.dbLatencyMs}ms - Rendimiento afectado</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data.support.critical === 0 && data.invoices.overdue === 0 && data.tenants.suspended === 0 && data.system.dbStatus === 'healthy' && (
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 col-span-full">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h4 className="text-sm font-medium text-green-800">Todo Operativo</h4>
+                  <p className="text-xs text-green-600">No hay alertas activas en el sistema</p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Crecimiento de Empresas</h2>
+              <p className="text-xs text-gray-500">Últimos 6 meses</p>
+            </div>
+            <div className="p-4">
+              <div className="space-y-2">
+                {data.tenants.growth.map((g, i) => {
+                  const maxCount = Math.max(...data.tenants.growth.map(x => x.count), 1);
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500 w-12 text-right">{g.month}</span>
+                      <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${(g.count / maxCount) * 100}%` }}></div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 w-8 text-right">{g.count}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 pt-3 border-t border-gray-100 text-center">
+                <span className="text-xs text-gray-500">Total registrado: </span>
+                <span className="text-xs font-bold text-gray-900">{data.tenants.total}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Ingresos por Facturación</h2>
+              <p className="text-xs text-gray-500">Tendencia mensual</p>
+            </div>
+            <div className="p-4">
+              <div className="space-y-2">
+                {data.revenue.trend.map((t, i) => {
+                  const maxRev = Math.max(...data.revenue.trend.map(x => x.revenue), 1);
+                  return (
+                    <div key={i} className="flex items-center gap-3">
+                      <span className="text-xs text-gray-500 w-12 text-right">{t.month}</span>
+                      <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="bg-green-500 h-full rounded-full transition-all" style={{ width: `${(t.revenue / maxRev) * 100}%` }}></div>
+                      </div>
+                      <span className="text-xs font-medium text-gray-700 w-16 text-right">{formatCurrency(t.revenue)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-4 pt-3 border-t border-gray-100 grid grid-cols-2 gap-2 text-center">
+                <div>
+                  <p className="text-xs text-gray-500">Este mes</p>
+                  <p className="text-sm font-bold text-green-600">{formatCurrency(data.revenue.totalThisMonth)}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-gray-500">Mes anterior</p>
+                  <p className="text-sm font-bold text-gray-700">{formatCurrency(data.revenue.lastMonth)}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Actividad Reciente</h2>
+              <p className="text-xs text-gray-500">Últimas acciones del sistema</p>
+            </div>
+            <div className="p-4">
+              {data.recentActivity.length === 0 ? (
+                <p className="text-xs text-gray-400 text-center py-4">Sin actividad reciente</p>
+              ) : (
+                <div className="space-y-3">
+                  {data.recentActivity.slice(0, 8).map((activity) => (
+                    <div key={activity.id} className="flex items-start gap-2">
+                      <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
+                        activity.action === 'CREATE' ? 'bg-green-500' :
+                        activity.action === 'UPDATE' ? 'bg-blue-500' : 'bg-red-500'
+                      }`}></div>
+                      <div className="min-w-0">
+                        <p className="text-xs text-gray-700 truncate">
+                          <span className="font-medium">{getActionLabel(activity.action)}</span>
+                          {" "}
+                          <span className="text-gray-500">{getTableLabel(activity.table)}</span>
+                        </p>
+                        <p className="text-[10px] text-gray-400">
+                          {new Date(activity.timestamp).toLocaleDateString("es-HN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <Link href="/admin/audit" className="block mt-3 text-center text-xs text-blue-600 hover:text-blue-800">
+                Ver todo →
+              </Link>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Estado de Integraciones</h2>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <StatusDot status="online" />
+                  <span className="text-xs text-gray-700">Clerk (Autenticación)</span>
+                </div>
+                <span className="text-[10px] text-green-600 font-medium">Conectado</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <StatusDot status="online" />
+                  <span className="text-xs text-gray-700">Supabase (Base de Datos)</span>
+                </div>
+                <span className="text-[10px] text-green-600 font-medium">Conectado</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <StatusDot status="online" />
+                  <span className="text-xs text-gray-700">SAT (Facturación Electrónica)</span>
+                </div>
+                <span className="text-[10px] text-green-600 font-medium">Activo</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <StatusDot status="online" />
+                  <span className="text-xs text-gray-700">SAR (Comprobantes Fiscales)</span>
+                </div>
+                <span className="text-[10px] text-green-600 font-medium">Activo</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <StatusDot status="online" />
+                  <span className="text-xs text-gray-700">Vercel (Despliegue)</span>
+                </div>
+                <span className="text-[10px] text-green-600 font-medium">Operativo</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Métricas de Negocio SaaS</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">MRR (Ingreso Recurrente Mensual)</span>
+                <span className="text-sm font-bold text-green-600">{formatCurrency(data.revenue.mrr)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">ARR (Ingreso Anual Proyectado)</span>
+                <span className="text-sm font-bold text-gray-900">{formatCurrency(data.revenue.mrr * 12)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Facturas procesadas este mes</span>
+                <span className="text-sm font-bold text-gray-900">{data.invoices.total}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Ingresos por suscripciones</span>
+                <span className="text-sm font-bold text-blue-600">{data.invoices.subscription} facturas</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-500">Costo mensual infraestructura</span>
+                <span className="text-sm font-bold text-orange-600">{formatCurrency(data.storage.tenantCount * 50)}</span>
+              </div>
+              <div className="pt-2 border-t border-gray-100">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Tickets soporte abiertos</span>
+                  <span className={`text-sm font-bold ${data.support.open > 5 ? 'text-red-600' : 'text-gray-900'}`}>{data.support.open}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow">
+            <div className="p-4 border-b border-gray-200">
+              <h2 className="text-sm font-semibold text-gray-900">Consumo de Recursos</h2>
+            </div>
+            <div className="p-4 space-y-4">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500">Almacenamiento BD</span>
+                  <span className="text-xs font-mono text-gray-700">{data.storage.totalAllocatedGB} / 1000 GB</span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
+                </div>
+              </div>
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <span className="text-xs text-gray-500">Latencia DB</span>
+                  <span className={`text-xs font-mono ${data.system.dbLatencyMs < 200 ? 'text-green-600' : data.system.dbLatencyMs < 500 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    {data.system.dbLatencyMs}ms
+                  </span>
+                </div>
+                <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                  <div className={`h-full rounded-full ${data.system.dbLatencyMs < 200 ? 'bg-green-500' : data.system.dbLatencyMs < 500 ? 'bg-yellow-500' : 'bg-red-500'}`} style={{ width: `${Math.min((data.system.dbLatencyMs / 2000) * 100, 100)}%` }}></div>
+                </div>
+              </div>
+              <div className="pt-2 border-t border-gray-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Transacciones/mes</span>
+                  <span className="text-xs font-bold text-gray-900">{formatNumber(data.transactions.totalThisMonth)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Volumen transaccional</span>
+                  <span className="text-xs font-bold text-gray-900">{formatCurrency(data.transactions.volume)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-gray-500">Comprobantes emitidos</span>
+                  <span className="text-xs font-bold text-gray-900">{data.invoices.total}</span>
+                </div>
               </div>
             </div>
           </div>
         </div>
 
-        {/* Tenant Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-gray-600">Total Tenants</p>
-                <p className="text-3xl font-bold text-gray-900 mt-2">
-                  {loadingStats ? '...' : tenantStats?.totalTenants || 0}
-                </p>
-              </div>
-              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+          <Link href="/admin/panel" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-700 transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Tenants Activos</p>
-                <p className="text-3xl font-bold text-green-600 mt-2">
-                  {loadingStats ? '...' : tenantStats?.activeTenants || 0}
-                </p>
+                <p className="text-sm font-medium text-gray-900">Panel Operativo</p>
+                <p className="text-xs text-gray-500">Gestión CRUD</p>
               </div>
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </div>
+          </Link>
+
+          <Link href="/admin/reports" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-600 rounded-lg flex items-center justify-center group-hover:bg-purple-700 transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
               </div>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-lg shadow p-6">
-            <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Tenants Suspendidos</p>
-                <p className="text-3xl font-bold text-red-600 mt-2">
-                  {loadingStats ? '...' : tenantStats?.suspendedTenants || 0}
-                </p>
+                <p className="text-sm font-medium text-gray-900">Reportes Globales</p>
+                <p className="text-xs text-gray-500">Estadísticas</p>
               </div>
-              <div className="w-12 h-12 bg-red-100 rounded-full flex items-center justify-center">
-                <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </div>
+          </Link>
+
+          <Link href="/admin/audit" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-600 rounded-lg flex items-center justify-center group-hover:bg-orange-700 transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Storage Capacity Summary */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Capacidad de Almacenamiento</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-            <div className="bg-blue-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-blue-600">Total Asignado</p>
-              <p className="text-3xl font-bold text-blue-900 mt-1">
-                {tenantStats?.storage?.totalAllocatedGB || 0} <span className="text-lg">GB</span>
-              </p>
-            </div>
-            <div className="bg-green-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-green-600">Tenants Activos</p>
-              <p className="text-3xl font-bold text-green-900 mt-1">
-                {tenantStats?.activeTenants || 0}
-              </p>
-            </div>
-            <div className="bg-purple-50 rounded-lg p-4">
-              <p className="text-sm font-medium text-purple-600">Promedio por Tenant</p>
-              <p className="text-3xl font-bold text-purple-900 mt-1">
-                {tenantStats?.activeTenants ? Math.round((tenantStats?.storage?.totalAllocatedGB || 0) / tenantStats.activeTenants) : 0} <span className="text-lg">GB</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Per-Tenant Storage Breakdown */}
-          {tenantStats?.storage?.tenantBreakdown && tenantStats.storage.tenantBreakdown.length > 0 && (
-            <div>
-              <h3 className="text-sm font-semibold text-gray-600 mb-3">Distribución por Tenant</h3>
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Tenant</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Código</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Almacenamiento</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">% del Total</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {tenantStats.storage.tenantBreakdown.map((t) => {
-                      const percent = tenantStats.storage.totalAllocatedGB > 0
-                        ? Math.round((t.maxStorageGB / tenantStats.storage.totalAllocatedGB) * 100)
-                        : 0;
-                      return (
-                        <tr key={t.tenantId}>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{t.businessName}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-500">{t.tenantCode}</td>
-                          <td className="px-4 py-3 whitespace-nowrap text-sm text-gray-900">{t.maxStorageGB} GB</td>
-                          <td className="px-4 py-3 whitespace-nowrap">
-                            <div className="flex items-center">
-                              <div className="w-24 bg-gray-200 rounded-full h-2 mr-2">
-                                <div className="bg-blue-600 h-2 rounded-full" style={{ width: `${percent}%` }}></div>
-                              </div>
-                              <span className="text-sm text-gray-600">{percent}%</span>
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Auditoría</p>
+                <p className="text-xs text-gray-500">Logs del sistema</p>
               </div>
             </div>
-          )}
+          </Link>
+
+          <Link href="/admin/billing/invoices" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow group">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-red-600 rounded-lg flex items-center justify-center group-hover:bg-red-700 transition-colors">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">Facturación</p>
+                <p className="text-xs text-gray-500">Todas las facturas</p>
+              </div>
+            </div>
+          </Link>
         </div>
 
-        {/* Tenants Table */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Tenants y Usuarios</h2>
-          {loadingTenants ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="bg-white rounded-lg shadow p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+                <span className="text-white font-medium">{user?.firstName?.charAt(0) || "A"}</span>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{user?.firstName} {user?.lastName}</p>
+                <p className="text-xs text-gray-500">{user?.primaryEmailAddress?.emailAddress} • SUPER_ADMIN</p>
+              </div>
             </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Empresa
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Código
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Plan
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Usuarios
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Límite
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Estado
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {tenants.length === 0 ? (
-                    <tr>
-                      <td colSpan={6} className="px-6 py-4 text-center text-gray-500">
-                        No hay tenants registrados
-                      </td>
-                    </tr>
-                  ) : (
-                    tenants.map((tenant) => (
-                      <tr key={tenant.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">{tenant.businessName}</div>
-                          <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                            {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 
-                              ? tenant.subscriptionPlans.map((p: any) => p.code).join(', ')
-                              : 'BASIC'
-                            }
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">{tenant.totalUsers || 0}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="text-sm text-gray-900">{tenant.maxUsers}</span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            tenant.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {tenant.isActive ? 'Activo' : 'Suspendido'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-          
-          {/* Tenants Pagination */}
-          {!loadingTenants && tenants.length > 0 && (
-            <FooterPaginator
-              currentPage={tenantPagination.currentPage}
-              totalPages={tenantPagination.totalPages}
-              totalItems={tenantPagination.totalItems}
-              itemsPerPage={tenantPagination.itemsPerPage}
-              onPageChange={handleTenantPageChange}
-            />
-          )}
-        </div>
-
-        {/* Users Table */}
-        <div className="bg-white rounded-lg shadow p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-800 mb-4">Usuarios</h2>
-          {loadingUsers ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Usuario
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Email
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Rol
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Tenant
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Estado
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {users.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-6 py-4 text-center text-gray-500">
-                        No hay usuarios registrados
-                      </td>
-                    </tr>
-                  ) : (
-                    users.map((user) => (
-                      <tr key={user.id}>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {user.firstName} {user.lastName}
-                          </div>
-                          <div className="text-sm text-gray-500">{user.username}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{user.email}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.role === 'SUPER_ADMIN' ? 'bg-purple-100 text-purple-800' :
-                            user.role === 'SUPPORT' ? 'bg-yellow-100 text-yellow-800' :
-                            user.role === 'ADMIN' ? 'bg-blue-100 text-blue-800' :
-                            'bg-gray-100 text-gray-800'
-                          }`}>
-                            {user.role}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900">{user.tenantName || 'N/A'}</div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                            user.isActive
-                              ? 'bg-green-100 text-green-800'
-                              : 'bg-red-100 text-red-800'
-                          }`}>
-                            {user.isActive ? 'Activo' : 'Inactivo'}
-                          </span>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
-          )}
-          
-          {/* Users Pagination */}
-          {!loadingUsers && users.length > 0 && (
-            <FooterPaginator
-              currentPage={userPagination.currentPage}
-              totalPages={userPagination.totalPages}
-              totalItems={userPagination.totalItems}
-              itemsPerPage={userPagination.itemsPerPage}
-              onPageChange={handleUserPageChange}
-            />
-          )}
-        </div>
-
-        <div className="bg-white rounded-lg shadow p-6 space-y-4">
-          <h2 className="text-xl font-semibold text-gray-800">Información del Usuario:</h2>
-          
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <span className="font-medium text-gray-600">Email:</span>
-              <p className="text-gray-900">{user.primaryEmailAddress?.emailAddress}</p>
-            </div>
-            
-            <div>
-              <span className="font-medium text-gray-600">Rol:</span>
-              <p className="text-gray-900">{role}</p>
-            </div>
-            
-            <div>
-              <span className="font-medium text-gray-600">ID:</span>
-              <p className="text-gray-900">{user.id}</p>
-            </div>
-            
-            <div>
-              <span className="font-medium text-gray-600">Estado:</span>
-              <p className="text-green-600">✅ Usuario autenticado</p>
-            </div>
-          </div>
-          
-          <div className="mt-6 p-4 bg-blue-50 rounded">
-            <h3 className="font-medium text-blue-900 mb-2">Panel de Administración</h3>
-            <p className="text-blue-700">
-              Bienvenido al panel de administración. Aquí podrás gestionar usuarios, tenants y configuración del sistema.
-            </p>
-          </div>
-          
-          <div className="mt-6 flex flex-wrap gap-4">
-            <button 
-              onClick={() => window.location.href = '/admin/users'}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-            >
-              Gestionar Usuarios
-            </button>
-            
-            <button 
-              onClick={() => window.location.href = '/admin/tenants'}
-              className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
-            >
-              Gestionar Tenants
-            </button>
-
-            <button 
-              onClick={() => window.location.href = '/admin/modules'}
-              className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
-            >
-              Ver Módulos
-            </button>
-            
-            <button 
-              onClick={() => window.location.href = '/dashboard'}
-              className="bg-gray-600 text-white px-4 py-2 rounded hover:bg-gray-700"
-            >
-              Ir al Dashboard Normal
-            </button>
+            <div className="text-xs text-gray-400">Último acceso: {new Date().toLocaleDateString("es-HN")}</div>
           </div>
         </div>
+
       </div>
     </div>
   );

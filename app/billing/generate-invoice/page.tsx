@@ -19,10 +19,10 @@ import {
   Eye,
   Package,
   Search,
-  DollarSign
+  DollarSign,
+  Printer
 } from 'lucide-react';
 import { useTenant } from '@/lib/contexts/TenantContext';
-import InvoicePreview from '@/components/billing/InvoicePreview';
 import { createSupabaseClient } from '@/lib/supabase/client';
 
 interface InvoiceItem {
@@ -112,6 +112,48 @@ export default function GenerateInvoicePage() {
 
   // Preview mode
   const [showPreview, setShowPreview] = useState(false);
+
+  const handlePrint = () => {
+    const content = document.getElementById('invoice-preview');
+    if (!content) return;
+    const printWindow = window.open('', '_blank', 'width=800,height=600');
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html><head><title>Factura</title>
+      <style>
+        body { font-family: Arial, sans-serif; padding: 20px; color: #000; }
+        table { width: 100%; border-collapse: collapse; margin: 10px 0; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; text-align: left; font-size: 12px; }
+        th { background: #f3f4f6; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        .text-xs { font-size: 11px; }
+        .border-t { border-top: 1px solid #ccc; }
+        .mt-4 { margin-top: 16px; }
+        .mb-4 { margin-bottom: 16px; }
+        .flex { display: flex; }
+        .justify-between { justify-content: space-between; }
+        .justify-end { justify-content: flex-end; }
+        .py-1 { padding: 4px 0; }
+        .py-2 { padding: 8px 0; }
+        .p-3 { padding: 12px; }
+        .grid { display: grid; }
+        .grid-cols-4 { grid-template-columns: repeat(4, 1fr); }
+        .gap-3 { gap: 12px; }
+        .bg-gray-50 { background: #f9fafb; }
+        .bg-gray-100 { background: #f3f4f6; }
+        .rounded { border-radius: 4px; }
+        .w-full { width: 100%; }
+        @media print { body { padding: 0; } }
+      </style></head><body>
+      ${content.innerHTML}
+      </body></html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => { printWindow.print(); }, 300);
+  };
 
   // Get CAI info from localStorage
   const [caiInfo, setCaiInfo] = useState<any>(null);
@@ -208,7 +250,8 @@ export default function GenerateInvoicePage() {
   // Calculate totals
   const subtotal = items.reduce((sum: number, item: InvoiceItem) => sum + item.total, 0);
   const tax = items.reduce((sum: number, item: InvoiceItem) => sum + item.taxAmount, 0);
-  const total = subtotal + tax;
+  const discountAmount = discountType === 'percentage' ? subtotal * (discountValue / 100) : discountValue;
+  const total = subtotal - discountAmount + tax;
 
   const addItem = () => {
     // Usar el primer impuesto personalizado disponible o 15% como defecto
@@ -957,44 +1000,195 @@ export default function GenerateInvoicePage() {
         </Card>
 
         {/* Invoice Preview */}
-        {showPreview && caiInfo && (
+        {showPreview && (
           <Card className="mb-6">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Eye className="w-5 h-5" />
-                Vista Previa de Factura - Formato SAR
+              <CardTitle className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Eye className="w-5 h-5" />
+                  Vista Previa de Factura
+                </span>
+                <Button variant="outline" size="sm" onClick={handlePrint} className="flex items-center gap-2">
+                  <Printer className="w-4 h-4" />
+                  Imprimir
+                </Button>
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="border rounded-lg p-4 bg-gray-50">
-                <InvoicePreview
-                  tenant={currentTenant}
-                  caiInfo={caiInfo}
-                  invoiceItems={items}
-                  notes={notes}
-                />
+              <div className="border rounded-lg p-6 bg-white shadow-sm" id="invoice-preview">
+                {/* Header */}
+                <div className="text-center mb-6 border-b pb-4">
+                  <h2 className="text-xl font-bold text-gray-900">
+                    {currentTenant?.businessName || 'Mi Empresa'}
+                  </h2>
+                  <p className="text-sm text-gray-600">RTN: {currentTenant?.businessRTN || 'CF'}</p>
+                  <p className="text-sm text-gray-600">{currentTenant?.businessAddress || ''}</p>
+                  <p className="text-sm text-gray-600">
+                    {currentTenant?.businessEmail || ''} | {currentTenant?.phoneNumber || ''}
+                  </p>
+                  <h3 className="text-lg font-bold mt-4 text-gray-800 border-b-2 border-gray-800 inline-block px-4 pb-1">
+                    FACTURA
+                  </h3>
+                </div>
+
+                {/* CAI Info */}
+                {caiInfo && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs mb-4 bg-gray-50 p-3 rounded-lg">
+                    <div>
+                      <span className="font-semibold text-gray-600">CAI: </span>
+                      <span className="text-gray-800">{caiInfo.cai || 'N/A'}</span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-600">Rango: </span>
+                      <span className="text-gray-800">
+                        {String(caiInfo.rangeStart || 1).padStart(8, '0')} - {String(caiInfo.rangeEnd || 500).padStart(8, '0')}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-600">Fecha Limite: </span>
+                      <span className="text-gray-800">
+                        {caiInfo.expiryDate ? new Date(caiInfo.expiryDate).toLocaleDateString('es-HN') : 'N/A'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="font-semibold text-gray-600">No. Factura: </span>
+                      <span className="text-gray-800 font-mono">
+                        001-001-01-{String(caiInfo.currentNumber || 1).padStart(8, '0')}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Customer */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm mb-4 border rounded-lg p-3">
+                  <div>
+                    <span className="font-semibold text-gray-600">Cliente: </span>
+                    <span className="text-gray-800">{customer.name || 'Consumidor Final'}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-gray-600">RTN: </span>
+                    <span className="text-gray-800">{customer.rtn || 'CF'}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold text-gray-600">Fecha: </span>
+                    <span className="text-gray-800">{new Date().toLocaleDateString('es-HN')}</span>
+                  </div>
+                </div>
+
+                {/* Items Table */}
+                <div className="mb-4">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-100 border">
+                        <th className="text-left p-2 font-semibold">Cant.</th>
+                        <th className="text-left p-2 font-semibold">Descripcion</th>
+                        <th className="text-right p-2 font-semibold">P. Unitario</th>
+                        <th className="text-right p-2 font-semibold">15%</th>
+                        <th className="text-right p-2 font-semibold">18%</th>
+                        <th className="text-right p-2 font-semibold">Total</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {items.length === 0 ? (
+                        <tr className="border">
+                          <td colSpan={6} className="text-center p-4 text-gray-400 italic">
+                            Agrega items a la factura...
+                          </td>
+                        </tr>
+                      ) : (
+                        items.map((item) => {
+                          const tax15Amount = item.taxRate === 15 ? item.total * (15 / 115) : 0;
+                          const tax18Amount = item.taxRate === 18 ? item.total * (18 / 118) : 0;
+                          return (
+                            <tr key={item.id} className="border">
+                              <td className="p-2">{item.quantity}</td>
+                              <td className="p-2">{item.description}</td>
+                              <td className="p-2 text-right">{formatCurrency(item.unitPrice)}</td>
+                              <td className="p-2 text-right">{tax15Amount > 0 ? formatCurrency(tax15Amount) : '-'}</td>
+                              <td className="p-2 text-right">{tax18Amount > 0 ? formatCurrency(tax18Amount) : '-'}</td>
+                              <td className="p-2 text-right font-medium">{formatCurrency(item.total)}</td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Totals */}
+                <div className="flex justify-end">
+                  <div className="w-full md:w-1/3 border rounded-lg p-3">
+                    <div className="flex justify-between py-1 text-sm">
+                      <span className="text-gray-600">Subtotal:</span>
+                      <span>{formatCurrency(subtotal)}</span>
+                    </div>
+                    {discountAmount > 0 && (
+                      <div className="flex justify-between py-1 text-sm text-red-600">
+                        <span>Descuento:</span>
+                        <span>-{formatCurrency(discountAmount)}</span>
+                      </div>
+                    )}
+                    <div className="flex justify-between py-1 text-sm">
+                      <span className="text-gray-600">ISV 15%:</span>
+                      <span>{formatCurrency(items.reduce((sum, i) => sum + (i.taxRate === 15 ? i.unitPrice * i.quantity * 0.15 : 0), 0))}</span>
+                    </div>
+                    <div className="flex justify-between py-1 text-sm">
+                      <span className="text-gray-600">ISV 18%:</span>
+                      <span>{formatCurrency(items.reduce((sum, i) => sum + (i.taxRate === 18 ? i.unitPrice * i.quantity * 0.18 : 0), 0))}</span>
+                    </div>
+                    <div className="flex justify-between py-2 text-base font-bold border-t mt-1">
+                      <span>Total:</span>
+                      <span>{formatCurrency(total)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Notes */}
+                {notes && (
+                  <div className="mt-4 text-sm border-t pt-3">
+                    <span className="font-semibold text-gray-600">Notas: </span>
+                    <span className="text-gray-700">{notes}</span>
+                  </div>
+                )}
+
+                {/* Footer */}
+                <div className="mt-6 text-center text-xs text-gray-500 border-t pt-3">
+                  <p>Original: Cliente | Copia: Obligado Tributario Emisor</p>
+                  <p>Sistema de Facturacion: ContabHN</p>
+                  <p className="mt-1">Documento fiscal valido segun normativa SAR-HN</p>
+                </div>
               </div>
             </CardContent>
           </Card>
         )}
 
         {/* Actions */}
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-between items-center">
           <Button
             variant="outline"
-            onClick={() => router.push('/billing')}
-            disabled={loading}
+            onClick={() => setShowPreview(!showPreview)}
+            className="flex items-center gap-2"
           >
-            Cancelar
+            <Eye className="w-4 h-4" />
+            {showPreview ? 'Ocultar Vista Previa' : 'Vista Previa'}
           </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
-          >
-            <Save className="w-4 h-4" />
-            {loading ? 'Guardando...' : 'Guardar Factura'}
-          </Button>
+          <div className="flex gap-4">
+            <Button
+              variant="outline"
+              onClick={() => router.push('/billing')}
+              disabled={loading}
+            >
+              Cancelar
+            </Button>
+            <Button
+              onClick={handleSubmit}
+              disabled={loading}
+              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            >
+              <Save className="w-4 h-4" />
+              {loading ? 'Guardando...' : 'Guardar Factura'}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

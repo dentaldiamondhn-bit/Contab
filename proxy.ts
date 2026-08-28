@@ -1,4 +1,4 @@
-import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
+import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 
@@ -56,11 +56,9 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  // 2. Lógica de Impersonación para Super Admin
+  // 2. Fetch actual role from DB for ALL authenticated users (not just admin routes)
   let impersonatedId: string | undefined;
   
-  // La tabla users usa UUID para auth_id, pero Clerk usa strings como "user_xxx"
-  // Por lo tanto, buscamos por email para Super Admin
   if (userId) {
     try {
       const currentUserEmail = userEmail.toLowerCase();
@@ -70,8 +68,21 @@ export default clerkMiddleware(async (auth, req) => {
         .eq('email', currentUserEmail)
         .single();
       
-      if (userProfile?.role === 'SUPER_ADMIN') {
-        isSuperAdmin = true;
+      if (userProfile) {
+        actualRole = userProfile.role;
+        if (userProfile.role === 'SUPER_ADMIN') {
+          isSuperAdmin = true;
+        }
+      } else {
+        // DB lookup failed — try Clerk client as fallback
+        try {
+          const client = await clerkClient();
+          const clerkUser = await client.users.getUser(userId);
+          const clerkRole = (clerkUser.publicMetadata as any)?.role || (clerkUser.privateMetadata as any)?.role;
+          if (clerkRole && clerkRole !== 'USER') {
+            actualRole = clerkRole;
+          }
+        } catch {}
       }
     } catch (e) {}
   }
@@ -83,41 +94,42 @@ export default clerkMiddleware(async (auth, req) => {
     }
   }
 
-  // 3. Protección extra para rutas de administración - verificar rol desde users table
+  // Compute effective role: DB role takes priority, fall back to Clerk metadata
+  const effectiveRole = actualRole !== 'USER' ? actualRole : roleFromMetadata;
+
+  // 3. Protección extra para rutas de administración
   if (isAdmin) {
     if (!userId) {
       console.log(`🚫 [Middleware Proxy] ACCESS DENIED: No user ID for ${pathname}`);
       return NextResponse.redirect(new URL("/auth/login", req.url));
     }
     
-    try {
-      // Buscar el rol del usuario actual por email
-      const currentUserEmail = userEmail.toLowerCase();
-      const { data: userProfile, error: userError } = await supabase
-        .from('users')
-        .select('role,email')
-        .eq('email', currentUserEmail)
-        .single();
-      
-      if (!userError && userProfile) {
-        actualRole = userProfile.role;
-        if (userProfile.role === 'SUPER_ADMIN') {
-          isSuperAdmin = true;
-        }
-      }
-    } catch (error) {
-      console.error('Exception fetching user profile:', error);
-    }
-    
     const isAuthorized = isSuperAdmin || 
-                        actualRole === 'SUPER_ADMIN' || 
-                        actualRole === 'SUPPORT' ||
-                        actualRole === 'ADMIN' ||
-                        actualRole === 'MANAGER';
+                        effectiveRole === 'SUPER_ADMIN' || 
+                        effectiveRole === 'SUPPORT' ||
+                        effectiveRole === 'ADMIN' ||
+                        effectiveRole === 'MANAGER';
     
     if (!isAuthorized) {
       console.log(`🚫 [Middleware Proxy] ACCESS DENIED: User ${isProduction ? '[REDACTED]' : userEmail} tried to access ${pathname} without proper role. Actual role: ${actualRole}`);
       return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+  }
+
+  // 4. Redirect role-based users from /dashboard to their proper dashboards
+  const isDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+  if (isDashboardRoute && !isPublic) {
+    const impersonatedId = req.cookies.get('impersonated_tenant_id')?.value;
+    // Only redirect if NOT impersonating (impersonation = super admin viewing as tenant user)
+    if (!impersonatedId) {
+      if (isSuperAdmin || effectiveRole === 'SUPER_ADMIN') {
+        console.log(`🔄 [Middleware Proxy] Redirecting SUPER_ADMIN from ${pathname} to /admin/dashboard`);
+        return NextResponse.redirect(new URL("/admin/dashboard", req.url));
+      }
+      if (effectiveRole === 'SUPPORT') {
+        console.log(`🔄 [Middleware Proxy] Redirecting SUPPORT from ${pathname} to /support`);
+        return NextResponse.redirect(new URL("/support", req.url));
+      }
     }
   }
 

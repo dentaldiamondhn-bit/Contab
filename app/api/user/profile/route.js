@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
+import { createClient } from '@supabase/supabase-js';
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET() {
   try {
-    console.log('GET /api/user/profile - Using Clerk');
+    console.log('GET /api/user/profile - Using Clerk + Supabase');
     
     const { userId } = await auth();
     
@@ -17,13 +23,32 @@ export async function GET() {
     const client = await clerkClient();
     const user = await client.users.getUser(userId);
 
+    const clerkEmail = user.emailAddresses[0]?.emailAddress || '';
+
+    // Read role from Supabase users table (source of truth)
+    let dbRole = null;
+    try {
+      const { data: dbUser } = await supabase
+        .from('users')
+        .select('role,tenantid,firstname,lastname')
+        .eq('email', clerkEmail.toLowerCase())
+        .single();
+      if (dbUser) {
+        dbRole = dbUser.role;
+      }
+    } catch (e) {
+      console.log('Supabase lookup failed, falling back to Clerk metadata');
+    }
+
+    const finalRole = dbRole || (user.publicMetadata || {})?.role || 'USER';
+
     const userProfile = {
       id: user.id,
-      email: user.emailAddresses[0]?.emailAddress || '',
+      email: clerkEmail,
       first_name: user.firstName || '',
       last_name: user.lastName || '',
       phone: user.phoneNumbers[0]?.phoneNumber || null,
-      role: (user.publicMetadata || {})?.role || 'USER',
+      role: finalRole,
       company: (user.publicMetadata || {})?.company || null,
       department: (user.publicMetadata || {})?.department || null,
       timezone: (user.publicMetadata || {})?.timezone || 'America/Tegucigalpa',

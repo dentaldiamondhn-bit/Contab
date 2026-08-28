@@ -1,62 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-
-// Datos de ejemplo para desarrollo
-const mockCompanies = [
-  {
-    id: "1",
-    business_name: "Dental Diamond Center",
-    business_rtn: "08011999012345",
-    industry: "Servicios Profesionales",
-    regimen_tributario: "Régimen General",
-    actividad_economica: "Consultoría Dental",
-    direccion_fiscal: "Colonia Palmira, Tegucigalpa, Honduras",
-    telefono_fiscal: "+504 2234-5678",
-    email_fiscal: "contacto@dentaldiamond.com",
-    is_active: true,
-    created_at: "2024-01-15T10:30:00Z",
-    _count: {
-      polizas: 156,
-      accounts: 45,
-      talonarios: 8
-    }
-  },
-  {
-    id: "2",
-    business_name: "Clínica Médica San José",
-    business_rtn: "08011999067890",
-    industry: "Salud",
-    regimen_tributario: "Régimen General",
-    actividad_economica: "Servicios Médicos",
-    direccion_fiscal: "Boulevard Suyapa, Tegucigalpa, Honduras",
-    telefono_fiscal: "+504 2255-6789",
-    email_fiscal: "contacto@clinicamedica.com",
-    is_active: true,
-    created_at: "2024-01-20T14:15:00Z",
-    _count: {
-      polizas: 89,
-      accounts: 32,
-      talonarios: 5
-    }
-  },
-  {
-    id: "3",
-    business_name: "Laboratorio Dental Pro",
-    business_rtn: "08011999054321",
-    industry: "Salud",
-    regimen_tributario: "Régimen General",
-    actividad_economica: "Laboratorio Dental",
-    direccion_fiscal: "Avenida Morazán, San Pedro Sula, Honduras",
-    telefono_fiscal: "+504 2345-1234",
-    email_fiscal: "info@labdentalpro.com",
-    is_active: false,
-    created_at: "2024-01-10T09:30:00Z",
-    _count: {
-      polizas: 0,
-      accounts: 0,
-      talonarios: 0
-    }
-  }
-];
+import { createServiceRoleClient } from "@/lib/supabase/service-role";
 
 export async function GET(
   request: NextRequest,
@@ -64,15 +7,42 @@ export async function GET(
 ) {
   try {
     const { id: companyId } = await params;
-    
-    // Buscar la empresa por ID
-    const company = mockCompanies.find(c => c.id === companyId);
-    
-    if (!company) {
-      return NextResponse.json(
-        { error: "Empresa no encontrada" },
-        { status: 404 }
-      );
+    const supabase = createServiceRoleClient();
+
+    // Try companies table first, then Tenant table
+    let { data: company, error } = await supabase
+      .from("companies")
+      .select("*")
+      .eq("id", companyId)
+      .single();
+
+    if (error || !company) {
+      const { data: tenant, error: tenantError } = await supabase
+        .from("Tenant")
+        .select("*")
+        .eq("id", companyId)
+        .single();
+
+      if (tenantError || !tenant) {
+        return NextResponse.json(
+          { error: "Empresa no encontrada" },
+          { status: 404 }
+        );
+      }
+
+      company = {
+        id: tenant.id,
+        business_name: tenant.businessname || tenant.business_name || "",
+        business_rtn: tenant.businessrtn || tenant.business_rtn || "",
+        industry: tenant.industry || "",
+        regimen_tributario: "Regimen General",
+        actividad_economica: "",
+        direccion_fiscal: tenant.businessaddress || tenant.business_address || "",
+        telefono_fiscal: tenant.phonenumber || tenant.phone_number || "",
+        email_fiscal: tenant.businessemail || tenant.business_email || "",
+        is_active: tenant.isactive ?? tenant.is_active ?? true,
+        created_at: tenant.created_at || "",
+      };
     }
 
     return NextResponse.json(company);

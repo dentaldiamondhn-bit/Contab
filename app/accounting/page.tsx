@@ -245,16 +245,6 @@ export default function AccountingPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Botón de prueba */}
-          <div className="mb-4 p-3 bg-yellow-100 rounded-lg">
-            <p className="text-sm text-yellow-800 mb-2">Botón de prueba:</p>
-            <Link href={`/companies/${currentTenant?.id || 1}/accounting/book`}>
-              <Button className="bg-yellow-500 text-white">
-                IR A LIBROS CONTABLES (TEST)
-              </Button>
-            </Link>
-          </div>
-
           {/* Botón NUEVO LIBRO muy visible */}
           <div className="mb-4 p-4 bg-green-100 rounded-lg border-2 border-green-500">
             <p className="text-green-800 font-bold mb-2">🟢 BOTÓN NUEVO LIBRO (SIEMPRE VISIBLE):</p>

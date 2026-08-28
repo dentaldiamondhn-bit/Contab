@@ -36,7 +36,9 @@ import {
   CreditCard,
   PlusCircle,
   Table,
-  Grid3x3
+  Grid3x3,
+  Building2,
+  HardDrive
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase/standard-client';
 
@@ -189,6 +191,9 @@ export default function ContactsPage() {
   const [importDialog, setImportDialog] = useState(false);
   const [exportDialog, setExportDialog] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
+  const [showTenantReport, setShowTenantReport] = useState(true);
+  const [tenantReportData, setTenantReportData] = useState<any[]>([]);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   
   useEffect(() => {
@@ -196,7 +201,23 @@ export default function ContactsPage() {
     loadCompanies();
     loadTaxes();
     loadRetentions();
+    loadTenantReport();
   }, []);
+
+  const loadTenantReport = async () => {
+    setLoadingReport(true);
+    try {
+      const res = await fetch('/api/admin/contacts/report');
+      const data = await res.json();
+      if (res.ok) {
+        setTenantReportData(data.tenants || []);
+      }
+    } catch (error) {
+      console.error('Error loading tenant report:', error);
+    } finally {
+      setLoadingReport(false);
+    }
+  };
 
   const loadTaxes = async () => {
     try {
@@ -941,6 +962,23 @@ export default function ContactsPage() {
           </p>
         </div>
         <div className="flex space-x-2">
+          <Button
+            variant={showTenantReport ? "default" : "outline"}
+            onClick={() => setShowTenantReport(!showTenantReport)}
+            className={showTenantReport ? "bg-purple-600 hover:bg-purple-700 text-white" : ""}
+          >
+            {showTenantReport ? (
+              <>
+                <Users className="h-4 w-4 mr-2" />
+                Gestionar Contactos
+              </>
+            ) : (
+              <>
+                <Building2 className="h-4 w-4 mr-2" />
+                Reporte por Tenant
+              </>
+            )}
+          </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
               <Button className="bg-blue-600 hover:bg-blue-700">
@@ -1439,86 +1477,171 @@ export default function ContactsPage() {
         </Alert>
       )}
 
+      {/* Tenant Report */}
+      {showTenantReport && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 className="h-5 w-5" />
+              Reporte de Contactos por Tenant
+            </CardTitle>
+            <CardDescription>
+              Resumen de contactos y almacenamiento por empresa
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loadingReport ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-3 px-2 font-medium">Tenant</th>
+                      <th className="text-center py-3 px-2 font-medium">Estado</th>
+                      <th className="text-center py-3 px-2 font-medium">Contactos</th>
+                      <th className="text-center py-3 px-2 font-medium">Activos</th>
+                      <th className="text-center py-3 px-2 font-medium">Retenciones</th>
+                      <th className="text-center py-3 px-2 font-medium">Impuestos</th>
+                      <th className="text-left py-3 px-2 font-medium">
+                        <div className="flex items-center gap-1">
+                          <HardDrive className="h-4 w-4" />
+                          Almacenamiento
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tenantReportData.map((tenant) => (
+                      <tr key={tenant.tenantId} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-2">
+                          <div className="flex items-center gap-2">
+                            <Building2 className="h-4 w-4 text-gray-400" />
+                            <div>
+                              <div className="font-medium">{tenant.businessName}</div>
+                              <div className="text-xs text-gray-500">{tenant.tenantCode}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-3 px-2 text-center">
+                          <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                            tenant.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                          }`}>
+                            {tenant.isActive ? 'Activo' : 'Inactivo'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-2 text-center font-medium">{tenant.contactCount}</td>
+                        <td className="py-3 px-2 text-center">
+                          <span className="text-green-600">{tenant.activeContacts}</span>
+                        </td>
+                        <td className="py-3 px-2 text-center">{tenant.retentionCount}</td>
+                        <td className="py-3 px-2 text-center">{tenant.taxCount}</td>
+                        <td className="py-3 px-2">
+                          <div>
+                            <span className={`font-medium ${
+                              (tenant.storageBytes / (1024 * 1024 * 1024) / tenant.maxStorage * 100) > 90 ? 'text-red-600' :
+                              (tenant.storageBytes / (1024 * 1024 * 1024) / tenant.maxStorage * 100) > 70 ? 'text-yellow-600' : 'text-green-600'
+                            }`}>
+                              {tenant.storageUsed}
+                            </span>
+                            <span className="text-gray-400 text-xs ml-1">/ {tenant.maxStorage} GB</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search Bar */}
-      <Card>
-        <CardContent className="flex items-center space-x-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar por nombre, RTN, email..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filtros
-          </Button>
-          <div className="flex items-center border rounded-lg">
-            <Button
-              variant={viewMode === 'cards' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('cards')}
-              className="rounded-r-none"
-            >
-              <Grid3x3 className="h-4 w-4" />
+      {!showTenantReport && (
+        <Card>
+          <CardContent className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por nombre, RTN, email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <Button variant="outline" size="sm">
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros
             </Button>
-            <Button
-              variant={viewMode === 'table' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('table')}
-              className="rounded-l-none border-l"
-            >
-              <Table className="h-4 w-4" />
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="flex items-center border rounded-lg">
+              <Button
+                variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('cards')}
+                className="rounded-r-none"
+              >
+                <Grid3x3 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+                className="rounded-l-none border-l"
+              >
+                <Table className="h-4 w-4" />
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Customer Stats */}
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Contactos</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{customers.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {activeCustomers.length} activos
-            </p>
-          </CardContent>
-        </Card>
+      {!showTenantReport && (<div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Contactos</CardTitle>
+              <Users className="h-4 w-4 text-blue-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{customers.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {activeCustomers.length} activos
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Contactos Activos</CardTitle>
-            <CheckCircle2 className="h-4 w-4 text-green-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">{activeCustomers.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {((activeCustomers.length / customers.length) * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
-        </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Contactos Activos</CardTitle>
+              <CheckCircle2 className="h-4 w-4 text-green-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-green-600">{activeCustomers.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {((activeCustomers.length / customers.length) * 100).toFixed(1)}% del total
+              </p>
+            </CardContent>
+          </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Contactos Inactivos</CardTitle>
-            <AlertTriangle className="h-4 w-4 text-orange-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{inactiveCustomers.length}</div>
-            <p className="text-xs text-muted-foreground">
-              {((inactiveCustomers.length / customers.length) * 100).toFixed(1)}% del total
-            </p>
-          </CardContent>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Contactos Inactivos</CardTitle>
+              <AlertTriangle className="h-4 w-4 text-orange-600" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-orange-600">{inactiveCustomers.length}</div>
+              <p className="text-xs text-muted-foreground">
+                {((inactiveCustomers.length / customers.length) * 100).toFixed(1)}% del total
+              </p>
+            </CardContent>
         </Card>
-      </div>
+      </div>)}
 
       {/* Customer List */}
+      {!showTenantReport && (<>
       {viewMode === 'cards' ? (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredCustomers.map((customer) => (
@@ -1729,6 +1852,7 @@ export default function ContactsPage() {
           )}
         </div>
       )}
+      </>)}
 
       {/* Customer Details Dialog */}
       <Dialog open={showTaxDialog} onOpenChange={setShowTaxDialog}>

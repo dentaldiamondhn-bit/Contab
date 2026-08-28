@@ -157,40 +157,44 @@ export async function GET(
     // Obtener usuarios de Clerk para este tenant
     let clerkUsers: any[] = [];
     try {
-      const client = await clerkClient();
-      const allUsersResponse = await client.users.getUserList();
-      const allUsers = allUsersResponse.data;
-      console.log('🔍 Original API - Todos los usuarios en Clerk:', allUsers.length);
-      console.log('🔍 Original API - Buscando usuarios para tenantId:', id);
+      // Get users from Supabase User table for this tenant
+      const { data: dbUsers } = await supabaseAdmin
+        .from('User')
+        .select('*')
+        .eq('tenantid', id);
       
-      allUsers.forEach((user: any, index: number) => {
-        const metadata = user.publicMetadata as any;
-        console.log(`👤 Original API - Usuario ${index}:`, {
-          email: user.emailAddresses[0]?.emailAddress,
-          tenantId: metadata.tenantId,
-          role: metadata.role
+      console.log('DB users found for tenant:', dbUsers?.length || 0);
+
+      if (dbUsers && dbUsers.length > 0) {
+        // Try to match with Clerk users by email
+        const client = await clerkClient();
+        const allUsersResponse = await client.users.getUserList();
+        const allClerkUsers = allUsersResponse.data;
+
+        const clerkByEmail: Record<string, any> = {};
+        allClerkUsers.forEach((cu: any) => {
+          const email = cu.emailAddresses[0]?.emailAddress?.toLowerCase() || '';
+          if (email) clerkByEmail[email] = cu;
         });
-      });
-      
-      clerkUsers = allUsers.filter((user: any) => {
-        const metadata = user.publicMetadata as any;
-        return metadata.tenantId === id;
-      }).map((user: any) => ({
-        id: user.id,
-        email: user.emailAddresses[0]?.emailAddress || '',
-        firstName: user.firstName || '',
-        lastName: user.lastName || '',
-        role: (user.publicMetadata as any)?.role || 'USER',
-        tenantId: (user.publicMetadata as any)?.tenantId || '',
-        tenantCode: (user.publicMetadata as any)?.tenantCode || '',
-        isActive: true,
-        createdAt: user.createdAt,
-        lastLoginAt: new Date().toISOString()
-      }));
-      
-      console.log('📊 Original API - Usuarios de Clerk encontrados:', clerkUsers.length);
+
+        clerkUsers = dbUsers.map((u: any) => {
+          const email = (u.email || '').toLowerCase();
+          const clerkUser = clerkByEmail[email];
+          return {
+            id: clerkUser?.id || u.authid || u.id || '',
+            email: u.email || '',
+            firstName: clerkUser?.firstName || u.firstname || '',
+            lastName: clerkUser?.lastName || u.lastname || '',
+            role: u.role || 'USER',
+            tenantId: u.tenantid || id,
+            isActive: u.isactive !== false,
+            createdAt: clerkUser?.createdAt || u.createdat || u.created_at || new Date().toISOString(),
+            lastLoginAt: clerkUser?.lastSignInAt || new Date().toISOString()
+          };
+        });
+      }
     } catch (error) {
-      console.error('Error obteniendo usuarios de Clerk:', error);
+      console.error('Error obteniendo usuarios:', error);
     }
 
     const enrichedTenant = {

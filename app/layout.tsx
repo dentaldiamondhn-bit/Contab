@@ -7,6 +7,7 @@ import { TenantProvider } from "@/lib/contexts/TenantContext";
 import { UserProvider } from "@/contexts/UserContext";
 import { Toaster } from "sonner";
 import LayoutWrapper from "./components/LayoutWrapper";
+import ClerkErrorBoundary from "./components/ClerkErrorBoundary";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -38,16 +39,18 @@ export default function RootLayout({
      >
       <html lang="es-HN">
         <body className={inter.className}>
-          <UserProvider>
-            <TenantProvider>
-              <SidebarProvider>
-                <LayoutWrapper tenants={[]}>
-                  {children}
-                </LayoutWrapper>
-                <Toaster position="top-right" richColors />
-              </SidebarProvider>
-            </TenantProvider>
-          </UserProvider>
+          <ClerkErrorBoundary>
+            <UserProvider>
+              <TenantProvider>
+                <SidebarProvider>
+                  <LayoutWrapper tenants={[]}>
+                    {children}
+                  </LayoutWrapper>
+                  <Toaster position="top-right" richColors />
+                </SidebarProvider>
+              </TenantProvider>
+            </UserProvider>
+          </ClerkErrorBoundary>
         </body>
       </html>
     </ClerkProvider>

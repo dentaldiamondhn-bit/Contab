@@ -2,67 +2,45 @@
 
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 export default function AuthCallbackPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
+  const redirectedRef = useRef(false);
 
   useEffect(() => {
-    if (!isLoaded) return;
+    if (!isLoaded || !user || redirectedRef.current) return;
 
-    // Debug logging
-    console.log('AuthCallback - User data:', {
-      isLoaded,
-      hasUser: !!user,
-      userId: user?.id,
-      email: user?.primaryEmailAddress?.emailAddress,
-      metadata: user?.publicMetadata,
-      unsafeMetadata: user?.unsafeMetadata
-    });
+    redirectedRef.current = true;
 
-    if (user) {
-      // Try multiple sources for role metadata
-      const userRole = user.publicMetadata?.role || 
-                       user.unsafeMetadata?.role ||
-                       (user as any).privateMetadata?.role;
+    // Fetch role from DB (Supabase users table via /api/user/profile)
+    fetch('/api/user/profile')
+      .then(res => res.json())
+      .then(data => {
+        const dbRole = data?.user?.role;
+        const email = user.primaryEmailAddress?.emailAddress;
+        const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
 
-      console.log('AuthCallback - Detected role:', userRole);
+        console.log('AuthCallback - DB role:', dbRole, 'email:', email);
 
-      // Check if this is the specific SUPER_ADMIN email
-      const email = user.primaryEmailAddress?.emailAddress;
-      const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
-      
-      console.log('AuthCallback - Email check:', { email, isSuperAdminEmail });
+        let redirectUrl = '/dashboard';
 
-// Determine redirect based on role or email
-       let redirectUrl = '/dashboard'; // default
-       
-       if (userRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
-         redirectUrl = '/admin/dashboard';
-         console.log('AuthCallback - Redirecting SUPER_ADMIN to admin dashboard');
-       } else if (userRole === 'SUPPORT') {
-         redirectUrl = '/support/dashboard';
-         console.log('AuthCallback - Redirecting SUPPORT to support dashboard');
-       } else if (userRole === 'TENANT_ADMIN' || userRole === 'ADMIN') {
-         redirectUrl = '/tenant-admin/dashboard';
-         console.log('AuthCallback - Redirecting ADMIN/TENANT_ADMIN to tenant admin dashboard');
-       } else {
-         console.log('AuthCallback - Redirecting to regular dashboard');
-       }
+        if (dbRole === 'SUPER_ADMIN' || isSuperAdminEmail) {
+          redirectUrl = '/admin/dashboard';
+        } else if (dbRole === 'SUPPORT') {
+          redirectUrl = '/support';
+        } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER') {
+          redirectUrl = '/tenant-admin/dashboard';
+        }
 
-      console.log('AuthCallback - Final redirect URL:', redirectUrl);
-      
-      // Add a small delay to ensure everything is loaded
-      setTimeout(() => {
+        console.log('AuthCallback - Redirecting to:', redirectUrl);
         router.replace(redirectUrl);
-      }, 100);
-      
-    } else {
-      console.log('AuthCallback - No user found, redirecting to login');
-      // Si no hay usuario, redirigir al login
-      router.replace('/auth/login');
-    }
+      })
+      .catch(() => {
+        // Fallback if API fails
+        router.replace('/dashboard');
+      });
   }, [user, isLoaded, router]);
 
   return (

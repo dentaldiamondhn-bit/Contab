@@ -109,32 +109,40 @@ export default function ChatPage() {
       // Load users
       const usersResponse = await fetch(`/api/support/users`);
       if (usersResponse.ok) {
-        const usersData = await usersResponse.json();
-        const formattedUsers = usersData.users.map((user: any) => ({
-          id: user.id,
-          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
-          email: user.email,
-          role: user.role,
-          tenant: user.tenant_name && user.tenant_code ? {
-            id: '', // We don't have tenant ID from this endpoint
-            businessName: user.tenant_name,
-            tenantCode: user.tenant_code
-          } : null,
-          unreadCount: 0 // We'll calculate this later
-        }));
-        setUsers(formattedUsers);
+        try {
+          const usersData = await usersResponse.json();
+          const formattedUsers = (usersData.users || []).map((user: any) => ({
+            id: user.id,
+            name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+            email: user.email,
+            role: user.role,
+            tenant: user.tenant_name && user.tenant_code ? {
+              id: user.tenantId || '',
+              businessName: user.tenant_name,
+              tenantCode: user.tenant_code
+            } : null,
+            unreadCount: 0
+          }));
+          setUsers(formattedUsers);
+        } catch (e) {
+          console.warn('Failed to parse users response');
+        }
       }
       
       // Load tenants
       const tenantsResponse = await fetch(`/api/support/tenants`);
       if (tenantsResponse.ok) {
-        const tenantsData = await tenantsResponse.json();
-        const formattedTenants = tenantsData.tenants.map((tenant: any) => ({
-          id: tenant.id,
-          businessName: tenant.businessName,
-          tenantCode: tenant.tenantCode
-        }));
-        setTenants(formattedTenants);
+        try {
+          const tenantsData = await tenantsResponse.json();
+          const formattedTenants = (tenantsData.tenants || []).map((tenant: any) => ({
+            id: tenant.id,
+            businessName: tenant.businessName,
+            tenantCode: tenant.tenantCode
+          }));
+          setTenants(formattedTenants);
+        } catch (e) {
+          console.warn('Failed to parse tenants response');
+        }
       }
       
       // Load initial messages
@@ -161,8 +169,9 @@ export default function ChatPage() {
       
       const response = await fetch(url);
       if (response.ok) {
-        const data = await response.json();
-        const formattedMessages = data.messages.map((msg: any) => ({
+        try {
+          const data = await response.json();
+          const formattedMessages = (data.messages || []).map((msg: any) => ({
           id: msg.id,
           sender: {
             id: msg.sender.id,
@@ -206,6 +215,9 @@ export default function ChatPage() {
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 100);
+        } catch (e) {
+          console.warn('Failed to parse chat messages');
+        }
       }
     } catch (error) {
       console.error('Error loading messages:', error);

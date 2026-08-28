@@ -340,12 +340,71 @@ export async function GET(req: NextRequest) {
         }
       });
     } else {
-      // Get all invoices (for admin dashboard)
-      console.log('📄 Solicitando todas las facturas sin tenantId');
+      // Get all invoices (for admin dashboard or global views)
+      console.log('📄 Solicitando todas las facturas, tipo:', invoiceType);
+      
+      let query = supabase
+        .from('Invoice')
+        .select('*')
+        .order('createdAt', { ascending: false });
+
+      if (invoiceType) {
+        query = query.eq('invoiceType', invoiceType);
+      }
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data: allInvoices, error: allError } = await query;
+
+      if (allError) {
+        console.error('❌ Error consultando todas las facturas:', allError);
+        return NextResponse.json({
+          success: true,
+          invoices: [],
+          pagination: { page, limit, total: 0, totalPages: 0 }
+        });
+      }
+
+      console.log('✅ Total facturas encontradas:', allInvoices?.length || 0);
+
+      // Transform
+      const transformed = (allInvoices || []).map((inv: any) => ({
+        id: inv.id,
+        invoiceNumber: inv.invoiceNumber,
+        invoiceType: inv.invoiceType,
+        status: inv.status,
+        customerName: inv.customerName,
+        customerRTN: inv.customerRTN,
+        customerEmail: inv.customerEmail,
+        issuerName: inv.issuerName,
+        issuerRTN: inv.issuerRTN,
+        issueDate: inv.issueDate,
+        dueDate: inv.dueDate,
+        subtotal: inv.subtotal,
+        tax: inv.tax,
+        total: inv.total,
+        currency: inv.currency,
+        taxRate: inv.taxRate,
+        notes: inv.notes,
+        createdAt: inv.createdAt,
+        updatedAt: inv.updatedAt,
+      }));
+
+      // Paginate
+      const startIndex = (page - 1) * limit;
+      const paginated = transformed.slice(startIndex, startIndex + limit);
+
       return NextResponse.json({
         success: true,
-        invoices: [],
-        message: 'Por favor especifica un tenantId para ver las facturas de un tenant específico'
+        invoices: paginated,
+        pagination: {
+          page,
+          limit,
+          total: transformed.length,
+          totalPages: Math.ceil(transformed.length / limit)
+        }
       });
     }
 

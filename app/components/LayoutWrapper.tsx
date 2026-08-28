@@ -28,9 +28,9 @@ export default function LayoutWrapper({ children, tenants }: LayoutWrapperProps)
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 flex flex-col">
+    <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <Header tenants={tenants} />
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex flex-1 min-h-0">
         <RoleBasedSidebar />
         <main className="flex-1 overflow-y-auto">
           <div className="p-6">

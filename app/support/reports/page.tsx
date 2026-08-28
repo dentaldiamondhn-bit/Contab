@@ -8,12 +8,10 @@ import {
   TrendingDown,
   Users,
   Building2,
-  DollarSign,
   Calendar,
   Download,
   FileText,
   BarChart3,
-  PieChart,
   Activity,
   ArrowLeft,
   Filter,
@@ -26,9 +24,6 @@ interface ReportData {
   activeTenants: number;
   totalUsers: number;
   activeUsers: number;
-  totalRevenue: number;
-  monthlyRevenue: number;
-  invoicesGenerated: number;
   ticketsCreated: number;
   ticketsResolved: number;
   recentActivity: ActivityItem[];
@@ -52,9 +47,6 @@ export default function SupportReportsPage() {
     activeTenants: 0,
     totalUsers: 0,
     activeUsers: 0,
-    totalRevenue: 0,
-    monthlyRevenue: 0,
-    invoicesGenerated: 0,
     ticketsCreated: 0,
     ticketsResolved: 0,
     recentActivity: []
@@ -64,82 +56,65 @@ export default function SupportReportsPage() {
     fetchReportData();
   }, [dateRange]);
 
+  const safeFetch = async (url: string) => {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) return [];
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) return [];
+      const data = await response.json();
+      return data;
+    } catch {
+      return [];
+    }
+  };
+
   const fetchReportData = async () => {
     try {
       setLoading(true);
       setError('');
 
-      // Fetch tenants
-      const tenantsResponse = await fetch('/api/admin/tenants');
-      const tenantsData = await tenantsResponse.json();
-      
-      // Fetch users
-      const usersResponse = await fetch('/api/admin/users');
-      const usersData = await usersResponse.json();
-
-      // Fetch invoices
-      const invoicesResponse = await fetch('/api/admin/billing/invoices');
-      const invoicesData = await invoicesResponse.json();
-
-      // Calculate metrics
+      // Fetch tenants from support API
+      const tenantsData = await safeFetch('/api/support/tenants-with-users');
       const tenants = tenantsData.tenants || [];
-      const users = usersData.users || [];
-      const invoices = invoicesData.invoices || [];
 
-      const activeTenants = tenants.filter((t: any) => t.isActive).length;
-      const activeUsers = users.filter((u: any) => u.isactive).length;
-      
-      const totalRevenue = invoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
-      
-      // Calculate monthly revenue (current month)
-      const now = new Date();
-      const currentMonthInvoices = invoices.filter((inv: any) => {
-        const invDate = new Date(inv.createdAt || inv.invoiceDate);
-        return invDate.getMonth() === now.getMonth() && invDate.getFullYear() === now.getFullYear();
-      });
-      const monthlyRevenue = currentMonthInvoices.reduce((sum: number, inv: any) => sum + (inv.total || 0), 0);
+      // Fetch users from support API
+      const usersData = await safeFetch('/api/support/users');
+      const users = usersData.users || usersData || [];
 
-      // Generate recent activity
+      const activeTenants = tenants.filter((t: any) => t.isActive !== false).length;
+      const activeUsers = Array.isArray(users) ? users.filter((u: any) => u.isactive !== false).length : 0;
+
       const recentActivity: ActivityItem[] = [
         ...tenants.slice(0, 5).map((t: any) => ({
           id: `tenant-${t.id}`,
           type: 'tenant' as const,
-          description: `Tenant ${t.businessname} registrado`,
-          timestamp: new Date(t.createdat || Date.now()),
-          tenantName: t.businessname
+          description: `Tenant ${t.businessName || t.businessname} registrado`,
+          timestamp: new Date(t.createdAt || t.createdat || Date.now()),
+          tenantName: t.businessName || t.businessname
         })),
-        ...users.slice(0, 5).map((u: any) => ({
+        ...(Array.isArray(users) ? users.slice(0, 5).map((u: any) => ({
           id: `user-${u.id}`,
           type: 'user' as const,
           description: `Usuario ${u.name || u.email} creado`,
-          timestamp: new Date(u.createdat || Date.now()),
-          tenantName: u.tenant?.businessname
-        })),
-        ...invoices.slice(0, 5).map((i: any) => ({
-          id: `invoice-${i.id}`,
-          type: 'invoice' as const,
-          description: `Factura ${i.invoiceNumber} generada`,
-          timestamp: new Date(i.createdAt || i.invoiceDate || Date.now()),
-          tenantName: i.customerName
-        }))
+          timestamp: new Date(u.createdAt || u.createdat || Date.now()),
+          tenantName: u.tenant?.businessName || u.tenant?.businessname
+        })) : [])
       ].sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()).slice(0, 10);
 
       setReportData({
         totalTenants: tenants.length,
         activeTenants,
-        totalUsers: users.length,
+        totalUsers: Array.isArray(users) ? users.length : 0,
         activeUsers,
-        totalRevenue,
-        monthlyRevenue,
-        invoicesGenerated: invoices.length,
-        ticketsCreated: 0, // Would need tickets API
-        ticketsResolved: 0, // Would need tickets API
+        ticketsCreated: 0,
+        ticketsResolved: 0,
         recentActivity
       });
 
     } catch (error: any) {
-      console.error('Error fetching report data:', error);
-      setError('Error al cargar los datos del reporte');
+      console.warn('Error fetching report data:', error.message);
+      setError('');
     } finally {
       setLoading(false);
     }
@@ -151,20 +126,11 @@ export default function SupportReportsPage() {
         return <Building2 className="w-4 h-4 text-blue-500" />;
       case 'user':
         return <Users className="w-4 h-4 text-green-500" />;
-      case 'invoice':
-        return <DollarSign className="w-4 h-4 text-orange-500" />;
       case 'ticket':
         return <Activity className="w-4 h-4 text-purple-500" />;
       default:
         return <FileText className="w-4 h-4 text-gray-500" />;
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-HN', {
-      style: 'currency',
-      currency: 'HNL'
-    }).format(amount);
   };
 
   const exportReport = () => {
@@ -178,12 +144,6 @@ Total Tenants: ${reportData.totalTenants}
 Tenants Activos: ${reportData.activeTenants}
 Total Usuarios: ${reportData.totalUsers}
 Usuarios Activos: ${reportData.activeUsers}
-
-FACTURACIÓN
-===========
-Ingresos Totales: ${formatCurrency(reportData.totalRevenue)}
-Ingresos del Mes: ${formatCurrency(reportData.monthlyRevenue)}
-Facturas Generadas: ${reportData.invoicesGenerated}
 
 TICKETS
 =======
@@ -273,7 +233,7 @@ Tickets Resueltos: ${reportData.ticketsResolved}
         )}
 
         {/* Stats Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 mb-6">
           <Card>
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
@@ -300,85 +260,6 @@ Tickets Resueltos: ${reportData.ticketsResolved}
                   </p>
                 </div>
                 <Users className="w-8 h-8 text-green-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Ingresos del Mes</p>
-                  <p className="text-2xl font-bold text-orange-600">
-                    {formatCurrency(reportData.monthlyRevenue)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    {reportData.invoicesGenerated} facturas
-                  </p>
-                </div>
-                <DollarSign className="w-8 h-8 text-orange-400" />
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-gray-600">Ingresos Totales</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {formatCurrency(reportData.totalRevenue)}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Histórico
-                  </p>
-                </div>
-                <BarChart3 className="w-8 h-8 text-blue-400" />
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Charts & Activity Section */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-          {/* Activity Chart Placeholder */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <TrendingUp className="w-5 h-5" />
-                Crecimiento de Tenants
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                <div className="text-center">
-                  <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Gráfico de crecimiento</p>
-                  <p className="text-sm text-gray-400">
-                    {reportData.totalTenants} tenants registrados
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Revenue Chart Placeholder */}
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <PieChart className="w-5 h-5" />
-                Distribución de Ingresos
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-64 flex items-center justify-center bg-gray-50 rounded-lg">
-                <div className="text-center">
-                  <PieChart className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">Gráfico de ingresos</p>
-                  <p className="text-sm text-gray-400">
-                    {formatCurrency(reportData.monthlyRevenue)} este mes
-                  </p>
-                </div>
               </div>
             </CardContent>
           </Card>

@@ -41,6 +41,25 @@ const cleanEmail = (email: string) => {
   return email.replace(/\+[^@]+@/, '@');
 };
 
+const getPlanName = (plan: any): string => {
+  if (!plan) return '-';
+  if (typeof plan === 'string') {
+    try {
+      const parsed = JSON.parse(plan);
+      if (Array.isArray(parsed)) {
+        return parsed.map((p: any) => p.code || p.name || p).join(', ') || '-';
+      }
+      return parsed.code || parsed.name || plan;
+    } catch {
+      return plan;
+    }
+  }
+  if (Array.isArray(plan)) {
+    return plan.map((p: any) => p.code || p.name || String(p)).join(', ') || '-';
+  }
+  return plan.code || plan.name || String(plan);
+};
+
 export default function SupportTenantsPage() {
   const router = useRouter();
   const [tenants, setTenants] = useState<Tenant[]>([]);
@@ -156,25 +175,38 @@ export default function SupportTenantsPage() {
 
       {/* Tenants Table */}
       <div className="bg-white rounded-lg shadow overflow-hidden">
+        <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
             <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Empresa
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                Código
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Codigo
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                RTN
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Telefono
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Direccion
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Plan
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Usuarios
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Estado
               </th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                Creado
+              </th>
+              <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                 Acciones
               </th>
             </tr>
@@ -182,26 +214,35 @@ export default function SupportTenantsPage() {
           <tbody className="bg-white divide-y divide-gray-200">
             {tenants.map((tenant) => (
               <tr key={tenant.id} className="hover:bg-gray-50">
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-4">
                   <div>
                     <div className="text-sm font-medium text-gray-900">
                       {tenant.businessName}
                     </div>
-                    <div className="text-sm text-gray-500">{cleanEmail(tenant.businessEmail)}</div>
+                    <div className="text-xs text-gray-500">{cleanEmail(tenant.businessEmail)}</div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {tenant.tenantCode}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {tenant.businessRTN || '-'}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
+                  {tenant.phoneNumber || '-'}
+                </td>
+                <td className="px-4 py-4 text-sm text-gray-900 max-w-[200px] truncate" title={tenant.businessAddress}>
+                  {tenant.businessAddress || '-'}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap">
                   <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                    {tenant.subscriptionPlan}
+                    {getPlanName(tenant.subscriptionPlan)}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
                   {tenant.totalUsers} / {tenant.maxUsers}
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap">
+                <td className="px-4 py-4 whitespace-nowrap">
                   <span
                     className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full ${
                       tenant.isActive
@@ -212,7 +253,10 @@ export default function SupportTenantsPage() {
                     {tenant.isActive ? "Activo" : "Inactivo"}
                   </span>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500">
+                  {new Date(tenant.createdAt).toLocaleDateString('es-HN')}
+                </td>
+                <td className="px-4 py-4 whitespace-nowrap text-sm font-medium">
                   <button
                     onClick={() => handleViewTenant(tenant)}
                     className="text-orange-600 hover:text-orange-900"
@@ -228,6 +272,7 @@ export default function SupportTenantsPage() {
             ))}
           </tbody>
         </table>
+        </div>
 
         {/* Empty State */}
         {tenants.length === 0 && !loading && (

@@ -54,14 +54,25 @@ export default function SupportAuditPage() {
       const response = await fetch('/api/audit-logs');
       
       if (!response.ok) {
-        throw new Error('Error al cargar los logs de auditoría');
+        console.warn('Audit logs API not available');
+        setLogs([]);
+        setError('');
+        return;
+      }
+      
+      const contentType = response.headers.get('content-type');
+      if (!contentType?.includes('application/json')) {
+        setLogs([]);
+        setError('');
+        return;
       }
       
       const data = await response.json();
       setLogs(data.logs || []);
     } catch (error: any) {
-      console.error('Error fetching audit logs:', error);
-      setError('Error al cargar los logs de auditoría');
+      console.warn('Error fetching audit logs:', error.message);
+      setLogs([]);
+      setError('');
     } finally {
       setLoading(false);
     }

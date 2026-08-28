@@ -1,26 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createServiceRoleClient } from '@/lib/supabase/service-role';
-import { getUserRoleFromAuth } from '@/lib/auth-server';
+
+async function safeGetUserRole(): Promise<string> {
+  try {
+    const { getUserRoleFromAuth } = await import('@/lib/auth-server');
+    return await getUserRoleFromAuth();
+  } catch {
+    return '';
+  }
+}
 
 export async function GET(req: NextRequest) {
   try {
     const { userId } = await auth();
-    const userRole = await getUserRoleFromAuth();
+    console.log('GET /support/users - userId:', userId);
 
-    console.log('GET /support/users - userId:', userId, 'userRole:', userRole);
-
-    if (!['SUPER_ADMIN', 'SUPPORT'].includes(userRole)) {
-      return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
+    if (!userId) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
     const supabase = createServiceRoleClient();
     
-    // Get users with separate tenant query
     const { data: users, error } = await supabase
-      .from('users')
-      .select('id, email, first_name, last_name, role, is_active, created_at, tenant_id')
-      .order('created_at', { ascending: false });
+      .from('User')
+      .select('*')
+      .order('createdat', { ascending: false });
 
     if (error) {
       console.error('Error fetching users:', error);
@@ -30,36 +35,45 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    // Get tenant info separately
     const tenantIds = [...new Set(users?.map(u => u.tenant_id).filter(Boolean) || [])];
     let tenantMap = new Map();
     
     if (tenantIds.length > 0) {
-      const { data: tenants } = await supabase
-        .from('Tenant')
-        .select('id, business_name, tenant_code')
-        .in('id', tenantIds);
-      
-      if (tenants) {
-        tenants.forEach((t: any) => {
-          tenantMap.set(t.id, {
-            businessName: t.business_name,
-            tenantCode: t.tenant_code
+      try {
+        const { data: tenants } = await supabase
+          .from('Tenant')
+          .select('id, businessname, business_name, tenant_code')
+          .in('id', tenantIds);
+        
+        if (tenants) {
+          tenants.forEach((t: any) => {
+            tenantMap.set(t.id, {
+              businessName: t.businessname || t.business_name || '',
+              tenantCode: t.tenant_code || ''
+            });
           });
-        });
+        }
+      } catch (e) {
+        console.warn('Tenant lookup failed:', e);
       }
     }
 
+    const cleanEmail = (email: string) => {
+      if (!email) return '';
+      return email.replace(/\+[^@]+@/, '@');
+    };
+
     const formattedUsers = users?.map((user: any) => ({
       id: user.id,
-      email: user.email,
-      firstName: user.first_name,
-      lastName: user.last_name,
+      email: cleanEmail(user.email),
+      firstName: user.firstname,
+      lastName: user.lastname,
       role: user.role,
-      isActive: user.is_active,
-      tenantName: user.tenant_id ? (tenantMap.get(user.tenant_id)?.businessName || 'Sin tenant') : 'Sin tenant',
-      tenantCode: user.tenant_id ? (tenantMap.get(user.tenant_id)?.tenantCode || 'N/A') : 'N/A',
-      createdAt: user.created_at
+      isActive: user.isactive,
+      tenantId: user.tenantid,
+      tenantName: user.tenantid ? (tenantMap.get(user.tenantid)?.businessName || 'Sin tenant') : 'Sin tenant',
+      tenantCode: user.tenantid ? (tenantMap.get(user.tenantid)?.tenantCode || 'N/A') : 'N/A',
+      createdAt: user.createdat
     })) || [];
 
     return NextResponse.json({ 
@@ -79,7 +93,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const { userId } = await auth();
-    const userRole = await getUserRoleFromAuth();
+    const userRole = await safeGetUserRole();
 
     if (userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -120,7 +134,7 @@ export async function POST(req: NextRequest) {
 
     // Verificar que el email no exista
     const { data: existingUser, error: checkError } = await supabase
-      .from('users')
+      .from('User')
       .select('id')
       .eq('email', email)
       .single();
@@ -134,10 +148,10 @@ export async function POST(req: NextRequest) {
 
     // Validar límite de usuarios del tenant
     const { count: currentUserCount, error: countError } = await supabase
-      .from('users')
+      .from('User')
       .select('*', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId)
-      .eq('is_active', true);
+      .eq('tenantid', tenantId)
+      .eq('isactive', true);
 
     const maxUsers = tenant.maxusers || 5;
     if ((currentUserCount || 0) >= maxUsers) {
@@ -149,16 +163,17 @@ export async function POST(req: NextRequest) {
 
     // Crear usuario
     const { data: newUser, error: createError } = await supabase
-      .from('users')
+      .from('User')
       .insert({
         email,
-        first_name: firstName,
-        last_name: lastName,
+        firstname: firstName,
+        lastname: lastName,
         role,
-        tenant_id: tenantId,
-        is_active: true
+        tenantid: tenantId,
+        isactive: true,
+        createdat: new Date().toISOString()
       })
-      .select('id, email, first_name, last_name, role, is_active, created_at, tenant_id')
+      .select('id, email, firstname, lastname, role, isactive, createdat, tenantid')
       .single();
 
     if (createError) {
@@ -171,11 +186,11 @@ export async function POST(req: NextRequest) {
 
     // Get tenant info
     let tenantInfo = null;
-    if (newUser.tenant_id) {
+    if (newUser.tenantid) {
       const { data: t } = await supabase
         .from('Tenant')
-        .select('business_name, tenant_code')
-        .eq('id', newUser.tenant_id)
+        .select('businessname, business_name, tenant_code')
+        .eq('id', newUser.tenantid)
         .single();
       tenantInfo = t;
     }
@@ -185,13 +200,13 @@ export async function POST(req: NextRequest) {
       user: {
         id: newUser.id,
         email: newUser.email,
-        firstName: newUser.first_name,
-        lastName: newUser.last_name,
+        firstName: newUser.firstname,
+        lastName: newUser.lastname,
         role: newUser.role,
-        isActive: newUser.is_active,
-        tenantName: tenantInfo?.business_name,
+        isActive: newUser.isactive,
+        tenantName: tenantInfo?.businessname || tenantInfo?.business_name,
         tenantCode: tenantInfo?.tenant_code,
-        createdAt: newUser.created_at
+        createdAt: newUser.createdat
       }
     });
 
@@ -207,7 +222,7 @@ export async function POST(req: NextRequest) {
 export async function PUT(req: NextRequest) {
   try {
     const { userId } = await auth();
-    const userRole = await getUserRoleFromAuth();
+    const userRole = await safeGetUserRole();
 
     if (userRole !== 'SUPER_ADMIN') {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -227,7 +242,7 @@ export async function PUT(req: NextRequest) {
 
     // No permitir modificar SUPER_ADMIN
     const { data: targetUser, error: checkError } = await supabase
-      .from('users')
+      .from('User')
       .select('role')
       .eq('id', targetUserId)
       .single();
@@ -248,14 +263,14 @@ export async function PUT(req: NextRequest) {
 
     // Actualizar usuario
     const updateData: any = {};
-    if (isActive !== undefined) updateData.is_active = isActive;
+    if (isActive !== undefined) updateData.isactive = isActive;
     if (role !== undefined) updateData.role = role;
 
     const { data: updatedUser, error: updateError } = await supabase
-      .from('users')
+      .from('User')
       .update(updateData)
       .eq('id', targetUserId)
-      .select('id, email, first_name, last_name, role, is_active, tenant_id')
+      .select('id, email, firstname, lastname, role, isactive, tenantid')
       .single();
 
     if (updateError) {

@@ -36,7 +36,8 @@ import {
   List,
   X,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  RefreshCw
 } from 'lucide-react';
 import { 
   formatDateForInput, 
@@ -113,6 +114,9 @@ export default function InventoryPage() {
   const [stockFilter, setStockFilter] = useState<'all' | 'low' | 'out'>('all');
   const [showMovementDialog, setShowMovementDialog] = useState(false);
   const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [showTenantReport, setShowTenantReport] = useState(true);
+  const [tenantReport, setTenantReport] = useState<any[]>([]);
+  const [loadingReport, setLoadingReport] = useState(false);
 
   const [formData, setFormData] = useState<NewProductData>({
     tenantid: '1',
@@ -553,6 +557,7 @@ export default function InventoryPage() {
   useEffect(() => {
     loadProducts();
     loadMovements();
+    fetchTenantReport();
   }, []);
 
   const loadProducts = async () => {
@@ -586,6 +591,28 @@ export default function InventoryPage() {
     } catch (error) {
       console.error('Error loading movements:', error);
     }
+  };
+
+  const fetchTenantReport = async () => {
+    setLoadingReport(true);
+    try {
+      const res = await fetch('/api/admin/inventory/report');
+      if (res.ok) {
+        const data = await res.json();
+        setTenantReport(data.tenants || []);
+      }
+    } catch (err) {
+      console.error('Error fetching tenant report:', err);
+    } finally {
+      setLoadingReport(false);
+    }
+  };
+
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(1024));
+    return `${(bytes / Math.pow(1024, i)).toFixed(2)} ${units[i]}`;
   };
 
   const filteredProducts = products.filter(product => {
@@ -1615,6 +1642,82 @@ export default function InventoryPage() {
         </div>
       )}
 
+      {/* Tenant Inventory Report */}
+      {showTenantReport && (
+        <div className="bg-white rounded-lg border shadow-sm">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Reporte de Inventario por Empresa</h2>
+              <p className="text-sm text-gray-500">Productos totales y espacio de almacenamiento usado</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchTenantReport} disabled={loadingReport}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${loadingReport ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+          </div>
+          {loadingReport ? (
+            <div className="flex justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+          ) : tenantReport.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+              <p>No hay datos de inventario por empresa</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Empresa</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Productos</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Movimientos</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Registros Totales</th>
+                    <th className="text-right px-6 py-3 font-medium text-gray-600">Almacenamiento Usado</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenantReport.map((t: any) => (
+                    <tr key={t.tenantId} className="border-b hover:bg-gray-50">
+                      <td className="px-6 py-3">
+                        <div className="font-medium text-gray-900">{t.businessName}</div>
+                        <div className="text-xs text-gray-500">{t.tenantCode}</div>
+                      </td>
+                      <td className="px-6 py-3 text-center font-semibold text-lg">{t.totalProducts}</td>
+                      <td className="px-6 py-3 text-center text-gray-600">{t.totalMovements}</td>
+                      <td className="px-6 py-3 text-center font-medium">{t.totalRecords}</td>
+                      <td className="px-6 py-3 text-right">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium text-sm">
+                          {t.storageUsed}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${t.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {t.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 font-bold">
+                    <td className="px-6 py-3">TOTALES</td>
+                    <td className="px-6 py-3 text-center text-lg">{tenantReport.reduce((s: number, t: any) => s + t.totalProducts, 0)}</td>
+                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalMovements, 0)}</td>
+                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalRecords, 0)}</td>
+                    <td className="px-6 py-3 text-right">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium text-sm">
+                        {formatBytes(tenantReport.reduce((s: number, t: any) => s + t.storageBytes, 0))}
+                      </span>
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
@@ -1624,6 +1727,23 @@ export default function InventoryPage() {
           </p>
         </div>
         <div className="flex space-x-2">
+          <Button
+            variant={showTenantReport ? "default" : "outline"}
+            onClick={() => setShowTenantReport(!showTenantReport)}
+            className={showTenantReport ? "bg-purple-600 hover:bg-purple-700 text-white" : ""}
+          >
+            {showTenantReport ? (
+              <>
+                <Package className="h-4 w-4 mr-2" />
+                Gestionar Inventario
+              </>
+            ) : (
+              <>
+                <BarChart3 className="h-4 w-4 mr-2" />
+                Reporte por Tenant
+              </>
+            )}
+          </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white">
