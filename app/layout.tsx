@@ -13,8 +13,11 @@ const inter = Inter({ subsets: ["latin"] });
 
 
 export const metadata: Metadata = {
-  title: "Contador - Sistema de Contabilidad Profesional",
+  title: "Diamond Accounting - Sistema de Contabilidad Profesional",
   description: "Sistema de contabilidad hondureño para contadores profesionales",
+  icons: {
+    icon: "/logo.png",
+  },
 };
 
 export default function RootLayout({
@@ -26,8 +29,8 @@ export default function RootLayout({
 <ClerkProvider
        appearance={{
          elements: {
-           formButtonPrimary: "bg-blue-600 hover:bg-blue-700",
-           footerActionLink: "text-blue-600 hover:text-blue-800",
+           formButtonPrimary: "bg-cyan-600 hover:bg-cyan-700",
+           footerActionLink: "text-cyan-600 hover:text-cyan-800",
          },
        }}
        signInUrl="/auth/login"

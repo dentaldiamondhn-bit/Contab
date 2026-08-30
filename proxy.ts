@@ -17,8 +17,14 @@ const supabase = createClient(
 // Definimos qué rutas son públicas (no requieren login)
 const isPublicRoute = createRouteMatcher([
   "/auth/login(.*)",
+  "/auth/register(.*)",
   "/auth/sign-in(.*)",
   "/auth/sign-up(.*)",
+  "/auth/callback(.*)",
+  "/auth/reset-password(.*)",
+  "/api/auth/check-email(.*)",
+  "/api/auth/check-username(.*)",
+  "/api/admin/plans-public(.*)",
   "/api/webhooks(.*)",
   "/", // Landing page
 ]);
@@ -97,8 +103,8 @@ export default clerkMiddleware(async (auth, req) => {
   // Compute effective role: DB role takes priority, fall back to Clerk metadata
   const effectiveRole = actualRole !== 'USER' ? actualRole : roleFromMetadata;
 
-  // 3. Protección extra para rutas de administración
-  if (isAdmin) {
+  // 3. Protección extra para rutas de administración (excepto planes públicos para onboarding)
+  if (isAdmin && pathname !== '/api/admin/plans-public') {
     if (!userId) {
       console.log(`🚫 [Middleware Proxy] ACCESS DENIED: No user ID for ${pathname}`);
       return NextResponse.redirect(new URL("/auth/login", req.url));

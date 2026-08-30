@@ -90,7 +90,61 @@ export default function AccountSettingsPage() {
       }
       
       const data = await response.json();
-      const user = data.user;
+      let user = data.user;
+
+      // Fallback: teléfono desde onboarding (personalData/companyData) si Clerk no tiene
+      let phoneFallback = user.phone;
+      if (!phoneFallback) {
+        try {
+          const personalDataRaw = localStorage.getItem('personalData');
+          const companyDataRaw = localStorage.getItem('companyData');
+          if (personalDataRaw) {
+            const pd = JSON.parse(personalDataRaw);
+            phoneFallback = pd.phone || phoneFallback;
+          }
+          if (!phoneFallback && companyDataRaw) {
+            const cd = JSON.parse(companyDataRaw);
+            phoneFallback = cd.companyPhone || cd.clientPhone || cd.contactPhone || phoneFallback;
+          }
+        } catch {}
+      }
+
+      // Fallback: plan desde onboarding (selectedPlans) si metadata vacía
+      let planFallback = user.subscription_plan;
+      if (!planFallback) {
+        try {
+          const selectedPlansRaw = localStorage.getItem('selectedPlans');
+          if (selectedPlansRaw) {
+            const plans = JSON.parse(selectedPlansRaw);
+            if (Array.isArray(plans) && plans.length > 0) {
+              planFallback = plans[0].name || plans[0].code;
+            }
+          }
+          if (!planFallback) {
+            const businessType = localStorage.getItem('businessType');
+            if (businessType && businessType !== 'contador') planFallback = businessType;
+          }
+        } catch {}
+        // Intentar desde tenant si aún vacío
+        if (!planFallback) {
+          try {
+            const tRes = await fetch('/api/tenant');
+            if (tRes.ok) {
+              const tData = await tRes.json();
+              const tPlan = tData.tenant?.subscriptionPlans || tData.tenant?.subscriptionPlan;
+              if (tPlan) {
+                try {
+                  const parsed = typeof tPlan === 'string' ? JSON.parse(tPlan) : tPlan;
+                  if (Array.isArray(parsed) && parsed.length > 0) planFallback = parsed[0].name || parsed[0].code || String(parsed[0]);
+                  else if (typeof parsed === 'string') planFallback = parsed;
+                } catch { planFallback = String(tPlan); }
+              }
+            }
+          } catch {}
+        }
+      }
+
+      user = { ...user, phone: phoneFallback, subscription_plan: planFallback || user.subscription_plan };
       
       setUserData(user);
       setFormData({
@@ -170,7 +224,7 @@ export default function AccountSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -388,8 +442,8 @@ export default function AccountSettingsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                  <User className="h-6 w-6 text-blue-600" />
+                <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center">
+                  <User className="h-6 w-6 text-cyan-600" />
                 </div>
                 <div>
                   <p className="font-medium">{userData.first_name} {userData.last_name}</p>
@@ -408,7 +462,7 @@ export default function AccountSettingsPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Plan:</span>
-                  <Badge className="bg-blue-100 text-blue-800">
+                  <Badge className="bg-cyan-100 text-cyan-800">
                     {userData.subscription_plan}
                   </Badge>
                 </div>
