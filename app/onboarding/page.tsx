@@ -330,7 +330,8 @@ export default function OnboardingPage() {
           bankAccounts,
           salesConfig,
           businessType: selectedBusinessType || 'otro',
-          selectedPlans
+          selectedPlans,
+          selectedPaymentMethod
         });
         
         if (result.success) {

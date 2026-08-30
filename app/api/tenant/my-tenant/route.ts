@@ -47,6 +47,32 @@ export async function GET(request: NextRequest) {
 
     const company = companies?.[0];
 
+    // Obtener paymentMethod desde Clerk publicMetadata (seleccionado en onboarding)
+    let paymentMethod: string | null = null;
+    try {
+      const { clerkClient } = await import('@clerk/nextjs/server');
+      const client = await clerkClient();
+      const clerkUser = await client.users.getUser(userId);
+      paymentMethod = (clerkUser.publicMetadata as any)?.paymentMethod || (clerkUser.publicMetadata as any)?.selectedPaymentMethod || null;
+    } catch {}
+
+    // Obtener plan desde tenant_plans
+    let subscriptionPlan: string | null = null;
+    try {
+      const { data: tPlans } = await supabase
+        .from('tenant_plans')
+        .select('plan_name,plan_code')
+        .eq('tenant_id', tenant.id)
+        .limit(1);
+      if (tPlans && tPlans.length > 0) {
+        subscriptionPlan = tPlans[0].plan_name || tPlans[0].plan_code || null;
+      }
+      if (!subscriptionPlan) {
+        // Fallback a Tenant.subscriptionplan
+        subscriptionPlan = (tenant as any).subscriptionplan || (tenant as any).subscription_plan || null;
+      }
+    } catch {}
+
     // Construir el objeto tenant con la información necesaria
     const tenantData = {
       id: tenant.id,
@@ -54,10 +80,12 @@ export async function GET(request: NextRequest) {
       tenantCode: tenant.tenant_code,
       businessEmail: company?.email || tenant.email || '',
       businessRTN: company?.rtn || tenant.rtn || '',
-      phoneNumber: company?.phone || tenant.phone || '',
+      phoneNumber: company?.company_phone || company?.client_phone || company?.contact_phone || company?.phone || tenant.phone_number || tenant.phoneNumber || tenant.phone || '',
       businessAddress: company?.address || tenant.address || '',
       industry: company?.industry || tenant.industry || '',
       maxUsers: tenant.max_users || 5,
+      paymentMethod: paymentMethod || null,
+      subscriptionPlan: subscriptionPlan || null,
     };
 
     return NextResponse.json({
@@ -107,6 +135,24 @@ export async function PATCH(request: NextRequest) {
 
     if (Object.keys(tenantUpdates).length > 0) {
       await supabase.from('Tenant').update(tenantUpdates).eq('id', tenantId);
+    }
+
+    // Actualizar paymentMethod en Clerk publicMetadata si se proporciona
+    if (body.paymentMethod !== undefined) {
+      try {
+        const { clerkClient } = await import('@clerk/nextjs/server');
+        const client = await clerkClient();
+        const clerkUser = await client.users.getUser(userId);
+        await client.users.updateUser(userId, {
+          publicMetadata: {
+            ...(clerkUser.publicMetadata as any),
+            paymentMethod: body.paymentMethod,
+          },
+        });
+      } catch (e) {
+        console.warn('No se pudo guardar paymentMethod en Clerk', e);
+      }
+      // También guardar en localStorage del servidor no es posible, pero el cliente lo hace
     }
 
     // Update companies table if exists

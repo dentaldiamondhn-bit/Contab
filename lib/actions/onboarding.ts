@@ -57,7 +57,8 @@ interface OnboardingData {
   bankAccounts: BankAccount[];
   salesConfig: SalesConfig;
   businessType: string;
-  selectedPlan: Plan | null;
+  selectedPlans: Plan[];
+  selectedPaymentMethod?: string;
 }
 
 interface OnboardingResult {
@@ -157,6 +158,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       const tenantId = generateTenantCode(data.companyData.name);
       const uniqueRtn = data.companyData.rtn ? `${data.companyData.rtn}-${Date.now()}` : `TEMP-${tenantId}-${Date.now()}`;
       const uniqueEmail = data.companyData.email ? `${data.companyData.email.split('@')[0]}+${tenantId}@${data.companyData.email.split('@')[1]}` : `admin+${tenantId}@temp.com`;
+      const onboardingPhone = data.companyData.companyPhone || data.companyData.clientPhone || data.companyData.contactPhone || '';
       const tenantData = {
         id: tenantId,
         // REQUIRED camelCase columns
@@ -191,7 +193,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         logo_url: null,
-        phone_number: '',
+        phone_number: onboardingPhone,
         modules: 'ACCOUNTING,BILLING,REPORTS'
       };
       
@@ -238,6 +240,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
             tenantId: newTenant.id,
             tenantCode: newTenant.id,
             permissions: ['admin', 'tenant_admin'],
+            paymentMethod: data.selectedPaymentMethod || 'card',
             isolation: {
               tenantId: newTenant.id,
               mode: 'strict'
@@ -270,6 +273,18 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       userData = { tenantid: newTenant.id };
       console.log('✅ Usuario creado exitosamente');
       console.log('📊 User data returned:', JSON.stringify(newUser, null, 2));
+      // Guardar teléfono del onboarding en users.phone y User.phone para que aparezca en /account/profile
+      if (onboardingPhone) {
+        try {
+          await supabase.from('users').update({ phone: onboardingPhone }).eq('email', userEmail.toLowerCase());
+          await supabase.from('User').update({ phone: onboardingPhone }).eq('authid', userId);
+          await supabase.from('User').update({ phone: onboardingPhone }).eq('email', userEmail.toLowerCase()).then(()=>{});
+        } catch (e) { console.warn('No se pudo guardar teléfono en users', e); }
+        try {
+          const clerk = await clerkClient();
+          await clerk.users.updateUser(userId, { publicMetadata: { phone: onboardingPhone } } as any);
+        } catch {}
+      }
       
     } else if (userError) {
       console.error('❌ Error verificando usuario existente:', userError);
@@ -282,6 +297,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       const tenantId = generateTenantCode(data.companyData.name);
       const uniqueRtn = data.companyData.rtn ? `${data.companyData.rtn}-${Date.now()}` : `TEMP-${tenantId}-${Date.now()}`;
       const uniqueEmail = data.companyData.email ? `${data.companyData.email.split('@')[0]}+${tenantId}@${data.companyData.email.split('@')[1]}` : `admin+${tenantId}@temp.com`;
+      const onboardingPhone2 = data.companyData.companyPhone || data.companyData.clientPhone || data.companyData.contactPhone || '';
       const tenantData = {
         id: tenantId,
         // REQUIRED camelCase columns
@@ -316,7 +332,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         logo_url: null,
-        phone_number: '',
+        phone_number: onboardingPhone2,
         modules: 'ACCOUNTING,BILLING,REPORTS'
       };
       
@@ -351,6 +367,18 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       userData = { tenantid: newTenant.id };
       console.log('✅ Nuevo tenant creado y usuario actualizado exitosamente');
       console.log('📊 Nuevo Tenant ID:', newTenant.id);
+      // Guardar teléfono del onboarding en users.phone y User.phone
+      if (onboardingPhone2) {
+        try {
+          await supabase.from('users').update({ phone: onboardingPhone2 }).eq('email', userEmail.toLowerCase());
+          await supabase.from('User').update({ phone: onboardingPhone2 }).eq('authid', userId);
+          await supabase.from('User').update({ phone: onboardingPhone2 }).eq('email', userEmail.toLowerCase()).then(()=>{});
+        } catch (e) { console.warn('No se pudo guardar teléfono', e); }
+        try {
+          const clerk = await clerkClient();
+          await clerk.users.updateUser(userId, { publicMetadata: { phone: onboardingPhone2 } } as any);
+        } catch {}
+      }
 
       // Actualizar metadata en Clerk para usuario existente
       try {
@@ -362,6 +390,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
             tenantId: newTenant.id,
             tenantCode: newTenant.id,
             permissions: ['admin', 'tenant_admin'],
+            paymentMethod: data.selectedPaymentMethod || 'card',
             isolation: {
               tenantId: newTenant.id,
               mode: 'strict'
@@ -427,6 +456,9 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         email: data.companyData.email,
         address: data.companyData.address,
         industry: data.companyData.industry,
+        company_phone: data.companyData.companyPhone || null,
+        client_phone: data.companyData.clientPhone || null,
+        contact_phone: data.companyData.contactPhone || null,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       }])
@@ -501,35 +533,37 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       console.error("Error saving sales config:", salesError);
     }
 
-    // Validate that a plan is selected
-    if (!data.selectedPlan) {
-      throw new Error("Debes seleccionar un plan para continuar");
+    // Validate that at least one plan is selected
+    if (!data.selectedPlans || data.selectedPlans.length === 0) {
+      throw new Error("Debes seleccionar al menos un plan para continuar");
     }
 
-    // Save selected plan to tenant or company
+    // Save selected plans to tenant_plans
+    const plansToInsert = data.selectedPlans.map(plan => ({
+      tenant_id: tenantId,
+      plan_id: plan.id,
+      plan_code: plan.code,
+      plan_name: plan.name,
+      unit_price: plan.unitPrice,
+      subtotal: plan.subtotal,
+      tax_rate: plan.taxRate,
+      tax_amount: plan.taxAmount,
+      total: plan.total,
+      max_users: plan.maxUsers,
+      features: plan.features,
+      is_active: true,
+      start_date: new Date().toISOString(),
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }));
+
     const { error: planError } = await supabase
       .from('tenant_plans')
-      .insert([{
-        tenant_id: tenantId,
-        plan_id: data.selectedPlan.id,
-        plan_code: data.selectedPlan.code,
-        plan_name: data.selectedPlan.name,
-        unit_price: data.selectedPlan.unitPrice,
-        subtotal: data.selectedPlan.subtotal,
-        tax_rate: data.selectedPlan.taxRate,
-        tax_amount: data.selectedPlan.taxAmount,
-        total: data.selectedPlan.total,
-        max_users: data.selectedPlan.maxUsers,
-        features: data.selectedPlan.features,
-        is_active: true,
-        start_date: new Date().toISOString(),
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
+      .insert(plansToInsert);
 
     if (planError) {
-      console.error("Error saving plan:", planError);
-      throw new Error("Failed to save selected plan");
+      console.error("Error saving plans:", planError);
+      throw new Error("Failed to save selected plans");
     }
 
     // Also save to onboarding_companies for reference

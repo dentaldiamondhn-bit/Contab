@@ -92,19 +92,35 @@ export default function AccountSettingsPage() {
       const data = await response.json();
       let user = data.user;
 
-      // Fallback: teléfono desde onboarding (personalData/companyData) si Clerk no tiene
+      // Fallback: teléfono y empresa desde onboarding/localStorage y Tenant si Clerk no tiene
       let phoneFallback = user.phone;
-      if (!phoneFallback) {
+      let companyFallback = user.company;
+      if (!phoneFallback || !companyFallback) {
         try {
           const personalDataRaw = localStorage.getItem('personalData');
           const companyDataRaw = localStorage.getItem('companyData');
           if (personalDataRaw) {
             const pd = JSON.parse(personalDataRaw);
-            phoneFallback = pd.phone || phoneFallback;
+            if (!phoneFallback) phoneFallback = pd.phone || phoneFallback;
           }
-          if (!phoneFallback && companyDataRaw) {
+          if (companyDataRaw) {
             const cd = JSON.parse(companyDataRaw);
-            phoneFallback = cd.companyPhone || cd.clientPhone || cd.contactPhone || phoneFallback;
+            if (!phoneFallback) phoneFallback = cd.companyPhone || cd.clientPhone || cd.contactPhone || phoneFallback;
+            if (!companyFallback) companyFallback = cd.name || companyFallback;
+          }
+        } catch {}
+      }
+      // Fallback adicional desde Tenant/Company vía API
+      if (!phoneFallback || !companyFallback) {
+        try {
+          const tRes = await fetch('/api/tenant/my-tenant');
+          if (tRes.ok) {
+            const tData = await tRes.json();
+            const tenant = tData.tenant;
+            if (tenant) {
+              if (!phoneFallback) phoneFallback = tenant.phoneNumber || '';
+              if (!companyFallback) companyFallback = tenant.businessName || '';
+            }
           }
         } catch {}
       }
@@ -125,26 +141,27 @@ export default function AccountSettingsPage() {
             if (businessType && businessType !== 'contador') planFallback = businessType;
           }
         } catch {}
-        // Intentar desde tenant si aún vacío
-        if (!planFallback) {
-          try {
-            const tRes = await fetch('/api/tenant');
-            if (tRes.ok) {
-              const tData = await tRes.json();
-              const tPlan = tData.tenant?.subscriptionPlans || tData.tenant?.subscriptionPlan;
-              if (tPlan) {
-                try {
-                  const parsed = typeof tPlan === 'string' ? JSON.parse(tPlan) : tPlan;
-                  if (Array.isArray(parsed) && parsed.length > 0) planFallback = parsed[0].name || parsed[0].code || String(parsed[0]);
-                  else if (typeof parsed === 'string') planFallback = parsed;
-                } catch { planFallback = String(tPlan); }
+      }
+      if (!planFallback) {
+        try {
+          const tRes = await fetch('/api/tenant/my-tenant');
+          if (tRes.ok) {
+            const tData = await tRes.json();
+            const tPlan = tData.tenant?.subscriptionPlan || tData.tenant?.subscription_plan || tData.tenant?.planName;
+            if (tPlan) planFallback = String(tPlan);
+            else if (tData.tenant?.id) {
+              // Fallback directo a tenant_plans si my-tenant no trae plan
+              const pRes = await fetch(`/api/tenant/check-user-tenant`);
+              if (pRes.ok) {
+                const pData = await pRes.json();
+                if (pData.planName) planFallback = pData.planName;
               }
             }
-          } catch {}
-        }
+          }
+        } catch {}
       }
 
-      user = { ...user, phone: phoneFallback, subscription_plan: planFallback || user.subscription_plan };
+      user = { ...user, phone: phoneFallback, company: companyFallback || user.company, subscription_plan: planFallback || user.subscription_plan };
       
       setUserData(user);
       setFormData({
@@ -470,21 +487,46 @@ export default function AccountSettingsPage() {
             </CardContent>
           </Card>
 
+          {/* Suscripción - Método de Pago */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center"><CreditCard className="h-5 w-5 mr-2" />Suscripción</CardTitle>
+              <CardDescription>Gestiona tu plan y método de pago</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-gray-600">Plan actual:</span>
+                <Badge className="bg-cyan-100 text-cyan-800">{userData.subscription_plan || 'No asignado'}</Badge>
+              </div>
+              <Button className="w-full bg-cyan-600 hover:bg-cyan-700" onClick={() => router.push('/account/billing')}>
+                <CreditCard className="h-4 w-4 mr-2" />
+                Actualizar Método de Pago
+              </Button>
+              <Button variant="outline" className="w-full" onClick={() => router.push('/billing')}>
+                Ver Facturas
+              </Button>
+            </CardContent>
+          </Card>
+
           {/* Acciones Rápidas */}
           <Card>
             <CardHeader>
               <CardTitle>Acciones Rápidas</CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start hover:bg-gray-50" onClick={() => router.push('/billing')}>
                 <CreditCard className="h-4 w-4 mr-2" />
                 Facturación
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start hover:bg-gray-50" onClick={() => router.push('/account/settings')}>
                 <Globe className="h-4 w-4 mr-2" />
                 API Access
               </Button>
-              <Button variant="outline" className="w-full justify-start">
+              <Button variant="outline" className="w-full justify-start hover:bg-gray-50" onClick={() => {
+                const el = document.getElementById('notifications-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else router.push('/account/settings');
+              }}>
                 <Bell className="h-4 w-4 mr-2" />
                 Notificaciones
               </Button>

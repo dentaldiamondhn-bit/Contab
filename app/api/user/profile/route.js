@@ -25,16 +25,35 @@ export async function GET() {
 
     const clerkEmail = user.emailAddresses[0]?.emailAddress || '';
 
-    // Read role from Supabase users table (source of truth)
+    // Read role and phone from Supabase users table (source of truth) + fallback to User table
     let dbRole = null;
+    let dbPhone = null;
     try {
       const { data: dbUser } = await supabase
         .from('users')
-        .select('role,tenantid,firstname,lastname')
+        .select('role,tenantid,firstname,lastname,phone')
         .eq('email', clerkEmail.toLowerCase())
         .single();
       if (dbUser) {
         dbRole = dbUser.role;
+        dbPhone = dbUser.phone;
+      }
+      // También buscar en tabla User (capital U) por si el teléfono está allí
+      if (!dbPhone) {
+        const { data: capitalUser } = await supabase
+          .from('User')
+          .select('phone')
+          .eq('email', clerkEmail.toLowerCase())
+          .maybeSingle();
+        if (capitalUser?.phone) dbPhone = capitalUser.phone;
+      }
+      if (!dbPhone) {
+        const { data: byAuth } = await supabase
+          .from('User')
+          .select('phone')
+          .eq('authid', userId)
+          .maybeSingle();
+        if (byAuth?.phone) dbPhone = byAuth.phone;
       }
     } catch (e) {
       console.log('Supabase lookup failed, falling back to Clerk metadata');
@@ -47,7 +66,7 @@ export async function GET() {
       email: clerkEmail,
       first_name: user.firstName || '',
       last_name: user.lastName || '',
-      phone: user.phoneNumbers[0]?.phoneNumber || null,
+      phone: dbPhone || user.phoneNumbers[0]?.phoneNumber || (user.publicMetadata || {})?.phone || null,
       role: finalRole,
       company: (user.publicMetadata || {})?.company || null,
       department: (user.publicMetadata || {})?.department || null,

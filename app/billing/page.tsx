@@ -51,12 +51,18 @@ export default function BillingPage() {
       const params = new URLSearchParams();
       if (typeFilter !== 'ALL') params.set('type', typeFilter);
       const response = await fetch(`/api/admin/billing/invoice-counts?${params}`);
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
         setTenantCounts(data.tenants || []);
+      } else {
+        // No es JSON (ej: HTML de login/404) - no bloquear UI
+        console.warn('invoice-counts no es JSON:', response.status);
+        setTenantCounts([]);
       }
     } catch (err) {
       console.error('Error fetching tenant counts:', err);
+      setTenantCounts([]);
     } finally {
       setLoading(false);
     }
@@ -115,7 +121,7 @@ export default function BillingPage() {
         {/* Tabs */}
         <div className="mb-6">
           <div className="flex flex-wrap gap-2">
-            <Button variant="default" className="flex items-center gap-2 bg-blue-600">
+            <Button variant="default" className="flex items-center gap-2 bg-cyan-600">
               <Receipt className="w-4 h-4" />
               Facturas por Tenant
             </Button>
@@ -139,7 +145,7 @@ export default function BillingPage() {
                   <p className="text-sm font-medium text-gray-600">Empresas</p>
                   <p className="text-2xl font-bold text-gray-900">{tenantCounts.length}</p>
                 </div>
-                <Building2 className="w-8 h-8 text-blue-400" />
+                <Building2 className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -150,7 +156,7 @@ export default function BillingPage() {
                   <p className="text-sm font-medium text-gray-600">Total Facturas</p>
                   <p className="text-2xl font-bold text-gray-900">{totalInvoices}</p>
                 </div>
-                <FileText className="w-8 h-8 text-blue-400" />
+                <FileText className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -181,9 +187,9 @@ export default function BillingPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Monto Total</p>
-                  <p className="text-xl font-bold text-blue-600">{formatCurrency(totalAmount)}</p>
+                  <p className="text-xl font-bold text-cyan-600">{formatCurrency(totalAmount)}</p>
                 </div>
-                <DollarSign className="w-8 h-8 text-blue-400" />
+                <DollarSign className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -201,7 +207,7 @@ export default function BillingPage() {
                     placeholder="Buscar empresa..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -210,7 +216,7 @@ export default function BillingPage() {
                 <select
                   value={typeFilter}
                   onChange={(e) => setTypeFilter(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="ALL">Todos los tipos</option>
                   <option value="SUBSCRIPTION">Suscripción</option>
@@ -263,8 +269,8 @@ export default function BillingPage() {
                       <tr key={tc.tenantId} className="border-b border-gray-100 hover:bg-gray-50">
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <Building2 className="w-5 h-5 text-blue-600" />
+                            <div className="w-9 h-9 bg-cyan-100 rounded-lg flex items-center justify-center">
+                              <Building2 className="w-5 h-5 text-cyan-600" />
                             </div>
                             <div>
                               <p className="font-medium text-gray-900">{tc.businessName}</p>
@@ -273,7 +279,7 @@ export default function BillingPage() {
                           </div>
                         </td>
                         <td className="py-3 px-4 text-center">
-                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-blue-100 text-blue-800">
+                          <span className="inline-flex items-center px-3 py-1 rounded-full text-sm font-bold bg-cyan-100 text-cyan-800">
                             {tc.totalInvoices}
                           </span>
                         </td>
@@ -297,7 +303,7 @@ export default function BillingPage() {
                     {/* Totals row */}
                     <tr className="bg-gray-50 font-bold">
                       <td className="py-3 px-4 text-sm text-gray-900">TOTALES</td>
-                      <td className="py-3 px-4 text-center text-sm text-blue-800">{totalInvoices}</td>
+                      <td className="py-3 px-4 text-center text-sm text-cyan-800">{totalInvoices}</td>
                       <td className="py-3 px-4 text-center text-sm text-green-600">{totalPaid}</td>
                       <td className="py-3 px-4 text-center text-sm text-yellow-600">{totalPending}</td>
                       <td className="py-3 px-4 text-center text-sm text-red-600">{totalOverdue}</td>

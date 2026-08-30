@@ -165,6 +165,23 @@ export async function GET(request: NextRequest) {
     
     const supabase = createSupabaseClient();
     
+    // Obtener tenant del usuario autenticado (no hardcodear "1")
+    let tenantId: string | null = null;
+    try {
+      const { auth } = await import('@clerk/nextjs/server');
+      const { userId } = await auth();
+      if (userId) {
+        const { createClient } = await import('@supabase/supabase-js');
+        const supaSrv = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
+        const { data: u } = await supaSrv.from('User').select('tenantid').eq('authid', userId).maybeSingle();
+        if (u?.tenantid) tenantId = u.tenantid;
+        else {
+          const { data: u2 } = await supaSrv.from('users').select('tenant_id').eq('auth_id', userId).maybeSingle();
+          if ((u2 as any)?.tenant_id) tenantId = (u2 as any).tenant_id;
+        }
+      }
+    } catch {}
+
     let query = supabase
       .from("invoice")
       .select(`
@@ -181,8 +198,14 @@ export async function GET(request: NextRequest) {
           total
         )
       `)
-      .eq("tenant_id", "1")
       .order("date", { ascending: false });
+
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    } else {
+      // Sin tenant, devolver vacío en vez de 500 para que el frontend no rompa
+      return NextResponse.json([]);
+    }
     
     if (startDate) {
       query = query.gte("date", startDate);
@@ -198,10 +221,7 @@ export async function GET(request: NextRequest) {
     
     if (error) {
       console.error("Error fetching invoices:", error);
-      return NextResponse.json(
-        { error: "Error fetching invoices" },
-        { status: 500 }
-      );
+      return NextResponse.json([]);
     }
     
     // Convertir centavos a lempiras
@@ -224,9 +244,6 @@ export async function GET(request: NextRequest) {
     
   } catch (error) {
     console.error("Error in invoice GET route:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json([]);
   }
 }

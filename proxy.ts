@@ -25,6 +25,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/auth/check-email(.*)",
   "/api/auth/check-username(.*)",
   "/api/admin/plans-public(.*)",
+  "/api/paypal/(.*)",
   "/api/webhooks(.*)",
   "/", // Landing page
 ]);

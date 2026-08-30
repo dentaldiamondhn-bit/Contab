@@ -57,12 +57,19 @@ export default function ExpensesPage() {
       const params = new URLSearchParams({ type: 'EXPENSE', limit: '200' });
       if (statusFilter !== 'ALL') params.set('status', statusFilter);
       const response = await fetch(`/api/admin/billing/invoices?${params}`);
-      if (!response.ok) throw new Error('Error al cargar las facturas');
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.includes('application/json')) {
+        console.warn('invoices no es JSON:', response.status);
+        setInvoices([]);
+        if (response.status === 403) setError('No autorizado para ver facturas');
+        return;
+      }
       const data = await response.json();
       setInvoices(data.invoices || []);
     } catch (err: any) {
       console.error('Error fetching invoices:', err);
       setError('Error al cargar las facturas');
+      setInvoices([]);
     } finally {
       setLoading(false);
     }
@@ -129,7 +136,7 @@ export default function ExpensesPage() {
               <CreditCard className="w-4 h-4" />
               Suscripción ContabHN
             </Button>
-            <Button variant="default" className="flex items-center gap-2 bg-blue-600">
+            <Button variant="default" className="flex items-center gap-2 bg-cyan-600">
               <ShoppingCart className="w-4 h-4" />
               Facturas Recibidas
             </Button>
@@ -145,7 +152,7 @@ export default function ExpensesPage() {
                   <p className="text-sm font-medium text-gray-600">Total Facturas</p>
                   <p className="text-2xl font-bold text-gray-900">{totalInvoices}</p>
                 </div>
-                <FileText className="w-8 h-8 text-blue-400" />
+                <FileText className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -176,9 +183,9 @@ export default function ExpensesPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Monto Total</p>
-                  <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalAmount)}</p>
+                  <p className="text-2xl font-bold text-cyan-600">{formatCurrency(totalAmount)}</p>
                 </div>
-                <DollarSign className="w-8 h-8 text-blue-400" />
+                <DollarSign className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -196,7 +203,7 @@ export default function ExpensesPage() {
                     placeholder="Buscar por número o proveedor..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
                 </div>
               </div>

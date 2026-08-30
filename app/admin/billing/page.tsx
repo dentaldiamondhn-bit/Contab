@@ -63,25 +63,35 @@ export default function BillingPage() {
       const params = new URLSearchParams();
       if (countFilter !== "ALL") params.set("type", countFilter);
       const response = await fetch(`/api/admin/billing/invoice-counts?${params}`);
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
         setTenantCounts(data.tenants || []);
+      } else {
+        console.warn('invoice-counts no es JSON:', response.status);
+        setTenantCounts([]);
       }
     } catch (err) {
       console.error("Error fetching tenant counts:", err);
+      setTenantCounts([]);
     }
   };
 
   const fetchInvoices = async () => {
     try {
       const response = await fetch("/api/admin/billing/invoices");
-      if (response.ok) {
+      const contentType = response.headers.get('content-type') || '';
+      if (response.ok && contentType.includes('application/json')) {
         const data = await response.json();
         setInvoices(data.invoices || []);
       } else {
-        setError("Error al cargar las facturas");
+        console.warn('invoices no es JSON:', response.status);
+        setInvoices([]);
+        if (response.status !== 200) setError(response.status === 403 ? 'No autorizado' : '');
       }
     } catch (err) {
+      console.error('Error fetching invoices:', err);
+      setInvoices([]);
       setError("Error de conexión al servidor");
     } finally {
       setLoading(false);
@@ -164,7 +174,7 @@ export default function BillingPage() {
             <button
               onClick={handleGenerateInvoices}
               disabled={generating}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
+              className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
             >
               {generating ? (
                 <>
@@ -280,7 +290,7 @@ export default function BillingPage() {
                         <div className="text-xs text-gray-500">{tc.tenantId.slice(0, 8)}...</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-center">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-semibold bg-blue-100 text-blue-800">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-semibold bg-cyan-100 text-cyan-800">
                           {tc.totalInvoices}
                         </span>
                       </td>
@@ -342,7 +352,7 @@ export default function BillingPage() {
           
           {loading ? (
             <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
             </div>
           ) : error ? (
             <div className="p-6">
