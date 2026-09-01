@@ -127,7 +127,7 @@ export default function TenantsModule() {
           <h1 className="text-xl font-bold text-gray-900">🏢 Gestión de Empresas / Tenants</h1>
           <p className="text-sm text-gray-500 mt-1">Alta, baja, suspensión, configuración de límites y suplantación</p>
         </div>
-        <button onClick={() => setShowCreateModal(true)} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 text-sm font-medium flex items-center gap-2">
+        <button onClick={() => setShowCreateModal(true)} className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700 text-sm font-medium flex items-center gap-2">
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
           Nueva Empresa
         </button>
@@ -139,7 +139,7 @@ export default function TenantsModule() {
             type="text" placeholder="Buscar por nombre, código o email..." value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && fetchTenants()}
-            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            className="flex-1 min-w-[200px] px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
           />
           <select value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
             className="px-3 py-2 border border-gray-300 rounded-lg text-sm">
@@ -151,7 +151,7 @@ export default function TenantsModule() {
         </div>
 
         {loading ? (
-          <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+          <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" /></div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
@@ -177,7 +177,7 @@ export default function TenantsModule() {
                     </td>
                     <td className="px-4 py-3 text-sm font-mono text-gray-700">{t.tenantCode}</td>
                     <td className="px-4 py-3">
-                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800">
+                      <span className="px-2 py-1 text-xs font-semibold rounded-full bg-cyan-100 text-cyan-800">
                         {Array.isArray(t.subscriptionPlans) && t.subscriptionPlans.length > 0
                           ? t.subscriptionPlans.map((p: any) => p.code || p).join(", ")
                           : "Sin plan"}
@@ -191,7 +191,7 @@ export default function TenantsModule() {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm space-x-1">
-                      <Link href={`/admin/tenants/${t.id}`} className="text-blue-600 hover:text-blue-800 text-xs">Ver</Link>
+                      <Link href={`/admin/tenants/${t.id}`} className="text-cyan-600 hover:text-cyan-800 text-xs">Ver</Link>
                       <button onClick={() => { setShowLimits(t); setLimitsForm({ maxUsers: t.maxUsers, maxStorage: t.maxStorage, maxTransactions: t.maxTransactions, monthlyCost: t.monthlyCost }); }}
                         className="text-purple-600 hover:text-purple-800 text-xs ml-2">Límites</button>
                       <button onClick={() => impersonateTenant(t)} disabled={impersonating === t.id}
@@ -252,7 +252,7 @@ export default function TenantsModule() {
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setShowLimits(null)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>
               <button onClick={saveLimits} disabled={savingLimits}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 text-sm bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50">
                 {savingLimits ? "Guardando..." : "Guardar"}
               </button>
             </div>
@@ -315,7 +315,7 @@ export default function TenantsModule() {
             <div className="flex justify-end gap-3 mt-6">
               <button onClick={() => setShowCreateModal(false)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>
               <button onClick={createTenant} disabled={creating || !createForm.businessName || !createForm.businessRTN || !createForm.businessEmail}
-                className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 text-sm bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50">
                 {creating ? "Creando..." : "Crear Empresa"}
               </button>
             </div>

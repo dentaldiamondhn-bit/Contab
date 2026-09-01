@@ -313,7 +313,7 @@ export default function FinancialControlPage({ companyId }: FinancialControlProp
                 <div className="border-t pt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Fijos:</span>
-                    <span className="text-blue-600">{formatCurrency(
+                    <span className="text-cyan-600">{formatCurrency(
                       Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0)
                     )}</span>
                   </div>
@@ -349,7 +349,7 @@ export default function FinancialControlPage({ companyId }: FinancialControlProp
                 <div className="border-t pt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Variables:</span>
-                    <span className="text-blue-600">{formatCurrency(
+                    <span className="text-cyan-600">{formatCurrency(
                       Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0)
                     )}</span>
                   </div>

@@ -70,7 +70,7 @@ export default function LibroEgresos({ egresos, onEdit, onDelete }: LibroEgresos
                             variant="ghost"
                             size="sm"
                             onClick={() => onEdit(egreso)}
-                            className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                            className="h-8 w-8 p-0 text-cyan-600 hover:text-cyan-800 hover:bg-cyan-100"
                           >
                             <Edit className="h-4 w-4" />
                           </Button>

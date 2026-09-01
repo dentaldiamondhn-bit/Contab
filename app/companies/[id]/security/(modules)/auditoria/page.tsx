@@ -93,7 +93,7 @@ export default function AuditoriaPage({ params }: AuditoriaPageProps) {
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <ClipboardList className="h-5 w-5 text-blue-600" />
+            <ClipboardList className="h-5 w-5 text-cyan-600" />
             1. Registro de Auditoría (Audit Trail)
           </CardTitle>
           <CardDescription>
@@ -199,7 +199,7 @@ export default function AuditoriaPage({ params }: AuditoriaPageProps) {
               <p className="text-xs text-gray-600">Libro Mayor: Cuadrado</p>
               <p className="text-xs text-green-600 mt-2">✓ Sin asientos huérfanos</p>
             </div>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
               <div className="flex items-center justify-between mb-3">
                 <p className="font-medium text-sm">Retenciones ISR</p>
                 <CheckCircle className="h-5 w-5 text-green-600" />
@@ -213,7 +213,7 @@ export default function AuditoriaPage({ params }: AuditoriaPageProps) {
       </Card>
 
       {/* Summary */}
-      <Card className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200">
+      <Card className="bg-gradient-to-r from-purple-50 to-cyan-50 border border-purple-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Activity className="h-5 w-5 text-purple-600" />
@@ -223,7 +223,7 @@ export default function AuditoriaPage({ params }: AuditoriaPageProps) {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
             <div className="p-3 bg-white rounded-lg text-center">
-              <p className="text-2xl font-bold text-blue-600">1,245</p>
+              <p className="text-2xl font-bold text-cyan-600">1,245</p>
               <p className="text-xs text-gray-600">Eventos Registrados</p>
             </div>
             <div className="p-3 bg-white rounded-lg text-center">
@@ -239,7 +239,7 @@ export default function AuditoriaPage({ params }: AuditoriaPageProps) {
               <p className="text-xs text-gray-600">Cumplimiento SAR</p>
             </div>
             <div className="p-3 bg-white rounded-lg text-center">
-              <p className="text-2xl font-bold text-indigo-600">7</p>
+              <p className="text-2xl font-bold text-cyan-600">7</p>
               <p className="text-xs text-gray-600">Reportes Generados</p>
             </div>
           </div>

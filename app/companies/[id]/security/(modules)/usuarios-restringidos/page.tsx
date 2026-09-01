@@ -138,9 +138,9 @@ export default function UsuariosRestringidosPage({ params }: UsuariosRestringido
         <Card className="text-center">
           <CardContent className="p-4">
             <div className="flex items-center justify-center mb-2">
-              <Users className="h-5 w-5 text-blue-600" />
+              <Users className="h-5 w-5 text-cyan-600" />
             </div>
-            <p className="text-2xl font-bold text-blue-600">{usuarios.length}</p>
+            <p className="text-2xl font-bold text-cyan-600">{usuarios.length}</p>
             <p className="text-xs text-gray-600">Total Restringidos</p>
           </CardContent>
         </Card>
@@ -202,7 +202,7 @@ export default function UsuariosRestringidosPage({ params }: UsuariosRestringido
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Key className="h-5 w-5 text-indigo-600" />
+            <Key className="h-5 w-5 text-cyan-600" />
             Lista de Usuarios con Acceso Restringido
           </CardTitle>
           <CardDescription>

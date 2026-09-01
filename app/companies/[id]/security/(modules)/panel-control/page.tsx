@@ -136,7 +136,7 @@ export default function PanelControlPage({ params }: PanelControlPageProps) {
     switch (tipo) {
       case 'advertencia': return 'border-yellow-500 bg-yellow-50';
       case 'error': return 'border-red-500 bg-red-50';
-      case 'info': return 'border-blue-500 bg-blue-50';
+      case 'info': return 'border-cyan-500 bg-cyan-50';
       default: return 'border-gray-500 bg-gray-50';
     }
   };
@@ -147,7 +147,7 @@ export default function PanelControlPage({ params }: PanelControlPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Shield className="h-5 w-5 text-indigo-600" />
+            <Shield className="h-5 w-5 text-cyan-600" />
             Panel Central de Control
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -159,7 +159,7 @@ export default function PanelControlPage({ params }: PanelControlPageProps) {
             <RefreshCw className="h-4 w-4" />
             Actualizar
           </Button>
-          <Badge variant="default" className="bg-indigo-600">
+          <Badge variant="default" className="bg-cyan-600">
             {resumenGeneral.cumplimientoGeneral}% Cumplimiento
           </Badge>
         </div>
@@ -190,9 +190,9 @@ export default function PanelControlPage({ params }: PanelControlPageProps) {
         <Card className="text-center cursor-pointer hover:shadow-md transition-shadow" onClick={() => navigateToModule('retenciones')}>
           <CardContent className="p-4">
             <div className="flex items-center justify-center mb-2">
-              <Percent className="h-5 w-5 text-blue-600" />
+              <Percent className="h-5 w-5 text-cyan-600" />
             </div>
-            <p className="text-2xl font-bold text-blue-600">L {resumenGeneral.retencionesAcumuladas}</p>
+            <p className="text-2xl font-bold text-cyan-600">L {resumenGeneral.retencionesAcumuladas}</p>
             <p className="text-xs text-gray-600">Retenciones Acumuladas</p>
           </CardContent>
         </Card>
@@ -232,7 +232,7 @@ export default function PanelControlPage({ params }: PanelControlPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Database className="h-5 w-5 text-indigo-600" />
+            <Database className="h-5 w-5 text-cyan-600" />
             Estado de Módulos de Seguridad
           </CardTitle>
           <CardDescription>

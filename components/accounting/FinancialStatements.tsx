@@ -341,12 +341,12 @@ export default function FinancialStatements() {
               </div>
               
               {/* Verificación de Balance */}
-              <div className="mt-6 p-4 bg-blue-50 rounded-lg">
+              <div className="mt-6 p-4 bg-cyan-50 rounded-lg">
                 <div className="flex justify-between items-center">
                   <span className="font-semibold text-blue-900">VERIFICACIÓN DE BALANCE:</span>
                   <div className="flex items-center space-x-4">
-                    <span className="text-blue-700">Activo = {formatCurrency(totals.assets)}</span>
-                    <span className="text-blue-700">Pasivo + Patrimonio = {formatCurrency(Math.abs(totals.liabilities + totals.equity))}</span>
+                    <span className="text-cyan-700">Activo = {formatCurrency(totals.assets)}</span>
+                    <span className="text-cyan-700">Pasivo + Patrimonio = {formatCurrency(Math.abs(totals.liabilities + totals.equity))}</span>
                     <Badge className={totals.assets === Math.abs(totals.liabilities + totals.equity) ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>
                       {totals.assets === Math.abs(totals.liabilities + totals.equity) ? "✓ BALANCEADO" : "✗ ERROR"}
                     </Badge>

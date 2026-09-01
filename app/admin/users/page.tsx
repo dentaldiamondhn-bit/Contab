@@ -346,7 +346,7 @@ export default function UsersManagementPage() {
 
   const roleColors: Record<string, string> = {
     SUPER_ADMIN: "bg-purple-100 text-purple-800",
-    SUPPORT: "bg-blue-100 text-blue-800",
+    SUPPORT: "bg-cyan-100 text-cyan-800",
     ADMIN: "bg-green-100 text-green-800",
     MANAGER: "bg-yellow-100 text-yellow-800",
     USER: "bg-gray-100 text-gray-800",
@@ -363,7 +363,7 @@ export default function UsersManagementPage() {
           </div>
           <button
             onClick={() => setShowCreateModal(true)}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -387,13 +387,13 @@ export default function UsersManagementPage() {
                 placeholder="Buscar por email o nombre..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
               />
             </div>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
             >
               <option value="ALL">Todos los roles</option>
               <option value="SUPER_ADMIN">Super Admin</option>
@@ -408,7 +408,7 @@ export default function UsersManagementPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -447,7 +447,7 @@ export default function UsersManagementPage() {
                     <tr key={user.id} className="hover:bg-gray-50">
                       <td className="px-6 py-4">
                         <div className="flex items-center">
-                          <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center mr-3">
+                          <div className="w-10 h-10 bg-cyan-600 rounded-full flex items-center justify-center mr-3">
                             <span className="text-white font-medium">
                               {user.firstName?.charAt(0) || user.email.charAt(0).toUpperCase()}
                             </span>
@@ -480,7 +480,7 @@ export default function UsersManagementPage() {
                         <select
                           value={user.tenantId || ''}
                           onChange={(e) => handleTenantChange(user.id, e.target.value)}
-                          className="px-2 py-1 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-blue-500"
+                          className="px-2 py-1 text-xs border border-gray-300 rounded bg-white focus:ring-2 focus:ring-cyan-500"
                         >
                           <option value="">Sin tenant</option>
                           {tenants.map((t: any) => (
@@ -515,7 +515,7 @@ export default function UsersManagementPage() {
                         </button>
                         <button
                           onClick={() => openPasswordModal(user)}
-                          className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                          className="px-3 py-1 rounded bg-cyan-100 text-cyan-700 hover:bg-cyan-200"
                         >
                           <Key className="h-4 w-4 inline mr-1" />
                           Cambiar contraseña
@@ -563,7 +563,7 @@ export default function UsersManagementPage() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="Mínimo 8 caracteres"
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 pr-10"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500 pr-10"
                     />
                     <button
                       type="button"
@@ -594,7 +594,7 @@ export default function UsersManagementPage() {
                   <button
                     onClick={resetPassword}
                     disabled={!newPassword || newPassword.length < 8 || resettingPassword}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {resettingPassword ? (
                       <>
@@ -628,7 +628,7 @@ export default function UsersManagementPage() {
                       required
                       value={formData.email}
                       onChange={(e) => setFormData({...formData, email: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       placeholder="usuario@ejemplo.com"
                     />
                   </div>
@@ -647,7 +647,7 @@ export default function UsersManagementPage() {
                           const username = `${firstName.toLowerCase()}_${formData.lastName.toLowerCase()}`;
                           setFormData({...formData, firstName, username});
                         }}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                         placeholder="Juan"
                       />
                     </div>
@@ -664,7 +664,7 @@ export default function UsersManagementPage() {
                           const username = `${formData.firstName.toLowerCase()}_${lastName.toLowerCase()}`;
                           setFormData({...formData, lastName, username});
                         }}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                         placeholder="Pérez"
                       />
                     </div>
@@ -679,7 +679,7 @@ export default function UsersManagementPage() {
                       id="username"
                       value={formData.username}
                       onChange={(e) => setFormData({...formData, username: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       placeholder="juan_perez"
                     />
                     <p className="text-xs text-gray-500 mt-1">Solo letras, números, guiones y guiones bajos</p>
@@ -695,7 +695,7 @@ export default function UsersManagementPage() {
                       required
                       value={formData.password}
                       onChange={(e) => setFormData({...formData, password: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       placeholder="Contraseña temporal"
                     />
                   </div>
@@ -709,7 +709,7 @@ export default function UsersManagementPage() {
                       required
                       value={formData.role}
                       onChange={(e) => setFormData({...formData, role: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                     >
                       <option value="SUPER_ADMIN">Super Admin</option>
                       <option value="SUPPORT">Soporte</option>
@@ -728,7 +728,7 @@ export default function UsersManagementPage() {
                       id="tenantId"
                       value={formData.tenantId}
                       onChange={(e) => setFormData({...formData, tenantId: e.target.value})}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                     >
                       <option value="">Sin tenant</option>
                       {tenants.map((tenant) => (
@@ -760,7 +760,7 @@ export default function UsersManagementPage() {
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                     >
                       Crear Usuario
                     </button>

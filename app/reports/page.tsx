@@ -57,14 +57,14 @@ export default function ReportsPage() {
       title: "Reportes Financieros",
       description: "Estados financieros principales",
       icon: <BarChart3 className="w-5 h-5" />,
-      color: "text-blue-600 bg-blue-50",
+      color: "text-cyan-600 bg-cyan-50",
       reports: [
         {
           title: "Balance General",
           description: "Activos, pasivos y patrimonio a una fecha",
           href: "/reports/balance-general",
           icon: <Building2 className="w-5 h-5" />,
-          color: "bg-blue-500",
+          color: "bg-cyan-500",
           available: true,
         },
         {
@@ -105,14 +105,14 @@ export default function ReportsPage() {
       title: "Libros Contables",
       description: "Libros legales para SAR",
       icon: <BookOpen className="w-5 h-5" />,
-      color: "text-indigo-600 bg-indigo-50",
+      color: "text-cyan-600 bg-cyan-50",
       reports: [
         {
           title: "Libro Diario",
           description: "Registro cronologico de transacciones",
           href: "/reports/libro-diario",
           icon: <BookOpen className="w-5 h-5" />,
-          color: "bg-indigo-500",
+          color: "bg-cyan-500",
           available: true,
         },
         {
@@ -264,7 +264,7 @@ export default function ReportsPage() {
           placeholder="Buscar reporte..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
         />
       </div>
 
@@ -324,7 +324,7 @@ export default function ReportsPage() {
                         </div>
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium text-gray-900 group-hover:text-blue-600 truncate">
+                            <div className="text-sm font-medium text-gray-900 group-hover:text-cyan-600 truncate">
                               {report.title}
                             </div>
                             {report.badge && (
@@ -381,7 +381,7 @@ export default function ReportsPage() {
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-cyan-600">
                 {categories.reduce((sum, c) => sum + c.reports.length, 0)}
               </div>
               <div className="text-xs text-gray-500">Reportes Disponibles</div>

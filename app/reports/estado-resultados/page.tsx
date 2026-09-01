@@ -82,7 +82,7 @@ export default function EstadoResultadosPage() {
                         <span className="font-mono text-xs text-gray-500">{a.code}</span> {a.name}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'}`}>
                           {a.nature === 'DEBIT' ? 'Deudora' : 'Acreedora'}
                         </span>
                       </TableCell>
@@ -124,7 +124,7 @@ export default function EstadoResultadosPage() {
                         <span className="font-mono text-xs text-gray-500">{a.code}</span> {a.name}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'}`}>
                           {a.nature === 'DEBIT' ? 'Deudora' : 'Acreedora'}
                         </span>
                       </TableCell>

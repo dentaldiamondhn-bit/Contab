@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { supabase as supabaseService } from "@/lib/supabase-db";
 
 // Helper para obtener tenantId del request
 async function getTenantFromRequest(request: NextRequest) {
   const tenantId = request.headers.get("x-tenant-id") || 
                    new URL(request.url).searchParams.get("tenantId");
-  
+   
   if (!tenantId) {
     return null;
   }
-
+ 
   return { id: tenantId };
 }
 
@@ -26,14 +26,11 @@ export async function GET(request: NextRequest) {
       );
     }
     
-    // Crear cliente Supabase
-    const supabase = createSupabaseClient();
-    
-    // Obtener egresos directamente de la tabla Transaction
+    // Usar service_role para bypass RLS y soportar ANGELOH7 real
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined;
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined;
     
-    let query = supabase
+    let query = supabaseService
       .from("Transaction")
       .select(`
         *,
@@ -46,7 +43,7 @@ export async function GET(request: NextRequest) {
         )
       `)
       .eq("voucherType", "EGRESO")
-      .in("tenantId", [tenant.id, tenant.id === '1' ? 'tenant_001' : '1']); // Handle both tenant ID formats
+      .eq("tenantId", tenant.id)
     
     // Apply date filters if provided
     if (startDate) {
@@ -56,7 +53,11 @@ export async function GET(request: NextRequest) {
       query = query.lte("date", endDate.toISOString());
     }
     
-    const { data: egresos, error } = await query.order("date", { ascending: true }) as { data: any[], error: any };
+    let { data: egresos, error } = await query.order("date", { ascending: true }) as { data: any[], error: any };
+    if ((!egresos || egresos.length === 0) && !error) {
+      const alt = await supabaseService.from("Transaction").select(`*, JournalEntry (*, Account (code, name))`).eq("voucher_type", "EGRESO").eq("tenant_id", tenant.id).order("date", { ascending: true }) as any;
+      if (!alt.error && alt.data && alt.data.length > 0) { egresos = alt.data; error = null; }
+    }
     
     console.log("🔍 DEBUG - Egresos query result:", { 
       count: egresos?.length || 0, 

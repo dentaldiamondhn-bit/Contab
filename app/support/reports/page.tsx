@@ -123,7 +123,7 @@ export default function SupportReportsPage() {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'tenant':
-        return <Building2 className="w-4 h-4 text-blue-500" />;
+        return <Building2 className="w-4 h-4 text-cyan-500" />;
       case 'user':
         return <Users className="w-4 h-4 text-green-500" />;
       case 'ticket':
@@ -244,7 +244,7 @@ Tickets Resueltos: ${reportData.ticketsResolved}
                     {reportData.activeTenants} activos
                   </p>
                 </div>
-                <Building2 className="w-8 h-8 text-blue-400" />
+                <Building2 className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>

@@ -273,7 +273,7 @@ export default function TaxesPage() {
           </p>
         </div>
         <Button 
-          className="bg-blue-600 hover:bg-blue-700"
+          className="bg-cyan-600 hover:bg-cyan-700"
           onClick={() => {
             setEditingTax(null);
             setFormData({ name: '', type: 'IVA', rate: '', description: '' });
@@ -333,7 +333,7 @@ export default function TaxesPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Impuestos</CardTitle>
-                <Receipt className="h-4 w-4 text-blue-600" />
+                <Receipt className="h-4 w-4 text-cyan-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{taxes.length}</div>
@@ -393,7 +393,7 @@ export default function TaxesPage() {
                 <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Tasa:</span>
-                    <span className="text-lg font-bold text-blue-600">{tax.rate}%</span>
+                    <span className="text-lg font-bold text-cyan-600">{tax.rate}%</span>
                   </div>
                   
                   {tax.description && (
@@ -449,7 +449,7 @@ export default function TaxesPage() {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Retenciones</CardTitle>
-                <CreditCard className="h-4 w-4 text-blue-600" />
+                <CreditCard className="h-4 w-4 text-cyan-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{retentions.length}</div>
@@ -577,7 +577,7 @@ export default function TaxesPage() {
             }
           </p>
           {!searchTerm && (
-            <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowAddDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Agregar Primer {activeTab === 'impuestos' ? 'Impuesto' : 'Retención'}
             </Button>
@@ -617,7 +617,7 @@ export default function TaxesPage() {
                   id="type"
                   value={formData.type}
                   onChange={(e) => setFormData(prev => ({ ...prev, type: e.target.value as any }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   required
                 >
                   <option value="IVA">IVA (Impuesto al Valor Agregado)</option>

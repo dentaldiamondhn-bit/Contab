@@ -343,7 +343,7 @@ export default function EditTenantPage() {
         <div className="mb-8">
           <button
             onClick={() => router.push("/admin/tenants")}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
           >
             ← Volver
           </button>
@@ -368,32 +368,32 @@ export default function EditTenantPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Nombre de la Empresa *</label>
               <input type="text" name="businessName" required value={formData.businessName} onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Email de la Empresa *</label>
               <input type="email" name="businessEmail" required value={formData.businessEmail} onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">RTN</label>
                 <input type="text" name="businessRTN" value={formData.businessRTN} onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Teléfono</label>
                 <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleChange}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
               </div>
             </div>
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Dirección</label>
               <textarea name="businessAddress" value={formData.businessAddress} onChange={handleChange} rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent" />
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent" />
             </div>
 
             {/* Planes */}
@@ -406,7 +406,7 @@ export default function EditTenantPage() {
                     const quantity = formData.subscriptionPlans.find((p: any) => p.code === plan.code)?.quantity || 0;
 
                     return (
-                      <div key={plan.id} className={`border rounded-lg p-3 ${isSelected ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}>
+                      <div key={plan.id} className={`border rounded-lg p-3 ${isSelected ? 'border-cyan-500 bg-cyan-50' : 'border-gray-200'}`}>
                         <div className="flex items-center justify-between">
                           <div>
                             <h3 className="font-medium text-gray-900">{plan.name}</h3>
@@ -437,8 +437,8 @@ export default function EditTenantPage() {
                 </div>
 
                 {formData.subscriptionPlans.length > 0 && (
-                  <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <p className="text-xs text-blue-800 font-medium">{formData.subscriptionPlans.length} plan(es) seleccionado(s)</p>
+                  <div className="mt-3 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+                    <p className="text-xs text-cyan-800 font-medium">{formData.subscriptionPlans.length} plan(es) seleccionado(s)</p>
                     <p className="text-sm text-blue-900 font-semibold">Costo total mensual: L. {(formData.monthlyCost || 0).toLocaleString()}</p>
                   </div>
                 )}
@@ -495,7 +495,7 @@ export default function EditTenantPage() {
                                     {limitDefs.length > 0 && moduleConfig && (
                                       <div className="mt-1 space-y-0.5">
                                         {limitDefs.map(ld => (
-                                          <p key={ld.key} className="text-xs text-blue-700 font-medium">
+                                          <p key={ld.key} className="text-xs text-cyan-700 font-medium">
                                             {ld.label}: {(moduleConfig as any)[ld.key] ?? ld.defaultValue} {ld.unit}
                                           </p>
                                         ))}
@@ -523,7 +523,7 @@ export default function EditTenantPage() {
                 Cancelar
               </button>
               <button type="submit" disabled={saving}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
+                className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {saving ? 'Guardando...' : 'Guardar Cambios'}
               </button>
             </div>

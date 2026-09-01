@@ -178,10 +178,10 @@ export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Facturas</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               {stats.totalInvoices}
             </div>
             <p className="text-xs text-gray-600">
@@ -314,7 +314,7 @@ export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
                     </div>
                   </div>
                   <div className="text-right">
-                    <div className="font-bold text-blue-600">
+                    <div className="font-bold text-cyan-600">
                       {formatCurrency(amount)}
                     </div>
                   </div>
@@ -335,7 +335,7 @@ export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
                   </div>
                   <div className="flex-1 bg-gray-200 rounded-full h-6 relative">
                     <div 
-                      className="bg-blue-600 h-6 rounded-full flex items-center justify-end pr-2"
+                      className="bg-cyan-600 h-6 rounded-full flex items-center justify-end pr-2"
                       style={{ width: `${Math.max(percentage, 5)}%` }}
                     >
                       <span className="text-xs text-white font-medium">
@@ -343,7 +343,7 @@ export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
                       </span>
                     </div>
                   </div>
-                  <div className="w-24 text-right text-sm font-bold text-blue-600">
+                  <div className="w-24 text-right text-sm font-bold text-cyan-600">
                     {formatCurrency(amount)}
                   </div>
                 </div>

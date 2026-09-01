@@ -96,6 +96,8 @@ export async function GET() {
       
       return {
         id: company.id,
+        tenant_id: (company as any).tenant_id,
+        tenantId: (company as any).tenant_id,
         business_name: company.name || company.business_name || 'Sin nombre',
         business_rtn: company.rtn || company.business_rtn || '',
         industry: company.industry || company.business_type || 'Sin industria',

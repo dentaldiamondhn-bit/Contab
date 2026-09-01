@@ -342,7 +342,7 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
             {supplierData.map((supplier, index) => (
               <div key={supplier.name} className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-sm font-medium">
+                  <div className="w-8 h-8 rounded-full bg-cyan-100 flex items-center justify-center text-sm font-medium">
                     {index + 1}
                   </div>
                   <div>

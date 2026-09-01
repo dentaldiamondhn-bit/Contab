@@ -358,7 +358,7 @@ export default function TenantManager() {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <Building2 className="h-6 w-6 mr-2 text-blue-600" />
+            <Building2 className="h-6 w-6 mr-2 text-cyan-600" />
             Gestión de Tenants
           </h2>
           <p className="text-gray-600">Administra los tenants del sistema</p>
@@ -388,7 +388,7 @@ export default function TenantManager() {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
               <p>Cargando tenants...</p>
             </div>
           ) : (
@@ -568,7 +568,7 @@ export default function TenantManager() {
                       monthlyCost: plan.monthlyCost
                     });
                   }}
-                  className="w-full p-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full p-2 border border-gray-300 rounded-md bg-white text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="">Selecciona un plan</option>
                   {plans.length > 0 ? (

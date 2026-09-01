@@ -318,7 +318,7 @@ export default function SupportTenantDetailPage() {
       case 'ACTIVE':
         return 'bg-green-100 text-green-800';
       case 'PAID':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'CANCELLED':
         return 'bg-red-100 text-red-800';
       default:
@@ -331,7 +331,7 @@ export default function SupportTenantDetailPage() {
       case 'SUPER_ADMIN':
         return 'bg-purple-100 text-purple-800';
       case 'ADMIN':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'MANAGER':
         return 'bg-green-100 text-green-800';
       case 'ACCOUNTANT':
@@ -876,7 +876,7 @@ export default function SupportTenantDetailPage() {
                         <div className="flex space-x-2">
                           <button
                             onClick={() => setEditingPlanIndex(index)}
-                            className="px-3 py-1 bg-blue-100 text-blue-700 rounded-md hover:bg-blue-200 text-sm"
+                            className="px-3 py-1 bg-cyan-100 text-cyan-700 rounded-md hover:bg-cyan-200 text-sm"
                           >
                             Editar
                           </button>

@@ -56,19 +56,19 @@ export async function GET(request: NextRequest) {
       paymentMethod = (clerkUser.publicMetadata as any)?.paymentMethod || (clerkUser.publicMetadata as any)?.selectedPaymentMethod || null;
     } catch {}
 
-    // Obtener plan desde tenant_plans
+    // Obtener planes desde tenant_plans (todos los activos para mostrar en factura)
     let subscriptionPlan: string | null = null;
+    let allPlans: any[] = [];
     try {
       const { data: tPlans } = await supabase
         .from('tenant_plans')
-        .select('plan_name,plan_code')
-        .eq('tenant_id', tenant.id)
-        .limit(1);
+        .select('plan_name,plan_code,unit_price,total')
+        .eq('tenant_id', tenant.id);
       if (tPlans && tPlans.length > 0) {
+        allPlans = tPlans;
         subscriptionPlan = tPlans[0].plan_name || tPlans[0].plan_code || null;
       }
       if (!subscriptionPlan) {
-        // Fallback a Tenant.subscriptionplan
         subscriptionPlan = (tenant as any).subscriptionplan || (tenant as any).subscription_plan || null;
       }
     } catch {}
@@ -86,6 +86,7 @@ export async function GET(request: NextRequest) {
       maxUsers: tenant.max_users || 5,
       paymentMethod: paymentMethod || null,
       subscriptionPlan: subscriptionPlan || null,
+      plans: allPlans,
     };
 
     return NextResponse.json({
@@ -152,7 +153,51 @@ export async function PATCH(request: NextRequest) {
       } catch (e) {
         console.warn('No se pudo guardar paymentMethod en Clerk', e);
       }
-      // También guardar en localStorage del servidor no es posible, pero el cliente lo hace
+    }
+
+    // Si el tenant pide cambiar de plan, será efectivo para el siguiente ciclo (no para la factura actual inmutable)
+    if (body.subscriptionPlan !== undefined || body.planCode !== undefined || body.pendingPlan !== undefined || body.plan !== undefined) {
+      const newPlan = body.pendingPlan || body.subscriptionPlan || body.planCode || body.plan;
+      if (newPlan) {
+        const nextCycle = new Date();
+        nextCycle.setMonth(nextCycle.getMonth() + 1);
+        nextCycle.setDate(1);
+        nextCycle.setHours(0, 0, 0, 0);
+        try {
+          const { clerkClient } = await import('@clerk/nextjs/server');
+          const client = await clerkClient();
+          const clerkUser = await client.users.getUser(userId);
+          await client.users.updateUser(userId, {
+            publicMetadata: {
+              ...(clerkUser.publicMetadata as any),
+              pendingPlan: newPlan,
+              pendingPlanEffectiveDate: nextCycle.toISOString(),
+            },
+          });
+          console.log(`Plan change requested: ${newPlan} efectivo ${nextCycle.toISOString()} (siguiente ciclo)`);
+        } catch (e) {
+          console.warn('No se pudo guardar pendingPlan', e);
+        }
+        // También crear entrada futura en tenant_plans para que el generador la use el próximo mes
+        try {
+          // Buscar plan por code o name
+          const { data: planData } = await supabase.from('Plan').select('id,code,name,price').or(`code.eq.${newPlan},name.eq.${newPlan}`).maybeSingle();
+          if (planData) {
+            await supabase.from('tenant_plans').insert([{
+              tenant_id: tenantId,
+              plan_id: planData.id,
+              plan_code: planData.code,
+              plan_name: planData.name,
+              unit_price: planData.price,
+              total: Math.round(planData.price * 1.15),
+              is_active: false,
+              start_date: nextCycle.toISOString(),
+            }]);
+          }
+        } catch (e) {
+          console.warn('No se pudo crear tenant_plans futuro', e);
+        }
+      }
     }
 
     // Update companies table if exists

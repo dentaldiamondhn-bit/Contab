@@ -70,7 +70,7 @@ export default function ImportPage() {
           <h1 className="text-3xl font-bold text-gray-900">Importar/Exportar</h1>
           <p className="text-gray-600">Importar y exportar archivos Excel</p>
         </div>
-        <Button className="bg-blue-600 hover:bg-blue-700">
+        <Button className="bg-cyan-600 hover:bg-cyan-700">
           <RefreshCw className="h-4 w-4 mr-2" />
           Sincronizar
         </Button>

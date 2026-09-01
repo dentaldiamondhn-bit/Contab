@@ -96,7 +96,7 @@ export default function TenantAdminDashboard() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
       </div>
     );
   }
@@ -136,7 +136,7 @@ export default function TenantAdminDashboard() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600" />
       </div>
     );
   }
@@ -182,8 +182,8 @@ export default function TenantAdminDashboard() {
                 <p className="text-xs font-medium text-gray-500 uppercase">Cuentas por Cobrar</p>
                 <p className="text-2xl font-bold text-gray-900">{fmt(kpis.accountsReceivable)}</p>
               </div>
-              <div className="p-2 bg-blue-100 rounded-lg">
-                <Receipt className="w-5 h-5 text-blue-600" />
+              <div className="p-2 bg-cyan-100 rounded-lg">
+                <Receipt className="w-5 h-5 text-cyan-600" />
               </div>
             </div>
           </CardContent>
@@ -298,7 +298,7 @@ export default function TenantAdminDashboard() {
                 {taxAlerts.map((alert, i) => (
                   <div key={i} className="flex items-start gap-3 p-2 rounded-lg bg-gray-50">
                     <CircleAlert className={`w-4 h-4 mt-0.5 shrink-0 ${
-                      alert.status === 'urgent' ? 'text-red-500' : alert.status === 'warning' ? 'text-yellow-500' : 'text-blue-500'
+                      alert.status === 'urgent' ? 'text-red-500' : alert.status === 'warning' ? 'text-yellow-500' : 'text-cyan-500'
                     }`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900">{alert.tax}</p>
@@ -351,7 +351,7 @@ export default function TenantAdminDashboard() {
           <CardContent>
             <div className="space-y-2">
               <Button variant="outline" className="w-full justify-start gap-3 h-auto py-3" onClick={() => router.push('/billing/generate-invoice')}>
-                <div className="p-1.5 bg-blue-100 rounded"><Plus className="w-4 h-4 text-blue-600" /></div>
+                <div className="p-1.5 bg-cyan-100 rounded"><Plus className="w-4 h-4 text-cyan-600" /></div>
                 <div className="text-left">
                   <p className="text-sm font-medium">Nueva Factura</p>
                   <p className="text-[10px] text-gray-400">Crear factura o cotizacion</p>

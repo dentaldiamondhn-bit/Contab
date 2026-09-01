@@ -43,7 +43,7 @@ export default function AdminDashboardLayout({
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Verificando usuario...</p>
         </div>
       </div>
@@ -55,7 +55,7 @@ export default function AdminDashboardLayout({
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Usuario no encontrado...</p>
         </div>
       </div>
@@ -74,7 +74,7 @@ export default function AdminDashboardLayout({
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Acceso no autorizado...</p>
         </div>
       </div>
@@ -98,7 +98,7 @@ export default function AdminDashboardLayout({
             <span className="text-sm text-gray-600">
               {user.primaryEmailAddress?.emailAddress}
             </span>
-            <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center">
+            <div className="w-8 h-8 bg-cyan-600 rounded-full flex items-center justify-center">
               <span className="text-white text-sm font-medium">
                 {user.primaryEmailAddress?.emailAddress?.charAt(0).toUpperCase()}
               </span>

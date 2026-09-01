@@ -105,7 +105,7 @@ export default function WithholdingDashboard({ compact = false }: WithholdingDas
             <div className="space-y-2">
               {withholdings.slice(0, 3).map((withholding: any) => (
                 <div key={withholding.id} className="flex items-start gap-2 text-xs">
-                  <Calculator className="w-3 h-3 text-blue-600 mt-0.5" />
+                  <Calculator className="w-3 h-3 text-cyan-600 mt-0.5" />
                   <div className="flex-1">
                     <p className="font-medium">{withholding.invoiceNumber}</p>
                     <p className="text-muted-foreground">
@@ -164,7 +164,7 @@ export default function WithholdingDashboard({ compact = false }: WithholdingDas
                   <p className="text-sm font-medium text-muted-foreground">Total Retenciones</p>
                   <p className="text-2xl font-bold">{statistics.totalWithholdings}</p>
                 </div>
-                <FileText className="w-6 h-6 text-blue-600" />
+                <FileText className="w-6 h-6 text-cyan-600" />
               </div>
             </CardContent>
           </Card>

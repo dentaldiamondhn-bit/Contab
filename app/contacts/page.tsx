@@ -981,7 +981,7 @@ export default function ContactsPage() {
           </Button>
           <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
             <DialogTrigger asChild>
-              <Button className="bg-blue-600 hover:bg-blue-700">
+              <Button className="bg-cyan-600 hover:bg-cyan-700">
                 <Plus className="h-4 w-4 mr-2" />
                 Nuevo Contacto
               </Button>
@@ -1028,7 +1028,7 @@ export default function ContactsPage() {
                           id="tenantid"
                           value={formData.tenantid}
                           onChange={(e) => setFormData(prev => ({ ...prev, tenantid: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           required
                         >
                           <option value="">Seleccionar empresa</option>
@@ -1065,7 +1065,7 @@ export default function ContactsPage() {
                           id="contactType"
                           value={formData.contactType}
                           onChange={(e) => setFormData(prev => ({ ...prev, contactType: e.target.value }))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           required
                         >
                           <option value="">Seleccionar tipo</option>
@@ -1139,7 +1139,7 @@ export default function ContactsPage() {
                             id="taxpayerType"
                             value={formData.taxpayerType}
                             onChange={(e) => setFormData(prev => ({ ...prev, taxpayerType: e.target.value }))}
-                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           >
                             <option value="">Seleccionar tipo de contribuyente</option>
                             <option value="grande">Grande</option>
@@ -1177,7 +1177,7 @@ export default function ContactsPage() {
                               id={`account-${field.id}`}
                               value={field.account}
                               onChange={(e) => updateRetentionField(field.id, 'account', e.target.value)}
-                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                             >
                               <option value="">Seleccionar cuenta</option>
                               
@@ -1268,9 +1268,9 @@ export default function ContactsPage() {
                       ))}
                     </div>
                     
-                    <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                      <h4 className="text-sm font-medium text-blue-800 mb-2">Información Fiscal Adicional</h4>
-                      <p className="text-sm text-blue-600">
+                    <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
+                      <h4 className="text-sm font-medium text-cyan-800 mb-2">Información Fiscal Adicional</h4>
+                      <p className="text-sm text-cyan-600">
                         La configuración fiscal aquí establecida se usará automáticamente al generar facturas y documentos para este contacto.
                       </p>
                     </div>
@@ -1303,7 +1303,7 @@ export default function ContactsPage() {
                         >
                           <Upload className="h-12 w-12 text-gray-400" />
                           <div className="text-sm text-gray-600">
-                            <span className="font-medium text-blue-600 hover:text-blue-500">
+                            <span className="font-medium text-cyan-600 hover:text-cyan-500">
                               Haz clic para subir archivos
                             </span>
                             <span className="block">o arrastra y suelta</span>
@@ -1492,7 +1492,7 @@ export default function ContactsPage() {
           <CardContent>
             {loadingReport ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
               </div>
             ) : (
               <div className="overflow-x-auto">
@@ -1603,7 +1603,7 @@ export default function ContactsPage() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Total Contactos</CardTitle>
-              <Users className="h-4 w-4 text-blue-600" />
+              <Users className="h-4 w-4 text-cyan-600" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold">{customers.length}</div>
@@ -1720,7 +1720,7 @@ export default function ContactsPage() {
                 <div className="space-y-2 pb-2 border-b">
                   {customer.accounting && (
                     <div className="flex items-center space-x-2 text-sm">
-                      <Calculator className="h-4 w-4 text-blue-600" />
+                      <Calculator className="h-4 w-4 text-cyan-600" />
                       <span className="text-gray-600">Contabilidad: {customer.accounting}</span>
                     </div>
                   )}
@@ -1845,7 +1845,7 @@ export default function ContactsPage() {
             }
           </p>
           {!searchTerm && (
-            <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowAddDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Agregar Primer Contacto
             </Button>
@@ -2018,7 +2018,7 @@ export default function ContactsPage() {
                         setRetentionFormData({ retentionId: '', customRate: '', customDescription: '' });
                         setShowAddRetentionDialog(true);
                       }} 
-                      className="bg-blue-600 hover:bg-blue-700"
+                      className="bg-cyan-600 hover:bg-cyan-700"
                     >
                       <PlusCircle className="h-4 w-4 mr-2" />
                       Agregar Primera Retención
@@ -2047,7 +2047,7 @@ export default function ContactsPage() {
                 id="taxId"
                 value={taxFormData.taxId}
                 onChange={(e) => setTaxFormData({ ...taxFormData, taxId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="">Seleccionar impuesto</option>
                 {taxes.map((tax) => (
@@ -2083,7 +2083,7 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setShowAddTaxDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAddTax} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleAddTax} className="bg-cyan-600 hover:bg-cyan-700">
               Agregar Impuesto
             </Button>
           </div>
@@ -2106,7 +2106,7 @@ export default function ContactsPage() {
                 id="editTaxId"
                 value={taxFormData.taxId}
                 onChange={(e) => setTaxFormData({ ...taxFormData, taxId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="">Seleccionar impuesto</option>
                 {taxes.map((tax) => (
@@ -2142,7 +2142,7 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setShowEditTaxDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleEditTax} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleEditTax} className="bg-cyan-600 hover:bg-cyan-700">
               Guardar Cambios
             </Button>
           </div>
@@ -2165,7 +2165,7 @@ export default function ContactsPage() {
                 id="retentionId"
                 value={retentionFormData.retentionId}
                 onChange={(e) => setRetentionFormData({ ...retentionFormData, retentionId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="">Seleccionar retención</option>
                 {retentions.map((retention) => (
@@ -2201,7 +2201,7 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setShowAddRetentionDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleAddRetention} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleAddRetention} className="bg-cyan-600 hover:bg-cyan-700">
               Agregar Retención
             </Button>
           </div>
@@ -2224,7 +2224,7 @@ export default function ContactsPage() {
                 id="editRetentionId"
                 value={retentionFormData.retentionId}
                 onChange={(e) => setRetentionFormData({ ...retentionFormData, retentionId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="">Seleccionar retención</option>
                 {retentions.map((retention) => (
@@ -2260,7 +2260,7 @@ export default function ContactsPage() {
             <Button variant="outline" onClick={() => setShowEditRetentionDialog(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleEditRetention} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleEditRetention} className="bg-cyan-600 hover:bg-cyan-700">
               Guardar Cambios
             </Button>
           </div>

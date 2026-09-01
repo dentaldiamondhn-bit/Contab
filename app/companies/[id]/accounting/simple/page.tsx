@@ -76,7 +76,7 @@ export default function SimpleAccountingPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowTransactionForm(true)}>
                 <CardHeader className="text-center">
-                  <Calculator className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                  <Calculator className="h-12 w-12 text-cyan-600 mx-auto mb-4" />
                   <CardTitle>Ingreso Manual</CardTitle>
                   <CardDescription>
                     Ingrese transacciones una por una con partida doble automática

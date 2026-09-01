@@ -512,7 +512,7 @@ export default function ChartOfAccountsManager() {
                 <span className="font-mono text-sm text-gray-500">{account.code}</span>
                 <span className={`font-medium ${account.isActive === false ? "text-gray-400 line-through" : ""}`}>{account.name}</span>
                 <Badge className={getTypeColor(account.type)}>{accountTypes.find(t => t.value === account.type)?.label}</Badge>
-                <Badge className={account.nature === "DEBIT" ? "bg-blue-100 text-blue-700" : "bg-purple-100 text-purple-700"}>
+                <Badge className={account.nature === "DEBIT" ? "bg-cyan-100 text-cyan-700" : "bg-purple-100 text-purple-700"}>
                   {account.nature === "DEBIT" ? "Deudora" : "Acreedora"}
                 </Badge>
                 {account.currency && account.currency !== "HNL" && (
@@ -679,7 +679,7 @@ export default function ChartOfAccountsManager() {
                 <div>
                   <Label>Naturaleza {hasTransactions && editingAccount && <span className="text-[10px] text-amber-600">(bloqueado)</span>}</Label>
                   <div className="flex items-center gap-3 mt-1.5">
-                    <button type="button" disabled={hasTransactions && !!editingAccount} onClick={() => { setNatureAuto(false); setFormData(prev => ({ ...prev, nature: "DEBIT" })); }} className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${formData.nature === "DEBIT" ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"} ${hasTransactions && editingAccount ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
+                    <button type="button" disabled={hasTransactions && !!editingAccount} onClick={() => { setNatureAuto(false); setFormData(prev => ({ ...prev, nature: "DEBIT" })); }} className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${formData.nature === "DEBIT" ? "border-cyan-500 bg-cyan-50 text-cyan-700" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"} ${hasTransactions && editingAccount ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
                       <span className="font-bold">D</span> Deudora
                     </button>
                     <button type="button" disabled={hasTransactions && !!editingAccount} onClick={() => { setNatureAuto(false); setFormData(prev => ({ ...prev, nature: "CREDIT" })); }} className={`flex-1 py-2 px-3 rounded-lg border-2 text-sm font-medium transition-all ${formData.nature === "CREDIT" ? "border-purple-500 bg-purple-50 text-purple-700" : "border-gray-200 bg-white text-gray-500 hover:border-gray-300"} ${hasTransactions && editingAccount ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}>
@@ -744,7 +744,7 @@ export default function ChartOfAccountsManager() {
                 <div className="grid grid-cols-2 gap-4">
                   <div className="flex items-center justify-between py-3 px-3 rounded-lg border">
                     <div><Label className="text-sm font-medium">Permite Asientos</Label><p className="text-[11px] text-gray-400">is_selectable</p></div>
-                    <button type="button" onClick={() => setFormData(prev => ({ ...prev, isSelectable: !prev.isSelectable }))} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.isSelectable ? "bg-blue-600" : "bg-gray-300"}`}>
+                    <button type="button" onClick={() => setFormData(prev => ({ ...prev, isSelectable: !prev.isSelectable }))} className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${formData.isSelectable ? "bg-cyan-600" : "bg-gray-300"}`}>
                       <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${formData.isSelectable ? "translate-x-6" : "translate-x-1"}`} />
                     </button>
                   </div>
@@ -822,7 +822,7 @@ export default function ChartOfAccountsManager() {
               { key: "comercial", label: "Comercial", desc: "53 cuentas — Empresas con inventario y exportación" },
               { key: "servicios", label: "Servicios", desc: "28 cuentas — Empresas de servicios profesionales" },
             ].map(t => (
-              <button key={t.key} onClick={() => applyTemplate(t.key)} className="w-full text-left p-4 rounded-lg border-2 hover:border-blue-500 hover:bg-blue-50 transition-all">
+              <button key={t.key} onClick={() => applyTemplate(t.key)} className="w-full text-left p-4 rounded-lg border-2 hover:border-cyan-500 hover:bg-cyan-50 transition-all">
                 <div className="font-semibold text-gray-900">{t.label}</div>
                 <div className="text-sm text-gray-500">{t.desc}</div>
               </button>
@@ -885,7 +885,7 @@ export default function ChartOfAccountsManager() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h4 className="font-semibold text-gray-900 mb-2">Ecuación Fundamental</h4>
-              <div className="bg-blue-50 p-4 rounded-lg">
+              <div className="bg-cyan-50 p-4 rounded-lg">
                 <p className="text-center text-lg font-mono font-bold text-blue-900">Activo = Pasivo + Patrimonio</p>
               </div>
             </div>

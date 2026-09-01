@@ -335,7 +335,7 @@ export default function WithholdingManager() {
 
       {statistics && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <StatCard title="Total Recibos" value={statistics.totalWithholdings} icon={<FileText className="text-blue-500" />} />
+          <StatCard title="Total Recibos" value={statistics.totalWithholdings} icon={<FileText className="text-cyan-500" />} />
           <StatCard title="Monto Sujeto" value={formatCurrency(statistics.totalAmount)} icon={<TrendingUp className="text-green-500" />} />
           <StatCard title="Total Retenido" value={formatCurrency(statistics.totalWithheld)} icon={<Calculator className="text-red-500" />} isRed />
           <StatCard title="Pendientes" value={statistics.pendingCount} icon={<Clock className="text-orange-500" />} />

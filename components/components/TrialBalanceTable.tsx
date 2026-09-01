@@ -30,7 +30,7 @@ export function TrialBalanceTable({ data }: { data: AccountRow[] }) {
 
   const getRowClass = (row: AccountRow) => {
     if (row.isParent) {
-      return 'bg-blue-50 font-bold border-l-4 border-blue-400';
+      return 'bg-cyan-50 font-bold border-l-4 border-blue-400';
     }
     return 'hover:bg-gray-50';
   };
@@ -74,7 +74,7 @@ export function TrialBalanceTable({ data }: { data: AccountRow[] }) {
               <td className="px-2 text-right text-xs">
                 {row.isParent ? <strong>{formatCurrency(row.creditMovement)}</strong> : formatCurrency(row.creditMovement)}
               </td>
-              <td className={`px-2 text-right text-xs font-bold ${row.finalBalance < 0 ? 'text-red-600' : row.isParent ? 'text-blue-700' : 'text-gray-900'}`}>
+              <td className={`px-2 text-right text-xs font-bold ${row.finalBalance < 0 ? 'text-red-600' : row.isParent ? 'text-cyan-700' : 'text-gray-900'}`}>
                 {formatCurrency(row.finalBalance)}
               </td>
             </tr>

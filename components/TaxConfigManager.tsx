@@ -100,7 +100,7 @@ export default function TaxConfigManager({ onTaxConfigSelect }: TaxConfigManager
         <h2 className="text-2xl font-bold text-gray-800">Tax Configurations</h2>
         <button
           onClick={() => setShowCreateForm(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+          className="px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700"
         >
           Add Tax Config
         </button>
@@ -118,7 +118,7 @@ export default function TaxConfigManager({ onTaxConfigSelect }: TaxConfigManager
                 type="text"
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 placeholder="e.g., ISV 15%"
                 required
               />
@@ -135,7 +135,7 @@ export default function TaxConfigManager({ onTaxConfigSelect }: TaxConfigManager
                 max="1"
                 value={formData.rate}
                 onChange={(e) => setFormData({ ...formData, rate: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 placeholder="0.15"
                 required
               />
@@ -148,7 +148,7 @@ export default function TaxConfigManager({ onTaxConfigSelect }: TaxConfigManager
               <select
                 value={formData.accountId}
                 onChange={(e) => setFormData({ ...formData, accountId: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 required
               >
                 <option value="">Select an account</option>
@@ -225,7 +225,7 @@ export default function TaxConfigManager({ onTaxConfigSelect }: TaxConfigManager
                 <td className="p-2">
                   <button
                     onClick={() => onTaxConfigSelect?.(config)}
-                    className="px-2 py-1 bg-blue-500 text-white rounded text-sm mr-2 hover:bg-blue-600"
+                    className="px-2 py-1 bg-cyan-500 text-white rounded text-sm mr-2 hover:bg-cyan-600"
                   >
                     Select
                   </button>

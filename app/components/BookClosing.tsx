@@ -111,7 +111,7 @@ export default function BookClosing() {
             <select
               value={closingType}
               onChange={(e) => setClosingType(e.target.value as 'MONTHLY' | 'YEARLY')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="MONTHLY">Monthly</option>
               <option value="YEARLY">Yearly</option>
@@ -129,7 +129,7 @@ export default function BookClosing() {
               placeholder={closingType === 'MONTHLY' ? 'YYYY-MM' : 'YYYY'}
               min={closingType === 'YEARLY' ? '2020' : undefined}
               max={closingType === 'YEARLY' ? new Date().getFullYear() : undefined}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
         </div>
@@ -143,7 +143,7 @@ export default function BookClosing() {
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Notes about this closing period..."
             rows={3}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
           />
         </div>
 

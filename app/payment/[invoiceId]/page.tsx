@@ -121,7 +121,7 @@ export default function PaymentPage() {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p>Cargando información de pago...</p>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function PaymentPage() {
               Volver
             </Button>
             <div className="flex items-center space-x-3">
-              <QrCode className="h-6 w-6 text-blue-600" />
+              <QrCode className="h-6 w-6 text-cyan-600" />
               <div>
                 <h1 className="text-2xl font-bold text-gray-900">Pagar Factura</h1>
                 <p className="text-gray-600">Factura {paymentData.invoiceNumber}</p>
@@ -251,12 +251,12 @@ export default function PaymentPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="p-4 bg-blue-50 rounded-lg">
-                    <p className="text-sm text-blue-600 mb-1">Monto a pagar</p>
+                  <div className="p-4 bg-cyan-50 rounded-lg">
+                    <p className="text-sm text-cyan-600 mb-1">Monto a pagar</p>
                     <p className="text-3xl font-bold text-blue-900">
                       {formatCurrency(paymentData.amount)}
                     </p>
-                    <p className="text-sm text-blue-600">Factura {paymentData.invoiceNumber}</p>
+                    <p className="text-sm text-cyan-600">Factura {paymentData.invoiceNumber}</p>
                   </div>
                 </div>
               </CardContent>
@@ -324,7 +324,7 @@ export default function PaymentPage() {
                       </div>
                     )}
                     {uploadingReceipt && (
-                      <div className="flex items-center space-x-2 text-sm text-blue-600">
+                      <div className="flex items-center space-x-2 text-sm text-cyan-600">
                         <AlertTriangle className="h-4 w-4" />
                         <span>Procesando comprobante...</span>
                       </div>

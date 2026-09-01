@@ -41,13 +41,13 @@ export default function DETPage() {
       </div>
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-cyan-200 bg-cyan-50/50">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+            <Info className="w-5 h-5 text-cyan-600 mt-0.5" />
             <div className="space-y-2">
               <h3 className="font-medium text-blue-900">¿Qué es DET Live?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+              <ul className="text-sm text-cyan-800 space-y-1">
                 <li>• DET Live es el sistema oficial del SAR para declaraciones informativas mensuales</li>
                 <li>• Todas las empresas deben presentar sus compras y ventas mensualmente</li>
                 <li>• El formato es específico y debe seguir la estructura exacta requerida</li>
@@ -64,8 +64,8 @@ export default function DETPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Download className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Download className="w-6 h-6 text-cyan-600" />
             </div>
             <h3 className="font-medium mb-2">Formato SAR Oficial</h3>
             <p className="text-sm text-muted-foreground">

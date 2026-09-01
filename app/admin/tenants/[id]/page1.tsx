@@ -333,7 +333,7 @@ export default function TenantDetailPage() {
       case 'ACTIVE':
         return 'bg-green-100 text-green-800';
       case 'PAID':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'CANCELLED':
         return 'bg-red-100 text-red-800';
       default:
@@ -390,7 +390,7 @@ export default function TenantDetailPage() {
       case 'SUPER_ADMIN':
         return 'bg-purple-100 text-purple-800';
       case 'ADMIN':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'MANAGER':
         return 'bg-green-100 text-green-800';
       case 'ACCOUNTANT':
@@ -407,7 +407,7 @@ export default function TenantDetailPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-8 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -433,7 +433,7 @@ export default function TenantDetailPage() {
         <div className="mb-8">
           <button
             onClick={() => router.push("/admin/tenants")}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
           >
             ← Volver a Tenants
           </button>
@@ -445,7 +445,7 @@ export default function TenantDetailPage() {
             <div className="flex space-x-3">
               <button
                 onClick={() => router.push(`/admin/tenants/${tenant.id}/edit`)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
               >
                 Editar Tenant
               </button>
@@ -467,7 +467,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('overview')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'overview'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -477,7 +477,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('users')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'users'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -487,7 +487,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('billing')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'billing'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -497,7 +497,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('plans')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'plans'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -507,7 +507,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('modules')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'modules'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -517,7 +517,7 @@ export default function TenantDetailPage() {
                 onClick={() => setActiveTab('templates')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'templates'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -534,8 +534,8 @@ export default function TenantDetailPage() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-lg shadow p-6">
             <div className="flex items-center">
-              <div className="p-3 bg-blue-100 rounded-lg">
-                <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <div className="p-3 bg-cyan-100 rounded-lg">
+                <svg className="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
                 </svg>
               </div>
@@ -653,7 +653,7 @@ export default function TenantDetailPage() {
               {tenant.modules.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {tenant.modules.map((module: string, idx: number) => (
-                    <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                    <span key={idx} className="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm">
                       {module}
                     </span>
                   ))}
@@ -673,7 +673,7 @@ export default function TenantDetailPage() {
               <h2 className="text-xl font-semibold text-gray-900">Usuarios ({tenant.users.length})</h2>
               <button
                 onClick={() => setShowUserModal(true)}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors"
               >
                 + Agregar Usuario
               </button>
@@ -736,7 +736,7 @@ export default function TenantDetailPage() {
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium space-x-2">
                       <button
                         onClick={() => handleEditUser(user)}
-                        className="px-3 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+                        className="px-3 py-1 rounded bg-cyan-100 text-cyan-700 hover:bg-cyan-200 transition-colors"
                       >
                         ✏️ Editar
                       </button>
@@ -781,7 +781,7 @@ export default function TenantDetailPage() {
                     console.log('🔄 Recargando facturas manualmente...');
                     fetchPaymentHistory();
                   }}
-                  className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="px-3 py-1 text-sm bg-cyan-600 text-white rounded hover:bg-cyan-700"
                 >
                   Recargar
                 </button>
@@ -789,7 +789,7 @@ export default function TenantDetailPage() {
               
               {loading ? (
                 <div className="text-center py-8">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto"></div>
                   <p className="text-gray-500 mt-2">Cargando facturas...</p>
                 </div>
               ) : payments.length === 0 ? (
@@ -797,7 +797,7 @@ export default function TenantDetailPage() {
                   <p className="text-gray-500">No hay facturas generadas</p>
                   <button
                     onClick={() => router.push(`/admin/billing/generate-invoice?tenantId=${tenant.id}`)}
-                    className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                    className="mt-4 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                   >
                     Generar Primera Factura
                   </button>
@@ -856,7 +856,7 @@ export default function TenantDetailPage() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <button
                               onClick={() => handleViewInvoice(payment)}
-                              className="text-blue-600 hover:text-blue-900 mr-2"
+                              className="text-cyan-600 hover:text-blue-900 mr-2"
                             >
                               <Eye className="h-4 w-4 inline mr-1" />
                               Ver
@@ -1084,7 +1084,7 @@ export default function TenantDetailPage() {
                 </button>
                 <button
                   onClick={handleCreateUser}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                 >
                   Crear Usuario
                 </button>
@@ -1179,7 +1179,7 @@ export default function TenantDetailPage() {
                 </button>
                 <button
                   onClick={handleUpdateUser}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                 >
                   Actualizar Usuario
                 </button>

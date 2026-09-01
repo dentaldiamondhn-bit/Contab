@@ -232,7 +232,7 @@ export default function NewExpensePage() {
               <Button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
               >
                 <Save className="w-4 h-4" />
                 {loading ? 'Guardando...' : 'Guardar Factura'}
@@ -271,7 +271,7 @@ export default function NewExpensePage() {
                   type="text"
                   value={supplier.name}
                   onChange={(e) => setSupplier({ ...supplier, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="Ej: Microsoft, AWS, etc."
                 />
               </div>
@@ -283,7 +283,7 @@ export default function NewExpensePage() {
                   type="text"
                   value={supplier.rtn}
                   onChange={(e) => setSupplier({ ...supplier, rtn: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="0801-XXXX-XXXXX"
                 />
               </div>
@@ -295,7 +295,7 @@ export default function NewExpensePage() {
                   type="email"
                   value={supplier.email}
                   onChange={(e) => setSupplier({ ...supplier, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="proveedor@ejemplo.com"
                 />
               </div>
@@ -307,7 +307,7 @@ export default function NewExpensePage() {
                   type="text"
                   value={supplier.address}
                   onChange={(e) => setSupplier({ ...supplier, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="Dirección del proveedor"
                 />
               </div>
@@ -333,7 +333,7 @@ export default function NewExpensePage() {
                   type="date"
                   value={issueDate}
                   onChange={(e) => setIssueDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -344,7 +344,7 @@ export default function NewExpensePage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -486,7 +486,7 @@ export default function NewExpensePage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               placeholder="Notas adicionales sobre el gasto..."
             />
           </CardContent>
@@ -502,7 +502,7 @@ export default function NewExpensePage() {
           </CardHeader>
           <CardContent>
             {!imagePreview ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-cyan-500 transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -569,7 +569,7 @@ export default function NewExpensePage() {
           <Button
             onClick={handleSubmit}
             disabled={loading}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+            className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
           >
             <Save className="w-4 h-4" />
             {loading ? 'Guardando...' : 'Guardar Factura'}

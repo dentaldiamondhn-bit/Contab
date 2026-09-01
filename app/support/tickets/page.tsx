@@ -128,7 +128,7 @@ export default function SupportTicketsPage() {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'open': return 'bg-yellow-100 text-yellow-800 border-yellow-200';
-      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
+      case 'in_progress': return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'resolved': return 'bg-green-100 text-green-800 border-green-200';
       case 'closed': return 'bg-gray-100 text-gray-800 border-gray-200';
       default: return 'bg-gray-100 text-gray-800 border-gray-200';
@@ -207,9 +207,9 @@ export default function SupportTicketsPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">En Progreso</p>
-                  <p className="text-2xl font-bold text-blue-600">{inProgressCount}</p>
+                  <p className="text-2xl font-bold text-cyan-600">{inProgressCount}</p>
                 </div>
-                <Clock className="w-8 h-8 text-blue-400" />
+                <Clock className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -247,13 +247,13 @@ export default function SupportTicketsPage() {
                   placeholder="Buscar por asunto, usuario o tenant..."
                   value={searchTerm}
                   onChange={e => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 />
               </div>
               <select
                 value={statusFilter}
                 onChange={e => setStatusFilter(e.target.value)}
-                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="all">Todos los estados</option>
                 <option value="open">Abierto</option>
@@ -264,7 +264,7 @@ export default function SupportTicketsPage() {
               <select
                 value={priorityFilter}
                 onChange={e => setPriorityFilter(e.target.value)}
-                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="all">Todas las prioridades</option>
                 <option value="urgent">Urgente</option>
@@ -278,7 +278,7 @@ export default function SupportTicketsPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-500" />
+            <RefreshCw className="w-8 h-8 animate-spin text-cyan-500" />
             <span className="ml-3 text-gray-600">Cargando tickets...</span>
           </div>
         ) : filtered.length === 0 ? (
@@ -357,7 +357,7 @@ export default function SupportTicketsPage() {
                                 href={att.url}
                                 target="_blank"
                                 rel="noopener noreferrer"
-                                className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                                className="flex items-center gap-2 text-sm text-cyan-600 hover:text-cyan-800 hover:underline"
                               >
                                 <Paperclip className="w-3.5 h-3.5" />
                                 <span>{att.name}</span>
@@ -384,7 +384,7 @@ export default function SupportTicketsPage() {
                                 <div className="flex flex-col items-center">
                                   <div className={`w-2.5 h-2.5 rounded-full mt-1 ${
                                     event.type === 'created' ? 'bg-green-500' :
-                                    event.type === 'status_change' ? 'bg-blue-500' :
+                                    event.type === 'status_change' ? 'bg-cyan-500' :
                                     event.type === 'comment' ? 'bg-yellow-500' : 'bg-gray-400'
                                   }`} />
                                   {i < (ticket.timeline?.length || 0) - 1 && <div className="w-px flex-1 bg-gray-200 mt-1" />}
@@ -393,7 +393,7 @@ export default function SupportTicketsPage() {
                                   <div className="flex items-center gap-2">
                                     <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                                       event.type === 'created' ? 'bg-green-100 text-green-700' :
-                                      event.type === 'status_change' ? 'bg-blue-100 text-blue-700' :
+                                      event.type === 'status_change' ? 'bg-cyan-100 text-cyan-700' :
                                       event.type === 'comment' ? 'bg-yellow-100 text-yellow-700' :
                                       'bg-gray-100 text-gray-700'
                                     }`}>
@@ -408,7 +408,7 @@ export default function SupportTicketsPage() {
                                   {event.attachments && event.attachments.length > 0 && (
                                     <div className="mt-1 space-y-0.5">
                                       {event.attachments.map((att: any, j: number) => (
-                                        <a key={j} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                                        <a key={j} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-cyan-600 hover:underline">
                                           <Paperclip className="w-3 h-3" />{att.name}
                                         </a>
                                       ))}

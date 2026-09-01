@@ -58,7 +58,7 @@ export default function ResumenISVPage() {
             <Card>
               <CardHeader><CardTitle className="text-sm">ISV 15% - Tasa General</CardTitle></CardHeader>
               <CardContent>
-                <div className="text-3xl font-bold text-blue-600">
+                <div className="text-3xl font-bold text-cyan-600">
                   {fmt(data.reduce((s, d) => s + Number(d.isv_15), 0))}
                 </div>
                 <div className="text-xs text-gray-500 mt-1">

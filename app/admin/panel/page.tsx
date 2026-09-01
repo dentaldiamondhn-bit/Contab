@@ -42,7 +42,7 @@ export default function AdminPanelPage() {
   if (!isLoaded) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -95,7 +95,7 @@ export default function AdminPanelPage() {
                       onClick={() => setActiveModule(m.key as ModuleKey)}
                       className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm transition-colors ${
                         activeModule === m.key
-                          ? "bg-blue-50 text-blue-700 border-r-2 border-blue-600 font-medium"
+                          ? "bg-cyan-50 text-cyan-700 border-r-2 border-cyan-600 font-medium"
                           : "text-gray-600 hover:bg-gray-50 hover:text-gray-900"
                       }`}
                       title={m.label}

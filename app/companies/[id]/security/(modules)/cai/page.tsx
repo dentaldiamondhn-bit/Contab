@@ -158,7 +158,7 @@ export default function CAIPage({ params }: CAIPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-cyan-600" />
             Gestión de CAI (Autorizaciones de Impresión) - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -177,7 +177,7 @@ export default function CAIPage({ params }: CAIPageProps) {
 
       {/* Action Buttons */}
       <div className="flex items-center gap-3">
-        <Button size="sm" className="gap-2 bg-blue-600" onClick={handleMostrarFormulario}>
+        <Button size="sm" className="gap-2 bg-cyan-600" onClick={handleMostrarFormulario}>
           <Plus className="h-4 w-4" />
           Nuevo Rango
         </Button>
@@ -239,7 +239,7 @@ export default function CAIPage({ params }: CAIPageProps) {
           )}
           {loading && (
             <div className="p-8 text-center">
-              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-blue-600 border-t-transparent"></div>
+              <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-cyan-600 border-t-transparent"></div>
               <p className="mt-2 text-sm text-gray-600">Cargando autorizaciones...</p>
             </div>
           )}
@@ -313,10 +313,10 @@ export default function CAIPage({ params }: CAIPageProps) {
       </Card>
 
       {/* New Range Form */}
-      {mostrarFormulario && <Card className="border-dashed border-2 border-blue-200">
+      {mostrarFormulario && <Card className="border-dashed border-2 border-cyan-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Plus className="h-5 w-5 text-blue-600" />
+            <Plus className="h-5 w-5 text-cyan-600" />
             Formulario de Nuevo Rango CAI
           </CardTitle>
           <CardDescription>
@@ -394,7 +394,7 @@ export default function CAIPage({ params }: CAIPageProps) {
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            <Button className="bg-blue-600" onClick={handleGuardar}>Guardar Autorización</Button>
+            <Button className="bg-cyan-600" onClick={handleGuardar}>Guardar Autorización</Button>
             <Button variant="outline" onClick={handleCancelar}>Cancelar</Button>
           </div>
         </CardContent>

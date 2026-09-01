@@ -229,7 +229,7 @@ export default function MultiTenantAccountingManager() {
                 key={company.id}
                 className={`border rounded-lg p-4 cursor-pointer transition-colors ${
                   selectedCompany === company.id 
-                    ? 'border-blue-500 bg-blue-50' 
+                    ? 'border-cyan-500 bg-cyan-50' 
                     : 'border-gray-200 hover:border-gray-300'
                 }`}
                 onClick={() => handleSelectCompany(company.id)}

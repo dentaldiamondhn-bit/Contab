@@ -101,7 +101,7 @@ export default function DebugTenantUsersPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Verificando usuario...</p>
         </div>
       </div>
@@ -112,7 +112,7 @@ export default function DebugTenantUsersPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Usuario no encontrado...</p>
         </div>
       </div>
@@ -160,7 +160,7 @@ export default function DebugTenantUsersPage() {
           </div>
           <button
             onClick={() => router.push('/tenant-admin/users/create')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center"
           >
             <Plus className="h-4 w-4 mr-2" />
             Nuevo Usuario
@@ -168,34 +168,34 @@ export default function DebugTenantUsersPage() {
         </div>
 
         {/* Debug Info */}
-        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="mb-6 bg-cyan-50 border border-cyan-200 rounded-lg p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <RefreshCw className="h-4 w-4 text-blue-600" />
-              <h3 className="text-sm font-semibold text-blue-800">Información de Depuración</h3>
+              <RefreshCw className="h-4 w-4 text-cyan-600" />
+              <h3 className="text-sm font-semibold text-cyan-800">Información de Depuración</h3>
             </div>
             <button
               onClick={fetchUsers}
-              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+              className="px-3 py-1 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700"
             >
               Refrescar
             </button>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
             <div>
-              <span className="font-medium text-blue-700">Tenant ID:</span>
+              <span className="font-medium text-cyan-700">Tenant ID:</span>
               <span className="ml-2 text-gray-900">{currentTenant.id}</span>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Tenant Code:</span>
+              <span className="font-medium text-cyan-700">Tenant Code:</span>
               <span className="ml-2 text-gray-900">{currentTenant.tenantCode}</span>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Usuario:</span>
+              <span className="font-medium text-cyan-700">Usuario:</span>
               <span className="ml-2 text-gray-900">{user.primaryEmailAddress?.emailAddress}</span>
             </div>
             <div>
-              <span className="font-medium text-blue-700">Rol:</span>
+              <span className="font-medium text-cyan-700">Rol:</span>
               <span className="ml-2 text-gray-900">{user.publicMetadata?.role}</span>
             </div>
           </div>
@@ -219,7 +219,7 @@ export default function DebugTenantUsersPage() {
                 Lista de Usuarios
               </h2>
               <div className="flex items-center gap-2">
-                <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium">
+                <span className="px-3 py-1 bg-cyan-100 text-cyan-800 rounded-full text-sm font-medium">
                   {users.length} usuario(s)
                 </span>
               </div>
@@ -227,7 +227,7 @@ export default function DebugTenantUsersPage() {
 
             {loading ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
               </div>
             ) : users.length === 0 ? (
               <div className="text-center py-8">
@@ -238,7 +238,7 @@ export default function DebugTenantUsersPage() {
                 </p>
                 <button
                   onClick={() => router.push('/tenant-admin/users/create')}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                  className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                 >
                   <Plus className="h-4 w-4 mr-2" />
                   Crear Primer Usuario
@@ -271,8 +271,8 @@ export default function DebugTenantUsersPage() {
                         </td>
                         <td className="py-3 px-4">
                           <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
-                              <span className="text-blue-600 text-xs font-medium">
+                            <div className="w-8 h-8 bg-cyan-100 rounded-full flex items-center justify-center">
+                              <span className="text-cyan-600 text-xs font-medium">
                                 {user.email.charAt(0).toUpperCase()}
                               </span>
                             </div>
@@ -282,7 +282,7 @@ export default function DebugTenantUsersPage() {
                         <td className="py-3 px-4">
                           <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
                             user.role === 'ADMIN' ? 'bg-purple-100 text-purple-800' :
-                            user.role === 'MANAGER' ? 'bg-blue-100 text-blue-800' :
+                            user.role === 'MANAGER' ? 'bg-cyan-100 text-cyan-800' :
                             user.role === 'USER' ? 'bg-gray-100 text-gray-800' :
                             'bg-green-100 text-green-800'
                           }`}>
@@ -302,7 +302,7 @@ export default function DebugTenantUsersPage() {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => router.push(`/tenant-admin/users/${user.id}/edit`)}
-                              className="px-3 py-1 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
+                              className="px-3 py-1 bg-cyan-600 text-white text-sm rounded hover:bg-cyan-700"
                             >
                               <Edit className="h-4 w-4" />
                             </button>

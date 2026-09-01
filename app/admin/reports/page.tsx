@@ -263,7 +263,7 @@ export default function AdminReportsPage() {
   const getActivityIcon = (type: string) => {
     switch (type) {
       case 'tenant':
-        return <Building2 className="w-4 h-4 text-blue-500" />;
+        return <Building2 className="w-4 h-4 text-cyan-500" />;
       case 'user':
         return <Users className="w-4 h-4 text-green-500" />;
       case 'invoice':
@@ -374,7 +374,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
               </Button>
               <Button
                 onClick={exportReport}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
               >
                 <Download className="w-4 h-4" />
                 Exportar Reporte
@@ -392,7 +392,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
               <select
                 value={dateRange}
                 onChange={(e) => setDateRange(e.target.value)}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               >
                 <option value="7">Últimos 7 días</option>
                 <option value="30">Últimos 30 días</option>
@@ -427,7 +427,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                     <span className="text-xs text-red-500">{reportData.inactiveTenants} inactivos</span>
                   </div>
                 </div>
-                <Building2 className="w-8 h-8 text-blue-400" />
+                <Building2 className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -454,14 +454,14 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Ingresos del Mes</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-cyan-600">
                     {formatCurrency(reportData.monthlyRevenue)}
                   </p>
                   <p className="text-xs text-gray-500 mt-1">
                     {reportData.invoicesGenerated} facturas generadas
                   </p>
                 </div>
-                <CreditCard className="w-8 h-8 text-blue-400" />
+                <CreditCard className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -552,7 +552,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                 <div className="space-y-3">
                   {reportData.topTenants.map((tenant, index) => (
                     <div key={tenant.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-                      <span className="flex-shrink-0 w-6 h-6 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-sm font-medium">
+                      <span className="flex-shrink-0 w-6 h-6 bg-cyan-100 text-cyan-700 rounded-full flex items-center justify-center text-sm font-medium">
                         {index + 1}
                       </span>
                       <div className="flex-1 min-w-0">
@@ -561,7 +561,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                           {tenant.invoices} facturas • {tenant.users} usuarios
                         </p>
                       </div>
-                      <span className="font-bold text-blue-600">
+                      <span className="font-bold text-cyan-600">
                         {formatCurrency(tenant.revenue)}
                       </span>
                     </div>
@@ -596,7 +596,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                         </div>
                         <div className="w-full bg-gray-200 rounded-full h-2">
                           <div 
-                            className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                            className="bg-cyan-500 h-2 rounded-full transition-all duration-300"
                             style={{ width: `${(count / reportData.totalPlans) * 100}%` }}
                           />
                         </div>
@@ -639,12 +639,12 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                         <span className="font-medium text-gray-900 text-sm">
                           {moduleInfo?.name || moduleId}
                         </span>
-                        <span className="text-lg font-bold text-blue-600">{count}</span>
+                        <span className="text-lg font-bold text-cyan-600">{count}</span>
                       </div>
                       <p className="text-xs text-gray-500 mb-2">{moduleInfo?.description}</p>
                       <div className="w-full bg-gray-200 rounded-full h-2">
                         <div 
-                          className="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                          className="bg-cyan-500 h-2 rounded-full transition-all duration-300"
                           style={{ width: `${percentage}%` }}
                         />
                       </div>
@@ -691,7 +691,7 @@ ${reportData.topTenants.map((t, i) => `${i + 1}. ${t.name}: ${formatCurrency(t.r
                         {activity.description}
                       </p>
                       {activity.tenantName && (
-                        <p className="text-xs text-blue-600">
+                        <p className="text-xs text-cyan-600">
                           Tenant: {activity.tenantName}
                         </p>
                       )}

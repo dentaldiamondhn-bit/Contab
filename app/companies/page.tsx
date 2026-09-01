@@ -357,7 +357,7 @@ export default function CompaniesPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -372,7 +372,7 @@ export default function CompaniesPage() {
         </div>
         <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
           <DialogTrigger asChild>
-            <Button className="bg-blue-600 hover:bg-blue-700">
+            <Button className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Nueva Empresa
             </Button>
@@ -424,7 +424,7 @@ export default function CompaniesPage() {
                     id="industry"
                     value={formData.industry}
                     onChange={(e) => setFormData(prev => ({ ...prev, industry: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                     required
                   >
                     <option value="">Selecciona una industria</option>
@@ -439,7 +439,7 @@ export default function CompaniesPage() {
                     id="regimen_tributario"
                     value={formData.regimen_tributario}
                     onChange={(e) => setFormData(prev => ({ ...prev, regimen_tributario: e.target.value }))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                     required
                   >
                     <option value="">Selecciona un régimen</option>
@@ -552,7 +552,7 @@ export default function CompaniesPage() {
                 <p className="text-sm text-gray-600">Total Empresas</p>
                 <p className="text-2xl font-bold text-gray-900">{companies.length}</p>
               </div>
-              <Building2 className="h-8 w-8 text-blue-600" />
+              <Building2 className="h-8 w-8 text-cyan-600" />
             </div>
           </CardContent>
         </Card>
@@ -638,15 +638,15 @@ export default function CompaniesPage() {
               </div>
 
               {company.config_fiscal && company.config_fiscal.length > 0 && (
-                <div className="bg-blue-50 p-3 rounded-lg">
-                  <div className="flex items-center text-sm text-blue-800">
+                <div className="bg-cyan-50 p-3 rounded-lg">
+                  <div className="flex items-center text-sm text-cyan-800">
                     <FileText className="h-4 w-4 mr-2" />
                     <span className="font-medium">CAI Activo</span>
                   </div>
-                  <p className="text-xs text-blue-600 mt-1">
+                  <p className="text-xs text-cyan-600 mt-1">
                     {company.config_fiscal[0].cai_activo}
                   </p>
-                  <p className="text-xs text-blue-600">
+                  <p className="text-xs text-cyan-600">
                     Vence: {company.config_fiscal[0].fecha_limite_emision}
                   </p>
                 </div>
@@ -726,7 +726,7 @@ export default function CompaniesPage() {
             }
           </p>
           {!searchTerm && (
-            <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowAddDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Crear Primera Empresa
             </Button>

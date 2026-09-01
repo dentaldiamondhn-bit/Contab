@@ -307,7 +307,7 @@ export default function AccountingExpertDashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4 text-blue-600" />
+                <Users className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-gray-500">Patients</p>
                   <p className="text-lg font-bold text-gray-900">{operationalMetrics.totalPatients}</p>
@@ -331,13 +331,13 @@ export default function AccountingExpertDashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Calculator className="w-4 h-4 text-indigo-600" />
+                <Calculator className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-gray-500">Avg Transaction</p>
                   <p className="text-lg font-bold text-gray-900">{formatCurrency(operationalMetrics.avgTransactionValue)}</p>
                 </div>
               </div>
-              <div className="text-xs text-blue-600">+3.1%</div>
+              <div className="text-xs text-cyan-600">+3.1%</div>
             </div>
           </div>
           <div className="bg-white border border-gray-200 rounded-lg p-3">
@@ -415,14 +415,14 @@ export default function AccountingExpertDashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-3">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-blue-600" />
+                <Activity className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-gray-500 uppercase">Liquidity Ratio</p>
-                  <p className="text-lg font-bold text-blue-600">{operationalMetrics.liquidityRatio.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-cyan-600">{operationalMetrics.liquidityRatio.toFixed(2)}</p>
                   <p className="text-xs text-gray-500">Can we pay bills today?</p>
                 </div>
               </div>
-              <div className="text-xs bg-blue-50 text-blue-600 px-2 py-1 rounded">
+              <div className="text-xs bg-cyan-50 text-cyan-600 px-2 py-1 rounded">
                 Healthy
               </div>
             </div>
@@ -490,7 +490,7 @@ export default function AccountingExpertDashboard() {
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Cleaning</span>
-                <span className="text-sm font-medium text-blue-600">{formatCurrency(operationalMetrics.revenueByCategory.cleaning)}</span>
+                <span className="text-sm font-medium text-cyan-600">{formatCurrency(operationalMetrics.revenueByCategory.cleaning)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Orthodontics</span>
@@ -535,24 +535,24 @@ export default function AccountingExpertDashboard() {
           <div className="bg-white border border-gray-200 rounded-lg p-3">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-gray-900">Service Volume</h3>
-              <Users className="w-4 h-4 text-blue-600" />
+              <Users className="w-4 h-4 text-cyan-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Cleaning</span>
-                <span className="text-sm font-medium text-blue-600">423</span>
+                <span className="text-sm font-medium text-cyan-600">423</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Orthodontics</span>
-                <span className="text-sm font-medium text-blue-600">156</span>
+                <span className="text-sm font-medium text-cyan-600">156</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Surgery</span>
-                <span className="text-sm font-medium text-blue-600">89</span>
+                <span className="text-sm font-medium text-cyan-600">89</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">General</span>
-                <span className="text-sm font-medium text-blue-600">234</span>
+                <span className="text-sm font-medium text-cyan-600">234</span>
               </div>
             </div>
           </div>
@@ -568,8 +568,8 @@ export default function AccountingExpertDashboard() {
                 <span className="text-sm font-bold text-green-600">L. 1,850</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-blue-600">2. Orthodontics</span>
-                <span className="text-sm font-bold text-blue-600">L. 1,420</span>
+                <span className="text-xs font-medium text-cyan-600">2. Orthodontics</span>
+                <span className="text-sm font-bold text-cyan-600">L. 1,420</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-medium text-purple-600">3. Cleaning</span>
@@ -642,7 +642,7 @@ export default function AccountingExpertDashboard() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Operating Ratio</span>
-                <span className="text-sm font-medium text-blue-600">1.51</span>
+                <span className="text-sm font-medium text-cyan-600">1.51</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Cash Ratio</span>
@@ -667,7 +667,7 @@ export default function AccountingExpertDashboard() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Investing</span>
-                <span className="text-sm font-medium text-blue-600">-L. 890</span>
+                <span className="text-sm font-medium text-cyan-600">-L. 890</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-gray-600">Financing</span>

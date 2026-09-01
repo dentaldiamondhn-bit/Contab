@@ -27,6 +27,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/admin/plans-public(.*)",
   "/api/paypal/(.*)",
   "/api/webhooks(.*)",
+  "/api/accounting/uploaded-files(.*)",
+  "/api/accounting/excel-upload(.*)",
+  "/api/accounting/trial-balance(.*)",
   "/", // Landing page
 ]);
 

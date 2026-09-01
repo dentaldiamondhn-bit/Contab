@@ -268,15 +268,15 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
           {/* Libro Diario */}
           <TabsContent value="diario" className="space-y-4">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[1200px] border-collapse">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="text-left p-2 text-sm font-medium">Fecha</th>
-                    <th className="text-left p-2 text-sm font-medium">Comprobante</th>
-                    <th className="text-left p-2 text-sm font-medium">Descripción</th>
-                    <th className="text-left p-2 text-sm font-medium">Cuenta</th>
-                    <th className="text-right p-2 text-sm font-medium">Débito</th>
-                    <th className="text-right p-2 text-sm font-medium">Crédito</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[140px] w-[140px] whitespace-nowrap">Fecha</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[150px] w-[150px] whitespace-nowrap">Comprobante</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[400px] w-[400px]">Descripción</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[220px] w-[220px]">Cuenta</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] w-[160px] whitespace-nowrap">Débito</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] w-[160px] whitespace-nowrap">Crédito</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -315,15 +315,15 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
           {/* Libro Mayor */}
           <TabsContent value="mayor" className="space-y-4">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[1200px] border-collapse">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="text-left p-2 text-sm font-medium">Código</th>
-                    <th className="text-left p-2 text-sm font-medium">Cuenta</th>
-                    <th className="text-left p-2 text-sm font-medium">Tipo</th>
-                    <th className="text-right p-2 text-sm font-medium">Total Débito</th>
-                    <th className="text-right p-2 text-sm font-medium">Total Crédito</th>
-                    <th className="text-right p-2 text-sm font-medium">Saldo</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[140px] whitespace-nowrap">Código</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[320px]">Cuenta</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[140px] whitespace-nowrap">Tipo</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[180px] whitespace-nowrap">Total Débito</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[180px] whitespace-nowrap">Total Crédito</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[180px] whitespace-nowrap">Saldo</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -487,15 +487,15 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
           {/* Libro de Compras */}
           <TabsContent value="compras" className="space-y-4">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[1200px] border-collapse">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="text-left p-2 text-sm font-medium">Fecha</th>
-                    <th className="text-left p-2 text-sm font-medium">Factura</th>
-                    <th className="text-left p-2 text-sm font-medium">RTN Proveedor</th>
-                    <th className="text-left p-2 text-sm font-medium">Descripción</th>
-                    <th className="text-right p-2 text-sm font-medium">Monto</th>
-                    <th className="text-right p-2 text-sm font-medium">Crédito Fiscal</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[140px] whitespace-nowrap">Fecha</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Factura</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[180px] whitespace-nowrap">RTN Proveedor</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[380px]">Descripción</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Monto</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Crédito Fiscal</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -535,15 +535,15 @@ export function AccountingBooksViewer({ tenantId }: AccountingBooksViewerProps) 
           {/* Libro de Ventas */}
           <TabsContent value="ventas" className="space-y-4">
             <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
+              <table className="w-full min-w-[1200px] border-collapse">
                 <thead>
                   <tr className="border-b bg-gray-50">
-                    <th className="text-left p-2 text-sm font-medium">Fecha</th>
-                    <th className="text-left p-2 text-sm font-medium">Factura</th>
-                    <th className="text-left p-2 text-sm font-medium">RTN Cliente</th>
-                    <th className="text-left p-2 text-sm font-medium">Descripción</th>
-                    <th className="text-right p-2 text-sm font-medium">Monto</th>
-                    <th className="text-right p-2 text-sm font-medium">Débito Fiscal</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[140px] whitespace-nowrap">Fecha</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Factura</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[180px] whitespace-nowrap">RTN Cliente</th>
+                    <th className="text-left p-2 text-sm font-medium min-w-[380px]">Descripción</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Monto</th>
+                    <th className="text-right p-2 text-sm font-medium min-w-[160px] whitespace-nowrap">Débito Fiscal</th>
                   </tr>
                 </thead>
                 <tbody>

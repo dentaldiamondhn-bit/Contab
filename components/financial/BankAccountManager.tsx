@@ -338,7 +338,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
       case 'WITHDRAWAL':
         return <Badge className="bg-red-100 text-red-800">Retiro</Badge>;
       case 'TRANSFER':
-        return <Badge className="bg-blue-100 text-blue-800">Transferencia</Badge>;
+        return <Badge className="bg-cyan-100 text-cyan-800">Transferencia</Badge>;
       case 'FEE':
         return <Badge className="bg-orange-100 text-orange-800">Comisión</Badge>;
       default:
@@ -351,7 +351,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando cuentas bancarias...</p>
           </div>
         </CardContent>
@@ -365,7 +365,7 @@ export default function BankAccountManager({ tenantId }: BankAccountManagerProps
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <Building2 className="h-6 w-6 mr-2 text-blue-600" />
+            <Building2 className="h-6 w-6 mr-2 text-cyan-600" />
             Control Bancario
           </h2>
           <p className="text-gray-600">Gestión de cuentas bancarias y transacciones</p>

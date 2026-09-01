@@ -108,16 +108,29 @@ export class InvoiceGenerator {
     // Generate invoice number
     const invoiceNumber = await this.generateInvoiceNumber(tenant.tenant_code);
 
-    // Create invoice
+    // Create invoice - usar nombres Prisma correctos
     const invoice = await (db as any).invoice.create({
       data: {
-        tenantid: tenant.tenant_id,  // Usar tenant_id de la vista
-        invoicenumber: invoiceNumber,  // Usar invoicenumber en lugar de invoiceNumber
-        date: now,  // Usar date en lugar de issueDate
-        duedate: dueDate,  // Usar duedate en lugar de dueDate
+        tenantId: tenant.tenant_id,
+        invoiceNumber,
+        invoiceDate: now.toISOString().split('T')[0],
+        dueDate: dueDate.toISOString().split('T')[0],
+        invoiceType: 'SUBSCRIPTION',
+        customerId: tenant.tenant_id,
+        customerRTN: '00000000000000',
+        customerName: tenant.business_name || 'Cliente',
+        customerAddress: '',
+        issuerRTN: '00000000000000',
+        issuerName: 'Diamond Accounting',
+        issuerAddress: 'Tegucigalpa, Honduras',
+        cai: '00000000000000',
+        rangeStart: 1,
+        rangeEnd: 1000,
+        items: JSON.stringify(invoiceItems),
         subtotal,
-        taxamount: tax,  // Usar taxamount en lugar de tax
-        totalamount: total,  // Usar totalamount en lugar de total
+        tax,
+        totalTax: tax,
+        total,
         currency: 'HNL',
         status: 'PENDING',
         notes: JSON.stringify({
@@ -132,18 +145,20 @@ export class InvoiceGenerator {
       }
     });
 
-    // Create invoice items
+    // Create invoice items - nombres Prisma correctos
     for (const item of invoiceItems) {
-      await (db as any).invoiceitem.create({
+      await (db as any).invoiceItem.create({
         data: {
-          invoiceid: invoice.id,  // Usar invoiceid en lugar de invoiceId
-          accountid: item.planId,  // Usar accountid en lugar de planId
-          description: item.planName,  // Usar description en lugar de planName
+          invoiceId: invoice.id,
+          planId: item.planId,
+          planName: item.planName,
+          description: item.planName,
           quantity: item.quantity,
-          unitprice: item.unitPrice,  // Usar unitprice en lugar de unitPrice
-          taxrate: 0.15,  // Agregar taxrate
-          taxamount: Math.round(item.unitPrice * item.quantity * 0.15),  // Calcular taxamount
-          totalamount: item.subtotal  // Usar totalamount en lugar de subtotal
+          unitPrice: item.unitPrice,
+          subtotal: item.subtotal,
+          taxRate: 0.15,
+          taxAmount: Math.round(item.unitPrice * item.quantity * 0.15),
+          total: item.subtotal + Math.round(item.unitPrice * item.quantity * 0.15),
         }
       });
     }
@@ -157,16 +172,14 @@ export class InvoiceGenerator {
   static async hasPendingInvoiceForMonth(tenantId: string): Promise<boolean> {
     const now = new Date();
     const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
     const existingInvoice = await (db as any).invoice.findFirst({
       where: {
         tenantId,
         status: 'PENDING',
-        periodStart: {
-          gte: periodStart
-        },
-        periodEnd: {
+        createdAt: {
+          gte: periodStart,
           lte: periodEnd
         }
       }
@@ -183,16 +196,10 @@ export class InvoiceGenerator {
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
     
-    // Get count of invoices for this tenant and month
+    // Get count of invoices for this tenant and month (usar createdAt, tenantId via invoiceNumber prefix)
     const count = await (db as any).invoice.count({
       where: {
-        tenant: {
-          tenantCode
-        },
-        issueDate: {
-          gte: new Date(year, now.getMonth(), 1),
-          lt: new Date(year, now.getMonth() + 1, 1)
-        }
+        invoiceNumber: { startsWith: `INV-${tenantCode}-${year}${month}` }
       }
     });
 

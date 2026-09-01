@@ -139,7 +139,7 @@ export default function SimpleCreateUserPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Verificando usuario...</p>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function SimpleCreateUserPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Usuario no encontrado...</p>
         </div>
       </div>
@@ -191,7 +191,7 @@ export default function SimpleCreateUserPage() {
             <div className="flex gap-4 justify-center">
               <button
                 onClick={() => router.push('/tenant-admin/users')}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
               >
                 Ver Lista de Usuarios
               </button>
@@ -240,7 +240,7 @@ export default function SimpleCreateUserPage() {
       {/* Tenant Info */}
       <div className="bg-white rounded-lg shadow p-6">
         <div className="flex items-center gap-3">
-          <Building className="h-5 w-5 text-blue-600" />
+          <Building className="h-5 w-5 text-cyan-600" />
           <div>
             <p className="font-medium">{currentTenant.businessName}</p>
             <p className="text-sm text-gray-500">RTN: {currentTenant.businessRTN}</p>
@@ -287,7 +287,7 @@ export default function SimpleCreateUserPage() {
                 onChange={handleInputChange}
                 placeholder="usuario@ejemplo.com"
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               />
             </div>
 
@@ -304,7 +304,7 @@ export default function SimpleCreateUserPage() {
                   value={formData.firstName}
                   onChange={handleInputChange}
                   placeholder="Juan"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -315,7 +315,7 @@ export default function SimpleCreateUserPage() {
                   value={formData.lastName}
                   onChange={handleInputChange}
                   placeholder="Pérez"
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -330,7 +330,7 @@ export default function SimpleCreateUserPage() {
                 name="role"
                 value={formData.role}
                 onChange={handleInputChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               >
                 <option value="USER">Usuario</option>
                 <option value="VIEWER">Visor</option>
@@ -353,7 +353,7 @@ export default function SimpleCreateUserPage() {
                   onChange={handleInputChange}
                   placeholder="Mínimo 8 caracteres"
                   required
-                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
                 <button
                   type="button"
@@ -379,15 +379,15 @@ export default function SimpleCreateUserPage() {
                 onChange={handleInputChange}
                 placeholder="Repite la contraseña"
                 required
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               />
             </div>
 
             {/* Info Card */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
+                <AlertCircle className="h-5 w-5 text-cyan-600 mt-0.5" />
+                <div className="text-sm text-cyan-800">
                   <p className="font-medium mb-1">Información importante:</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>El usuario será creado en Clerk para autenticación</li>
@@ -404,7 +404,7 @@ export default function SimpleCreateUserPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="flex-1 px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex-1 px-6 py-3 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>

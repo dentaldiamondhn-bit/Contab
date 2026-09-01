@@ -268,7 +268,7 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Integraciones Activas</CardTitle>
-            <Plug className="h-4 w-4 text-blue-600" />
+            <Plug className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">3/5</div>
@@ -336,14 +336,14 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-xl font-bold flex items-center gap-2">
-                <Plug className="h-5 w-5 text-blue-600" />
+                <Plug className="h-5 w-5 text-cyan-600" />
                 Integraciones y Conectividad (APIs)
               </h2>
               <p className="text-gray-600 text-sm mt-1">
                 El software contable conectado con otros sistemas
               </p>
             </div>
-            <Badge variant="default" className="bg-blue-600">3 Activas</Badge>
+            <Badge variant="default" className="bg-cyan-600">3 Activas</Badge>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -352,8 +352,8 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 bg-blue-50 rounded-lg">
-                        <item.icon className="h-5 w-5 text-blue-600" />
+                      <div className="p-2 bg-cyan-50 rounded-lg">
+                        <item.icon className="h-5 w-5 text-cyan-600" />
                       </div>
                       <div>
                         <CardTitle className="text-lg">{item.title}</CardTitle>
@@ -371,7 +371,7 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
                   <ul className="space-y-2">
                     {item.features.map((feature, fIndex) => (
                       <li key={fIndex} className="flex items-start gap-2 text-sm">
-                        <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+                        <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5 flex-shrink-0" />
                         <span className="text-gray-700">{feature}</span>
                       </li>
                     ))}
@@ -381,9 +381,9 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
             ))}
           </div>
 
-          <Card className="border-blue-200 bg-blue-50">
+          <Card className="border-cyan-200 bg-cyan-50">
             <CardHeader>
-              <CardTitle className="flex items-center gap-2 text-blue-800">
+              <CardTitle className="flex items-center gap-2 text-cyan-800">
                 <Database className="h-5 w-5" />
                 Configuración de APIs
               </CardTitle>
@@ -473,7 +473,7 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
                 </div>
                 <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                   <div className="flex items-center gap-3">
-                    <CalendarClock className="h-5 w-5 text-blue-600" />
+                    <CalendarClock className="h-5 w-5 text-cyan-600" />
                     <span className="font-medium">Factura recurrente - Arriendo mensual</span>
                   </div>
                   <Badge className="bg-green-600">Activa</Badge>
@@ -565,7 +565,7 @@ export default function OtherFeaturesPage({ params }: OtherFeaturesPageProps) {
                 <div className="p-4 border rounded-lg">
                   <p className="font-medium mb-2">Configuración de Colores</p>
                   <div className="flex gap-2 mb-3">
-                    <div className="w-8 h-8 rounded bg-blue-600 border-2 border-blue-800"></div>
+                    <div className="w-8 h-8 rounded bg-cyan-600 border-2 border-blue-800"></div>
                     <div className="w-8 h-8 rounded bg-gray-600"></div>
                     <div className="w-8 h-8 rounded bg-green-600"></div>
                     <div className="w-8 h-8 rounded border-2 border-dashed border-gray-300 flex items-center justify-center">

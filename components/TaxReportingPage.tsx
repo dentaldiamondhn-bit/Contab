@@ -161,7 +161,7 @@ export default function TaxReportingPage() {
               <select
                 value={selectedPeriod}
                 onChange={(e) => setSelectedPeriod(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 {availablePeriods.map((period) => (
                   <option key={period} value={period}>
@@ -173,7 +173,7 @@ export default function TaxReportingPage() {
             <Button
               onClick={generateReport}
               disabled={loading || !selectedPeriod}
-              className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+              className="px-6 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 disabled:bg-gray-400"
             >
               {loading ? 'Generating...' : 'Generate Report'}
             </Button>
@@ -259,7 +259,7 @@ export default function TaxReportingPage() {
           {/* Purchases Section */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-blue-700">Purchases (Compras)</CardTitle>
+              <CardTitle className="text-cyan-700">Purchases (Compras)</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
@@ -285,7 +285,7 @@ export default function TaxReportingPage() {
                         <td className="p-2 text-right">{detail.transactionCount}</td>
                       </tr>
                     ))}
-                    <tr className="font-semibold bg-blue-50">
+                    <tr className="font-semibold bg-cyan-50">
                       <td className="p-2" colSpan={2}>TOTAL PURCHASES</td>
                       <td className="p-2 text-right">{formatCurrency(report.purchases.totalBase)}</td>
                       <td className="p-2 text-right">{formatCurrency(report.purchases.totalTax)}</td>
@@ -318,9 +318,9 @@ export default function TaxReportingPage() {
                     {formatCurrency(report.summary.totalBaseSales)}
                   </div>
                 </div>
-                <div className="text-center p-4 bg-blue-50 rounded-lg border">
+                <div className="text-center p-4 bg-cyan-50 rounded-lg border">
                   <div className="text-sm text-gray-600 mb-1">Total Purchases Base</div>
-                  <div className="text-2xl font-bold text-blue-700">
+                  <div className="text-2xl font-bold text-cyan-700">
                     {formatCurrency(report.summary.totalBasePurchases)}
                   </div>
                 </div>

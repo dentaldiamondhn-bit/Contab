@@ -53,16 +53,16 @@ export default function AutoLoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-cyan-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Logo and Branding */}
         <div className="text-center mb-8">
           <div className="flex justify-center items-center mb-4">
-            <div className="bg-blue-600 p-4 rounded-full">
-              <span className="text-white text-3xl font-bold">C</span>
+            <div className="bg-cyan-50 p-4 rounded-full shadow-lg border border-cyan-200">
+              <img src="/logo.png" alt="Diamond Accounting" className="h-8 w-8 object-contain" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-gray-900">Contab</h1>
+          <h1 className="text-3xl font-bold text-gray-900">Diamond Accounting</h1>
           <p className="text-gray-600 mt-2">Sistema Contable Profesional</p>
         </div>
 
@@ -75,8 +75,8 @@ export default function AutoLoginPage() {
 
           {/* Countdown Timer */}
           <div className="text-center mb-6">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-blue-100 rounded-full mb-4">
-              <span className="text-3xl font-bold text-blue-600">{countdown}</span>
+            <div className="inline-flex items-center justify-center w-20 h-20 bg-cyan-100 rounded-full mb-4">
+              <span className="text-3xl font-bold text-cyan-600">{countdown}</span>
             </div>
             <p className="text-sm text-gray-600">
               Accediendo automáticamente en {countdown} segundos...
@@ -98,7 +98,7 @@ export default function AutoLoginPage() {
           <button
             onClick={handleManualLogin}
             disabled={loading}
-            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
+            className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed mb-4"
           >
             {loading ? (
               <>
@@ -123,7 +123,7 @@ export default function AutoLoginPage() {
           </div>
 
           <div className="mt-6 text-center">
-            <a href="/auth/login" className="text-sm text-blue-600 hover:text-blue-500">
+            <a href="/auth/login" className="text-sm text-cyan-600 hover:text-cyan-500">
               ← Ir al login con credenciales
             </a>
           </div>

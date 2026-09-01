@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useMemo } from "react";
-import { useRouter, useParams } from "next/navigation";
+import { useRouter, useParams, useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,10 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Search, Download, Calendar, Filter, FileText, BookOpen, Scale, ArrowLeft, RefreshCw, Calculator } from "lucide-react";
+import { Search, Download, Calendar, Filter, FileText, BookOpen, Scale, ArrowLeft, RefreshCw, Calculator, Edit, Save } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { getAccountTypeLabel, getAccountTypeColor } from "@/lib/accounting-utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 // Componentes locales
 import LibroIngresos from "@/components/components/LibroIngresos";
@@ -84,8 +85,61 @@ export default function AccountingBooks() {
   const [balanceComprobacion, setBalanceComprobacion] = useState<TrialBalance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isClient, setIsClient] = useState(false);
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") || "diario";
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [editForm, setEditForm] = useState({ description: "", date: "", totalAmount: 0 });
 
   useEffect(() => { setIsClient(true); }, []);
+  useEffect(() => {
+    const t = searchParams.get("tab");
+    if (t && ["diario","mayor","comprobacion","ingresos","egresos","partidas","inventarios","sar221"].includes(t)) {
+      setActiveTab(t);
+    }
+  }, [searchParams]);
+
+  const openEdit = (entry:any) => {
+    setEditingEntry(entry);
+    // Diario viene de get_libro_diario_integrado con total_amount = suma debe+haber (doble), en HNL ya
+    // Transaction viene en centavos (287500 = 2875 HNL)
+    let raw = entry.total_amount ?? entry.totalAmount ?? entry.total_amount ?? 0;
+    // Si es del diario y tiene entries, total_amount es doble (debe+haber)
+    const isDiario = Array.isArray(entry.entries) && entry.entries.length > 0;
+    let display: number;
+    if (isDiario) {
+      // raw ya está en HNL y es doble (ej 5750 para 2875 real)
+      display = raw / 2;
+    } else {
+      // Transaction en centavos
+      display = raw > 1000 ? raw/100 : raw;
+    }
+    console.log("[openEdit] raw", raw, "isDiario", isDiario, "display", display, "entry", entry);
+    setEditForm({
+      description: entry.description || entry.descripcion || "",
+      date: entry.date ? new Date(entry.date).toISOString().split('T')[0] : "",
+      totalAmount: display,
+    });
+  };
+
+  const saveEdit = async () => {
+    if (!editingEntry || !currentTenant?.id) return;
+    try {
+      const res = await fetch(`/api/accounting/transactions?tenantId=${currentTenant.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: editingEntry.id,
+          description: editForm.description,
+          date: editForm.date,
+          totalAmount: Math.round(Number(editForm.totalAmount)*100) || editingEntry.total_amount || editingEntry.totalAmount,
+        }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || "Error al guardar");
+      setEditingEntry(null);
+      loadRealData();
+    } catch (e:any) { alert(e.message); }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {
@@ -207,8 +261,8 @@ export default function AccountingBooks() {
           <h2 className="text-3xl font-bold text-gray-900 tracking-tight">Libros Contables</h2>
           <p className="text-muted-foreground">Periodo Fiscal {selectedYear}</p>
         </div>
-        <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/modules`)}>
-          <ArrowLeft className="h-4 w-4 mr-2" /> Volver al Menú
+        <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/accounting`)}>
+          <ArrowLeft className="h-4 w-4 mr-2" /> Atrás
         </Button>
       </div>
 
@@ -269,7 +323,7 @@ export default function AccountingBooks() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="diario" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className="grid w-full grid-cols-4 md:grid-cols-8 h-auto flex-wrap">
           <TabsTrigger value="diario">Libro Diario</TabsTrigger>
           <TabsTrigger value="mayor">Libro Mayor</TabsTrigger>
@@ -291,32 +345,41 @@ export default function AccountingBooks() {
               <Button variant="outline" size="sm"><Download className="h-4 w-4 mr-2" /> PDF</Button>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table className="w-full table-fixed">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Fecha / Póliza</TableHead>
-                    <TableHead>Cuenta y Concepto</TableHead>
-                    <TableHead className="text-right">Débito</TableHead>
-                    <TableHead className="text-right">Crédito</TableHead>
+                    <TableHead className="w-[18%] whitespace-nowrap">Fecha / Póliza</TableHead>
+                    <TableHead className="w-[42%]">Cuenta y Concepto</TableHead>
+                    <TableHead className="w-[15%] text-right whitespace-nowrap">Débito</TableHead>
+                    <TableHead className="w-[15%] text-right whitespace-nowrap">Crédito</TableHead>
+                    <TableHead className="w-[10%] text-center">Acciones</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {loading ? <TableRow><TableCell colSpan={4} className="text-center py-10">Cargando movimientos...</TableCell></TableRow> : 
+                  {loading ? <TableRow><TableCell colSpan={5} className="text-center py-10">Cargando movimientos...</TableCell></TableRow> : 
                     filteredDiarioEntries.map(entry => (
                       <React.Fragment key={entry.id}>
                         <TableRow className="bg-muted/50 font-semibold">
-                          <TableCell>
+                          <TableCell className="whitespace-nowrap align-middle text-left">
                             {new Date(entry.date).toLocaleDateString('es-HN')}
-                            <Badge variant="outline" className="ml-2">{entry.voucher_type}-{entry.voucher_number}</Badge>
+                            <Badge variant="outline" className="ml-2 whitespace-nowrap">{entry.voucher_type}-{entry.voucher_number}</Badge>
                           </TableCell>
-                          <TableCell colSpan={3}>{entry.description}</TableCell>
+                          <TableCell className="align-middle text-left">{entry.description}</TableCell>
+                          <TableCell className="text-right whitespace-nowrap align-middle"></TableCell>
+                          <TableCell className="text-right whitespace-nowrap align-middle"></TableCell>
+                          <TableCell className="align-middle text-center">
+                            <div className="flex justify-center">
+                              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>openEdit(entry)}><Edit className="h-4 w-4" /></Button>
+                            </div>
+                          </TableCell>
                         </TableRow>
                         {entry.entries.map(line => (
                           <TableRow key={line.id} className="text-sm">
-                            <TableCell className="text-muted-foreground font-mono">{line.account_code}</TableCell>
-                            <TableCell className={line.credit > 0 ? "pl-8" : ""}>{line.account_name}</TableCell>
-                            <TableCell className="text-right">{line.debit > 0 ? formatCurrency(line.debit) : '-'}</TableCell>
-                            <TableCell className="text-right">{line.credit > 0 ? formatCurrency(line.credit) : '-'}</TableCell>
+                            <TableCell className="text-muted-foreground font-mono whitespace-nowrap align-middle">{line.account_code}</TableCell>
+                            <TableCell className={`align-middle ${line.credit > 0 ? "pl-8" : ""}`}>{line.account_name}</TableCell>
+                            <TableCell className="text-right whitespace-nowrap align-middle">{line.debit > 0 ? formatCurrency(line.debit) : '-'}</TableCell>
+                            <TableCell className="text-right whitespace-nowrap align-middle">{line.credit > 0 ? formatCurrency(line.credit) : '-'}</TableCell>
+                            <TableCell className="align-middle"></TableCell>
                           </TableRow>
                         ))}
                       </React.Fragment>
@@ -332,14 +395,14 @@ export default function AccountingBooks() {
           <Card>
             <CardHeader><CardTitle>Balance de Comprobación de Sumas y Saldos</CardTitle></CardHeader>
             <CardContent>
-              <Table>
+              <Table className="w-full table-fixed">
                 <TableHeader>
                   <TableRow className="bg-muted">
-                    <TableHead>Cuenta</TableHead>
-                    <TableHead className="text-right">Sumas Débito</TableHead>
-                    <TableHead className="text-right">Sumas Crédito</TableHead>
-                    <TableHead className="text-right">Saldo Deudor</TableHead>
-                    <TableHead className="text-right">Saldo Acreedor</TableHead>
+                    <TableHead className="w-[36%]">Cuenta</TableHead>
+                    <TableHead className="w-[16%] text-right whitespace-nowrap">Sumas Débito</TableHead>
+                    <TableHead className="w-[16%] text-right whitespace-nowrap">Sumas Crédito</TableHead>
+                    <TableHead className="w-[16%] text-right whitespace-nowrap">Saldo Deudor</TableHead>
+                    <TableHead className="w-[16%] text-right whitespace-nowrap">Saldo Acreedor</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -384,7 +447,109 @@ export default function AccountingBooks() {
           </Card>
         </TabsContent>
 
-        {/* Los demás TabsContent siguen la misma estructura usando los estados actualizados */}
+        <TabsContent value="mayor">
+          <Card>
+            <CardHeader><CardTitle>Libro Mayor</CardTitle><CardDescription>Saldo por cuenta contable.</CardDescription></CardHeader>
+            <CardContent>
+              <Table className="w-full table-fixed">
+                <TableHeader><TableRow><TableHead className="w-[40%]">Cuenta</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Débito</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Crédito</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Saldo</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {mayorEntries.length===0 ? <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No hay datos en Libro Mayor</TableCell></TableRow> :
+                    mayorEntries.map((m:any)=> (
+                      <TableRow key={m.account_code || m.codigo_cuenta}>
+                        <TableCell><div className="font-mono text-xs">{m.account_code || m.codigo_cuenta}</div><div className="text-sm">{m.account_name || m.nombre_cuenta}</div></TableCell>
+                        <TableCell className="text-right">{formatCurrency(m.debit ?? m.total_debe ?? 0)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(m.credit ?? m.total_haber ?? 0)}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(m.balance ?? m.saldo ?? 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="ingresos">
+          <Card>
+            <CardHeader><CardTitle>Libro de Ingresos</CardTitle><CardDescription>{ingresos.length} pólizas de ingreso</CardDescription></CardHeader>
+            <CardContent>
+              <Table className="w-full table-fixed">
+                <TableHeader><TableRow><TableHead className="w-[15%] whitespace-nowrap">Fecha</TableHead><TableHead className="w-[15%] whitespace-nowrap">Póliza</TableHead><TableHead className="w-[45%]">Descripción</TableHead><TableHead className="w-[15%] text-right whitespace-nowrap">Monto</TableHead><TableHead className="w-[10%] text-center">Acciones</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {ingresos.length===0 ? <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No hay ingresos para el periodo</TableCell></TableRow> :
+                    ingresos.map((it:any)=> (
+                      <TableRow key={it.id}>
+                        <TableCell className="align-middle">{it.date ? new Date(it.date).toLocaleDateString('es-HN') : it.fecha ? new Date(it.fecha).toLocaleDateString('es-HN') : '-'}</TableCell>
+                        <TableCell className="align-middle"><Badge variant="outline">{it.voucher_type || it.voucherType}-{it.voucher_number || it.voucherNumber}</Badge></TableCell>
+                        <TableCell className="align-middle">{it.description || it.descripcion}</TableCell>
+                        <TableCell className="text-right font-bold text-green-700 align-middle">{formatCurrency(it.total_amount || it.totalAmount || 0)}</TableCell>
+                        <TableCell className="text-center align-middle"><div className="flex justify-center"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>openEdit(it)}><Edit className="h-4 w-4" /></Button></div></TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="egresos">
+          <Card>
+            <CardHeader><CardTitle>Libro de Egresos</CardTitle><CardDescription>{egresos.length} pólizas de egreso</CardDescription></CardHeader>
+            <CardContent>
+              <Table className="w-full table-fixed">
+                <TableHeader><TableRow><TableHead className="w-[15%] whitespace-nowrap">Fecha</TableHead><TableHead className="w-[15%] whitespace-nowrap">Póliza</TableHead><TableHead className="w-[45%]">Descripción</TableHead><TableHead className="w-[15%] text-right whitespace-nowrap">Monto</TableHead><TableHead className="w-[10%] text-center">Acciones</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {egresos.length===0 ? <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No hay egresos para el periodo</TableCell></TableRow> :
+                    egresos.map((it:any)=> (
+                      <TableRow key={it.id}>
+                        <TableCell className="align-middle">{it.date ? new Date(it.date).toLocaleDateString('es-HN') : '-'}</TableCell>
+                        <TableCell className="align-middle"><Badge variant="outline">{it.voucher_type || it.voucherType}-{it.voucher_number || it.voucherNumber}</Badge></TableCell>
+                        <TableCell className="align-middle">{it.description}</TableCell>
+                        <TableCell className="text-right font-bold text-red-700 align-middle">{formatCurrency(it.total_amount || it.totalAmount || 0)}</TableCell>
+                        <TableCell className="text-center align-middle"><div className="flex justify-center"><Button variant="ghost" size="icon" className="h-8 w-8" onClick={()=>openEdit(it)}><Edit className="h-4 w-4" /></Button></div></TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="partidas">
+          <Card>
+            <CardHeader><CardTitle>Partidas Contables</CardTitle><CardDescription>Todas las pólizas del periodo</CardDescription></CardHeader>
+            <CardContent>
+              <Table className="w-full table-fixed">
+                <TableHeader><TableRow><TableHead className="w-[15%] whitespace-nowrap">Fecha</TableHead><TableHead className="w-[15%] whitespace-nowrap">Tipo</TableHead><TableHead className="w-[50%]">Descripción</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Monto</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {allTransactions.length===0 ? <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No hay partidas</TableCell></TableRow> :
+                    allTransactions.map((it:any)=> (
+                      <TableRow key={it.id}>
+                        <TableCell>{it.date ? new Date(it.date).toLocaleDateString('es-HN') : '-'}</TableCell>
+                        <TableCell><Badge>{it.voucher_type || it.voucherType}</Badge></TableCell>
+                        <TableCell>{it.description}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(it.total_amount || it.totalAmount || 0)}</TableCell>
+                      </TableRow>
+                    ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="inventarios">
+          <Card>
+            <CardHeader><CardTitle>Balance General</CardTitle><CardDescription>Resumen patrimonial</CardDescription></CardHeader>
+            <CardContent>
+              <p className="text-sm text-muted-foreground">Balance General se genera desde el Balance de Comprobación. Revisa la pestaña Balance.</p>
+              <div className="mt-4 p-4 border rounded-lg bg-blue-50 flex justify-between">
+                <span className="font-bold">Ver Balance de Comprobación</span>
+                <Button size="sm" onClick={()=>setActiveTab("comprobacion")}>Ir a Balance</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="sar221">
            <SARForm221 
               ingresos={ingresos} 
@@ -393,6 +558,33 @@ export default function AccountingBooks() {
            />
         </TabsContent>
       </Tabs>
+
+      <Dialog open={!!editingEntry} onOpenChange={(o)=> !o && setEditingEntry(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Editar póliza</DialogTitle>
+            <DialogDescription>Modifica la información y guarda para actualizar los libros y estados financieros.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Fecha</Label>
+              <Input type="date" value={editForm.date} onChange={e=>setEditForm({...editForm, date: e.target.value})} />
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <Input value={editForm.description} onChange={e=>setEditForm({...editForm, description: e.target.value})} />
+            </div>
+            <div>
+              <Label>Monto (HNL)</Label>
+              <Input type="number" value={editForm.totalAmount as any} onChange={e=>setEditForm({...editForm, totalAmount: Number(e.target.value)})} />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={()=>setEditingEntry(null)}>Cancelar</Button>
+            <Button onClick={saveEdit} className="bg-blue-600 hover:bg-blue-700"><Save className="h-4 w-4 mr-2" />Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

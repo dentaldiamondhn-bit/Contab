@@ -280,7 +280,7 @@ export default function CompanyProfilePage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -302,7 +302,7 @@ export default function CompanyProfilePage() {
       {/* Header */}
       <div className="flex justify-between items-center">
         <div className="flex items-center gap-3">
-          <Building2 className="h-8 w-8 text-blue-600" />
+          <Building2 className="h-8 w-8 text-cyan-600" />
           <div>
             <h1 className="text-3xl font-bold tracking-tight">{company.businessname}</h1>
             <p className="text-muted-foreground">RTN: {company.businessrtn}</p>
@@ -672,7 +672,7 @@ export default function CompanyProfilePage() {
                   <div className="flex justify-between items-start">
                     <div className="space-y-2">
                       <div className="flex items-center gap-2">
-                        <Hash className="h-4 w-4 text-blue-600" />
+                        <Hash className="h-4 w-4 text-cyan-600" />
                         <span className="font-mono font-medium">{cai.caicode}</span>
                         <Badge variant={getCAIStatusColor(cai.status) as any}>
                           {getCAIStatusText(cai.status)}

@@ -19,8 +19,8 @@ const financialStatements = [
     title: 'Balance de Comprobación',
     description: 'Verifica que los débitos sean iguales a los créditos del período contable. Estructura de 6 columnas con saldos anteriores, movimientos y saldos actuales.',
     icon: Scale,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
     path: '/accounting/financial-statements/balance-comprobacion',
     status: 'active'
   },

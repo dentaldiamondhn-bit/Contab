@@ -166,7 +166,7 @@ const fetchBurnRateData = async () => {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Target className="w-5 h-5 text-indigo-600" />
+            <Target className="w-5 h-5 text-cyan-600" />
             <CardTitle className="text-lg font-bold text-slate-900 font-inter">
               Burn Rate Analysis
             </CardTitle>
@@ -241,7 +241,7 @@ const fetchBurnRateData = async () => {
             </div>
             <div className="text-center">
               <p className="text-xs text-slate-500 font-inter">Runway</p>
-              <p className="text-lg font-bold text-indigo-600 font-jetbrains-mono">
+              <p className="text-lg font-bold text-cyan-600 font-jetbrains-mono">
                 {Math.floor(metrics.runway)} days
               </p>
             </div>
@@ -249,7 +249,7 @@ const fetchBurnRateData = async () => {
               <p className="text-xs text-slate-500 font-inter">Break-Even</p>
               {metrics.breakEvenPoint ? (
                 <div>
-                  <p className="text-lg font-bold text-indigo-600 font-jetbrains-mono">
+                  <p className="text-lg font-bold text-cyan-600 font-jetbrains-mono">
                     Day {metrics.daysToBreakEven}
                   </p>
                   <p className="text-xs text-slate-500">{metrics.breakEvenPoint.date}</p>
@@ -265,12 +265,12 @@ const fetchBurnRateData = async () => {
 
         {/* Break-Even Indicator */}
         {metrics?.breakEvenPoint && (
-          <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+          <div className="mb-4 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-indigo-600" />
+                <Activity className="w-4 h-4 text-cyan-600" />
                 <div>
-                  <p className="text-sm font-semibold text-indigo-900 font-inter">
+                  <p className="text-sm font-semibold text-cyan-900 font-inter">
                     Break-Even Point Reached
                   </p>
                   <p className="text-xs text-slate-600 font-inter">
@@ -278,7 +278,7 @@ const fetchBurnRateData = async () => {
                   </p>
                 </div>
               </div>
-              <div className="text-xs bg-indigo-100 text-indigo-700 px-2 py-1 rounded font-inter">
+              <div className="text-xs bg-cyan-100 text-cyan-700 px-2 py-1 rounded font-inter">
                 {metrics.daysToBreakEven} days
               </div>
             </div>

@@ -68,7 +68,7 @@ export default function MultiCurrencyPage() {
             <RefreshCw className="h-4 w-4 mr-2" />
             Actualizar Tasas
           </Button>
-          <Button className="bg-blue-600 hover:bg-blue-700">
+          <Button className="bg-cyan-600 hover:bg-cyan-700">
             <Plus className="h-4 w-4 mr-2" />
             Nueva Transacción
           </Button>
@@ -103,7 +103,7 @@ export default function MultiCurrencyPage() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-gray-600">Tasa:</span>
-                    <span className="text-2xl font-bold text-blue-600">
+                    <span className="text-2xl font-bold text-cyan-600">
                       {rate.rate.toFixed(4)}
                     </span>
                   </div>
@@ -210,12 +210,12 @@ export default function MultiCurrencyPage() {
           <CardContent>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-3xl font-bold text-blue-600">
+                <p className="text-3xl font-bold text-cyan-600">
                   20,243
                 </p>
                 <p className="text-sm text-gray-600">Dólares</p>
               </div>
-              <DollarSign className="h-8 w-8 text-blue-600" />
+              <DollarSign className="h-8 w-8 text-cyan-600" />
             </div>
           </CardContent>
         </Card>

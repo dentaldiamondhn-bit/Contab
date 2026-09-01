@@ -549,7 +549,7 @@ export default function PurchasesPage() {
   const getStatusBadge = (status: string, isCredit: boolean) => {
     if (isCredit) {
       if (status === 'PENDING') return <Badge className="bg-yellow-100 text-yellow-800">Pendiente</Badge>;
-      if (status === 'PARTIAL') return <Badge className="bg-blue-100 text-blue-800">Parcial</Badge>;
+      if (status === 'PARTIAL') return <Badge className="bg-cyan-100 text-cyan-800">Parcial</Badge>;
       if (status === 'PAID') return <Badge className="bg-green-100 text-green-800">Pagada</Badge>;
     }
     return <Badge className="bg-green-100 text-green-800">Contado</Badge>;
@@ -560,7 +560,7 @@ export default function PurchasesPage() {
       return <Badge className="bg-green-100 text-green-800">Pagada</Badge>;
     }
     if (balanceDue < total) {
-      return <Badge className="bg-blue-100 text-blue-800">Parcial</Badge>;
+      return <Badge className="bg-cyan-100 text-cyan-800">Parcial</Badge>;
     }
     return <Badge className="bg-red-100 text-red-800">Pendiente</Badge>;
   };
@@ -603,7 +603,7 @@ export default function PurchasesPage() {
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard de Compras
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+            <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
               <Plus className="w-4 h-4 mr-2" />
               Nueva Compra
             </DropdownMenuItem>
@@ -1090,8 +1090,8 @@ export default function PurchasesPage() {
                 </div>
               )}
 
-              <Alert className="bg-blue-50 border-blue-200">
-                <CreditCard className="h-4 w-4 text-blue-600" />
+              <Alert className="bg-cyan-50 border-cyan-200">
+                <CreditCard className="h-4 w-4 text-cyan-600" />
                 <AlertDescription className="text-sm">
                   {isCredit 
                     ? 'Esta compra generará una cuenta por pagar. El pago se registrará posteriormente.'
@@ -1433,8 +1433,8 @@ export default function PurchasesPage() {
                 </div>
               </div>
 
-              <Alert className="bg-blue-50 border-blue-200">
-                <CreditCard className="h-4 w-4 text-blue-600" />
+              <Alert className="bg-cyan-50 border-cyan-200">
+                <CreditCard className="h-4 w-4 text-cyan-600" />
                 <AlertDescription className="text-sm">
                   {isCredit 
                     ? 'Esta compra generará una cuenta por pagar. El pago se registrará posteriormente.'

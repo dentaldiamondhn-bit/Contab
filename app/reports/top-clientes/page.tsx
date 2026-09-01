@@ -132,7 +132,7 @@ export default function TopClientesPage() {
                   <div className="text-xs text-gray-500">Ventas Totales</div>
                 </div>
                 <div>
-                  <div className="text-2xl font-bold text-blue-600">{totalFacturas}</div>
+                  <div className="text-2xl font-bold text-cyan-600">{totalFacturas}</div>
                   <div className="text-xs text-gray-500">Facturas Totales</div>
                 </div>
               </div>

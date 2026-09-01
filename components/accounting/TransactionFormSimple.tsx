@@ -557,13 +557,13 @@ export function TransactionFormSimple({ tenantId, onSuccess, onCancel }: Transac
           </Card>
 
           {/* Partida Doble Automática */}
-          <Card className="bg-blue-50 border-blue-200">
+          <Card className="bg-cyan-50 border-cyan-200">
             <CardHeader className="pb-3">
               <div className="flex items-center space-x-2">
-                <Calculator className="h-5 w-5 text-blue-600" />
+                <Calculator className="h-5 w-5 text-cyan-600" />
                 <CardTitle className="text-lg text-blue-900">Partida Doble Automática</CardTitle>
               </div>
-              <CardDescription className="text-blue-700">
+              <CardDescription className="text-cyan-700">
                 El sistema registrará automáticamente el débito y crédito en las cuentas seleccionadas
               </CardDescription>
             </CardHeader>
@@ -589,7 +589,7 @@ export function TransactionFormSimple({ tenantId, onSuccess, onCancel }: Transac
                   </SelectContent>
                 </Select>
                 {formData.cuentaDebe && (
-                  <p className="text-sm text-blue-600">
+                  <p className="text-sm text-cyan-600">
                     {opcionesDebe.find(c => c.code === formData.cuentaDebe)?.description}
                   </p>
                 )}
@@ -597,7 +597,7 @@ export function TransactionFormSimple({ tenantId, onSuccess, onCancel }: Transac
 
               {/* Flecha */}
               <div className="flex justify-center">
-                <ArrowRightLeft className="h-6 w-6 text-blue-400 rotate-90" />
+                <ArrowRightLeft className="h-6 w-6 text-cyan-400 rotate-90" />
               </div>
 
               {/* Cuenta Crédito */}
@@ -621,7 +621,7 @@ export function TransactionFormSimple({ tenantId, onSuccess, onCancel }: Transac
                   </SelectContent>
                 </Select>
                 {formData.cuentaHaber && (
-                  <p className="text-sm text-blue-600">
+                  <p className="text-sm text-cyan-600">
                     {opcionesHaber.find(c => c.code === formData.cuentaHaber)?.description}
                   </p>
                 )}

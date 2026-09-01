@@ -124,7 +124,7 @@ export default function TaxSummary() {
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value as 'LPS' | 'USD')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="LPS">Honduran Lempira (LPS)</option>
               <option value="USD">US Dollar (USD)</option>
@@ -139,7 +139,7 @@ export default function TaxSummary() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
           
@@ -151,7 +151,7 @@ export default function TaxSummary() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
           
@@ -167,17 +167,17 @@ export default function TaxSummary() {
       </Card>
 
       {/* Period Info */}
-      <Card className="mb-6 p-4 bg-blue-50">
+      <Card className="mb-6 p-4 bg-cyan-50">
         <div className="flex justify-between items-center">
           <div>
-            <h3 className="font-semibold text-blue-800">Tax Period</h3>
-            <p className="text-blue-600">
+            <h3 className="font-semibold text-cyan-800">Tax Period</h3>
+            <p className="text-cyan-600">
               {formatDate(report.period.startDate)} - {formatDate(report.period.endDate)}
             </p>
           </div>
           <div className="text-right">
-            <p className="text-sm text-blue-600">Generated</p>
-            <p className="text-blue-800 font-medium">{formatDateTime(report.generatedAt)}</p>
+            <p className="text-sm text-cyan-600">Generated</p>
+            <p className="text-cyan-800 font-medium">{formatDateTime(report.generatedAt)}</p>
           </div>
         </div>
       </Card>

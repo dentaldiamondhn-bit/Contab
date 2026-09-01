@@ -162,7 +162,7 @@ const fetchBreakEvenData = async () => {
         <div className="p-4 pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Target className="w-4 h-4 text-indigo-600" />
+              <Target className="w-4 h-4 text-cyan-600" />
               <h3 className="text-sm font-bold text-slate-900">
                 Punto de Equilibrio
               </h3>
@@ -180,9 +180,9 @@ const fetchBreakEvenData = async () => {
           {analysis ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="text-center p-2 bg-indigo-50 rounded">
+                <div className="text-center p-2 bg-cyan-50 rounded">
                   <p className="text-xs text-slate-600">Unidades Equilibrio</p>
-                  <p className="text-sm font-bold text-indigo-600">
+                  <p className="text-sm font-bold text-cyan-600">
                     {analysis.breakEvenPoint.units.toLocaleString()}
                   </p>
                 </div>
@@ -210,9 +210,9 @@ const fetchBreakEvenData = async () => {
               </div>
 
               {recommendations.length > 0 && (
-                <div className="p-2 bg-blue-50 rounded">
+                <div className="p-2 bg-cyan-50 rounded">
                   <p className="text-xs font-medium text-blue-900 mb-1">Recomendación:</p>
-                  <p className="text-xs text-blue-700">{recommendations[0]}</p>
+                  <p className="text-xs text-cyan-700">{recommendations[0]}</p>
                 </div>
               )}
             </div>
@@ -234,7 +234,7 @@ const fetchBreakEvenData = async () => {
       <div className="p-4 pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Target className="w-5 h-5 text-indigo-600" />
+            <Target className="w-5 h-5 text-cyan-600" />
             <h3 className="text-lg font-bold text-slate-900">
               Análisis de Punto de Equilibrio
             </h3>
@@ -289,13 +289,13 @@ const fetchBreakEvenData = async () => {
               </div>
               <div className="text-center">
                 <p className="text-xs text-slate-500">Margen Contribución</p>
-                <p className="text-sm font-bold text-indigo-600">
+                <p className="text-sm font-bold text-cyan-600">
                   {formatCurrency(analysis.contributionMargin)}
                 </p>
               </div>
               <div className="text-center">
                 <p className="text-xs text-slate-500">Ratio Contribución</p>
-                <p className="text-sm font-bold text-indigo-600">
+                <p className="text-sm font-bold text-cyan-600">
                   {formatPercentage(analysis.contributionMarginRatio)}
                 </p>
               </div>
@@ -311,21 +311,21 @@ const fetchBreakEvenData = async () => {
 
             {/* Break-Even Points */}
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-indigo-50 border border-indigo-200 rounded-lg">
+              <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
-                  <Target className="w-4 h-4 text-indigo-600" />
-                  <h3 className="text-sm font-semibold text-indigo-900">Punto de Equilibrio</h3>
+                  <Target className="w-4 h-4 text-cyan-600" />
+                  <h3 className="text-sm font-semibold text-cyan-900">Punto de Equilibrio</h3>
                 </div>
                 <div className="space-y-1">
                   <div className="flex justify-between">
                     <span className="text-xs text-slate-600">Unidades:</span>
-                    <span className="text-sm font-bold text-indigo-600">
+                    <span className="text-sm font-bold text-cyan-600">
                       {analysis.breakEvenPoint.units.toLocaleString()}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-xs text-slate-600">Ingresos:</span>
-                    <span className="text-sm font-bold text-indigo-600">
+                    <span className="text-sm font-bold text-cyan-600">
                       {formatCurrency(analysis.breakEvenPoint.revenue)}
                     </span>
                   </div>
@@ -414,7 +414,7 @@ const fetchBreakEvenData = async () => {
                       key={index}
                       className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                         selectedScenario === scenario.name
-                          ? 'bg-indigo-50 border-indigo-200'
+                          ? 'bg-cyan-50 border-cyan-200'
                           : 'bg-white border-slate-200 hover:bg-slate-50'
                       }`}
                       onClick={() => setSelectedScenario(scenario.name)}
@@ -443,14 +443,14 @@ const fetchBreakEvenData = async () => {
 
             {/* Recommendations */}
             {recommendations.length > 0 && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+              <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
                 <div className="flex items-center space-x-2 mb-2">
-                  <Info className="w-4 h-4 text-blue-600" />
+                  <Info className="w-4 h-4 text-cyan-600" />
                   <h3 className="text-sm font-semibold text-blue-900">Recomendaciones</h3>
                 </div>
                 <div className="space-y-1">
                   {recommendations.map((rec, index) => (
-                    <p key={index} className="text-xs text-blue-700">{rec}</p>
+                    <p key={index} className="text-xs text-cyan-700">{rec}</p>
                   ))}
                 </div>
               </div>

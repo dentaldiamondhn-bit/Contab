@@ -66,47 +66,66 @@ export default function SubscriptionsPage() {
         if (data.invoice) { setCurrentInvoice(data.invoice); return; }
       }
     } catch {}
-    // 2. Fallback: crear factura del mes actual desde plan (localStorage o backend)
-    const createFromPlan = (plan: any) => {
+    // 2. Fallback: crear factura del mes actual desde plan(es) activo(s) - muestra paquete(s) activo(s)
+    const createFromPlan = (planOrPlans: any) => {
+      const plans = Array.isArray(planOrPlans) ? planOrPlans : [planOrPlans];
       const now = new Date();
       const invoiceNumber = `FAC-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}-001`;
+      const businessName = localStorage.getItem('businessName') || 'Mi Empresa';
+      const subtotal = plans.reduce((s: number, p: any) => s + (p.subtotal ?? p.price ?? 0), 0);
+      const tax = plans.reduce((s: number, p: any) => s + (p.taxAmount ?? Math.round((p.price||0)*0.15)), 0);
+      const total = plans.reduce((s: number, p: any) => s + (p.total ?? Math.round((p.price||0)*1.15)), 0);
       setCurrentInvoice({
         id: `current-${Date.now()}`,
         invoiceNumber,
         invoiceType: 'SUBSCRIPTION',
-        customerName: localStorage.getItem('businessName') || plan.name || 'Mi Empresa',
+        customerName: businessName,
         customerRTN: '',
         issueDate: now.toISOString(),
         dueDate: new Date(now.getFullYear(), now.getMonth()+1, 10).toISOString(),
-        subtotal: plan.subtotal ?? plan.price ?? 0,
-        tax: plan.taxAmount ?? Math.round((plan.price||0)*0.15),
-        total: plan.total ?? Math.round((plan.price||0)*1.15),
+        subtotal,
+        tax,
+        total,
         status: 'PENDING',
         currency: 'HNL',
+        items: plans.map((p: any) => ({ id: p.id || `plan-${p.code || p.name}`, description: p.name || 'Plan Activo', quantity: 1, unitPrice: p.price || 0, total: p.total || p.price || 0 })),
       } as any);
     };
     try {
       const raw = localStorage.getItem('selectedPlans');
       if (raw) {
         const plans = JSON.parse(raw);
-        const plan = Array.isArray(plans) && plans.length > 0 ? plans[0] : null;
-        if (plan) { createFromPlan(plan); return; }
+        if (Array.isArray(plans) && plans.length > 0) { createFromPlan(plans); return; }
       }
     } catch {}
-    // 3. Si no hay plan en localStorage, buscar desde my-tenant / plans-public
+    // 3. Si no hay plan en localStorage, buscar desde my-tenant (con todos los planes)
     try {
       const tRes = await fetch('/api/tenant/my-tenant');
       if (tRes.ok) {
         const tData = await tRes.json();
+        const tenantPlans = tData.tenant?.plans || [];
+        if (tenantPlans.length > 0) {
+          const pRes = await fetch('/api/admin/plans-public');
+          if (pRes.ok) {
+            const pData = await pRes.json();
+            const fullPlans = tenantPlans.map((tp: any) => {
+              const found = (pData.plans || []).find((p: any) => p.name === tp.plan_name || p.code === tp.plan_code);
+              return found ? found : { name: tp.plan_name || tp.plan_code, price: 0, total: 0, code: tp.plan_code };
+            });
+            createFromPlan(fullPlans);
+            return;
+          }
+          createFromPlan(tenantPlans.map((tp: any) => ({ name: tp.plan_name || tp.plan_code, price: 0, total: 0, code: tp.plan_code })));
+          return;
+        }
         const planName = tData.tenant?.subscriptionPlan;
         if (planName) {
           const pRes = await fetch('/api/admin/plans-public');
           if (pRes.ok) {
             const pData = await pRes.json();
-            const found = (pData.plans || []).find((p: any) => p.name === planName || p.code === planName);
-            if (found) { createFromPlan(found); return; }
+            const found = (pData.plans || []).filter((p: any) => p.name === planName || p.code === planName);
+            if (found.length > 0) { createFromPlan(found); return; }
           }
-          // Fallback si no se encuentra el plan por nombre, usar el nombre como plan
           createFromPlan({ name: planName, price: 0, total: 0 });
           return;
         }
@@ -451,8 +470,9 @@ export default function SubscriptionsPage() {
                 <DisneyStyleInvoice
                   invoiceNumber={selectedInvoice.invoiceNumber || selectedInvoice.id}
                   date={selectedInvoice.issueDate}
-                  planName={selectedInvoice.customerName || 'Suscripción'}
+                  planName={selectedInvoice.items?.[0]?.description || 'Suscripción'}
                   amount={formatCurrency(selectedInvoice.total)}
+                  plans={selectedInvoice.items?.length ? selectedInvoice.items.map((it: any) => ({ name: it.description, amount: formatCurrency(it.total) })) : undefined}
                   cardLast4="2831"
                   companyName="Diamond Accounting, S. de R.L."
                   companyAddress="Col. Palmira, Tegucigalpa, Honduras"

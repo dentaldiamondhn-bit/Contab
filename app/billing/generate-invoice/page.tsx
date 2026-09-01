@@ -444,7 +444,7 @@ export default function GenerateInvoicePage() {
               <Button
                 onClick={handleSubmit}
                 disabled={loading}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
               >
                 <Save className="w-4 h-4" />
                 {loading ? 'Guardando...' : 'Guardar Factura'}
@@ -483,7 +483,7 @@ export default function GenerateInvoicePage() {
                   type="text"
                   value={customer.name}
                   onChange={(e) => setCustomer({ ...customer, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="Ej: Empresa Cliente S.A."
                 />
               </div>
@@ -495,7 +495,7 @@ export default function GenerateInvoicePage() {
                   type="text"
                   value={customer.rtn}
                   onChange={(e) => setCustomer({ ...customer, rtn: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder={customer.requireRtn ? "0801-XXXX-XXXXX" : "Opcional: 0801-XXXX-XXXXX"}
                   disabled={!customer.requireRtn}
                 />
@@ -508,7 +508,7 @@ export default function GenerateInvoicePage() {
                   type="email"
                   value={customer.email}
                   onChange={(e) => setCustomer({ ...customer, email: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="cliente@ejemplo.com"
                 />
               </div>
@@ -520,7 +520,7 @@ export default function GenerateInvoicePage() {
                   type="text"
                   value={customer.address}
                   onChange={(e) => setCustomer({ ...customer, address: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder="Dirección del cliente"
                 />
               </div>
@@ -530,7 +530,7 @@ export default function GenerateInvoicePage() {
                 type="checkbox"
                 checked={customer.requireRtn}
                 onChange={(e) => setCustomer({ ...customer, requireRtn: e.target.checked })}
-                className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
               />
               <label className="ml-2 text-sm text-gray-600">
                 Requerir RTN (marcar si el cliente necesita RTN)
@@ -557,7 +557,7 @@ export default function GenerateInvoicePage() {
                   type="date"
                   value={issueDate}
                   onChange={(e) => setIssueDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
               <div>
@@ -568,7 +568,7 @@ export default function GenerateInvoicePage() {
                   type="date"
                   value={dueDate}
                   onChange={(e) => setDueDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
             </div>
@@ -802,7 +802,7 @@ export default function GenerateInvoicePage() {
                     type="checkbox"
                     checked={enable15Tax}
                     onChange={(e) => setEnable15Tax(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
                   />
                   <span className="ml-2 text-sm font-medium">
                     {enable15Tax ? 'Activado' : 'Desactivado'}
@@ -823,7 +823,7 @@ export default function GenerateInvoicePage() {
                     type="checkbox"
                     checked={enable18Tax}
                     onChange={(e) => setEnable18Tax(e.target.checked)}
-                    className="w-4 h-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                    className="w-4 h-4 text-cyan-600 focus:ring-cyan-500 border-gray-300 rounded"
                   />
                   <span className="ml-2 text-sm font-medium">
                     {enable18Tax ? 'Activado' : 'Desactivado'}
@@ -851,7 +851,7 @@ export default function GenerateInvoicePage() {
                 <select
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as 'percentage' | 'fixed')}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="percentage">Porcentaje (%)</option>
                   <option value="fixed">Monto Fijo</option>
@@ -868,7 +868,7 @@ export default function GenerateInvoicePage() {
                   step={discountType === 'percentage' ? 0.1 : 0.01}
                   value={discountValue}
                   onChange={(e) => setDiscountValue(parseFloat(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   placeholder={discountType === 'percentage' ? '0.0' : '0.00'}
                 />
               </div>
@@ -928,7 +928,7 @@ export default function GenerateInvoicePage() {
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
               placeholder="Notas adicionales para la factura..."
             />
           </CardContent>
@@ -944,7 +944,7 @@ export default function GenerateInvoicePage() {
           </CardHeader>
           <CardContent>
             {!imagePreview ? (
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 transition-colors">
+              <div className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-cyan-500 transition-colors">
                 <input
                   type="file"
                   accept="image/*"
@@ -1183,7 +1183,7 @@ export default function GenerateInvoicePage() {
             <Button
               onClick={handleSubmit}
               disabled={loading}
-              className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+              className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
             >
               <Save className="w-4 h-4" />
               {loading ? 'Guardando...' : 'Guardar Factura'}

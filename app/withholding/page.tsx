@@ -41,13 +41,13 @@ export default function WithholdingPage() {
       </div>
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-cyan-200 bg-cyan-50/50">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+            <Info className="w-5 h-5 text-cyan-600 mt-0.5" />
             <div className="space-y-2">
               <h3 className="font-medium text-blue-900">¿Qué son las Retenciones?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+              <ul className="text-sm text-cyan-800 space-y-1">
                 <li>• Las retenciones son pagos anticipados de impuestos que deben realizarse sobre ciertos pagos</li>
                 <li>• Para servicios profesionales en Honduras: 1% o 12.5% según el tipo de servicio</li>
                 <li>• El sistema calcula automáticamente el monto y genera el comprobante de retención</li>
@@ -63,8 +63,8 @@ export default function WithholdingPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="pt-6 text-center">
-            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
-              <Calculator className="w-6 h-6 text-blue-600" />
+            <div className="w-12 h-12 bg-cyan-100 rounded-full flex items-center justify-center mx-auto mb-3">
+              <Calculator className="w-6 h-6 text-cyan-600" />
             </div>
             <h3 className="font-medium mb-2">Cálculo Automático</h3>
             <p className="text-sm text-muted-foreground">

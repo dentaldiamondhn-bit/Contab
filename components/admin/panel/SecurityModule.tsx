@@ -130,7 +130,7 @@ export default function SecurityModule() {
         {(["users", "audit", "policies"] as const).map((t) => (
           <button key={t} onClick={() => { setTab(t); if (t === "audit") fetchAuditLogs(); }}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t ? "border-blue-500 text-blue-600 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t ? "border-cyan-500 text-cyan-600 bg-cyan-50" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
             {t === "users" ? "Usuarios y Roles" : t === "audit" ? "Bitácora de Auditoría" : "Políticas de Seguridad"}
           </button>
@@ -154,7 +154,7 @@ export default function SecurityModule() {
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+              <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" /></div>
             ) : (
               <div className="overflow-x-auto">
                 <table className="min-w-full divide-y divide-gray-200">
@@ -182,7 +182,7 @@ export default function SecurityModule() {
                           <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                             u.role === "SUPER_ADMIN" ? "bg-purple-100 text-purple-800" :
                             u.role === "SUPPORT" ? "bg-yellow-100 text-yellow-800" :
-                            u.role === "ADMIN" ? "bg-blue-100 text-blue-800" :
+                            u.role === "ADMIN" ? "bg-cyan-100 text-cyan-800" :
                             "bg-gray-100 text-gray-800"
                           }`}>{ROLE_LABELS[u.role] || u.role}</span>
                         </td>
@@ -194,7 +194,7 @@ export default function SecurityModule() {
                         </td>
                         <td className="px-4 py-3 text-sm space-x-2">
                           <button onClick={() => { setEditingUser(u); setEditRole(u.role); }}
-                            className="text-blue-600 hover:text-blue-800 text-xs">Editar Rol</button>
+                            className="text-cyan-600 hover:text-cyan-800 text-xs">Editar Rol</button>
                           {u.role !== "SUPER_ADMIN" && (
                             <button onClick={() => deleteUser(u.id)} className="text-red-600 hover:text-red-800 text-xs">Eliminar</button>
                           )}
@@ -237,7 +237,7 @@ export default function SecurityModule() {
                   <div className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs ${
                     log.action.includes("CREATE") ? "bg-green-500" :
                     log.action.includes("DELETE") ? "bg-red-500" :
-                    log.action.includes("UPDATE") ? "bg-blue-500" : "bg-gray-500"
+                    log.action.includes("UPDATE") ? "bg-cyan-500" : "bg-gray-500"
                   }`}>{log.action[0]}</div>
                   <div className="flex-1">
                     <div className="text-sm font-medium text-gray-900">{log.action} en {log.table}</div>
@@ -257,7 +257,7 @@ export default function SecurityModule() {
             <label className="flex items-center gap-3">
               <input type="checkbox" checked={securityPolicies.twoFactorRequired}
                 onChange={(e) => setSecurityPolicies({ ...securityPolicies, twoFactorRequired: e.target.checked })}
-                className="w-4 h-4 text-blue-600 rounded" />
+                className="w-4 h-4 text-cyan-600 rounded" />
               <div>
                 <span className="text-sm font-medium text-gray-900">Requerir 2FA para todos</span>
                 <p className="text-xs text-gray-500">Forzar autenticación en dos pasos</p>
@@ -290,7 +290,7 @@ export default function SecurityModule() {
                 rows={3} className="w-full mt-1 px-3 py-2 border rounded-lg text-sm font-mono" placeholder="192.168.1.0/24&#10;10.0.0.1" />
             </div>
             <button onClick={savePolicies} disabled={savingPolicies}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50">
               {savingPolicies ? "Guardando..." : "Guardar Políticas"}
             </button>
           </div>
@@ -307,7 +307,7 @@ export default function SecurityModule() {
             </select>
             <div className="flex justify-end gap-3">
               <button onClick={() => setEditingUser(null)} className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>
-              <button onClick={updateUserRole} className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700">Guardar</button>
+              <button onClick={updateUserRole} className="px-4 py-2 text-sm bg-cyan-600 text-white rounded-lg hover:bg-cyan-700">Guardar</button>
             </div>
           </div>
         </div>

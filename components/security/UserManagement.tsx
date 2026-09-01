@@ -133,7 +133,7 @@ export default function UserManagement({ tenantId }: UserManagementProps) {
   const getRoleBadge = (role: string) => {
     const colors: Record<string, string> = {
       'ADMIN': 'bg-red-100 text-red-800',
-      'MANAGER': 'bg-blue-100 text-blue-800',
+      'MANAGER': 'bg-cyan-100 text-cyan-800',
       'USER': 'bg-green-100 text-green-800',
       'VIEWER': 'bg-gray-100 text-gray-800'
     };
@@ -156,7 +156,7 @@ export default function UserManagement({ tenantId }: UserManagementProps) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <Users className="h-6 w-6 mr-2 text-blue-600" />
+            <Users className="h-6 w-6 mr-2 text-cyan-600" />
             Gestión de Usuarios
           </h2>
           <p className="text-gray-600">Administre los usuarios del sistema</p>
@@ -186,7 +186,7 @@ export default function UserManagement({ tenantId }: UserManagementProps) {
         <CardContent>
           {loading ? (
             <div className="text-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
               <p>Cargando usuarios...</p>
             </div>
           ) : (

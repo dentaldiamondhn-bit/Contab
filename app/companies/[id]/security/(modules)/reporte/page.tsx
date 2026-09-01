@@ -32,7 +32,7 @@ export default function ReportePage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <ClipboardList className="h-5 w-5 text-indigo-600" />
+            <ClipboardList className="h-5 w-5 text-cyan-600" />
             Reporte de Auditoría de Seguridad
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -52,10 +52,10 @@ export default function ReportePage() {
       </div>
 
       {/* Legal Header */}
-      <Card className="border-l-4 border-l-indigo-500 bg-indigo-50">
+      <Card className="border-l-4 border-l-cyan-500 bg-cyan-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Building2 className="h-5 w-5 text-indigo-600" />
+            <Building2 className="h-5 w-5 text-cyan-600" />
             A. Encabezado Legal del Reporte
           </CardTitle>
           <CardDescription>
@@ -64,21 +64,21 @@ export default function ReportePage() {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 bg-white rounded-lg border border-indigo-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Nombre de la Empresa</p>
-              <p className="font-semibold text-indigo-900">Clínica Dental Diamond, S.A.</p>
+              <p className="font-semibold text-cyan-900">Clínica Dental Diamond, S.A.</p>
             </div>
-            <div className="p-4 bg-white rounded-lg border border-indigo-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <p className="text-xs text-gray-500 uppercase tracking-wide">RTN</p>
-              <p className="font-semibold text-indigo-900">0801-1990-001234</p>
+              <p className="font-semibold text-cyan-900">0801-1990-001234</p>
             </div>
-            <div className="p-4 bg-white rounded-lg border border-indigo-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Rango de Fechas</p>
-              <p className="font-semibold text-indigo-900">01/04/2026 - 09/04/2026</p>
+              <p className="font-semibold text-cyan-900">01/04/2026 - 09/04/2026</p>
             </div>
-            <div className="p-4 bg-white rounded-lg border border-indigo-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <p className="text-xs text-gray-500 uppercase tracking-wide">Generado Por</p>
-              <p className="font-semibold text-indigo-900">Lic. Ana López (Admin)</p>
+              <p className="font-semibold text-cyan-900">Lic. Ana López (Admin)</p>
               <p className="text-xs text-gray-500">09/04/2026 17:30</p>
             </div>
           </div>
@@ -91,7 +91,7 @@ export default function ReportePage() {
           <div className="flex items-center justify-between">
             <div>
               <CardTitle className="flex items-center gap-2">
-                <Eye className="h-5 w-5 text-blue-600" />
+                <Eye className="h-5 w-5 text-cyan-600" />
                 B. Log de Actividades de Seguridad
               </CardTitle>
               <CardDescription>
@@ -136,7 +136,7 @@ export default function ReportePage() {
                         <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
                           act.estado === 'critico' ? 'bg-red-100 text-red-600' :
                           act.estado === 'advertencia' ? 'bg-orange-100 text-orange-600' :
-                          'bg-blue-100'
+                          'bg-cyan-100'
                         }`}>
                           {act.usuario[0]}
                         </div>
@@ -147,7 +147,7 @@ export default function ReportePage() {
                       <Badge className={`text-xs ${
                         act.estado === 'critico' ? 'bg-red-600' :
                         act.estado === 'advertencia' ? 'bg-orange-600' :
-                        'bg-blue-600'
+                        'bg-cyan-600'
                       }`}>
                         {act.accion}
                       </Badge>

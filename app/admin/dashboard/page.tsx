@@ -71,7 +71,7 @@ function MiniBarChart({ data, maxVal }: { data: number[]; maxVal: number }) {
       {data.map((val, i) => (
         <div
           key={i}
-          className="flex-1 bg-blue-400 rounded-t"
+          className="flex-1 bg-cyan-400 rounded-t"
           style={{ height: `${(val / max) * 100}%`, minHeight: val > 0 ? '2px' : '0' }}
         />
       ))}
@@ -150,7 +150,7 @@ export default function AdminDashboardPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-500">Cargando dashboard...</p>
         </div>
       </div>
@@ -162,7 +162,7 @@ export default function AdminDashboardPage() {
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || "No se pudieron cargar los datos"}</p>
-          <button onClick={fetchComprehensiveStats} className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700">
+          <button onClick={fetchComprehensiveStats} className="bg-cyan-600 text-white px-4 py-2 rounded-lg hover:bg-cyan-700">
             Reintentar
           </button>
         </div>
@@ -243,7 +243,7 @@ export default function AdminDashboardPage() {
               <span className="text-xs font-mono text-gray-400">{data.storage.totalAllocatedGB} GB</span>
             </div>
             <div className="mt-1 h-1 bg-gray-200 rounded-full overflow-hidden">
-              <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
+              <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
             </div>
           </div>
 
@@ -267,7 +267,7 @@ export default function AdminDashboardPage() {
             <div className="flex gap-2 mt-1">
               {data.support.critical > 0 && <span className="text-[10px] bg-red-100 text-red-700 px-1 rounded font-bold">{data.support.critical} críticos</span>}
               <span className="text-[10px] bg-orange-100 text-orange-700 px-1 rounded">{data.support.open} abiertos</span>
-              <span className="text-[10px] bg-blue-100 text-blue-700 px-1 rounded">{data.support.inProgress} en proc.</span>
+              <span className="text-[10px] bg-cyan-100 text-cyan-700 px-1 rounded">{data.support.inProgress} en proc.</span>
             </div>
           </div>
 
@@ -382,7 +382,7 @@ export default function AdminDashboardPage() {
                     <div key={i} className="flex items-center gap-3">
                       <span className="text-xs text-gray-500 w-12 text-right">{g.month}</span>
                       <div className="flex-1 h-4 bg-gray-100 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full rounded-full transition-all" style={{ width: `${(g.count / maxCount) * 100}%` }}></div>
+                        <div className="bg-cyan-500 h-full rounded-full transition-all" style={{ width: `${(g.count / maxCount) * 100}%` }}></div>
                       </div>
                       <span className="text-xs font-medium text-gray-700 w-8 text-right">{g.count}</span>
                     </div>
@@ -443,7 +443,7 @@ export default function AdminDashboardPage() {
                     <div key={activity.id} className="flex items-start gap-2">
                       <div className={`w-1.5 h-1.5 rounded-full mt-1.5 flex-shrink-0 ${
                         activity.action === 'CREATE' ? 'bg-green-500' :
-                        activity.action === 'UPDATE' ? 'bg-blue-500' : 'bg-red-500'
+                        activity.action === 'UPDATE' ? 'bg-cyan-500' : 'bg-red-500'
                       }`}></div>
                       <div className="min-w-0">
                         <p className="text-xs text-gray-700 truncate">
@@ -459,7 +459,7 @@ export default function AdminDashboardPage() {
                   ))}
                 </div>
               )}
-              <Link href="/admin/audit" className="block mt-3 text-center text-xs text-blue-600 hover:text-blue-800">
+              <Link href="/admin/audit" className="block mt-3 text-center text-xs text-cyan-600 hover:text-cyan-800">
                 Ver todo →
               </Link>
             </div>
@@ -530,7 +530,7 @@ export default function AdminDashboardPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Ingresos por suscripciones</span>
-                <span className="text-sm font-bold text-blue-600">{data.invoices.subscription} facturas</span>
+                <span className="text-sm font-bold text-cyan-600">{data.invoices.subscription} facturas</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-500">Costo mensual infraestructura</span>
@@ -556,7 +556,7 @@ export default function AdminDashboardPage() {
                   <span className="text-xs font-mono text-gray-700">{data.storage.totalAllocatedGB} / 1000 GB</span>
                 </div>
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
-                  <div className="bg-blue-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
+                  <div className="bg-cyan-500 h-full rounded-full" style={{ width: `${Math.min((data.storage.totalAllocatedGB / 1000) * 100, 100)}%` }}></div>
                 </div>
               </div>
               <div>
@@ -591,7 +591,7 @@ export default function AdminDashboardPage() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
           <Link href="/admin/panel" className="bg-white rounded-lg shadow p-4 hover:shadow-md transition-shadow group">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center group-hover:bg-blue-700 transition-colors">
+              <div className="w-10 h-10 bg-cyan-600 rounded-lg flex items-center justify-center group-hover:bg-cyan-700 transition-colors">
                 <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
                 </svg>
@@ -649,7 +649,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-lg shadow p-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
+              <div className="w-10 h-10 bg-cyan-600 rounded-full flex items-center justify-center">
                 <span className="text-white font-medium">{user?.firstName?.charAt(0) || "A"}</span>
               </div>
               <div>

@@ -358,8 +358,8 @@ export default function InventoryPage() {
       <div className="grid grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center space-x-4">
-            <div className="p-3 bg-blue-100 rounded-lg">
-              <Package className="w-6 h-6 text-blue-600" />
+            <div className="p-3 bg-cyan-100 rounded-lg">
+              <Package className="w-6 h-6 text-cyan-600" />
             </div>
             <div>
               <p className="text-sm text-gray-500">Productos</p>

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { HeadphonesIcon, LifeBuoy, Shield, LogOut } from "lucide-react";
 import { SidebarProvider } from "@/app/contexts/SidebarContext";
 import RoleBasedSidebar from "@/components/RoleBasedSidebar";
+import { TenantHeader } from "@/components/dashboard/TenantHeader";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function SupportLayout({
@@ -79,13 +80,15 @@ export default function SupportLayout({
   
   return (
     <SidebarProvider>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
-        {/* Support Sidebar - Same as Admin */}
-        <RoleBasedSidebar />
-        
-        {/* Main Content */}
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          {/* Page Content */}
+      <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+        {/* Header - Full width at top */}
+        <TenantHeader tenants={[]} />
+
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          {/* Support Sidebar */}
+          <RoleBasedSidebar />
+          
+          {/* Main Content */}
           <main className="flex-1 overflow-y-auto bg-orange-50/30">
             <ErrorBoundary>
               {children}

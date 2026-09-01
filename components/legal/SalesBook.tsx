@@ -152,7 +152,7 @@ export default function SalesBook({ tenantId }: SalesBookProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando libro de ventas...</p>
           </div>
         </CardContent>
@@ -242,10 +242,10 @@ export default function SalesBook({ tenantId }: SalesBookProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Débito Fiscal Total</CardTitle>
-            <Calculator className="h-4 w-4 text-blue-600" />
+            <Calculator className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               L. {totalDebitoFiscal.toFixed(2)}
             </div>
             <p className="text-xs text-gray-600">
@@ -331,7 +331,7 @@ export default function SalesBook({ tenantId }: SalesBookProps) {
                       <td className="border border-gray-200 px-4 py-3 text-sm text-right">
                         L. {item.monto_venta.toFixed(2)}
                       </td>
-                      <td className="border border-gray-200 px-4 py-3 text-sm text-right font-medium text-blue-600">
+                      <td className="border border-gray-200 px-4 py-3 text-sm text-right font-medium text-cyan-600">
                         L. {item.debito_fiscal.toFixed(2)}
                       </td>
                       <td className="border border-gray-200 px-4 py-3 text-sm text-right font-medium text-orange-600">
@@ -350,7 +350,7 @@ export default function SalesBook({ tenantId }: SalesBookProps) {
                     <td className="border border-gray-200 px-4 py-3 text-right font-bold">
                       L. {totalVentas.toFixed(2)}
                     </td>
-                    <td className="border border-gray-200 px-4 py-3 text-right font-bold text-blue-600">
+                    <td className="border border-gray-200 px-4 py-3 text-right font-bold text-cyan-600">
                       L. {totalDebitoFiscal.toFixed(2)}
                     </td>
                     <td className="border border-gray-200 px-4 py-3 text-right font-bold text-orange-600">

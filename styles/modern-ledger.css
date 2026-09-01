@@ -18,13 +18,13 @@
 .text-slate-600 { color: rgb(71 85 105); }
 .text-slate-500 { color: rgb(100 116 139); }
 
-.text-indigo-600 { color: rgb(79 70 229); }    /* Accents - Technology */
-.bg-indigo-50 { background-color: rgb(238 242 255); }
-.bg-indigo-600 { background-color: rgb(79 70 229); }
+.text-cyan-600 { color: rgb(8 145 178); }      /* Accents - Diamond Cyan */
+.bg-cyan-50 { background-color: rgb(236 254 255); }
+.bg-cyan-600 { background-color: rgb(8 145 178); }
 
-.text-emerald-600 { color: rgb(5 150 105); }    /* Success - Positive Balance */
-.bg-emerald-50 { background-color: rgb(236 253 245); }
-.bg-emerald-600 { background-color: rgb(5 150 105); }
+.text-lime-600 { color: rgb(101 163 13); }     /* Success - Diamond Lime */
+.bg-lime-50 { background-color: rgb(247 254 231); }
+.bg-lime-600 { background-color: rgb(101 163 13); }
 
 .text-rose-600 { color: rgb(224 36 116); }     /* Danger - Negative Balance/Expenses */
 .bg-rose-50 { background-color: rgb(255 241 242); }
@@ -43,17 +43,17 @@
 .border-slate-300 { border-color: rgb(203 213 225); }
 
 /* Hover States */
-.hover\\:border-slate-300:hover {
+.hover\:border-slate-300:hover {
   border-color: rgb(203 213 225);
 }
 
-.hover\\:bg-slate-50:hover {
+.hover\:bg-slate-50:hover {
   background-color: rgb(248 250 252);
 }
 
 /* Button Overrides */
 .btn-primary {
-  background-color: rgb(79 70 229);
+  background-color: rgb(8 145 178);
   color: white;
   border: none;
   border-radius: 0.375rem;
@@ -65,7 +65,7 @@
 }
 
 .btn-primary:hover {
-  background-color: rgb(67 56 202);
+  background-color: rgb(14 116 144);
 }
 
 .btn-outline {
@@ -113,7 +113,7 @@
 }
 
 .status-dot.good {
-  background-color: rgb(34 197 94);
+  background-color: rgb(101 163 13);
 }
 
 .status-dot.warning {
@@ -182,7 +182,7 @@
 
 /* Focus States */
 .focus-ring:focus {
-  outline: 2px solid rgb(79 70 229);
+  outline: 2px solid rgb(8 145 178);
   outline-offset: 2px;
 }
 
@@ -192,14 +192,14 @@
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgb(241 245 249);
+  background: rgb(240 253 250);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgb(148 163 184);
+  background: rgb(34 211 238);
   border-radius: 3px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgb(100 116 139);
+  background: rgb(6 182 212);
 }

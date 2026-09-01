@@ -244,27 +244,27 @@ export default function SupportDashboardPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-blue-200 shadow-sm hover:shadow-md transition-shadow">
-          <CardHeader className="pb-3 bg-blue-50/50">
-            <CardTitle className="text-sm font-medium text-blue-700">Usuarios Activos</CardTitle>
+        <Card className="border-cyan-200 shadow-sm hover:shadow-md transition-shadow">
+          <CardHeader className="pb-3 bg-cyan-50/50">
+            <CardTitle className="text-sm font-medium text-cyan-700">Usuarios Activos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="flex items-center justify-between">
-              <div className="text-2xl font-bold text-blue-600">
+              <div className="text-2xl font-bold text-cyan-600">
                 {loadingStats ? '...' : tenantStats?.activeUsers || 0}
               </div>
-              <Activity className="h-8 w-8 text-blue-500" />
+              <Activity className="h-8 w-8 text-cyan-500" />
             </div>
           </CardContent>
         </Card>
       </div>
 
       {/* System Health Sensors */}
-      <Card className="border-blue-200 shadow-sm">
-        <CardHeader className="pb-3 bg-blue-50/50 border-b border-blue-100">
+      <Card className="border-cyan-200 shadow-sm">
+        <CardHeader className="pb-3 bg-cyan-50/50 border-b border-blue-100">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Server className="h-5 w-5 text-blue-600" />
+              <Server className="h-5 w-5 text-cyan-600" />
               <CardTitle className="text-blue-900">Estado del Sistema</CardTitle>
               {healthData && (
                 <span className={`ml-2 px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -279,7 +279,7 @@ export default function SupportDashboardPage() {
             </div>
             <div className="flex items-center gap-2">
               {lastHealthCheck && (
-                <span className="text-xs text-blue-600/70 flex items-center gap-1">
+                <span className="text-xs text-cyan-600/70 flex items-center gap-1">
                   <Clock className="h-3 w-3" />
                   {lastHealthCheck.toLocaleTimeString('es-HN')}
                 </span>
@@ -287,7 +287,7 @@ export default function SupportDashboardPage() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 px-2 text-blue-600 hover:bg-blue-100"
+                className="h-7 px-2 text-cyan-600 hover:bg-cyan-100"
                 onClick={loadHealth}
                 disabled={loadingHealth}
               >
@@ -299,7 +299,7 @@ export default function SupportDashboardPage() {
         <CardContent className="p-4">
           {loadingHealth && !healthData ? (
             <div className="flex items-center justify-center h-20">
-              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-600"></div>
             </div>
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -416,10 +416,10 @@ export default function SupportDashboardPage() {
               </div>
 
               {/* Memory */}
-              <div className="p-4 rounded-lg border border-blue-200 bg-blue-50/30">
+              <div className="p-4 rounded-lg border border-cyan-200 bg-cyan-50/30">
                 <div className="flex items-center gap-3 mb-3">
-                  <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                    <MemoryStick className="h-5 w-5 text-blue-600" />
+                  <div className="w-10 h-10 rounded-lg bg-cyan-100 flex items-center justify-center">
+                    <MemoryStick className="h-5 w-5 text-cyan-600" />
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">Memoria RAM</p>

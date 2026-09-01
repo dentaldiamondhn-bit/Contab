@@ -192,7 +192,7 @@ export default function AdminSettingsPage() {
               <Button
                 onClick={handleSave}
                 disabled={saving}
-                className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700"
+                className="flex items-center gap-2 bg-cyan-600 hover:bg-cyan-700"
               >
                 <Save className="w-4 h-4" />
                 {saving ? 'Guardando...' : 'Guardar Cambios'}
@@ -234,7 +234,7 @@ export default function AdminSettingsPage() {
                         onClick={() => setActiveTab(tab.id)}
                         className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
                           activeTab === tab.id
-                            ? 'bg-blue-50 text-blue-700'
+                            ? 'bg-cyan-50 text-cyan-700'
                             : 'text-gray-700 hover:bg-gray-50'
                         }`}
                       >
@@ -272,7 +272,7 @@ export default function AdminSettingsPage() {
                         type="text"
                         value={settings.companyName}
                         onChange={(e) => handleChange('companyName', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -283,7 +283,7 @@ export default function AdminSettingsPage() {
                         type="email"
                         value={settings.supportEmail}
                         onChange={(e) => handleChange('supportEmail', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -295,7 +295,7 @@ export default function AdminSettingsPage() {
                       <select
                         value={settings.timezone}
                         onChange={(e) => handleChange('timezone', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       >
                         <option value="America/Tegucigalpa">Tegucigalpa (Honduras)</option>
                         <option value="America/Guatemala">Guatemala</option>
@@ -312,7 +312,7 @@ export default function AdminSettingsPage() {
                       <select
                         value={settings.dateFormat}
                         onChange={(e) => handleChange('dateFormat', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       >
                         <option value="DD/MM/YYYY">DD/MM/YYYY</option>
                         <option value="MM/DD/YYYY">MM/DD/YYYY</option>
@@ -347,7 +347,7 @@ export default function AdminSettingsPage() {
                         value={settings.smtpHost}
                         onChange={(e) => handleChange('smtpHost', e.target.value)}
                         placeholder="smtp.gmail.com"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -358,7 +358,7 @@ export default function AdminSettingsPage() {
                         type="text"
                         value={settings.smtpPort}
                         onChange={(e) => handleChange('smtpPort', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -372,7 +372,7 @@ export default function AdminSettingsPage() {
                         value={settings.smtpUser}
                         onChange={(e) => handleChange('smtpUser', e.target.value)}
                         placeholder="usuario@ejemplo.com"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -383,7 +383,7 @@ export default function AdminSettingsPage() {
                         type="email"
                         value={settings.smtpFrom}
                         onChange={(e) => handleChange('smtpFrom', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -394,7 +394,7 @@ export default function AdminSettingsPage() {
                     <input
                       type="password"
                       placeholder="••••••••"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     />
                     <p className="text-xs text-gray-500 mt-1">
                       Dejar en blanco para mantener la contraseña actual
@@ -425,7 +425,7 @@ export default function AdminSettingsPage() {
                       <select
                         value={settings.defaultCurrency}
                         onChange={(e) => handleChange('defaultCurrency', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       >
                         <option value="HNL">Lempira (HNL)</option>
                         <option value="USD">Dólar (USD)</option>
@@ -442,7 +442,7 @@ export default function AdminSettingsPage() {
                         type="number"
                         value={settings.taxRate}
                         onChange={(e) => handleChange('taxRate', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -453,7 +453,7 @@ export default function AdminSettingsPage() {
                         type="text"
                         value={settings.invoicePrefix}
                         onChange={(e) => handleChange('invoicePrefix', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -483,7 +483,7 @@ export default function AdminSettingsPage() {
                       value={settings.caiNumber}
                       onChange={(e) => handleChange('caiNumber', e.target.value)}
                       placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
-                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                      className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent font-mono"
                     />
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -495,7 +495,7 @@ export default function AdminSettingsPage() {
                         type="date"
                         value={settings.caiExpiryDate}
                         onChange={(e) => handleChange('caiExpiryDate', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -506,7 +506,7 @@ export default function AdminSettingsPage() {
                         type="number"
                         value={settings.caiRangeStart}
                         onChange={(e) => handleChange('caiRangeStart', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -517,7 +517,7 @@ export default function AdminSettingsPage() {
                         type="number"
                         value={settings.caiRangeEnd}
                         onChange={(e) => handleChange('caiRangeEnd', e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -563,7 +563,7 @@ export default function AdminSettingsPage() {
                         onChange={(e) => handleChange('passwordMinLength', e.target.value)}
                         min="6"
                         max="32"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                     <div>
@@ -576,7 +576,7 @@ export default function AdminSettingsPage() {
                         onChange={(e) => handleChange('sessionTimeout', e.target.value)}
                         min="5"
                         max="1440"
-                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                       />
                     </div>
                   </div>
@@ -586,7 +586,7 @@ export default function AdminSettingsPage() {
                         type="checkbox"
                         checked={settings.requireEmailVerification}
                         onChange={(e) => handleChange('requireEmailVerification', e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <div>
                         <span className="font-medium text-gray-900">Requerir Verificación de Email</span>
@@ -598,7 +598,7 @@ export default function AdminSettingsPage() {
                         type="checkbox"
                         checked={settings.twoFactorAuth}
                         onChange={(e) => handleChange('twoFactorAuth', e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <div>
                         <span className="font-medium text-gray-900">Autenticación de Dos Factores (2FA)</span>
@@ -629,7 +629,7 @@ export default function AdminSettingsPage() {
                         type="checkbox"
                         checked={settings.emailNotifications}
                         onChange={(e) => handleChange('emailNotifications', e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <div className="flex items-center gap-3">
                         <Mail className="w-5 h-5 text-gray-400" />
@@ -644,7 +644,7 @@ export default function AdminSettingsPage() {
                         type="checkbox"
                         checked={settings.smsNotifications}
                         onChange={(e) => handleChange('smsNotifications', e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <div className="flex items-center gap-3">
                         <Server className="w-5 h-5 text-gray-400" />
@@ -659,7 +659,7 @@ export default function AdminSettingsPage() {
                         type="checkbox"
                         checked={settings.adminAlerts}
                         onChange={(e) => handleChange('adminAlerts', e.target.checked)}
-                        className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="w-4 h-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <div className="flex items-center gap-3">
                         <AlertCircle className="w-5 h-5 text-gray-400" />

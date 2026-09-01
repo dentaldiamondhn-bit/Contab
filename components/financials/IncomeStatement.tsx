@@ -124,7 +124,7 @@ export default function IncomeStatement({ tenantId }: IncomeStatementProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando estado de resultados...</p>
           </div>
         </CardContent>
@@ -181,7 +181,7 @@ export default function IncomeStatement({ tenantId }: IncomeStatementProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Utilidad Neta</CardTitle>
-            <Target className="h-4 w-4 text-blue-600" />
+            <Target className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${

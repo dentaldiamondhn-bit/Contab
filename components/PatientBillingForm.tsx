@@ -176,7 +176,7 @@ export default function PatientBillingForm() {
                   type="text"
                   value={patientName}
                   onChange={(e) => setPatientName(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   placeholder="Enter patient name"
                 />
               </div>
@@ -188,7 +188,7 @@ export default function PatientBillingForm() {
                   type="date"
                   value={date}
                   onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   required
                 />
               </div>
@@ -203,7 +203,7 @@ export default function PatientBillingForm() {
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 placeholder="e.g., Consulta médica, Procedimiento, etc."
               />
             </div>
@@ -219,7 +219,7 @@ export default function PatientBillingForm() {
                 min="0"
                 value={subtotal}
                 onChange={(e) => handleSubtotalChange(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 placeholder="0.00"
                 required
               />
@@ -234,7 +234,7 @@ export default function PatientBillingForm() {
                 <select
                   value={selectedRevenueAccount}
                   onChange={(e) => setSelectedRevenueAccount(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   required
                 >
                   {revenueAccounts.map((account) => (
@@ -251,7 +251,7 @@ export default function PatientBillingForm() {
                 <select
                   value={selectedReceivableAccount}
                   onChange={(e) => setSelectedReceivableAccount(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   required
                 >
                   {receivableAccounts.map((account) => (
@@ -303,7 +303,7 @@ export default function PatientBillingForm() {
               <Button
                 type="submit"
                 disabled={loading || previewLoading || !subtotal || parseFloat(subtotal) <= 0}
-                className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+                className="px-6 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 disabled:bg-gray-400"
               >
                 {loading ? 'Creating...' : 'Create Patient Bill'}
               </Button>

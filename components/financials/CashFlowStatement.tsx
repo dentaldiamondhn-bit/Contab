@@ -163,7 +163,7 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando estado de flujo de efectivo...</p>
           </div>
         </CardContent>
@@ -190,7 +190,7 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Flujo Operativo</CardTitle>
-            <TrendingUp className="h-4 w-4 text-blue-600" />
+            <TrendingUp className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
@@ -241,7 +241,7 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Cambio Neto</CardTitle>
-            <DollarSign className="h-4 w-4 text-indigo-600" />
+            <DollarSign className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
@@ -268,10 +268,10 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
           <div className="space-y-6">
             {/* FLUJO DE EFECTIVO DE ACTIVIDADES DE OPERACIÓN */}
             <div>
-              <h3 className="text-lg font-semibold mb-4 text-blue-700">
+              <h3 className="text-lg font-semibold mb-4 text-cyan-700">
                 Flujo de Efectivo de Actividades de Operación
               </h3>
-              <div className="bg-blue-50 rounded-lg p-4">
+              <div className="bg-cyan-50 rounded-lg p-4">
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <div className="flex items-center space-x-2">
@@ -464,7 +464,7 @@ export default function CashFlowStatement({ tenantId }: CashFlowStatementProps) 
                     <div className="flex justify-between">
                       <span>Inversión neta:</span>
                       <span className={`font-medium ${
-                        summary.inversion < 0 ? 'text-blue-600' : 'text-gray-600'
+                        summary.inversion < 0 ? 'text-cyan-600' : 'text-gray-600'
                       }`}>
                         {summary.inversion < 0 ? 'En expansión' : 'En desinversión'}
                       </span>

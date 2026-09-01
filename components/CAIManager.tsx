@@ -158,7 +158,7 @@ export default function CAIManager() {
       case 'EXPIRATION_WARNING':
         return <AlertTriangle className="w-4 h-4 text-yellow-600" />;
       default:
-        return <Bell className="w-4 h-4 text-blue-600" />;
+        return <Bell className="w-4 h-4 text-cyan-600" />;
     }
   };
 
@@ -232,7 +232,7 @@ export default function CAIManager() {
                   <p className="text-sm font-medium text-muted-foreground">Total CAIs</p>
                   <p className="text-2xl font-bold">{statistics.totalCAIs}</p>
                 </div>
-                <FileText className="w-8 h-8 text-blue-600" />
+                <FileText className="w-8 h-8 text-cyan-600" />
               </div>
             </CardContent>
           </Card>

@@ -321,7 +321,7 @@ export default function PurchaseOrdersPage() {
     const statusConfig: Record<string, { label: string; className: string; icon: any }> = {
       DRAFT: { label: 'Borrador', className: 'bg-gray-100 text-gray-800', icon: FileText },
       PENDING: { label: 'Pendiente', className: 'bg-yellow-100 text-yellow-800', icon: Clock },
-      APPROVED: { label: 'Aprobada', className: 'bg-blue-100 text-blue-800', icon: CheckCircle },
+      APPROVED: { label: 'Aprobada', className: 'bg-cyan-100 text-cyan-800', icon: CheckCircle },
       RECEIVED: { label: 'Recibida', className: 'bg-purple-100 text-purple-800', icon: Package },
       COMPLETED: { label: 'Completada', className: 'bg-green-100 text-green-800', icon: CheckSquare },
       CANCELLED: { label: 'Cancelada', className: 'bg-red-100 text-red-800', icon: AlertCircle },
@@ -533,7 +533,7 @@ export default function PurchaseOrdersPage() {
                               size="sm"
                               onClick={() => { setSelectedOrder(order); setShowReceiveModal(true); }}
                             >
-                              <Package className="w-4 h-4 text-blue-600" />
+                              <Package className="w-4 h-4 text-cyan-600" />
                             </Button>
                           )}
                         </div>
@@ -840,7 +840,7 @@ export default function PurchaseOrdersPage() {
 
           {selectedOrder && (
             <div className="space-y-4">
-              <div className="bg-blue-50 p-4 rounded">
+              <div className="bg-cyan-50 p-4 rounded">
                 <div className="font-medium">{selectedOrder.order_number}</div>
                 <div className="text-sm text-gray-600">{selectedOrder.supplier?.name}</div>
                 <div className="text-lg font-bold mt-2">{formatCurrency(selectedOrder.total)}</div>
@@ -881,8 +881,8 @@ export default function PurchaseOrdersPage() {
                 <div className="text-sm text-gray-600">{selectedOrder.supplier?.name}</div>
               </div>
 
-              <Alert className="bg-blue-50 border-blue-200">
-                <Package className="h-4 w-4 text-blue-600" />
+              <Alert className="bg-cyan-50 border-cyan-200">
+                <Package className="h-4 w-4 text-cyan-600" />
                 <AlertDescription>
                   Confirme que ha recibido la mercadería/servicio y que cumple con las especificaciones de la orden.
                 </AlertDescription>

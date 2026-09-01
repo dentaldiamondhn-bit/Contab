@@ -316,7 +316,7 @@ export default function ISVTransactionForm({ onSuccess, onError }: ISVTransactio
 
             {/* ISV Calculation Result */}
             {calculation && (
-              <div className="border rounded p-4 bg-blue-50">
+              <div className="border rounded p-4 bg-cyan-50">
                 <h3 className="font-semibold mb-3 flex items-center space-x-2">
                   <Calculator className="h-4 w-4" />
                   <span>Cálculo de ISV</span>
@@ -328,7 +328,7 @@ export default function ISVTransactionForm({ onSuccess, onError }: ISVTransactio
                   </div>
                   <div className="flex justify-between">
                     <span>ISV ({calculation.isvRate * 100}%):</span>
-                    <span className="font-medium text-blue-600">{formatCurrency(calculation.isvAmount)}</span>
+                    <span className="font-medium text-cyan-600">{formatCurrency(calculation.isvAmount)}</span>
                   </div>
                   <div className="border-t pt-2 flex justify-between font-semibold">
                     <span>Total:</span>

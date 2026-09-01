@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServiceRoleClient } from "@/lib/supabase/service-role";
+import { supabase } from "@/lib/supabase-db";
 
 export async function GET(
   request: NextRequest,
@@ -7,45 +7,43 @@ export async function GET(
 ) {
   try {
     const { id: companyId } = await params;
-    const supabase = createServiceRoleClient();
 
-    // Try companies table first, then Tenant table
-    let { data: company, error } = await supabase
-      .from("companies")
-      .select("*")
-      .eq("id", companyId)
-      .single();
+    // Intentar por id, luego por tenant_code (ej ANGELOH7), luego companies.id
+    let data: any = null;
+    let error: any = null;
 
-    if (error || !company) {
-      const { data: tenant, error: tenantError } = await supabase
-        .from("Tenant")
-        .select("*")
-        .eq("id", companyId)
-        .single();
-
-      if (tenantError || !tenant) {
-        return NextResponse.json(
-          { error: "Empresa no encontrada" },
-          { status: 404 }
-        );
+    const res1 = await supabase.from("Tenant").select("*").eq("id", companyId).maybeSingle();
+    data = res1.data; error = res1.error;
+    if (!data) {
+      const res2 = await supabase.from("Tenant").select("*").eq("tenant_code", companyId).maybeSingle();
+      if (res2.data) { data = res2.data; error = null; }
+    }
+    if (!data) {
+      const res3 = await supabase.from("companies").select("*").eq("id", companyId).maybeSingle();
+      if (res3.data) {
+        // mapear companies -> formato Tenant-like para frontend
+        const c: any = res3.data;
+        data = {
+          id: c.tenant_id || c.id,
+          businessname: c.name || c.business_name,
+          businessrtn: c.rtn,
+          businessaddress: c.address,
+          tenant_code: c.tenant_code || companyId,
+          // pasar company real también
+          _company: c,
+        };
+        error = null;
       }
-
-      company = {
-        id: tenant.id,
-        business_name: tenant.businessname || tenant.business_name || "",
-        business_rtn: tenant.businessrtn || tenant.business_rtn || "",
-        industry: tenant.industry || "",
-        regimen_tributario: "Regimen General",
-        actividad_economica: "",
-        direccion_fiscal: tenant.businessaddress || tenant.business_address || "",
-        telefono_fiscal: tenant.phonenumber || tenant.phone_number || "",
-        email_fiscal: tenant.businessemail || tenant.business_email || "",
-        is_active: tenant.isactive ?? tenant.is_active ?? true,
-        created_at: tenant.created_at || "",
-      };
     }
 
-    return NextResponse.json(company);
+    if (error || !data) {
+      return NextResponse.json(
+        { error: "Empresa no encontrada" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json(data);
   } catch (error) {
     console.error("Error getting company:", error);
     return NextResponse.json(

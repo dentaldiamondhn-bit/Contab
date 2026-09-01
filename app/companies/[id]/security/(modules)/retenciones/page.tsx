@@ -51,7 +51,7 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Percent className="h-5 w-5 text-blue-600" />
+            <Percent className="h-5 w-5 text-cyan-600" />
             Retenciones de Impuestos (ISR) - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -81,10 +81,10 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
       </div>
 
       {/* Configuración Maestro */}
-      <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+      <Card className="border-l-4 border-l-blue-500 bg-cyan-50">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Database className="h-5 w-5 text-blue-600" />
+            <Database className="h-5 w-5 text-cyan-600" />
             1. Configuración de Retenciones (Maestro de Datos)
           </CardTitle>
           <CardDescription>
@@ -93,9 +93,9 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="p-4 bg-white rounded-lg border border-blue-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <p className="font-medium mb-3 flex items-center gap-2">
-                <Users className="h-4 w-4 text-blue-600" />
+                <Users className="h-4 w-4 text-cyan-600" />
                 Campos en Tabla de Proveedores
               </p>
               <div className="space-y-3 text-sm">
@@ -358,7 +358,7 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div className="bg-white p-3 rounded border">
                   <p className="font-medium text-sm mb-2 flex items-center gap-1">
-                    <Eye className="h-3 w-3 text-blue-500" />
+                    <Eye className="h-3 w-3 text-cyan-500" />
                     Reporte
                   </p>
                   <p className="text-xs text-gray-600">
@@ -398,10 +398,10 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
       </Card>
 
       {/* Resumen Mensual */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+      <Card className="bg-gradient-to-r from-cyan-50 to-cyan-50 border border-cyan-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileCheck className="h-5 w-5 text-blue-600" />
+            <FileCheck className="h-5 w-5 text-cyan-600" />
             Resumen Mensual de Retenciones - Mayo 2026
           </CardTitle>
         </CardHeader>
@@ -448,7 +448,7 @@ export default function RetencionesPage({ params }: RetencionesPageProps) {
               <tfoot className="bg-gray-50 font-medium">
                 <tr>
                   <td colSpan={4} className="py-3 px-4 text-right">TOTALES:</td>
-                  <td className="py-3 px-4 text-indigo-700">L 880.00</td>
+                  <td className="py-3 px-4 text-cyan-700">L 880.00</td>
                   <td className="py-3 px-4"></td>
                 </tr>
               </tfoot>

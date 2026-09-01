@@ -15,6 +15,14 @@ import {
 import { createSupabaseClient, insertWithTenant } from "@/lib/supabase/client";
 import { createClient } from '@supabase/supabase-js';
 import * as XLSX from "xlsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 
 interface ExcelUploaderProps {
   tenantId: string;
@@ -712,6 +720,8 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
   const [status, setStatus] = useState<UploadStatus | null>(null);
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [popupInfo, setPopupInfo] = useState<{ processed: number; total: number; fileName: string } | null>(null);
 
   // Generar template de Excel
   const downloadTemplate = (tipo: keyof typeof TEMPLATES) => {
@@ -776,112 +786,40 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
     return null;
   };
 
-  // Procesar archivo Excel
+  // Procesar archivo Excel via servidor (bypass RLS con service_role)
   const processExcel = useCallback(async (file: File) => {
     setUploading(true);
-    setProgress(0);
-    setStatus({ type: "info", message: "Leyendo archivo Excel..." });
-
+    setProgress(30);
+    setStatus({ type: "info", message: "Subiendo archivo al servidor..." });
     try {
-      // Establecer tenant para RLS
-      await (supabase as any).rpc("set_tenant", { tenant_id: tenantId });
-      
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: "array" });
-      
-      let totalRows = 0;
-      let processedRows = 0;
-      let errors: string[] = [];
-
-      // Procesar cada hoja
-      for (const sheetName of workbook.SheetNames) {
-        const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet, { 
-          header: 1,
-          defval: "", // Valor por defecto para celdas vacías
-          raw: true   // Obtener valores crudos para manejar fechas Excel correctamente
-        }) as any[][];
-        
-        if (jsonData.length < 2) {
-          errors.push(`Hoja "${sheetName}": está vacía`);
-          continue;
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("tenantId", tenantId);
+      setProgress(60);
+      const res = await fetch("/api/accounting/excel-upload", { method: "POST", body: formData });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Error en upload");
+      setProgress(100);
+      if (json.errors && json.errors.length > 0) {
+        setStatus({ type: "error", message: `${json.message}\n${json.errors.slice(0, 5).join("\n")}${json.errors.length > 5 ? "\n... y más" : ""}` });
+        if (json.processed > 0) {
+          setPopupInfo({ processed: json.processed, total: json.totalRows ?? json.total ?? 0, fileName: file.name });
+          setShowPopup(true);
         }
-
-        const headers = jsonData[0].map((h: any) => (h != null ? h.toString().toLowerCase().trim() : ""));
-        const rows = jsonData.slice(1);
-
-        // Debug: Mostrar primeras 3 filas para identificar problema de fechas
-        console.log(`🔍 Headers encontrados:`, headers);
-        console.log(`🔍 Primeras 3 filas de datos:`, rows.slice(0, 3));
-        
-        // Debug detallado de la primera fila
-        if (rows.length > 0) {
-          console.log(`🔍 Fila 0 completa:`, rows[0]);
-          console.log(`🔍 Tipo de dato en columna fecha (índice 0):`, typeof rows[0][0], `valor:`, rows[0][0]);
-          console.log(`🔍 ¿Es número?:`, typeof rows[0][0] === 'number');
-          console.log(`🔍 ¿Es string?:`, typeof rows[0][0] === 'string');
-        }
-
-        totalRows += rows.length;
-
-        // Determinar tipo de libro según columnas
-        const detectedType = detectBookType(headers);
-        console.log(`🔍 Tipo detectado para hoja "${sheetName}":`, detectedType);
-        
-        if (!detectedType) {
-          errors.push(`Hoja "${sheetName}": formato no reconocido. Columnas encontradas: ${headers.join(", ")}`);
-          continue;
-        }
-
-        setStatus({ type: "info", message: `Procesando ${detectedType} (${rows.length} filas)...` });
-
-        // Asegurar que las cuentas existan antes de procesar filas
-        await ensureAccountsExist(tenantId, supabase);
-
-        // Procesar filas según tipo
-        for (let i = 0; i < rows.length; i++) {
-          const row = rows[i];
-          try {
-            console.log(`🔍 Procesando fila ${i + 2} con tipo: ${detectedType}`);
-            
-            if (detectedType === "egresos_personalizado") {
-              console.log(`🔍 Llamando a processEgresosPersonalizadoRow`);
-              await processEgresosPersonalizadoRow(headers, row, tenantId, supabase);
-            } else if (detectedType === "ingresos_personalizado") {
-              console.log(`🔍 Llamando a processIngresosPersonalizadoRow`);
-              await processIngresosPersonalizadoRow(headers, row, tenantId, supabase);
-            } else {
-              console.log(`❌ Tipo no manejado: ${detectedType}`);
-              errors.push(`Fila ${i + 2} en "${sheetName}": tipo de libro no soportado (${detectedType})`);
-            }
-          } catch (error: any) {
-            console.error(`❌ Error procesando fila ${i + 2}:`, error);
-            errors.push(`Fila ${i + 2} en "${sheetName}": ${error.message}`);
-          }
-          
-          processedRows++;
-          if (processedRows % 10 === 0) {
-            setProgress(Math.round((processedRows / totalRows) * 90));
-          }
-        }
-      }
-
-      if (errors.length > 0) {
-        setStatus({ 
-          type: "error", 
-          message: `Proceso completado con ${errors.length} errores:\n${errors.slice(0, 5).join("\n")}${errors.length > 5 ? "\n... y más" : ""}` 
-        });
+        if (json.processed > 0 && onSuccess) onSuccess();
       } else {
-        setStatus({ type: "success", message: `¡Proceso completado! ${processedRows} filas importadas.` });
+        setStatus({ type: "success", message: json.message || `¡${json.processed} filas importadas!` });
+        setPopupInfo({ processed: json.processed, total: json.totalRows ?? json.total ?? json.processed, fileName: file.name });
+        setShowPopup(true);
         if (onSuccess) onSuccess();
       }
     } catch (error: any) {
       setStatus({ type: "error", message: `Error: ${error.message}` });
     } finally {
       setUploading(false);
-      setProgress(0);
+      setTimeout(() => setProgress(0), 800);
     }
-  }, [tenantId, supabase, setStatus, setUploading, setProgress, onSuccess]);
+  }, [tenantId, onSuccess]);
 
   // Drag and drop handlers
   const onDrop = useCallback((e: React.DragEvent) => {
@@ -915,6 +853,7 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
   }, []);
 
   return (
+    <>
     <Card className="w-full max-w-2xl mx-auto">
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
@@ -1020,7 +959,28 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
             Descargue los templates para ver el formato exacto requerido.
           </div>
         </div>
-      </CardContent>
-    </Card>
-  );
-}
+        </CardContent>
+      </Card>
+
+      <Dialog open={showPopup} onOpenChange={setShowPopup}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              Archivo subido exitosamente
+            </DialogTitle>
+            <DialogDescription>
+              {popupInfo ? `${popupInfo.fileName} — ${popupInfo.processed} de ${popupInfo.total} filas importadas.` : "El archivo se procesó correctamente."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 text-sm text-muted-foreground">
+            Los movimientos ya están disponibles en el Libro Diario.
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowPopup(false)} className="bg-green-600 hover:bg-green-700">Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+    );
+  }

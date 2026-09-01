@@ -53,13 +53,38 @@ export default function FlujoEfectivoPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [currency, setCurrency] = useState<'HNL' | 'USD'>('HNL');
-  const [companyInfo] = useState<CompanyInfo>({
-    name: 'Clínica Dental Diamond',
-    rtn: '08011999012345',
-    address: 'Colonia Palmira, Tegucigalpa, Honduras'
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    name: '',
+    rtn: '',
+    address: ''
   });
   const [flujoData, setFlujoData] = useState<FlujoItem[]>([]);
   const [method, setMethod] = useState<'directo' | 'indirecto'>('directo');
+
+  useEffect(() => {
+    const fetchCompany = async () => {
+      try {
+        const res = await fetch(`/api/companies/${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCompanyInfo({
+            name: data.business_name || data.businessname || data.name || '',
+            rtn: (data.business_rtn || data.businessrtn || data.rtn || '').split("-")[0].trim(),
+            address: data.business_address || data.businessaddress || data.address || ''
+          });
+        } else {
+          const lr = await fetch(`/api/companies`);
+          if (lr.ok) {
+            const lj = await lr.json();
+            const list: any[] = lj.companies || lj || [];
+            const comp = list.find((c:any)=> c.tenant_id===companyId || c.id===companyId);
+            if (comp) setCompanyInfo({ name: comp.business_name || comp.name || '', rtn: (comp.business_rtn || comp.rtn || '').split("-")[0].trim(), address: comp.business_address || comp.address || '' });
+          }
+        }
+      } catch {}
+    };
+    fetchCompany();
+  }, [companyId]);
 
   // Cargar fechas iniciales
   useEffect(() => {
@@ -80,7 +105,7 @@ export default function FlujoEfectivoPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/accounting/trial-balance?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
       );
       
       if (response.ok) {
@@ -231,9 +256,14 @@ export default function FlujoEfectivoPage() {
     });
   };
 
-  // Exportar a PDF/Print
   const handlePrint = () => {
-    window.print();
+    const el = document.getElementById("printable-flujo");
+    if (!el) return window.print();
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(s=>s.outerHTML).join("\n");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return window.print();
+    w.document.write(`<html><head><title>Flujo de Efectivo - ${companyInfo.name}</title>${styles}<style>body{padding:24px;background:white} @media print{@page{margin:12mm} .print\\:hidden{display:none!important}}</style></head><body><div class="max-w-5xl mx-auto">${el.innerHTML}</div></body></html>`);
+    w.document.close(); w.focus(); setTimeout(()=>{ w.print(); w.close(); }, 400);
   };
 
   return (
@@ -269,7 +299,7 @@ export default function FlujoEfectivoPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="printable-flujo" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
@@ -367,7 +397,7 @@ export default function FlujoEfectivoPage() {
 
         {/* ACTIVIDADES DE OPERACIÓN */}
         <Card className="mb-4">
-          <CardHeader className="bg-blue-50 border-b">
+          <CardHeader className="bg-cyan-50 border-b">
             <CardTitle className="text-lg text-blue-900 flex items-center">
               <DollarSign className="h-5 w-5 mr-2" />
               1. ACTIVIDADES DE OPERACIÓN
@@ -388,7 +418,7 @@ export default function FlujoEfectivoPage() {
                 </div>
               )}
             </div>
-            <div className="p-4 bg-blue-100 border-t">
+            <div className="p-4 bg-cyan-100 border-t">
               <div className="flex justify-between font-bold text-blue-900">
                 <span>Efectivo Neto de Operación</span>
                 <div className="flex items-center space-x-2">

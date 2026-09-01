@@ -202,7 +202,7 @@ export default function TenantsListPage() {
       case 'ADMIN':
         return 'bg-purple-100 text-purple-800';
       case 'MANAGER':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'USER':
         return 'bg-gray-100 text-gray-800';
       case 'VIEWER':
@@ -222,7 +222,7 @@ export default function TenantsListPage() {
           </div>
           <button
             onClick={() => router.push("/admin/tenants/create")}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -239,7 +239,7 @@ export default function TenantsListPage() {
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600"></div>
           </div>
         ) : (
           <div className="bg-white rounded-lg shadow overflow-hidden">
@@ -290,7 +290,7 @@ export default function TenantsListPage() {
                          <td className="px-2 lg:px-3 py-4 w-[11%]">
                            <div className="text-lg font-semibold text-gray-900">{tenant.businessName}</div>
                            <div className="text-sm text-gray-500">{tenant.businessEmail}</div>
-                           <div className="text-2xl font-bold text-blue-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
+                           <div className="text-2xl font-bold text-cyan-600">L. {(tenant.monthlyCost || 0).toLocaleString() || '0'}</div>
                          </td>
                          <td className="px-2 lg:px-3 py-4 whitespace-nowrap w-[11%]">
                            <span className="text-sm text-gray-900">{tenant.tenantCode}</span>
@@ -316,7 +316,7 @@ export default function TenantsListPage() {
                              {Array.isArray(tenant.subscriptionPlans) && tenant.subscriptionPlans.length > 0 ? (
                                tenant.subscriptionPlans.map((plan: any, idx: number) => (
                                  <div key={idx} className="flex items-center space-x-2">
-                                   <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                                   <span className="px-2 py-1 text-xs bg-cyan-100 text-cyan-800 rounded font-medium">
                                      {plan.code}
                                    </span>
                                    <span className="text-xs text-gray-600">x{plan.quantity}</span>
@@ -339,7 +339,7 @@ export default function TenantsListPage() {
                              </div>
                              <button
                                onClick={() => toggleTenantUsers(tenant.id)}
-                               className="text-xs text-blue-600 hover:text-blue-800 underline mt-1"
+                               className="text-xs text-cyan-600 hover:text-cyan-800 underline mt-1"
                              >
                                {expandedTenantId === tenant.id ? 'Ocultar usuarios' : 'Ver usuarios'}
                              </button>
@@ -368,7 +368,7 @@ export default function TenantsListPage() {
                              }
                              
                              return modules.length > 0 ? (
-                               <span className="px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded font-medium">
+                               <span className="px-2 py-1 text-xs bg-cyan-100 text-cyan-800 rounded font-medium">
                                  {modules.length} módulos
                                </span>
                              ) : (
@@ -385,7 +385,7 @@ export default function TenantsListPage() {
                           <div className="relative inline-block text-left">
                             <button
                               onClick={() => setOpenMenuId(openMenuId === tenant.id ? null : tenant.id)}
-                              className="inline-flex justify-center w-10 h-10 items-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                              className="inline-flex justify-center w-10 h-10 items-center rounded-full bg-gray-100 text-gray-600 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500"
                               aria-haspopup="true"
                               aria-expanded={openMenuId === tenant.id}
                             >
@@ -412,7 +412,7 @@ export default function TenantsListPage() {
                                       router.push(`/admin/tenants/${tenant.id}/edit`);
                                       setOpenMenuId(null);
                                     }}
-                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 flex items-center"
+                                    className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-cyan-50 flex items-center"
                                     role="menuitem"
                                   >
                                     <span className="mr-2">✏️</span> Editar
@@ -454,7 +454,7 @@ export default function TenantsListPage() {
                           <td colSpan={9} className="px-6 py-4">
                             {loadingUsers[tenant.id] ? (
                               <div className="flex items-center justify-center py-4">
-                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-600"></div>
                               </div>
                             ) : (
                               <div className="space-y-3">

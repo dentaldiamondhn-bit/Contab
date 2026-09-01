@@ -12,7 +12,7 @@ export const ACCOUNT_TYPE_LABELS: Record<string, string> = {
 
 // Colores para badges de tipos de cuenta
 export const ACCOUNT_TYPE_COLORS: Record<string, string> = {
-  ASSET: 'bg-blue-100 text-blue-800',
+  ASSET: 'bg-cyan-100 text-cyan-800',
   LIABILITY: 'bg-red-100 text-red-800',
   EQUITY: 'bg-green-100 text-green-800',
   REVENUE: 'bg-purple-100 text-purple-800',

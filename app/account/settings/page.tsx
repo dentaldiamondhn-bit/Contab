@@ -247,7 +247,7 @@ export default function AccountSettingsPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -311,7 +311,7 @@ export default function AccountSettingsPage() {
                     <User className="w-8 h-8 text-gray-400" />
                   )}
                 </div>
-                <label className="absolute bottom-0 right-0 bg-blue-600 rounded-full p-1 cursor-pointer hover:bg-blue-700">
+                <label className="absolute bottom-0 right-0 bg-cyan-600 rounded-full p-1 cursor-pointer hover:bg-cyan-700">
                   <Camera className="h-3 w-3 text-white" />
                   <input
                     type="file"

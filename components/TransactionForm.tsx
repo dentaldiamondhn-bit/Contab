@@ -93,7 +93,7 @@ export function TransactionForm() {
           render={({ field }) => (
             <select
               {...field}
-              className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              className="w-full p-2 border border-gray-300 rounded-md text-sm focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
             >
               {Object.entries(VOUCHER_TYPE_DESCRIPTIONS).map(([value, label]) => (
                 <option key={value} value={value}>

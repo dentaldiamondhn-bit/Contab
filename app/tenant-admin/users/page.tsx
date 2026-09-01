@@ -146,7 +146,7 @@ export default function TenantUsersPage() {
       case 'ADMIN':
         return 'bg-purple-100 text-purple-800';
       case 'MANAGER':
-        return 'bg-blue-100 text-blue-800';
+        return 'bg-cyan-100 text-cyan-800';
       case 'USER':
         return 'bg-gray-100 text-gray-800';
       case 'VIEWER':
@@ -169,7 +169,7 @@ export default function TenantUsersPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Verificando usuario...</p>
         </div>
       </div>
@@ -180,7 +180,7 @@ export default function TenantUsersPage() {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Usuario no encontrado...</p>
         </div>
       </div>
@@ -238,7 +238,7 @@ export default function TenantUsersPage() {
                     placeholder="Buscar por nombre, email o username..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -246,7 +246,7 @@ export default function TenantUsersPage() {
                 <select
                   value={roleFilter}
                   onChange={(e) => setRoleFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="ALL">Todos los roles</option>
                   <option value="ADMIN">Admin</option>
@@ -257,7 +257,7 @@ export default function TenantUsersPage() {
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="ALL">Todos los estados</option>
                   <option value="ACTIVE">Activos</option>
@@ -292,7 +292,7 @@ export default function TenantUsersPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
             </div>
           ) : error ? (
             <div className="text-center py-8">

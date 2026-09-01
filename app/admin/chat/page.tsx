@@ -346,8 +346,8 @@ export default function ChatPage() {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gray-50">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <p className="text-blue-500 font-medium">Cargando chat...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500 mx-auto mb-4"></div>
+          <p className="text-cyan-500 font-medium">Cargando chat...</p>
         </div>
       </div>
     );
@@ -369,7 +369,7 @@ export default function ChatPage() {
       <div className="w-64 bg-white border-r border-gray-200 flex flex-col">
         <div className="flex items-center justify-between p-4 border-b border-gray-200">
           <div className="flex items-center space-x-3">
-            <MessageCircle className="h-6 w-6 text-blue-600" />
+            <MessageCircle className="h-6 w-6 text-cyan-600" />
             <div>
               <h1 className="text-lg font-bold text-gray-900">Chat de Soporte</h1>
               <p className="text-sm text-gray-500">Comunicación con tenants y usuarios</p>
@@ -402,7 +402,7 @@ export default function ChatPage() {
               variant="outline" 
               size="sm" 
               onClick={() => setFilterType('users')}
-              className={filterType === 'users' ? 'bg-blue-50 text-blue-700' : ''}
+              className={filterType === 'users' ? 'bg-cyan-50 text-cyan-700' : ''}
             >
               Usuarios
             </Button>
@@ -410,7 +410,7 @@ export default function ChatPage() {
               variant="outline" 
               size="sm" 
               onClick={() => setFilterType('tenants')}
-              className={filterType === 'tenants' ? 'bg-blue-50 text-blue-700' : ''}
+              className={filterType === 'tenants' ? 'bg-cyan-50 text-cyan-700' : ''}
             >
               Tenants
             </Button>
@@ -418,7 +418,7 @@ export default function ChatPage() {
               variant="outline" 
               size="sm" 
               onClick={() => setFilterType('broadcast')}
-              className={filterType === 'broadcast' ? 'bg-blue-50 text-blue-700' : ''}
+              className={filterType === 'broadcast' ? 'bg-cyan-50 text-cyan-700' : ''}
             >
               Broadcast
             </Button>
@@ -440,7 +440,7 @@ export default function ChatPage() {
                     <div
                       key={user.id}
                       className={`flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
-                        selectedUserId === user.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                        selectedUserId === user.id ? 'bg-cyan-50 border-l-4 border-cyan-500' : ''
                       }`}
                       onClick={() => {
                         setSelectedUserId(user.id);
@@ -486,7 +486,7 @@ export default function ChatPage() {
                     <div
                       key={tenant.id}
                       className={`flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
-                        selectedTenantId === tenant.id ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                        selectedTenantId === tenant.id ? 'bg-cyan-50 border-l-4 border-cyan-500' : ''
                       }`}
                       onClick={() => {
                         setSelectedTenantId(tenant.id);
@@ -512,7 +512,7 @@ export default function ChatPage() {
           {filterType === 'broadcast' && (
             <div className="p-4">
               <div className="flex items-center p-3 rounded-lg border cursor-pointer hover:bg-gray-50 ${
-                filterType === 'broadcast' ? 'bg-blue-50 border-l-4 border-blue-500' : ''
+                filterType === 'broadcast' ? 'bg-cyan-50 border-l-4 border-cyan-500' : ''
               }" onClick={() => {
                 setFilterType('broadcast');
                 setSelectedUserId(null);
@@ -635,7 +635,7 @@ export default function ChatPage() {
                     {/* Message Bubble */}
                     <div className={`ml-4 mr-2 max-w-xs rounded-lg px-4 py-2 ${
                       message.sender.id === user?.id 
-                        ? 'bg-blue-500 text-white ml-auto' 
+                        ? 'bg-cyan-500 text-white ml-auto' 
                         : 'bg-white text-gray-900 border border-gray-200'
                     }`}>
                       <p className="text-sm whitespace-pre-wrap break-words">{message.message}</p>
@@ -644,7 +644,7 @@ export default function ChatPage() {
                           {new Date(message.createdAt).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
                         </p>
                         {!message.isRead && message.receiver?.id === user?.id && (
-                          <span className="ml-2 h-2 w-2 bg-blue-500 rounded-full" />
+                          <span className="ml-2 h-2 w-2 bg-cyan-500 rounded-full" />
                         )}
                       </div>
                     </div>

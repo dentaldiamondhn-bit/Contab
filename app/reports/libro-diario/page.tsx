@@ -41,7 +41,7 @@ export default function LibroDiarioPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-indigo-600" />
+            <BookOpen className="w-6 h-6 text-cyan-600" />
             Libro Diario
           </h1>
           <p className="text-sm text-gray-500">{currentTenant?.businessName || "Empresa"}</p>
@@ -62,7 +62,7 @@ export default function LibroDiarioPage() {
           placeholder="Buscar por descripcion, cuenta o comprobante..."
           value={filtro}
           onChange={(e) => setFiltro(e.target.value)}
-          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+          className="flex-1 px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
         />
       </div>
 

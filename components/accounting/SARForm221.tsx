@@ -73,7 +73,7 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div className="flex items-center space-x-2">
-          <Calculator className="h-6 w-6 text-indigo-600" />
+          <Calculator className="h-6 w-6 text-cyan-600" />
           <h2 className="text-xl font-bold">Resumen Formulario 221 (ISV)</h2>
         </div>
         <Button variant="outline">
@@ -108,9 +108,9 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
                   <TableCell className="font-medium">404 - Ventas Gravadas 18%</TableCell>
                   <TableCell className="text-right">{formatCurrency(summary.ventas.gravadas18)}</TableCell>
                 </TableRow>
-                <TableRow className="bg-indigo-50 font-bold">
+                <TableRow className="bg-cyan-50 font-bold">
                   <TableCell>TOTAL DÉBITO FISCAL</TableCell>
-                  <TableCell className="text-right text-indigo-700">{formatCurrency(summary.ventas.debitoFiscal)}</TableCell>
+                  <TableCell className="text-right text-cyan-700">{formatCurrency(summary.ventas.debitoFiscal)}</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
@@ -165,9 +165,9 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
         </CardContent>
       </Card>
 
-      <div className="p-4 border rounded-lg bg-blue-50 border-blue-200 flex items-start space-x-3">
-        <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-        <div className="text-sm text-blue-800">
+      <div className="p-4 border rounded-lg bg-cyan-50 border-cyan-200 flex items-start space-x-3">
+        <AlertCircle className="h-5 w-5 text-cyan-600 mt-0.5" />
+        <div className="text-sm text-cyan-800">
           <p className="font-bold">Nota para el Contador:</p>
           <p>Este resumen es preliminar. Asegúrese de que todas las facturas tengan el RTN correctamente validado y que el CAI esté vigente antes de presentar su declaración definitiva en el portal del SAR.</p>
         </div>

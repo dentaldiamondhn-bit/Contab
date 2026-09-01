@@ -78,7 +78,7 @@ export default function IntegrationsModule() {
         ] as const).map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key ? "border-blue-500 text-blue-600 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t.key ? "border-cyan-500 text-cyan-600 bg-cyan-50" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
             {t.label}
           </button>
@@ -98,7 +98,7 @@ export default function IntegrationsModule() {
                   className="w-24 px-3 py-2 border rounded-lg text-sm" />
                 <span className="text-xs text-gray-500">req/min</span>
               </div>
-              <button onClick={generateApiKey} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Generar</button>
+              <button onClick={generateApiKey} className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700">Generar</button>
             </div>
           </div>
 
@@ -158,7 +158,7 @@ export default function IntegrationsModule() {
                 placeholder="https://tu-app.com/webhook" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
               <input value={newWebhookEvents} onChange={(e) => setNewWebhookEvents(e.target.value)}
                 placeholder="Eventos (separados por coma)" className="flex-1 px-3 py-2 border rounded-lg text-sm" />
-              <button onClick={addWebhook} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Agregar</button>
+              <button onClick={addWebhook} className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700">Agregar</button>
             </div>
             <div className="mt-2 text-xs text-gray-400">
               Eventos disponibles: tenant.created, tenant.updated, tenant.suspended, invoice.created, invoice.paid, ticket.created, user.created
@@ -184,7 +184,7 @@ export default function IntegrationsModule() {
                         <div className="text-sm font-medium text-gray-900 font-mono">{wh.url}</div>
                         <div className="flex flex-wrap gap-1 mt-1">
                           {wh.events.map((e, i) => (
-                            <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded">{e}</span>
+                            <span key={i} className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-xs rounded">{e}</span>
                           ))}
                         </div>
                       </div>

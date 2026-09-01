@@ -73,6 +73,13 @@ const navigation: NavItem[] = [
     description: 'Reportes financieros'
   },
   {
+    name: 'Módulos Disponibles',
+    href: '/admin/modules',
+    icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>`,
+    description: 'Ver módulos disponibles para tu plan',
+    badge: 'NUEVO'
+  },
+  {
     name: 'Análisis Dental',
     href: '/companies/1/business-reports',
     icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>`,
@@ -117,7 +124,7 @@ export default function Sidebar() {
               href={item.href}
               className={`group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-all duration-200 ${
                 active
-                  ? 'bg-blue-50 text-blue-700 border-l-4 border-blue-700'
+                  ? 'bg-cyan-50 text-cyan-700 border-l-4 border-blue-700'
                   : 'text-gray-700 hover:bg-gray-50 hover:text-gray-900'
               }`}
               title={collapsed ? item.name : undefined}
@@ -125,7 +132,7 @@ export default function Sidebar() {
               <span
                 dangerouslySetInnerHTML={{ __html: item.icon }}
                 className={`flex-shrink-0 w-5 h-5 ${
-                  active ? 'text-blue-700' : 'text-gray-400 group-hover:text-gray-500'
+                  active ? 'text-cyan-700' : 'text-gray-400 group-hover:text-gray-500'
                 }`}
               />
               {!collapsed && (
@@ -133,7 +140,7 @@ export default function Sidebar() {
                   <div className="flex items-center justify-between">
                     <span>{item.name}</span>
                     {item.badge && (
-                      <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                      <span className="px-2 py-1 text-xs font-medium bg-cyan-100 text-cyan-800 rounded-full">
                         {item.badge}
                       </span>
                     )}
@@ -154,7 +161,7 @@ export default function Sidebar() {
       }`}>
         <div className="text-xs text-gray-500">
           <p>Sistema de Contabilidad Hondureño</p>
-          <p>© 2024 Contab Pro</p>
+          <p>© 2024 Diamond Accounting</p>
         </div>
       </div>
     </div>

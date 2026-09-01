@@ -73,7 +73,13 @@ export default function PlansPage() {
     if (savedModal) {
       const { showModal: savedShowModal, editingPlan: savedEditingPlan, isCreating: savedIsCreating } = JSON.parse(savedModal);
       setShowModal(savedShowModal);
-      setEditingPlan(savedEditingPlan);
+      if (savedEditingPlan) {
+        setEditingPlan({
+          ...savedEditingPlan,
+          features: typeof savedEditingPlan.features === 'string' ? JSON.parse(savedEditingPlan.features) : (savedEditingPlan.features || []),
+          modules: typeof savedEditingPlan.modules === 'string' ? JSON.parse(savedEditingPlan.modules) : (savedEditingPlan.modules || []),
+        });
+      }
       setIsCreating(savedIsCreating);
     }
   }, [pagination.currentPage, searchTerm, statusFilter]);
@@ -111,7 +117,11 @@ export default function PlansPage() {
       if (response.ok) {
         const data = await response.json();
         console.log('📦 Plans data received:', data);
-        setPlans(data.plans || []);
+        setPlans((data.plans || []).map((p: any) => ({
+          ...p,
+          features: typeof p.features === 'string' ? JSON.parse(p.features) : (p.features || []),
+          modules: typeof p.modules === 'string' ? JSON.parse(p.modules) : (p.modules || []),
+        })));
         setPagination(prev => ({
           ...prev,
           totalPages: data.pagination?.pages || 1,
@@ -332,7 +342,7 @@ export default function PlansPage() {
           </div>
           <button
             onClick={handleCreate}
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center"
+            className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 flex items-center"
           >
             <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
@@ -354,7 +364,7 @@ export default function PlansPage() {
                       {plan.isActive ? 'Activo' : 'Inactivo'}
                     </span>
                     <span
-                      className="px-2 py-1 text-xs font-semibold rounded-full bg-blue-100 text-blue-800 cursor-pointer hover:bg-blue-200 transition-colors"
+                      className="px-2 py-1 text-xs font-semibold rounded-full bg-cyan-100 text-cyan-800 cursor-pointer hover:bg-cyan-200 transition-colors"
                       onClick={() => handleShowTenants(plan)}
                       title="Ver tenants"
                     >
@@ -364,7 +374,7 @@ export default function PlansPage() {
                 </div>
                 
                 <div className="mb-4">
-                  <p className="text-4xl font-bold text-blue-600">
+                  <p className="text-4xl font-bold text-cyan-600">
                     L {plan.price?.toLocaleString() || '0'}
                     <span className="text-lg font-normal text-gray-500">/mes</span>
                   </p>
@@ -408,7 +418,7 @@ export default function PlansPage() {
                 <div className="flex space-x-2">
                   <button
                     onClick={() => handleEdit(plan)}
-                    className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium"
+                    className="flex-1 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 text-sm font-medium"
                   >
                     Editar
                   </button>
@@ -457,7 +467,7 @@ export default function PlansPage() {
                         setEditingPlan({...editingPlan, name, code});
                       }}
                       required
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       placeholder="Ej: Premium"
                     />
                   </div>
@@ -470,7 +480,7 @@ export default function PlansPage() {
                       onChange={(e) => setEditingPlan({...editingPlan, code: e.target.value.toUpperCase()})}
                       required
                       readOnly={isCreating}
-                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 ${
+                      className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-cyan-500 ${
                         isCreating 
                           ? 'bg-gray-100 border-gray-300 cursor-not-allowed' 
                           : 'border-gray-300'
@@ -492,7 +502,7 @@ export default function PlansPage() {
                       onChange={(e) => setEditingPlan({...editingPlan, price: parseInt(e.target.value) || 0})}
                       required
                       min="0"
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                     />
                   </div>
 
@@ -505,7 +515,7 @@ export default function PlansPage() {
                         onChange={(e) => setEditingPlan({...editingPlan, maxUsers: parseInt(e.target.value) || 0})}
                         required
                         min="1"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       />
                     </div>
                     <div>
@@ -516,7 +526,7 @@ export default function PlansPage() {
                         onChange={(e) => setEditingPlan({...editingPlan, maxStorage: parseInt(e.target.value) || 0})}
                         required
                         min="1"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       />
                     </div>
                     <div>
@@ -527,7 +537,7 @@ export default function PlansPage() {
                         onChange={(e) => setEditingPlan({...editingPlan, maxTransactions: parseInt(e.target.value) || 0})}
                         required
                         min="1"
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       />
                     </div>
                   </div>
@@ -538,7 +548,7 @@ export default function PlansPage() {
                       value={editingPlan.features.join('\n')}
                       onChange={(e) => setEditingPlan({...editingPlan, features: e.target.value.split('\n').filter(f => f.trim())})}
                       rows={6}
-                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500"
                       placeholder="Ej:&#10;10 usuarios&#10;Soporte 24/7&#10;API access"
                     />
                   </div>
@@ -557,18 +567,18 @@ export default function PlansPage() {
                               const limitDefs = getModuleLimits(module.id);
                               
                               return (
-                                <div key={module.id} className={`rounded-lg border p-2 ${isSelected ? 'border-blue-300 bg-blue-50' : 'border-gray-200'}`}>
+                                <div key={module.id} className={`rounded-lg border p-2 ${isSelected ? 'border-blue-300 bg-cyan-50' : 'border-gray-200'}`}>
                                   <label className={`flex items-center space-x-2 ${isRequired ? 'cursor-default' : 'cursor-pointer'}`}>
                                     <input
                                       type="checkbox"
                                       checked={isSelected}
                                       disabled={isRequired}
                                       onChange={() => handleModuleToggle(module.id)}
-                                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                      className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
                                     />
                                     <div className="flex-1">
                                       <span className="text-sm font-medium">{module.name}</span>
-                                      {isRequired && <span className="ml-1 text-xs text-blue-600 font-semibold">(siempre incluido)</span>}
+                                      {isRequired && <span className="ml-1 text-xs text-cyan-600 font-semibold">(siempre incluido)</span>}
                                       <p className="text-xs text-gray-500">{module.description}</p>
                                     </div>
                                   </label>
@@ -582,7 +592,7 @@ export default function PlansPage() {
                                             min="0"
                                             value={(moduleConfig as any)?.[limitDef.key] ?? limitDef.defaultValue}
                                             onChange={(e) => handleModuleLimitChange(module.id, limitDef.key, parseInt(e.target.value) || 0)}
-                                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                            className="w-24 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-1 focus:ring-cyan-500"
                                           />
                                           <span className="text-xs text-gray-500">{limitDef.unit}</span>
                                         </div>
@@ -609,7 +619,7 @@ export default function PlansPage() {
                       id="isActive"
                       checked={editingPlan.isActive || false}
                       onChange={(e) => setEditingPlan({...editingPlan, isActive: e.target.checked})}
-                      className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                      className="w-4 h-4 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
                     />
                     <label htmlFor="isActive" className="ml-2 text-sm text-gray-700">Plan activo</label>
                   </div>
@@ -628,7 +638,7 @@ export default function PlansPage() {
                     </button>
                     <button
                       type="submit"
-                      className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                      className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700"
                     >
                       {isCreating ? 'Crear Plan' : 'Guardar Cambios'}
                     </button>
@@ -658,7 +668,7 @@ export default function PlansPage() {
 
                 {loadingTenants ? (
                   <div className="flex items-center justify-center py-12">
-                    <svg className="animate-spin h-8 w-8 text-blue-600" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin h-8 w-8 text-cyan-600" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                     </svg>

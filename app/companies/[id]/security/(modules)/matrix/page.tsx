@@ -126,9 +126,9 @@ export default function MatrixPage() {
                 <span className="text-sm text-yellow-800">Renovación seguro - 30 días</span>
                 <Badge className="bg-yellow-600 text-xs">Pronto</Badge>
               </div>
-              <div className="flex items-center justify-between p-2 bg-blue-50 rounded border-l-4 border-blue-500">
-                <span className="text-sm text-blue-800">Mantenimiento CCTV - 45 días</span>
-                <Badge className="bg-blue-600 text-xs">Programado</Badge>
+              <div className="flex items-center justify-between p-2 bg-cyan-50 rounded border-l-4 border-cyan-500">
+                <span className="text-sm text-cyan-800">Mantenimiento CCTV - 45 días</span>
+                <Badge className="bg-cyan-600 text-xs">Programado</Badge>
               </div>
             </div>
           </CardContent>
@@ -158,7 +158,7 @@ export default function MatrixPage() {
               <p className="text-xs text-gray-600">Próximos</p>
             </div>
             <div className="text-center p-3 bg-white rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">5</p>
+              <p className="text-2xl font-bold text-cyan-600">5</p>
               <p className="text-xs text-gray-600">Tareas Semanales</p>
             </div>
           </div>

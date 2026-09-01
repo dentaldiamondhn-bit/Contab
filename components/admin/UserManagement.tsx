@@ -247,7 +247,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, tenants, c
                 name="isActive"
                 checked={formData.isActive}
                 onChange={handleChange}
-                className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                className="h-4 w-4 text-cyan-600 border-gray-300 rounded"
               />
               <label className="ml-2 block text-sm text-gray-900">
                 Usuario activo
@@ -265,7 +265,7 @@ export default function CreateUserModal({ isOpen, onClose, onSuccess, tenants, c
               <button
                 type="submit"
                 disabled={loading}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
+                className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50"
               >
                 {loading ? 'Creando...' : 'Crear Usuario'}
               </button>

@@ -11,7 +11,7 @@ export default function AdminTestPage() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando usuario...</p>
         </div>
       </div>
@@ -58,9 +58,9 @@ export default function AdminTestPage() {
             </div>
           </div>
           
-          <div className="mt-6 p-4 bg-blue-50 rounded">
+          <div className="mt-6 p-4 bg-cyan-50 rounded">
             <h3 className="font-medium text-blue-900 mb-2">Verificación de Acceso:</h3>
-            <p className="text-blue-700">
+            <p className="text-cyan-700">
               {user.publicMetadata?.role === 'SUPER_ADMIN' || user.unsafeMetadata?.role === 'SUPER_ADMIN' 
                 ? '✅ Usuario tiene acceso de SUPER_ADMIN' 
                 : '❌ Usuario no tiene acceso de SUPER_ADMIN'}
@@ -70,7 +70,7 @@ export default function AdminTestPage() {
           <div className="mt-6 space-x-4">
             <button 
               onClick={() => window.location.href = '/admin/dashboard'}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700"
             >
               Ir al Dashboard Admin
             </button>

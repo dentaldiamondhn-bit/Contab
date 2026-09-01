@@ -48,34 +48,69 @@ export default function BalanceGeneralPage() {
   const companyId = params.id as string;
 
   const [loading, setLoading] = useState(true);
-  const [cutoffDate, setCutoffDate] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [currency, setCurrency] = useState<'HNL' | 'USD'>('HNL');
   const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
-    name: 'Clínica Dental Diamond',
-    rtn: '08011999012345',
-    address: 'Colonia Palmira, Tegucigalpa, Honduras'
+    name: '',
+    rtn: '',
+    address: ''
   });
   const [balanceData, setBalanceData] = useState<BalanceItem[]>([]);
   const [showPercentages, setShowPercentages] = useState(true);
 
-  // Cargar fecha inicial
+  // Cargar datos de la empresa
+  useEffect(() => {
+    const fetchCompany = async () => {
+      try {
+        const response = await fetch(`/api/companies/${companyId}`);
+        if (response.ok) {
+          const data = await response.json();
+          // Tenant viene como businessname/business_name, companies como name
+          setCompanyInfo({
+            name: data.business_name || data.businessname || data.name || data.businessName || '',
+            rtn: (data.business_rtn || data.businessrtn || data.rtn || data.businessRTN || '').split("-")[0].trim(),
+            address: data.business_address || data.businessaddress || data.address || data.businessAddress || ''
+          });
+        } else {
+          // Fallback a companies list
+          try {
+            const lr = await fetch(`/api/companies`);
+            if (lr.ok) {
+              const lj = await lr.json();
+              const list: any[] = lj.companies || lj || [];
+              const comp = list.find((c:any)=> c.tenant_id===companyId || c.id===companyId);
+              if (comp) setCompanyInfo({ name: comp.business_name || comp.name || '', rtn: comp.business_rtn || comp.rtn || '', address: comp.business_address || comp.address || '' });
+            }
+          } catch {}
+        }
+      } catch (error) {
+        console.error('Error loading company info:', error);
+      }
+    };
+    fetchCompany();
+  }, [companyId]);
+
+  // Cargar fechas iniciales (mes actual)
   useEffect(() => {
     const today = new Date();
-    setCutoffDate(today.toISOString().split('T')[0]);
+    const first = new Date(today.getFullYear(), today.getMonth(), 1);
+    setStartDate(first.toISOString().split('T')[0]);
+    setEndDate(today.toISOString().split('T')[0]);
   }, []);
 
   // Cargar datos del balance
   useEffect(() => {
-    if (cutoffDate) {
+    if (startDate && endDate) {
       loadBalanceData();
     }
-  }, [cutoffDate]);
+  }, [startDate, endDate]);
 
   const loadBalanceData = async () => {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/accounting/trial-balance?endDate=${cutoffDate}T23:59:59Z`
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
       );
       
       if (response.ok) {
@@ -188,9 +223,27 @@ export default function BalanceGeneralPage() {
     });
   };
 
-  // Exportar a PDF/Print
+  // Exportar a PDF/Print — solo balance, con formatos del proyecto
   const handlePrint = () => {
-    window.print();
+    const el = document.getElementById("printable-balance");
+    if (!el) return window.print();
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(s=>s.outerHTML).join("\n");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return window.print();
+    w.document.write(`
+      <html><head><title>Balance General - ${companyInfo.name}</title>
+      ${styles}
+      <style>
+        body{padding:24px;color:#111;background:white}
+        @media print{ @page{margin:12mm} .print\\:hidden{display:none!important} }
+        table{width:100%;border-collapse:collapse}
+        th,td{padding:8px}
+      </style>
+      </head><body><div class="max-w-5xl mx-auto">${el.innerHTML}</div></body></html>
+    `);
+    w.document.close();
+    w.focus();
+    setTimeout(()=>{ w.print(); w.close(); }, 400);
   };
 
   return (
@@ -230,21 +283,33 @@ export default function BalanceGeneralPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="printable-balance" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="cutoffDate" className="flex items-center">
+                <Label htmlFor="startDate" className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
-                  Fecha de Corte
+                  Fecha Inicio
                 </Label>
                 <Input
-                  id="cutoffDate"
+                  id="startDate"
                   type="date"
-                  value={cutoffDate}
-                  onChange={(e) => setCutoffDate(e.target.value)}
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="endDate" className="flex items-center">
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Fecha Fin
+                </Label>
+                <Input
+                  id="endDate"
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
                 />
               </div>
               <div className="space-y-2">
@@ -283,7 +348,7 @@ export default function BalanceGeneralPage() {
             <div className="mt-6 border-t pt-4">
               <h1 className="text-3xl font-bold text-gray-900">BALANCE GENERAL</h1>
               <p className="text-lg text-gray-600 mt-2">
-                Al {formatDate(cutoffDate)}
+                Del {formatDate(startDate)} al {formatDate(endDate)}
               </p>
               <p className="text-sm text-gray-500 mt-1">
                 (Expresado en {currency === 'HNL' ? 'Lempiras' : 'Dólares'})

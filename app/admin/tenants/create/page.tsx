@@ -320,7 +320,7 @@ export default function CreateTenantPage() {
         <div className="mb-8">
           <button
             onClick={() => router.push("/admin/tenants")}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
           >
             ← Volver
           </button>
@@ -392,7 +392,7 @@ export default function CreateTenantPage() {
                 required
                 value={formData.businessName}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 placeholder="Ej: Mi Empresa S.A."
               />
             </div>
@@ -408,7 +408,7 @@ export default function CreateTenantPage() {
                 required
                 value={formData.businessEmail}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 placeholder="Ej: contacto@miempresa.com"
               />
             </div>
@@ -424,7 +424,7 @@ export default function CreateTenantPage() {
                 required
                 value={formData.businessRTN}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 placeholder="Ej: 12345678901234"
               />
             </div>
@@ -439,7 +439,7 @@ export default function CreateTenantPage() {
                 name="phoneNumber"
                 value={formData.phoneNumber}
                 onChange={handleChange}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 placeholder="Ej: +504 1234-5678"
               />
             </div>
@@ -454,7 +454,7 @@ export default function CreateTenantPage() {
                 value={formData.businessAddress}
                 onChange={handleChange}
                 rows={3}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 placeholder="Ej: Calle Principal #123, Ciudad, País"
               />
             </div>
@@ -477,7 +477,7 @@ export default function CreateTenantPage() {
                           <div className="flex-1">
                             <h4 className="font-semibold text-gray-900">{plan.name}</h4>
                             <p className="text-sm text-gray-600">{plan.description}</p>
-                            <p className="text-sm font-semibold text-blue-600">L. {plan.unitPrice}/mes</p>
+                            <p className="text-sm font-semibold text-cyan-600">L. {plan.unitPrice}/mes</p>
                             <p className="text-xs text-gray-500">Máximo {plan.maxUsers} usuarios</p>
                           </div>
                           <button 
@@ -528,7 +528,7 @@ export default function CreateTenantPage() {
                           onClick={() => quantity === 0 ? handlePlanToggle(plan.code) : handleRemovePlan(plan.code)}
                           className={`mt-2 px-4 py-2 rounded w-full ${
                             quantity === 0 
-                              ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                              ? 'bg-cyan-600 text-white hover:bg-cyan-700' 
                               : 'bg-orange-600 text-white hover:bg-orange-700'
                           }`}
                         >
@@ -539,8 +539,8 @@ export default function CreateTenantPage() {
                   })}
                 </div>
                 {formData.subscriptionPlans.length > 0 && (
-                  <div className="mt-2 p-2 bg-blue-50 rounded border border-blue-200">
-                    <p className="text-xs text-blue-800 font-medium">
+                  <div className="mt-2 p-2 bg-cyan-50 rounded border border-cyan-200">
+                    <p className="text-xs text-cyan-800 font-medium">
                       {formData.subscriptionPlans.length} plan(es) seleccionado(s)
                     </p>
                     <p className="text-sm text-blue-900 font-semibold">
@@ -597,7 +597,7 @@ export default function CreateTenantPage() {
                     name="adminFirstName"
                     value={formData.adminFirstName}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     placeholder="Juan"
                   />
                 </div>
@@ -612,7 +612,7 @@ export default function CreateTenantPage() {
                     name="adminLastName"
                     value={formData.adminLastName}
                     onChange={handleChange}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                     placeholder="Pérez"
                   />
                 </div>
@@ -655,7 +655,7 @@ export default function CreateTenantPage() {
                                     {limitDefs.length > 0 && moduleConfig && (
                                       <div className="mt-1 space-y-0.5">
                                         {limitDefs.map(ld => (
-                                          <p key={ld.key} className="text-xs text-blue-700 font-medium">
+                                          <p key={ld.key} className="text-xs text-cyan-700 font-medium">
                                             {ld.label}: {(moduleConfig as any)[ld.key] ?? ld.defaultValue} {ld.unit}
                                           </p>
                                         ))}
@@ -688,7 +688,7 @@ export default function CreateTenantPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-6 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? "Creando..." : "Crear Tenant"}
               </button>

@@ -218,7 +218,7 @@ export default function RegisterPage() {
     if (/[^a-zA-Z0-9]/.test(password)) strength++;
 
     const labels = ['Muy débil', 'Débil', 'Regular', 'Buena', 'Fuerte'];
-    const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-blue-500', 'bg-green-500'];
+    const colors = ['bg-red-500', 'bg-orange-500', 'bg-yellow-500', 'bg-cyan-500', 'bg-green-500'];
     
     return {
       strength,
@@ -258,19 +258,19 @@ export default function RegisterPage() {
       </div>
       
       {/* Floating shapes */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-blue-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" />
-      <div className="absolute bottom-20 right-20 w-72 h-72 bg-indigo-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }} />
+      <div className="absolute top-20 left-20 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" />
+      <div className="absolute bottom-20 right-20 w-72 h-72 bg-cyan-500 rounded-full mix-blend-multiply filter blur-xl opacity-20 animate-pulse" style={{ animationDelay: '2s' }} />
       
       <div className="w-full max-w-md relative z-10">
         {/* Logo */}
         <div className="text-center mb-6">
           <div className="flex justify-center items-center mb-3">
-            <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 rounded-2xl shadow-2xl">
-              <UserPlus className="h-8 w-8 text-white" />
+            <div className="bg-cyan-50 p-3 rounded-2xl shadow-2xl border border-cyan-200">
+              <img src="/logo.png" alt="Diamond Accounting" className="h-8 w-8 object-contain" />
             </div>
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Contab</h1>
-          <p className="text-blue-200 mt-1">Crear nueva cuenta</p>
+          <h1 className="text-3xl font-bold text-white tracking-tight">Diamond Accounting</h1>
+          <p className="text-cyan-200 mt-1">Crear nueva cuenta</p>
         </div>
 
         {/* Register Card */}
@@ -460,7 +460,7 @@ export default function RegisterPage() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 px-4 border border-transparent rounded-lg shadow-lg text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="w-full py-2.5 px-4 border border-transparent rounded-lg shadow-lg text-sm font-semibold text-white bg-gradient-to-r from-cyan-600 to-cyan-600 hover:from-cyan-700 hover:to-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
             >
               {loading ? (
                 <>
@@ -480,7 +480,7 @@ export default function RegisterPage() {
           <div className="mt-5 pt-4 border-t border-gray-200 text-center">
             <p className="text-sm text-gray-600">
               ¿Ya tienes una cuenta?{' '}
-              <Link href="/auth/login" className="font-semibold text-blue-600 hover:text-blue-800">
+              <Link href="/auth/login" className="font-semibold text-cyan-600 hover:text-cyan-800">
                 Inicia sesión
               </Link>
             </p>
@@ -488,7 +488,7 @@ export default function RegisterPage() {
         </div>
 
         {/* Footer */}
-        <div className="text-center mt-6 text-sm text-blue-200">
+        <div className="text-center mt-6 text-sm text-cyan-200">
           <p>© 2024 Contab - Sistema Contable Profesional</p>
         </div>
       </div>

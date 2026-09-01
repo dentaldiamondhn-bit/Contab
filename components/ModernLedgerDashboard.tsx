@@ -330,7 +330,7 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Users className="w-4 h-4 text-indigo-600" />
+                <Users className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase font-inter">Patients</p>
                   <p className="text-lg font-bold text-slate-900 font-jetbrains-mono">{operationalMetrics.totalPatients}</p>
@@ -354,13 +354,13 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Calculator className="w-4 h-4 text-indigo-600" />
+                <Calculator className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase font-inter">Avg Transaction</p>
                   <p className="text-lg font-bold text-slate-900 font-jetbrains-mono">{formatCurrency(operationalMetrics.avgTransactionValue)}</p>
                 </div>
               </div>
-              <div className="text-xs text-indigo-600 font-inter">+3.1%</div>
+              <div className="text-xs text-cyan-600 font-inter">+3.1%</div>
             </div>
           </div>
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
@@ -383,10 +383,10 @@ export default function ModernLedgerDashboard() {
             <div className="flex items-center justify-between">
               <div>
                 <div className="flex items-center space-x-2">
-                  <PieChart className="w-4 h-4 text-indigo-600" />
+                  <PieChart className="w-4 h-4 text-cyan-600" />
                   <div>
                     <p className="text-xs font-medium text-slate-500 uppercase font-inter">ISV Current</p>
-                    <p className="text-lg font-bold text-indigo-600 font-jetbrains-mono">{formatCurrency(taxMetrics.currentMonthTax)}</p>
+                    <p className="text-lg font-bold text-cyan-600 font-jetbrains-mono">{formatCurrency(taxMetrics.currentMonthTax)}</p>
                     <p className="text-xs text-slate-500 font-inter">Due: 2024-04-20</p>
                   </div>
                 </div>
@@ -438,14 +438,14 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <Activity className="w-4 h-4 text-indigo-600" />
+                <Activity className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase font-inter">Liquidity Ratio</p>
-                  <p className="text-lg font-bold text-indigo-600 font-jetbrains-mono">{operationalMetrics.liquidityRatio.toFixed(2)}</p>
+                  <p className="text-lg font-bold text-cyan-600 font-jetbrains-mono">{operationalMetrics.liquidityRatio.toFixed(2)}</p>
                   <p className="text-xs text-slate-500 font-inter">Can we pay bills today?</p>
                 </div>
               </div>
-              <div className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-inter">
+              <div className="text-xs bg-cyan-50 text-cyan-600 px-2 py-1 rounded font-inter">
                 Healthy
               </div>
             </div>
@@ -455,14 +455,14 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-2">
-                <PieChart className="w-4 h-4 text-indigo-600" />
+                <PieChart className="w-4 h-4 text-cyan-600" />
                 <div>
                   <p className="text-xs font-medium text-slate-500 uppercase font-inter">Tax Vault</p>
-                  <p className="text-lg font-bold text-indigo-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.taxVaultCollected - operationalMetrics.taxVaultPaid)}</p>
+                  <p className="text-lg font-bold text-cyan-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.taxVaultCollected - operationalMetrics.taxVaultPaid)}</p>
                   <p className="text-xs text-slate-500 font-inter">ISV 15% collected vs paid</p>
                 </div>
               </div>
-              <div className="text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded font-inter">
+              <div className="text-xs bg-cyan-50 text-cyan-600 px-2 py-1 rounded font-inter">
                 Owed SAR
               </div>
             </div>
@@ -508,16 +508,16 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-slate-900 font-inter">Revenue by Category</h3>
-              <BarChart3 className="w-4 h-4 text-indigo-600" />
+              <BarChart3 className="w-4 h-4 text-cyan-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Cleaning</span>
-                <span className="text-sm font-medium text-blue-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.revenueByCategory.cleaning)}</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.revenueByCategory.cleaning)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Orthodontics</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.revenueByCategory.orthodontics)}</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">{formatCurrency(operationalMetrics.revenueByCategory.orthodontics)}</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Surgery</span>
@@ -558,24 +558,24 @@ export default function ModernLedgerDashboard() {
           <div className="bg-white border border-slate-200 rounded-lg p-3 hover:border-slate-300 transition-colors">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-sm font-semibold text-slate-900 font-inter">Service Volume</h3>
-              <Users className="w-4 h-4 text-indigo-600" />
+              <Users className="w-4 h-4 text-cyan-600" />
             </div>
             <div className="space-y-2">
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Cleaning</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">423</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">423</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Orthodontics</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">156</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">156</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Surgery</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">89</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">89</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">General</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">234</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">234</span>
               </div>
             </div>
           </div>
@@ -591,12 +591,12 @@ export default function ModernLedgerDashboard() {
                 <span className="text-sm font-bold text-emerald-600 font-jetbrains-mono">L. 1,850</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-indigo-600 font-inter">2. Orthodontics</span>
-                <span className="text-sm font-bold text-indigo-600 font-jetbrains-mono">L. 1,420</span>
+                <span className="text-xs font-medium text-cyan-600 font-inter">2. Orthodontics</span>
+                <span className="text-sm font-bold text-cyan-600 font-jetbrains-mono">L. 1,420</span>
               </div>
               <div className="flex justify-between items-center">
-                <span className="text-xs font-medium text-blue-600 font-inter">3. Cleaning</span>
-                <span className="text-sm font-bold text-blue-600 font-jetbrains-mono">L. 680</span>
+                <span className="text-xs font-medium text-cyan-600 font-inter">3. Cleaning</span>
+                <span className="text-sm font-bold text-cyan-600 font-jetbrains-mono">L. 680</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs font-medium text-slate-600 font-inter">4. General</span>
@@ -634,7 +634,7 @@ export default function ModernLedgerDashboard() {
                 <Target className="w-3 h-3 mr-1" />
                 Year-End
               </Button>
-              <Button size="sm" asChild className="text-xs justify-start border-blue-300 text-blue-700 hover:bg-blue-50 font-inter">
+              <Button size="sm" asChild className="text-xs justify-start border-blue-300 text-cyan-700 hover:bg-cyan-50 font-inter">
                 <a href="/ocr">
                   <Camera className="w-3 h-3 mr-1" />
                   Escáner OCR
@@ -662,11 +662,11 @@ export default function ModernLedgerDashboard() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Operating Ratio</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">1.51</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">1.51</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Cash Ratio</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">0.23</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">0.23</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Tax Burden</span>
@@ -687,11 +687,11 @@ export default function ModernLedgerDashboard() {
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Investing</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">-L. 890</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">-L. 890</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Financing</span>
-                <span className="text-sm font-medium text-indigo-600 font-jetbrains-mono">+L. 1,200</span>
+                <span className="text-sm font-medium text-cyan-600 font-jetbrains-mono">+L. 1,200</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-xs text-slate-600 font-inter">Net Flow</span>

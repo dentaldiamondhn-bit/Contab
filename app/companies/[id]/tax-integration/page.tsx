@@ -79,7 +79,7 @@ export default function TaxIntegrationPage({ params }: TaxIntegrationPageProps) 
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'accepted': return 'bg-green-600';
-      case 'submitted': return 'bg-blue-600';
+      case 'submitted': return 'bg-cyan-600';
       case 'pending': return 'bg-yellow-600';
       case 'rejected': return 'bg-red-600';
       default: return 'bg-gray-600';
@@ -102,7 +102,7 @@ export default function TaxIntegrationPage({ params }: TaxIntegrationPageProps) 
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <RefreshCw className="h-5 w-5 text-indigo-600" />
+            <RefreshCw className="h-5 w-5 text-cyan-600" />
             Integración con Impuestos - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -120,7 +120,7 @@ export default function TaxIntegrationPage({ params }: TaxIntegrationPageProps) 
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Shield className="h-5 w-5 text-cyan-600" />
             Configuración de Integración
           </CardTitle>
           <CardDescription>
@@ -129,37 +129,37 @@ export default function TaxIntegrationPage({ params }: TaxIntegrationPageProps) 
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
               <div className="flex items-center gap-2 mb-2">
-                <CheckCircle className="h-4 w-4 text-blue-600" />
+                <CheckCircle className="h-4 w-4 text-cyan-600" />
                 <p className="font-medium">API SAR</p>
               </div>
               <p className="text-sm text-gray-600">
                 Conexión: Activa (Modo Sandbox)
               </p>
-              <Badge className="mt-2 bg-blue-600">Configurado</Badge>
+              <Badge className="mt-2 bg-cyan-600">Configurado</Badge>
             </div>
             
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
               <div className="flex items-center gap-2 mb-2">
-                <Calendar className="h-4 w-4 text-blue-600" />
+                <Calendar className="h-4 w-4 text-cyan-600" />
                 <p className="font-medium">Programación</p>
               </div>
               <p className="text-sm text-gray-600">
                 Envío automático: Día 10 de cada mes
               </p>
-              <Badge className="mt-2 bg-blue-600">Activo</Badge>
+              <Badge className="mt-2 bg-cyan-600">Activo</Badge>
             </div>
             
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
               <div className="flex items-center gap-2 mb-2">
-                <Database className="h-4 w-4 text-blue-600" />
+                <Database className="h-4 w-4 text-cyan-600" />
                 <p className="font-medium">Formato</p>
               </div>
               <p className="text-sm text-gray-600">
                 XML estructurado para SAR
               </p>
-              <Badge className="mt-2 bg-blue-600">Listo</Badge>
+              <Badge className="mt-2 bg-cyan-600">Listo</Badge>
             </div>
           </div>
         </CardContent>
@@ -227,7 +227,7 @@ export default function TaxIntegrationPage({ params }: TaxIntegrationPageProps) 
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-600" />
+            <FileText className="h-5 w-5 text-cyan-600" />
             Historial de Presentaciones
           </CardTitle>
           <CardDescription>

@@ -77,7 +77,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
     return (
       <div className="container mx-auto p-6">
         <div className="text-center py-12">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-600 mx-auto"></div>
           <p className="mt-4 text-gray-600">Cargando reportes...</p>
         </div>
       </div>
@@ -90,7 +90,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
-            <TrendingUp className="h-6 w-6 text-blue-600" />
+            <TrendingUp className="h-6 w-6 text-cyan-600" />
             Reportes y Análisis de Negocio
           </h1>
           <p className="text-gray-600">Análisis estratégico para Dental Diamond</p>
@@ -131,13 +131,13 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Ocupación Promedio</CardTitle>
-            <Users className="h-4 w-4 text-blue-600" />
+            <Users className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
               {occupancyData?.summary?.averageOccupancyRate || 0}%
             </div>
-            <p className="text-xs text-blue-600 flex items-center mt-1">
+            <p className="text-xs text-cyan-600 flex items-center mt-1">
               <TrendingUp className="h-3 w-3 mr-1" />
               +10% horas rentadas
             </p>
@@ -196,7 +196,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Target className="h-5 w-5 text-blue-600" />
+                  <Target className="h-5 w-5 text-cyan-600" />
                   Punto de Equilibrio
                 </CardTitle>
               </CardHeader>
@@ -218,7 +218,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-blue-600" />
+                  <Clock className="h-5 w-5 text-cyan-600" />
                   Horas Rentadas
                 </CardTitle>
               </CardHeader>
@@ -231,7 +231,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
                 </p>
                 <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
                   <div 
-                    className="bg-blue-600 h-2 rounded-full" 
+                    className="bg-cyan-600 h-2 rounded-full" 
                     style={{ width: `${occupancyData?.summary?.averageOccupancyRate || 0}%` }}
                   />
                 </div>
@@ -253,8 +253,8 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
                   </div>
                 ))}
                 {marketingData?.recommendations?.map((rec: any, idx: number) => (
-                  <div key={`m-${idx}`} className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
-                    <Megaphone className="h-5 w-5 text-blue-600 mt-0.5" />
+                  <div key={`m-${idx}`} className="flex items-start gap-3 p-3 bg-cyan-50 rounded-lg">
+                    <Megaphone className="h-5 w-5 text-cyan-600 mt-0.5" />
                     <div>
                       <p className="font-medium text-sm">{rec.title}</p>
                       <p className="text-sm text-gray-600">{rec.description}</p>
@@ -366,7 +366,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Clock className="h-5 w-5 text-blue-600" />
+                <Clock className="h-5 w-5 text-cyan-600" />
                 Mapa de Calor - Ocupación por Horario
               </CardTitle>
             </CardHeader>
@@ -404,15 +404,15 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-600" />
+                <Users className="h-5 w-5 text-cyan-600" />
                 Retención de Arrendatarios
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                <div className="p-4 bg-blue-50 rounded-lg">
+                <div className="p-4 bg-cyan-50 rounded-lg">
                   <p className="text-sm text-gray-600">Tasa de Retención</p>
-                  <p className="text-2xl font-bold text-blue-600">{occupancyData?.summary?.retentionRate || 0}%</p>
+                  <p className="text-2xl font-bold text-cyan-600">{occupancyData?.summary?.retentionRate || 0}%</p>
                 </div>
                 <div className="p-4 bg-green-50 rounded-lg">
                   <p className="text-sm text-gray-600">Antigüedad Promedio</p>
@@ -439,7 +439,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
                         <td className="px-4 py-2 font-medium">{tenant.name}</td>
                         <td className="px-4 py-2 text-center">{tenant.months}</td>
                         <td className="px-4 py-2 text-center">
-                          <Badge className={tenant.status === 'recurrente' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}>
+                          <Badge className={tenant.status === 'recurrente' ? 'bg-cyan-100 text-cyan-800' : 'bg-green-100 text-green-800'}>
                             {tenant.status}
                           </Badge>
                         </td>
@@ -481,8 +481,8 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
             <Card className="border-l-4 border-l-blue-500">
               <CardContent className="p-4">
                 <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-blue-600" />
-                  <span className="font-medium text-blue-600">Info</span>
+                  <CheckCircle className="h-5 w-5 text-cyan-600" />
+                  <span className="font-medium text-cyan-600">Info</span>
                 </div>
                 <p className="text-2xl font-bold mt-2">
                   {maintenanceData?.alerts?.filter((a: any) => a.level === 'info').length || 0}
@@ -630,7 +630,7 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
                   </tbody>
                 </table>
               </div>
-              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+              <div className="mt-4 p-4 bg-cyan-50 rounded-lg">
                 <p className="text-sm">
                   <strong>💡 Insight:</strong> Las recomendaciones tienen el mejor ROI ({marketingData?.leadSources?.find((s: any) => s.source.includes('Recomendación'))?.roi || 2300}%). 
                   Considerar expandir el programa de referidos.

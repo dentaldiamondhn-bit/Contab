@@ -11,6 +11,7 @@ interface DisneyInvoiceProps {
   companyName?: string;
   companyAddress?: string;
   companyRTN?: string;
+  plans?: Array<{ name: string; amount: string }>;
 }
 
 export default function DisneyStyleInvoice({
@@ -22,18 +23,20 @@ export default function DisneyStyleInvoice({
   companyName = 'Diamond Accounting, S. de R.L.',
   companyAddress = 'Col. Palmira, Tegucigalpa, Honduras',
   companyRTN = '0801-1995-12345',
+  plans,
 }: DisneyInvoiceProps) {
+  const displayPlans = plans && plans.length > 0 ? plans : [{ name: planName, amount }];
   const formattedDate = date ? new Date(date).toLocaleDateString('es-HN', { day: 'numeric', month: 'long', year: 'numeric' }) : '26 de julio de 2025';
 
   return (
     <div id="print-invoice" className="max-w-2xl mx-auto bg-white p-8 md:p-10">
       {/* Header */}
-      <div className="flex justify-between items-start">
+      <div className="flex justify-between items-center">
         <div>
           <h1 className="text-5xl font-bold text-gray-900">Factura</h1>
           <p className="text-sm text-gray-500 mt-1 font-mono">#{invoiceNumber}</p>
         </div>
-        <div className="flex flex-col items-end">
+        <div className="flex flex-col items-center text-center">
           <img src="/logo.png" alt="Diamond Accounting" className="h-24 md:h-32 w-auto object-contain" />
           <p className="text-xs font-bold tracking-widest text-gray-800 mt-1">DIAMOND ACCOUNTING</p>
         </div>
@@ -43,16 +46,42 @@ export default function DisneyStyleInvoice({
 
       <div className="h-[3px] bg-gray-300 mt-6 mb-6" />
 
-      {/* Line Item */}
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="text-lg font-bold text-gray-900">{planName} (Mensual)</p>
-          <p className="text-sm text-gray-500 ml-4 mt-1">{planName}</p>
+      {/* Line Items - paquetes activos */}
+      {displayPlans.map((p, idx) => (
+        <div key={idx}>
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-lg font-bold text-gray-900">{p.name} (Mensual)</p>
+              <p className="text-sm text-gray-500 ml-4 mt-1">{p.name}</p>
+            </div>
+            <p className="text-lg font-bold text-gray-900">{p.amount}</p>
+          </div>
+          {idx < displayPlans.length - 1 && <div className="h-px bg-gray-200 my-6" />}
         </div>
-        <p className="text-lg font-bold text-gray-900">{amount}</p>
-      </div>
+      ))}
 
       <div className="h-px bg-gray-200 my-6" />
+
+      {/* Desglose Total plan e impuesto */}
+      <div className="space-y-2 text-sm">
+        <div className="flex justify-between">
+          <span className="text-gray-600">Subtotal plan:</span>
+          <span className="font-medium text-gray-900">{displayPlans.reduce((s, p) => {
+            const n = parseFloat(String(p.amount).replace(/[^0-9.]/g, '')) || 0;
+            // amount ya incluye impuesto, desglosar: subtotal = total / 1.15
+            return s + n / 1.15;
+          }, 0).toLocaleString('es-HN', { style: 'currency', currency: 'HNL' })}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-gray-600">ISV 15%:</span>
+          <span className="font-medium text-gray-900">{displayPlans.reduce((s, p) => {
+            const n = parseFloat(String(p.amount).replace(/[^0-9.]/g, '')) || 0;
+            return s + n - n / 1.15;
+          }, 0).toLocaleString('es-HN', { style: 'currency', currency: 'HNL' })}</span>
+        </div>
+      </div>
+
+      <div className="h-px bg-gray-200 my-4" />
 
       {/* Order Total */}
       <div className="flex justify-between items-start">

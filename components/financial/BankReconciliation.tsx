@@ -207,7 +207,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando conciliaciones bancarias...</p>
           </div>
         </CardContent>
@@ -221,7 +221,7 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <Scale className="h-6 w-6 mr-2 text-blue-600" />
+            <Scale className="h-6 w-6 mr-2 text-cyan-600" />
             Conciliación Bancaria
           </h2>
           <p className="text-gray-600">Comparación de saldos bancarios con registros contables</p>
@@ -281,10 +281,10 @@ export default function BankReconciliation({ tenantId }: BankReconciliationProps
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Conciliaciones</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               {totalReconciliations}
             </div>
             <p className="text-xs text-gray-600">

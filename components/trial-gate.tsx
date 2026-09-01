@@ -41,7 +41,7 @@ export function TrialGate({ children, featureName, isLimitReached, limitType = '
               ? `Has alcanzado el límite de ${featureName} para tu plan actual.`
               : `La función ${featureName} solo está disponible en el Plan Empresarial (PRO).`}
           </p>
-          <Button asChild className="bg-blue-600 hover:bg-blue-700 w-full">
+          <Button asChild className="bg-cyan-600 hover:bg-cyan-700 w-full">
             <Link href="/billing/subscriptions">
               <Zap className="w-4 h-4 mr-2" />
               Actualizar mi Plan

@@ -192,7 +192,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando dashboard de ventas...</p>
           </div>
         </CardContent>
@@ -235,10 +235,10 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Facturas</CardTitle>
-            <FileText className="h-4 w-4 text-blue-600" />
+            <FileText className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               {stats.totalInvoices}
             </div>
             <p className="text-xs text-gray-600">
@@ -313,7 +313,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Crecimiento Mensual</CardTitle>
-            <ArrowUpRight className="h-4 w-4 text-indigo-600" />
+            <ArrowUpRight className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
@@ -371,7 +371,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-blue-600">
+                      <div className="font-bold text-cyan-600">
                         L. {(customer.totalPurchased / 100).toFixed(2)}
                       </div>
                       <div className="text-sm text-gray-600">
@@ -421,7 +421,7 @@ export default function SalesDashboard({ tenantId }: SalesDashboardProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-blue-600">
+                      <div className="font-bold text-cyan-600">
                         L. {(invoice.totalAmount / 100).toFixed(2)}
                       </div>
                     </div>

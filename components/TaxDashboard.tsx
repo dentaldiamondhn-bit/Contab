@@ -216,7 +216,7 @@ export default function TaxDashboard({ onGenerateReport }: TaxDashboardProps) {
 
           <Card>
             <CardHeader>
-              <CardTitle className="text-blue-700">Purchases Tax Breakdown</CardTitle>
+              <CardTitle className="text-cyan-700">Purchases Tax Breakdown</CardTitle>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
@@ -226,7 +226,7 @@ export default function TaxDashboard({ onGenerateReport }: TaxDashboardProps) {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">ISV on Purchases:</span>
-                  <span className="font-semibold text-blue-600">{formatCurrency(currentMonthSummary.purchasesTax)}</span>
+                  <span className="font-semibold text-cyan-600">{formatCurrency(currentMonthSummary.purchasesTax)}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-gray-600">Effective Rate:</span>
@@ -295,7 +295,7 @@ export default function TaxDashboard({ onGenerateReport }: TaxDashboardProps) {
                       <td className="p-2 text-right">{formatCurrency(currentMonthSummary.totalSales)}</td>
                       <td className="p-2 text-right text-green-600">{formatCurrency(currentMonthSummary.salesTax)}</td>
                       <td className="p-2 text-right">{formatCurrency(currentMonthSummary.totalPurchases)}</td>
-                      <td className="p-2 text-right text-blue-600">{formatCurrency(currentMonthSummary.purchasesTax)}</td>
+                      <td className="p-2 text-right text-cyan-600">{formatCurrency(currentMonthSummary.purchasesTax)}</td>
                       <td className="p-2 text-right font-semibold text-purple-600">{formatCurrency(currentMonthSummary.totalTaxToPay)}</td>
                     </tr>
                   )}
@@ -305,7 +305,7 @@ export default function TaxDashboard({ onGenerateReport }: TaxDashboardProps) {
                       <td className="p-2 text-right">{formatCurrency(previousMonthSummary.totalSales)}</td>
                       <td className="p-2 text-right text-green-600">{formatCurrency(previousMonthSummary.salesTax)}</td>
                       <td className="p-2 text-right">{formatCurrency(previousMonthSummary.totalPurchases)}</td>
-                      <td className="p-2 text-right text-blue-600">{formatCurrency(previousMonthSummary.purchasesTax)}</td>
+                      <td className="p-2 text-right text-cyan-600">{formatCurrency(previousMonthSummary.purchasesTax)}</td>
                       <td className="p-2 text-right font-semibold text-purple-600">{formatCurrency(previousMonthSummary.totalTaxToPay)}</td>
                     </tr>
                   )}

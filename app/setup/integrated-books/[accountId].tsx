@@ -135,7 +135,7 @@ export default function IntegratedBooksSetupPage() {
       case 'error':
         return <XCircle className="h-4 w-4 text-red-500" />;
       case 'skipped':
-        return <AlertCircle className="h-4 w-4 text-blue-500" />;
+        return <AlertCircle className="h-4 w-4 text-cyan-500" />;
       default:
         return <CheckCircle className="h-4 w-4 text-green-500" />;
     }
@@ -339,7 +339,7 @@ export default function IntegratedBooksSetupPage() {
                       href="https://supabase.com/dashboard" 
                       target="_blank" 
                       rel="noopener noreferrer"
-                      className="ml-2 text-blue-600 hover:underline inline-flex items-center gap-1"
+                      className="ml-2 text-cyan-600 hover:underline inline-flex items-center gap-1"
                     >
                       supabase.com/dashboard
                       <ExternalLink className="h-3 w-3" />

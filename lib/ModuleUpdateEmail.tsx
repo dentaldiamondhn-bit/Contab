@@ -53,7 +53,7 @@ export const ModuleUpdateEmail = ({
               ¡Hola, <strong>{businessName}</strong>!
             </Text>
             <Text className="text-black text-sm leading-6">
-              Se ha actualizado la configuración de tus módulos en <strong>Contab</strong>.
+              Se ha actualizado la configuración de tus módulos en <strong>Diamond Accounting</strong>.
             </Text>
 
             <Section className="bg-gray-50 border border-gray-200 rounded-md p-4 my-6">

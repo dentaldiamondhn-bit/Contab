@@ -190,7 +190,7 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-cyan-600" />
             Seguridad Legal y Normativa - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -225,7 +225,7 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
             <Plus className="h-4 w-4" />
             Nueva Revisión
           </Button>
-          <Badge variant="default" className="bg-blue-600">Honduras</Badge>
+          <Badge variant="default" className="bg-cyan-600">Honduras</Badge>
         </div>
       </div>
 
@@ -233,9 +233,9 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Clock className="h-5 w-5 text-blue-600" />
+            <Clock className="h-5 w-5 text-cyan-600" />
             Calendario de Revisiones Legales
-            {loading && <div className="ml-2 h-4 w-4 animate-spin rounded-full border-2 border-blue-600 border-t-transparent"></div>}
+            {loading && <div className="ml-2 h-4 w-4 animate-spin rounded-full border-2 border-cyan-600 border-t-transparent"></div>}
           </CardTitle>
           <CardDescription>
             Estado de las revisiones legales con indicadores de urgencia
@@ -263,7 +263,7 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-blue-600" />
+                        <Icon className="h-4 w-4 text-cyan-600" />
                         <Badge className={getEstadoColor(revision.estado)}>
                           {revision.estado}
                         </Badge>
@@ -327,7 +327,7 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              {formData?.id ? <Edit className="h-5 w-5 text-blue-600" /> : <Plus className="h-5 w-5 text-green-600" />}
+              {formData?.id ? <Edit className="h-5 w-5 text-cyan-600" /> : <Plus className="h-5 w-5 text-green-600" />}
               {formData?.id ? 'Editar Revisión Legal' : 'Nueva Revisión Legal'}
             </CardTitle>
             <CardDescription>
@@ -439,7 +439,7 @@ export default function LegalSecurityPage({ params }: LegalSecurityPageProps) {
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Building className="h-5 w-5 text-blue-600" />
+              <Building className="h-5 w-5 text-cyan-600" />
               Arrendamiento
             </CardTitle>
           </CardHeader>

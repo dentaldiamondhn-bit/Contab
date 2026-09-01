@@ -246,7 +246,7 @@ export default function BalanceComprobacionPage() {
                 Volver
               </Button>
               <div className="flex items-center space-x-3">
-                <Scale className="h-6 w-6 text-blue-600" />
+                <Scale className="h-6 w-6 text-cyan-600" />
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Balance de Comprobación</h1>
                   <p className="text-gray-600">6 Columnas - Validación de Partida Doble</p>
@@ -376,7 +376,7 @@ export default function BalanceComprobacionPage() {
                   <TableRow className="bg-gray-100">
                     <TableHead rowSpan={2} className="border font-bold">Código</TableHead>
                     <TableHead rowSpan={2} className="border font-bold">Cuenta</TableHead>
-                    <TableHead colSpan={2} className="border text-center font-bold bg-blue-50">
+                    <TableHead colSpan={2} className="border text-center font-bold bg-cyan-50">
                       Saldo Anterior
                     </TableHead>
                     <TableHead colSpan={2} className="border text-center font-bold bg-green-50">
@@ -412,7 +412,7 @@ export default function BalanceComprobacionPage() {
                       <TableCell className="border text-right">
                         {item.movimientosHaber > 0 ? formatCurrency(item.movimientosHaber) : '-'}
                       </TableCell>
-                      <TableCell className={`border text-right font-medium ${item.saldoActualDebe > 0 ? 'text-blue-600' : ''}`}>
+                      <TableCell className={`border text-right font-medium ${item.saldoActualDebe > 0 ? 'text-cyan-600' : ''}`}>
                         {item.saldoActualDebe > 0 ? formatCurrency(item.saldoActualDebe) : '-'}
                       </TableCell>
                       <TableCell className={`border text-right font-medium ${item.saldoActualHaber > 0 ? 'text-red-600' : ''}`}>
@@ -423,13 +423,13 @@ export default function BalanceComprobacionPage() {
                   {/* Fila de Totales */}
                   <TableRow className="bg-gray-200 font-bold">
                     <TableCell colSpan={2} className="border text-right">TOTALES</TableCell>
-                    <TableCell className="border text-right text-blue-600">
+                    <TableCell className="border text-right text-cyan-600">
                       {formatCurrency(totals.saldoAnteriorDebe)}
                     </TableCell>
                     <TableCell className="border text-right text-red-600">
                       {formatCurrency(totals.saldoAnteriorHaber)}
                     </TableCell>
-                    <TableCell className="border text-right text-blue-600">
+                    <TableCell className="border text-right text-cyan-600">
                       {formatCurrency(totals.movimientosDebe)}
                     </TableCell>
                     <TableCell className="border text-right text-red-600">
@@ -453,7 +453,7 @@ export default function BalanceComprobacionPage() {
           <CardContent className="py-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-gray-600">
               <div className="flex items-center space-x-2">
-                <div className="w-4 h-4 bg-blue-50 border"></div>
+                <div className="w-4 h-4 bg-cyan-50 border"></div>
                 <span>Saldo Anterior (remanente período previo)</span>
               </div>
               <div className="flex items-center space-x-2">

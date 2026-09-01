@@ -161,7 +161,7 @@ const fetchProjectionData = async () => {
             </div>
             <div className="flex justify-between">
               <span className="text-xs text-slate-600">Saldo Final:</span>
-              <span className="text-xs font-medium text-indigo-600">
+              <span className="text-xs font-medium text-cyan-600">
                 {formatCurrency(data.closingBalance)}
               </span>
             </div>
@@ -180,7 +180,7 @@ const fetchProjectionData = async () => {
         <div className="p-4 pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Wallet className="w-4 h-4 text-indigo-600" />
+              <Wallet className="w-4 h-4 text-cyan-600" />
               <h3 className="text-sm font-bold text-slate-900">
                 Proyección Flujo Caja
               </h3>
@@ -199,9 +199,9 @@ const fetchProjectionData = async () => {
           {projection ? (
             <div className="space-y-3">
               <div className="grid grid-cols-2 gap-3">
-                <div className="text-center p-2 bg-indigo-50 rounded">
+                <div className="text-center p-2 bg-cyan-50 rounded">
                   <p className="text-xs text-slate-600">Saldo Actual</p>
-                  <p className="text-sm font-bold text-indigo-600">
+                  <p className="text-sm font-bold text-cyan-600">
                     {formatCurrency(projection.currentBalance)}
                   </p>
                 </div>
@@ -257,7 +257,7 @@ const fetchProjectionData = async () => {
       <div className="p-4 pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Wallet className="w-5 h-5 text-indigo-600" />
+            <Wallet className="w-5 h-5 text-cyan-600" />
             <h3 className="text-lg font-bold text-slate-900">
               Proyección de Flujo de Caja
             </h3>
@@ -320,7 +320,7 @@ const fetchProjectionData = async () => {
               <div className="flex items-center space-x-6">
                 <div className="text-center">
                   <p className="text-xs text-slate-500">Saldo Actual</p>
-                  <p className="text-lg font-bold text-indigo-600">
+                  <p className="text-lg font-bold text-cyan-600">
                     {formatCurrency(projection.currentBalance)}
                   </p>
                 </div>
@@ -359,7 +359,7 @@ const fetchProjectionData = async () => {
               </div>
               <div className="text-center">
                 <p className="text-xs text-slate-500">Saldo Promedio</p>
-                <p className="text-sm font-bold text-indigo-600">
+                <p className="text-sm font-bold text-cyan-600">
                   {formatCurrency(projection.summary.averageDailyBalance)}
                 </p>
               </div>
@@ -517,14 +517,14 @@ const fetchProjectionData = async () => {
               )}
 
               {projection.recommendations.length > 0 && (
-                <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <div className="p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
                   <div className="flex items-center space-x-2 mb-2">
-                    <Info className="w-4 h-4 text-blue-600" />
+                    <Info className="w-4 h-4 text-cyan-600" />
                     <h3 className="text-sm font-semibold text-blue-900">Recomendaciones</h3>
                   </div>
                   <div className="space-y-1">
                     {projection.recommendations.map((rec, index) => (
-                      <p key={index} className="text-xs text-blue-700">{rec}</p>
+                      <p key={index} className="text-xs text-cyan-700">{rec}</p>
                     ))}
                   </div>
                 </div>

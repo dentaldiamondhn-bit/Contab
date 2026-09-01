@@ -13,7 +13,7 @@ interface FinancialSummary {
 // Original component
 function DashboardCards({ data }: { data: FinancialSummary }) {
   const stats = [
-    { title: "Efectivo Disponible", value: data.cashOnHand, icon: Wallet, color: "text-blue-600" },
+    { title: "Efectivo Disponible", value: data.cashOnHand, icon: Wallet, color: "text-cyan-600" },
     { title: "Ingresos Totales", value: data.totalRevenue, icon: TrendingUp, color: "text-green-600" },
     { title: "Gastos", value: data.totalExpenses, icon: ArrowDown, color: "text-red-600" },
     { title: "Beneficio Neto", value: data.netProfit, icon: DollarSign, color: "text-emerald-700" },

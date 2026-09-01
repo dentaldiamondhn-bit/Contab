@@ -200,7 +200,7 @@ export function EnhancedTransactionForm({
             </label>
             <select
               {...register("voucherType")}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               {Object.entries(VOUCHER_TYPE_DESCRIPTIONS).map(([value, label]) => (
                 <option key={value} value={value}>
@@ -213,7 +213,7 @@ export function EnhancedTransactionForm({
 
         {/* Tax Helper Toggle */}
         {enableTaxHelper && (
-          <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="bg-cyan-50 p-4 rounded-lg">
             <div className="flex items-center space-x-3">
               <input
                 type="checkbox"
@@ -229,14 +229,14 @@ export function EnhancedTransactionForm({
                     })));
                   }
                 }}
-                className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500"
               />
               <label htmlFor="enableTaxHelper" className="text-sm font-medium text-gray-700">
                 Enable Tax Helper (Auto-calculate ISV)
               </label>
             </div>
             {taxProcessing && (
-              <p className="text-sm text-blue-600 mt-2">Processing tax calculations...</p>
+              <p className="text-sm text-cyan-600 mt-2">Processing tax calculations...</p>
             )}
           </div>
         )}
@@ -351,7 +351,7 @@ export function EnhancedTransactionForm({
 
         {/* Tax Result Display */}
         {taxResult && (
-          <div className="bg-blue-50 p-4 rounded-lg">
+          <div className="bg-cyan-50 p-4 rounded-lg">
             <h4 className="font-semibold text-blue-900 mb-2">Tax Calculation Result</h4>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div>
@@ -360,7 +360,7 @@ export function EnhancedTransactionForm({
               </div>
               <div>
                 <span className="text-gray-600">Total Tax:</span>
-                <div className="font-semibold text-blue-600">{formatCurrency(taxResult.summary.totalTax / 100)}</div>
+                <div className="font-semibold text-cyan-600">{formatCurrency(taxResult.summary.totalTax / 100)}</div>
               </div>
               <div>
                 <span className="text-gray-600">Total:</span>
@@ -375,7 +375,7 @@ export function EnhancedTransactionForm({
           <Button
             type="submit"
             disabled={isSubmitting || taxProcessing || totalBalance !== 0}
-            className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400"
+            className="px-6 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 disabled:bg-gray-400"
           >
             {isSubmitting ? 'Creando...' : 'Crear Transacción'}
           </Button>

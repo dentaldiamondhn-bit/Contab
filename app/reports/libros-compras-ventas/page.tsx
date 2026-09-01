@@ -48,7 +48,7 @@ export default function LibrosContablesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <BookOpen className="w-6 h-6 text-indigo-600" />
+            <BookOpen className="w-6 h-6 text-cyan-600" />
             Libros de Compras y Ventas
           </h1>
           <p className="text-sm text-gray-500">{currentTenant?.businessName || "Empresa"}</p>
@@ -117,7 +117,7 @@ export default function LibrosContablesPage() {
                 </div>
                 {ventas.length > 0 && (
                   <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4 text-center">
-                    <div><div className="text-xs text-gray-500">Base Gravada</div><div className="text-lg font-bold text-blue-600">{fmt(totalVentasBase)}</div></div>
+                    <div><div className="text-xs text-gray-500">Base Gravada</div><div className="text-lg font-bold text-cyan-600">{fmt(totalVentasBase)}</div></div>
                     <div><div className="text-xs text-gray-500">ISV Debito Fiscal</div><div className="text-lg font-bold text-red-600">{fmt(totalVentasISV)}</div></div>
                     <div><div className="text-xs text-gray-500">Total Ventas</div><div className="text-lg font-bold text-green-600">{fmt(totalVentas)}</div></div>
                   </div>
@@ -167,7 +167,7 @@ export default function LibrosContablesPage() {
                 </div>
                 {compras.length > 0 && (
                   <div className="mt-4 pt-4 border-t grid grid-cols-3 gap-4 text-center">
-                    <div><div className="text-xs text-gray-500">Base Gravada</div><div className="text-lg font-bold text-blue-600">{fmt(totalComprasBase)}</div></div>
+                    <div><div className="text-xs text-gray-500">Base Gravada</div><div className="text-lg font-bold text-cyan-600">{fmt(totalComprasBase)}</div></div>
                     <div><div className="text-xs text-gray-500">ISV Credito Fiscal</div><div className="text-lg font-bold text-green-600">{fmt(totalComprasISV)}</div></div>
                     <div><div className="text-xs text-gray-500">Total Compras</div><div className="text-lg font-bold text-orange-600">{fmt(totalCompras)}</div></div>
                   </div>

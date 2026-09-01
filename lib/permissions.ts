@@ -248,9 +248,9 @@ export const ROLE_LABELS: Record<Role, string> = {
 export const ROLE_COLORS: Record<Role, string> = {
   SUPER_ADMIN: 'bg-purple-100 text-purple-800',
   SUPPORT: 'bg-yellow-100 text-yellow-800',
-  ADMIN: 'bg-blue-100 text-blue-800',
+  ADMIN: 'bg-cyan-100 text-cyan-800',
   MANAGER: 'bg-green-100 text-green-800',
-  ACCOUNTANT: 'bg-indigo-100 text-indigo-800',
+  ACCOUNTANT: 'bg-cyan-100 text-cyan-800',
   USER: 'bg-gray-100 text-gray-800',
   VIEWER: 'bg-slate-100 text-slate-800',
 };

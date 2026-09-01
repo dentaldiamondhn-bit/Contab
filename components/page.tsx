@@ -31,8 +31,8 @@ const AVAILABLE_MODULES = [
     name: 'Contabilidad Central',
     description: 'Libro diario, balanza de comprobación y cierres anuales.',
     icon: BookOpen,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50'
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50'
   },
   {
     id: 'BILLING',
@@ -63,8 +63,8 @@ const AVAILABLE_MODULES = [
     name: 'Reportes y Análisis',
     description: 'Informes financieros avanzados y cumplimiento SAR.',
     icon: BarChart3,
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-50'
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50'
   }
 ];
 
@@ -76,8 +76,8 @@ const PLANS = [
     description: 'Ideal para pequeños negocios y profesionales independientes.',
     features: ['Hasta 2 usuarios', 'Contabilidad básica', 'Reportes SAR estándar'],
     icon: Zap,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50'
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50'
   },
   {
     id: 'PRO',
@@ -86,8 +86,8 @@ const PLANS = [
     description: 'Para empresas en crecimiento que necesitan control total.',
     features: ['Usuarios ilimitados', 'Inventario avanzado', 'Soporte prioritario'],
     icon: ShieldCheck,
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-50'
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50'
   }
 ];
 
@@ -149,11 +149,11 @@ export default function OnboardingPage() {
           {[1, 2, 3, 4].map((i) => (
             <div key={i} className="flex items-center">
               <div className={`w-8 h-8 rounded-full flex items-center justify-center font-semibold text-sm transition-colors ${
-                step >= i ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-500'
+                step >= i ? 'bg-cyan-600 text-white' : 'bg-gray-200 text-gray-500'
               }`}>
                 {step > i ? <CheckCircle2 className="w-5 h-5" /> : i}
               </div>
-              {i < 4 && <div className={`w-12 h-1 mx-2 ${step > i ? 'bg-blue-600' : 'bg-gray-200'}`} />}
+              {i < 4 && <div className={`w-12 h-1 mx-2 ${step > i ? 'bg-cyan-600' : 'bg-gray-200'}`} />}
             </div>
           ))}
         </div>
@@ -220,7 +220,7 @@ export default function OnboardingPage() {
                     onClick={() => toggleModule(module.id)}
                     className={`flex items-start space-x-4 p-4 rounded-xl border-2 cursor-pointer transition-all ${
                       formData.activeModules.includes(module.id) 
-                        ? 'border-blue-600 bg-blue-50/30' 
+                        ? 'border-cyan-600 bg-cyan-50/30' 
                         : 'border-gray-100 hover:border-gray-200'
                     }`}
                   >
@@ -251,7 +251,7 @@ export default function OnboardingPage() {
                     onClick={() => setFormData({...formData, planId: plan.id})}
                     className={`flex items-start space-x-4 p-6 rounded-xl border-2 cursor-pointer transition-all ${
                       formData.planId === plan.id 
-                        ? 'border-blue-600 bg-blue-50/30' 
+                        ? 'border-cyan-600 bg-cyan-50/30' 
                         : 'border-gray-100 hover:border-gray-200'
                     }`}
                   >
@@ -286,7 +286,7 @@ export default function OnboardingPage() {
             {/* Paso 4: Confirmación Final */}
             {step === 4 && (
               <div className="space-y-6 text-center animate-in fade-in slide-in-from-right-4 duration-300">
-                <div className="bg-blue-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 text-blue-600">
+                <div className="bg-cyan-50 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4 text-cyan-600">
                   <LayoutDashboard className="w-10 h-10" />
                 </div>
                 <div className="space-y-2">
@@ -296,7 +296,7 @@ export default function OnboardingPage() {
                 </div>
                 
                 <div className="flex items-center justify-center gap-3 p-3 bg-gray-50 rounded-lg max-w-sm mx-auto">
-                  <CircleDollarSign className="w-5 h-5 text-blue-600" />
+                  <CircleDollarSign className="w-5 h-5 text-cyan-600" />
                   <span className="font-semibold text-gray-700">
                     {PLANS.find(p => p.id === formData.planId)?.name}
                   </span>
@@ -332,7 +332,7 @@ export default function OnboardingPage() {
               <Button 
                 onClick={handleNext} 
                 disabled={step === 1 && !formData.companyName}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-cyan-600 hover:bg-cyan-700"
               >
                 Siguiente <ChevronRight className="w-4 h-4 ml-2" />
               </Button>

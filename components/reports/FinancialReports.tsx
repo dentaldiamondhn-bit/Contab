@@ -113,7 +113,7 @@ export default function FinancialReports({ tenantId }: FinancialReportsProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando reportes financieros...</p>
           </div>
         </CardContent>
@@ -126,7 +126,7 @@ export default function FinancialReports({ tenantId }: FinancialReportsProps) {
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <BarChart3 className="h-6 w-6 mr-2 text-blue-600" />
+            <BarChart3 className="h-6 w-6 mr-2 text-cyan-600" />
             Reportes Financieros
           </h2>
           <p className="text-gray-600">Análisis y métricas financieras</p>
@@ -170,7 +170,7 @@ export default function FinancialReports({ tenantId }: FinancialReportsProps) {
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Ingreso Neto</CardTitle>
-                <DollarSign className="h-4 w-4 text-blue-600" />
+                <DollarSign className="h-4 w-4 text-cyan-600" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">{formatCurrency(metrics.netIncome)}</div>

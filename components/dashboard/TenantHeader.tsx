@@ -1,6 +1,5 @@
 "use client";
 
-import { CompanySwitcher } from "./CompanySwitcher";
 import { Button } from "@/components/ui/button";
 import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield, Eye } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -82,8 +81,8 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
     <>
       {/* Banner de Estado para Super Admin */}
       {mounted && isSuperAdmin && (
-        <div className={`w-full py-1.5 px-4 text-center text-[10px] font-black tracking-[0.2em] uppercase flex items-center justify-center gap-2 shadow-inner transition-colors duration-500 relative ${
-          isImpersonating ? "bg-amber-500 text-white" : "bg-indigo-700 text-indigo-50"
+        <div className={`w-full py-1.5 px-4 text-center text-[10px] font-black tracking-[0.2em] uppercase flex items-center justify-center gap-2 shadow-inner transition-colors duration-500 shrink-0 ${
+          isImpersonating ? "bg-amber-500 text-white" : "bg-cyan-50 text-cyan-700"
         }`}>
           {isImpersonating ? (
             <>
@@ -107,32 +106,29 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
         </div>
       )}
 
-      <header className="relative border-b bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60">
-      <div className="container mx-auto px-4 sm:px-6 lg:px-8">
+      <header className="bg-cyan-700 border-b border-cyan-800 shrink-0 w-full">
+      <div className="px-4 sm:px-6 lg:px-8">
         <div className="flex h-16 items-center justify-between">
-          {/* Logo y Company Switcher */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="h-8 w-8 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">C</span>
-              </div>
-              <span className="font-semibold text-lg">Contab</span>
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="bg-cyan-50 rounded-lg p-1.5 shadow-sm border border-cyan-200">
+              <img src="/logo.png" alt="Diamond Accounting" className="h-7 w-7 object-contain" />
             </div>
-            <CompanySwitcher tenants={availableTenants} />
+            <span className="font-semibold text-lg text-white">Diamond Accounting</span>
           </div>
 
           {/* Info del Tenant Actual */}
           <div className="flex items-center gap-4">
             {currentTenant && (
-              <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-gray-50 rounded-lg">
+              <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-cyan-600/50 rounded-lg">
                 <div className="text-sm">
-                  <div className="font-medium">{currentTenant.businessName}</div>
+                  <div className="font-medium text-white">{currentTenant.businessName}</div>
                   {currentTenant.businessRTN && (
-                    <div className="text-xs text-muted-foreground">RTN: {currentTenant.businessRTN}</div>
+                    <div className="text-xs text-cyan-200">RTN: {currentTenant.businessRTN}</div>
                   )}
                 </div>
                 {(currentTenant as any).subscriptionType && (
-                  <Badge variant="secondary" className="text-xs">
+                  <Badge variant="secondary" className="text-xs bg-cyan-600 text-cyan-100 border-cyan-500">
                     {(currentTenant as any).subscriptionType}
                   </Badge>
                 )}
@@ -153,7 +149,7 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                 </Button>
               )}
 
-              <Button variant="ghost" size="sm">
+              <Button variant="ghost" size="sm" className="text-white hover:bg-cyan-600 hover:text-white">
                 <Bell className="h-4 w-4" />
                 <span className="sr-only">Notificaciones</span>
               </Button>
@@ -164,25 +160,25 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                   variant="ghost"
                   size="sm"
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
-                  className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 rounded-lg"
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-cyan-600 hover:text-white rounded-lg text-white"
                 >
-                  <div className="h-8 w-8 bg-indigo-600 rounded-full flex items-center justify-center">
+                  <div className="h-8 w-8 bg-cyan-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-medium">{getUserInitials()}</span>
                   </div>
                   <div className="hidden md:block text-left">
                     <div className="text-sm font-medium">{mounted ? getFullName() : '...'}</div>
-                    <div className="text-xs text-muted-foreground">{mounted ? ((user?.publicMetadata?.role as string) || 'Usuario') : '...'}</div>
+                    <div className="text-xs text-cyan-200">{mounted ? ((user?.publicMetadata?.role as string) || 'Usuario') : '...'}</div>
                   </div>
-                  <ChevronDown className="h-4 w-4 text-gray-500" />
+                  <ChevronDown className="h-4 w-4 text-cyan-200" />
                 </Button>
 
                 {/* Menú Desplegable */}
                 {userMenuOpen && (
                   <div className="absolute right-0 mt-4 w-72 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 py-2 z-50 transform origin-top-right transition-all animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
                     {/* Encabezado del Menú */}
-                    <div className="px-6 py-5 bg-gradient-to-br from-indigo-50/50 to-white border-b border-gray-100">
+                    <div className="px-6 py-5 bg-gradient-to-br from-cyan-50/50 to-white border-b border-gray-100">
                       <div className="flex items-center gap-4">
-                        <div className="h-12 w-12 bg-gradient-to-tr from-indigo-600 to-indigo-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-indigo-200 ring-2 ring-white">
+                        <div className="h-12 w-12 bg-gradient-to-tr from-cyan-600 to-cyan-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-cyan-200 ring-2 ring-white">
                           {getUserInitials()}
                         </div>
                         <div className="flex flex-col min-w-0">
@@ -191,7 +187,7 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                         </div>
                       </div>
                       <div className="mt-4 flex items-center gap-2">
-                        <Badge variant="secondary" className="text-[10px] font-bold bg-indigo-100/50 text-indigo-700 border-none px-2 py-0">
+                        <Badge variant="secondary" className="text-[10px] font-bold bg-cyan-100/50 text-cyan-700 border-none px-2 py-0">
                           {(user?.publicMetadata?.subscription_plan as string)?.toUpperCase() || 'BASIC PLAN'}
                         </Badge>
                         <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 border-emerald-100 bg-emerald-50/30 px-2 py-0 uppercase">
@@ -203,15 +199,15 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                     {/* Opciones del Menú */}
                     <div className="p-2 space-y-1">
                       <Link href="/account/profile" className="block group">
-                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-indigo-50/50 hover:text-indigo-600 rounded-xl transition-all duration-200">
-                          <User className="h-5 w-5 mr-3 text-gray-400 group-hover:text-indigo-500" />
+                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-cyan-50/50 hover:text-cyan-600 rounded-xl transition-all duration-200">
+                          <User className="h-5 w-5 mr-3 text-gray-400 group-hover:text-cyan-500" />
                           Mi Perfil
                         </div>
                       </Link>
                       
                       <Link href="/account/profile" className="block group">
-                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-indigo-50/50 hover:text-indigo-600 rounded-xl transition-all duration-200">
-                          <Settings className="h-5 w-5 mr-3 text-gray-400 group-hover:text-indigo-500" />
+                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-cyan-50/50 hover:text-cyan-600 rounded-xl transition-all duration-200">
+                          <Settings className="h-5 w-5 mr-3 text-gray-400 group-hover:text-cyan-500" />
                           Configuración
                         </div>
                       </Link>

@@ -269,7 +269,7 @@ export default function AccountsPayablePage() {
             <CardTitle className="text-sm font-medium text-gray-600">Total Pendiente</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalPending)}</div>
+            <div className="text-2xl font-bold text-cyan-600">{formatCurrency(totalPending)}</div>
             <div className="text-sm text-gray-500">{payables.length} facturas</div>
           </CardContent>
         </Card>
@@ -382,7 +382,7 @@ export default function AccountsPayablePage() {
                       <td className="py-3 px-4 text-right">
                         {formatCurrency(payable.total)}
                       </td>
-                      <td className="py-3 px-4 text-right font-bold text-blue-600">
+                      <td className="py-3 px-4 text-right font-bold text-cyan-600">
                         {formatCurrency(payable.balance_due)}
                       </td>
                       <td className="py-3 px-4 text-center">

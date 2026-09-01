@@ -19,6 +19,7 @@ import {
 import { useRouter, useParams } from 'next/navigation';
 import { useTenant } from '@/lib/contexts/TenantContext';
 import InvoiceLegalPreview from '@/components/billing/InvoiceLegalPreview';
+import DisneyStyleInvoice from '@/components/billing/DisneyStyleInvoice';
 
 interface Invoice {
   id: string;
@@ -136,7 +137,7 @@ export default function InvoiceDetailPage() {
       case 'OVERDUE':
         return <Badge className="bg-red-100 text-red-800">Vencida</Badge>;
       case 'ACTIVE':
-        return <Badge className="bg-blue-100 text-blue-800">Activa</Badge>;
+        return <Badge className="bg-cyan-100 text-cyan-800">Activa</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
@@ -179,7 +180,7 @@ export default function InvoiceDetailPage() {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-4xl mx-auto text-center py-12">
-          <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+          <div className="animate-spin w-8 h-8 border-2 border-cyan-600 border-t-transparent rounded-full mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando factura...</p>
         </div>
       </div>
@@ -232,7 +233,7 @@ export default function InvoiceDetailPage() {
             <div className="flex space-x-3">
               <button
                 onClick={() => router.push('/billing')}
-                className="px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                className="px-4 py-2 text-cyan-600 hover:text-cyan-800 border border-blue-300 rounded-lg hover:bg-cyan-50 transition-colors"
               >
                 ← Volver a Facturas
               </button>
@@ -244,7 +245,7 @@ export default function InvoiceDetailPage() {
                 Imprimir
               </button>
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Descargar PDF
@@ -264,7 +265,7 @@ export default function InvoiceDetailPage() {
                 onClick={() => setActiveTab('preview')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'preview'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -274,7 +275,7 @@ export default function InvoiceDetailPage() {
                 onClick={() => setActiveTab('details')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'details'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -284,7 +285,7 @@ export default function InvoiceDetailPage() {
                 onClick={() => setActiveTab('items')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'items'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -294,7 +295,7 @@ export default function InvoiceDetailPage() {
                 onClick={() => setActiveTab('payments')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'payments'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -308,14 +309,29 @@ export default function InvoiceDetailPage() {
             {activeTab === 'preview' && (
               <div className="space-y-6">
                 <div className="flex justify-end gap-3 mb-4">
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => window.print()} className="flex items-center gap-2">
                     <Printer className="w-4 h-4" />
                     Imprimir
                   </Button>
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => window.print()} className="flex items-center gap-2">
                     <Download className="w-4 h-4" />
                     Descargar PDF
                   </Button>
+                </div>
+                {/* Vista estilo Disney+ solicitada - muestra todos los paquetes activos */}
+                <DisneyStyleInvoice
+                  invoiceNumber={invoice.invoiceNumber || invoice.id}
+                  date={invoice.issueDate}
+                  planName={invoice.items?.[0]?.description || 'Diamond Accounting Premium'}
+                  amount={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(invoice.total)}
+                  plans={invoice.items?.length ? invoice.items.map((it: any) => ({ name: it.description, amount: new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(it.total) })) : undefined}
+                  cardLast4="2831"
+                  companyName={invoice.issuerName || currentTenant?.businessName || 'Diamond Accounting, S. de R.L.'}
+                  companyAddress={invoice.issuerAddress || currentTenant?.businessAddress || 'Col. Palmira, Tegucigalpa, Honduras'}
+                  companyRTN={invoice.issuerRTN || currentTenant?.businessRTN || '0801-1995-12345'}
+                />
+                <div className="pt-4 border-t">
+                  <p className="text-xs text-gray-500 text-center">Vista legal completa abajo</p>
                 </div>
                 <InvoiceLegalPreview 
                   invoice={invoice} 

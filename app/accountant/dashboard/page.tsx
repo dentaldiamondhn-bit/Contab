@@ -165,7 +165,7 @@ export default function AccountantDashboardPage() {
         <Card className="hover:shadow-lg transition-shadow">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Utilidad Neta</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${stats.netProfit >= 0 ? 'text-green-600' : 'text-red-600'}`}>
@@ -186,8 +186,8 @@ export default function AccountantDashboardPage() {
         <CardContent>
           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             <Link href="/accounting/books">
-              <Button variant="outline" className="w-full h-24 flex flex-col items-center justify-center gap-2 hover:bg-blue-50 hover:border-blue-200">
-                <BookOpen className="h-6 w-6 text-blue-600" />
+              <Button variant="outline" className="w-full h-24 flex flex-col items-center justify-center gap-2 hover:bg-cyan-50 hover:border-cyan-200">
+                <BookOpen className="h-6 w-6 text-cyan-600" />
                 <span className="text-sm">Nuevo Asiento</span>
               </Button>
             </Link>
@@ -227,7 +227,7 @@ export default function AccountantDashboardPage() {
         <CardContent>
           {loading ? (
             <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
             </div>
           ) : recentActivity.length === 0 ? (
             <div className="text-center py-8 text-gray-500">

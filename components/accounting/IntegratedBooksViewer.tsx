@@ -281,12 +281,12 @@ const IntegratedBooksViewer: React.FC = () => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
                 </div>
               ) : (
-                <div className="border rounded-md">
-                  <Table>
+                <div className="border rounded-md overflow-x-auto">
+                  <Table className="min-w-[1100px]">
                     <TableHeader>
                       <TableRow>
                         {getColumnsForBookType().map((column) => (
-                          <TableHead key={column.key}>{column.label}</TableHead>
+                          <TableHead key={column.key} className="min-w-[180px] whitespace-nowrap">{column.label}</TableHead>
                         ))}
                       </TableRow>
                     </TableHeader>

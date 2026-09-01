@@ -66,12 +66,12 @@ export default function LibroPartidas({ partidas, onEditPartida, onDeletePartida
 
   return (
     <div className="overflow-x-auto shadow-lg rounded-lg border">
-      <div className="bg-blue-50 border-b border-blue-200 p-4">
-        <h3 className="text-lg font-semibold text-blue-800">Partidas de Diario</h3>
-        <p className="text-sm text-blue-600">Registro de todos los asientos contables individuales</p>
+      <div className="bg-cyan-50 border-b border-cyan-200 p-4">
+        <h3 className="text-lg font-semibold text-cyan-800">Partidas de Diario</h3>
+        <p className="text-sm text-cyan-600">Registro de todos los asientos contables individuales</p>
       </div>
       <table className="min-w-full bg-white text-sm">
-        <thead className="bg-blue-100 border-b">
+        <thead className="bg-cyan-100 border-b">
           <tr>
             <th className="p-3 text-left w-28">Fecha</th>
             <th className="p-3 text-left w-32">Póliza</th>
@@ -92,11 +92,11 @@ export default function LibroPartidas({ partidas, onEditPartida, onDeletePartida
             </tr>
           ) : (
             allEntries.map((entry, index) => (
-              <tr key={`${entry.partidaId}-${entry.id}`} className="border-b hover:bg-blue-50">
+              <tr key={`${entry.partidaId}-${entry.id}`} className="border-b hover:bg-cyan-50">
                 <td className="p-3">
                   {format(new Date(entry.partidaDate), "dd/MM/yyyy")}
                 </td>
-                <td className="p-3 font-bold text-blue-600">
+                <td className="p-3 font-bold text-cyan-600">
                   {entry.partidaType}-{entry.partidaNumber}
                 </td>
                 <td className="p-3 text-slate-600">
@@ -139,7 +139,7 @@ export default function LibroPartidas({ partidas, onEditPartida, onDeletePartida
                           const partida = partidas.find(p => p.id === entry.partidaId);
                           if (partida) onEditPartida(partida);
                         }}
-                        className="h-8 w-8 p-0 text-blue-600 hover:text-blue-800 hover:bg-blue-100"
+                        className="h-8 w-8 p-0 text-cyan-600 hover:text-cyan-800 hover:bg-cyan-100"
                       >
                         <Edit className="h-4 w-4" />
                       </Button>
@@ -161,15 +161,15 @@ export default function LibroPartidas({ partidas, onEditPartida, onDeletePartida
           )}
         </tbody>
         {allEntries.length > 0 && (
-          <tfoot className="bg-blue-50 border-t">
+          <tfoot className="bg-cyan-50 border-t">
             <tr>
-              <td colSpan={5} className="p-3 font-semibold text-blue-800">
+              <td colSpan={5} className="p-3 font-semibold text-cyan-800">
                 Total de Partidas
               </td>
-              <td className="p-3 text-right font-bold text-blue-800 font-mono">
+              <td className="p-3 text-right font-bold text-cyan-800 font-mono">
                 {formatCurrency(allEntries.reduce((sum, entry) => sum + (entry.debit || 0), 0))}
               </td>
-              <td className="p-3 text-right font-bold text-blue-800 font-mono">
+              <td className="p-3 text-right font-bold text-cyan-800 font-mono">
                 {formatCurrency(allEntries.reduce((sum, entry) => sum + (entry.credit || 0), 0))}
               </td>
               <td className="p-3"></td>

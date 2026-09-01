@@ -120,7 +120,7 @@ export default function SARCompliancePage({ params }: SARCompliancePageProps) {
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Users className="h-5 w-5 text-blue-600" />
+            <Users className="h-5 w-5 text-cyan-600" />
             2. Validación de RTN en Clientes/Proveedores
           </CardTitle>
           <CardDescription>
@@ -150,8 +150,8 @@ export default function SARCompliancePage({ params }: SARCompliancePageProps) {
               <Badge className="bg-yellow-600">Pendiente</Badge>
             </div>
           </div>
-          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
-            <p className="text-sm text-blue-800">
+          <div className="mt-4 p-3 bg-cyan-50 rounded-lg border border-cyan-200">
+            <p className="text-sm text-cyan-800">
               <strong>Formato requerido:</strong> 0801-XXXX-XXXXX (14 dígitos). 
               El sistema valida el dígito verificador antes de permitir la facturación.
             </p>
@@ -246,10 +246,10 @@ export default function SARCompliancePage({ params }: SARCompliancePageProps) {
       </Card>
 
       {/* Audit Trail */}
-      <Card className="border-l-4 border-l-indigo-500">
+      <Card className="border-l-4 border-l-cyan-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Database className="h-5 w-5 text-indigo-600" />
+            <Database className="h-5 w-5 text-cyan-600" />
             5. Pista de Auditoría (Audit Trail)
           </CardTitle>
           <CardDescription>

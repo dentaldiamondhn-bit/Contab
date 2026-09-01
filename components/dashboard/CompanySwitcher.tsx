@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { Check, ChevronsUpDown, Building2, Users, Settings } from "lucide-react";
 import { useTenant } from "@/lib/contexts/TenantContext";
@@ -49,7 +49,7 @@ export const CompanySwitcher = ({ tenants }: CompanySwitcherProps) => {
        <PopoverTrigger asChild>
          <Button variant="outline" size="sm" className="w-[280px] justify-between h-10">
            <div className="flex items-center gap-3">
-             <Building2 className="h-4 w-4 text-indigo-600" />
+             <Building2 className="h-4 w-4 text-cyan-600" />
              <div className="flex flex-col items-start">
                <span className="truncate font-medium">{getButtonLabel()}</span>
                {currentTenant?.businessRTN && (

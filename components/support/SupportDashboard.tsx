@@ -195,7 +195,7 @@ export default function SupportDashboard() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'open': return 'bg-blue-100 text-blue-800';
+      case 'open': return 'bg-cyan-100 text-cyan-800';
       case 'in_progress': return 'bg-purple-100 text-purple-800';
       case 'resolved': return 'bg-green-100 text-green-800';
       case 'closed': return 'bg-gray-100 text-gray-800';
@@ -218,7 +218,7 @@ export default function SupportDashboard() {
       'SUPER_ADMIN': 'bg-purple-100 text-purple-800',
       'SUPPORT': 'bg-orange-100 text-orange-800',
       'ADMIN': 'bg-red-100 text-red-800',
-      'MANAGER': 'bg-blue-100 text-blue-800',
+      'MANAGER': 'bg-cyan-100 text-cyan-800',
       'USER': 'bg-green-100 text-green-800',
       'VIEWER': 'bg-gray-100 text-gray-800'
     };
@@ -369,7 +369,7 @@ export default function SupportDashboard() {
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center">
-              <Building2 className="h-8 w-8 text-blue-600" />
+              <Building2 className="h-8 w-8 text-cyan-600" />
               <div className="ml-4">
                 <p className="text-sm text-gray-600">Tenants Activos</p>
                 <p className="text-2xl font-bold">{tenants.filter(t => t.isActive).length}</p>
@@ -856,7 +856,7 @@ export default function SupportDashboard() {
                           href={att.url}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 hover:underline"
+                          className="flex items-center gap-2 text-sm text-cyan-600 hover:text-cyan-800 hover:underline"
                         >
                           <Paperclip className="w-3.5 h-3.5" />
                           <span>{att.name}</span>
@@ -897,7 +897,7 @@ export default function SupportDashboard() {
                           <div className="flex flex-col items-center">
                             <div className={`w-3 h-3 rounded-full mt-1 ${
                               event.type === 'created' ? 'bg-green-500' :
-                              event.type === 'status_change' ? 'bg-blue-500' :
+                              event.type === 'status_change' ? 'bg-cyan-500' :
                               event.type === 'comment' ? 'bg-yellow-500' :
                               'bg-gray-400'
                             }`} />
@@ -907,7 +907,7 @@ export default function SupportDashboard() {
                             <div className="flex items-center gap-2">
                               <span className={`text-xs font-medium px-2 py-0.5 rounded ${
                                 event.type === 'created' ? 'bg-green-100 text-green-700' :
-                                event.type === 'status_change' ? 'bg-blue-100 text-blue-700' :
+                                event.type === 'status_change' ? 'bg-cyan-100 text-cyan-700' :
                                 event.type === 'comment' ? 'bg-yellow-100 text-yellow-700' :
                                 'bg-gray-100 text-gray-700'
                               }`}>
@@ -923,7 +923,7 @@ export default function SupportDashboard() {
                             {event.attachments && event.attachments.length > 0 && (
                               <div className="mt-1 space-y-0.5">
                                 {event.attachments.map((att: any, j: number) => (
-                                  <a key={j} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 hover:underline">
+                                  <a key={j} href={att.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-cyan-600 hover:underline">
                                     <Paperclip className="w-3 h-3" />{att.name}
                                   </a>
                                 ))}
@@ -943,7 +943,7 @@ export default function SupportDashboard() {
                         onChange={(e) => setTicketReply(e.target.value)}
                         placeholder="Escribe un comentario sobre la actualizacion del ticket..."
                         rows={3}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-2"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none mb-2"
                       />
                       <label className="flex items-center gap-2 text-xs text-gray-500 hover:text-gray-700 cursor-pointer mb-2">
                         <Paperclip className="w-3.5 h-3.5" />
@@ -1156,7 +1156,7 @@ export default function SupportDashboard() {
                 onChange={e => setHelpMessage(e.target.value)}
                 placeholder="Escribe un mensaje o instruccion para el usuario..."
                 rows={3}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none mb-2"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 resize-none mb-2"
               />
               <div className="flex justify-end gap-2">
                 <Button variant="outline" size="sm" onClick={() => setShowUserModal(false)}>Cerrar</Button>

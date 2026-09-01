@@ -177,7 +177,7 @@ export default function ISVReport({
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm text-gray-600">ISV Estándar (15%)</p>
-                        <p className="text-2xl font-bold text-blue-600">
+                        <p className="text-2xl font-bold text-cyan-600">
                           {summary.formattedAmounts.standardISV}
                         </p>
                       </div>
@@ -267,7 +267,7 @@ export default function ISVReport({
                                 </td>
                                 <td className="text-right p-3 border-b">
                                   <div className="flex flex-col items-end">
-                                    <span className="text-blue-600">
+                                    <span className="text-cyan-600">
                                       {formatCurrency(isvEntry?.amount || 0)}
                                     </span>
                                     <Badge variant="outline" className="text-xs mt-1">

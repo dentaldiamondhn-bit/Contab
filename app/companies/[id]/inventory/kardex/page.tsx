@@ -197,11 +197,11 @@ export default function KardexPage() {
 
       {/* Product Info */}
       {selectedProductData && (
-        <Card className="bg-blue-50 border-blue-200">
+        <Card className="bg-cyan-50 border-cyan-200">
           <CardContent className="p-4">
             <div className="flex justify-between items-center">
               <div className="flex items-center gap-4">
-                <Package className="w-8 h-8 text-blue-600" />
+                <Package className="w-8 h-8 text-cyan-600" />
                 <div>
                   <h3 className="font-semibold text-lg">
                     {selectedProductData.code} - {selectedProductData.name}
@@ -213,7 +213,7 @@ export default function KardexPage() {
               </div>
               <div className="text-right">
                 <p className="text-sm text-gray-500">Costo Actual</p>
-                <p className="text-xl font-bold text-blue-600">
+                <p className="text-xl font-bold text-cyan-600">
                   L {selectedProductData.current_cost?.toFixed(2)}
                 </p>
               </div>

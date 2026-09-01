@@ -85,7 +85,7 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
           {statistics && (
             <div className="grid grid-cols-2 gap-4 mb-4">
               <div className="text-center">
-                <div className="text-2xl font-bold text-blue-600">{statistics.purchases.count}</div>
+                <div className="text-2xl font-bold text-cyan-600">{statistics.purchases.count}</div>
                 <div className="text-xs text-muted-foreground">Compras</div>
               </div>
               <div className="text-center">
@@ -97,7 +97,7 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
           
           <div className="space-y-2">
             <div className="flex items-start gap-2 text-xs">
-              <FileText className="w-3 h-3 text-blue-600 mt-0.5" />
+              <FileText className="w-3 h-3 text-cyan-600 mt-0.5" />
               <div className="flex-1">
                 <p className="font-medium">Período actual: {currentPeriod}</p>
                 <p className="text-muted-foreground">
@@ -147,12 +147,12 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Compras</p>
-                  <p className="text-2xl font-bold text-blue-600">{statistics.purchases.count}</p>
+                  <p className="text-2xl font-bold text-cyan-600">{statistics.purchases.count}</p>
                   <p className="text-xs text-muted-foreground">
                     L {(statistics.purchases.total / 100).toFixed(2)}
                   </p>
                 </div>
-                <TrendingUp className="w-6 h-6 text-blue-600" />
+                <TrendingUp className="w-6 h-6 text-cyan-600" />
               </div>
             </CardContent>
           </Card>
@@ -237,7 +237,7 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <AlertTriangle className="w-5 h-5 text-blue-600" />
+            <AlertTriangle className="w-5 h-5 text-cyan-600" />
             Información de Exportación
           </CardTitle>
         </CardHeader>
@@ -248,7 +248,7 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
                 <h4 className="font-medium mb-2">Formatos Disponibles</h4>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-blue-100 text-blue-800">.txt</Badge>
+                    <Badge className="bg-cyan-100 text-cyan-800">.txt</Badge>
                     <span className="text-sm">Formato oficial SAR (DET Live)</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -262,7 +262,7 @@ export default function DETDashboard({ compact = false }: DETDashboardProps) {
                 <h4 className="font-medium mb-2">Tipos de Archivos</h4>
                 <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <Badge className="bg-blue-100 text-blue-800 text-xs">C</Badge>
+                    <Badge className="bg-cyan-100 text-cyan-800 text-xs">C</Badge>
                     <span className="text-sm">Compras</span>
                   </div>
                   <div className="flex items-center gap-2">

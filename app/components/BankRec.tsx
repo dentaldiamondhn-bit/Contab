@@ -226,7 +226,7 @@ export default function BankRec() {
           accept=".xlsx,.xls"
           onChange={handleExcelImport}
           disabled={loading}
-          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+          className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-cyan-50 file:text-cyan-700 hover:file:bg-cyan-100"
         />
         {loading && <p className="text-sm text-gray-500 mt-2">Loading...</p>}
       </div>
@@ -245,7 +245,7 @@ export default function BankRec() {
                   key={bankRow.id}
                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                     isSelected 
-                      ? 'border-blue-500 bg-blue-50' 
+                      ? 'border-cyan-500 bg-cyan-50' 
                       : match?.suggestedId 
                         ? 'border-green-500 bg-green-50' 
                         : 'border-gray-200 hover:border-gray-300'
@@ -286,7 +286,7 @@ export default function BankRec() {
                   key={entry.id}
                   className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                     isSelected 
-                      ? 'border-blue-500 bg-blue-50' 
+                      ? 'border-cyan-500 bg-cyan-50' 
                       : 'border-gray-200 hover:border-gray-300'
                   }`}
                   onClick={() => setSelectedLedgerEntry(isSelected ? null : entry.id)}

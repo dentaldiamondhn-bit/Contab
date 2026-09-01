@@ -80,7 +80,7 @@ export default function MasterDashboard() {
       description: 'Create journal entries with automated tax calculation',
       icon: <Receipt className="w-5 h-5" />,
       href: '/tax-helper',
-      color: 'bg-blue-500',
+      color: 'bg-cyan-500',
       module: 'ACCOUNTING',
     },
     {
@@ -184,11 +184,11 @@ export default function MasterDashboard() {
         </div>
 
         {/* System Status */}
-        <Card className="mb-6 bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+        <Card className="mb-6 bg-gradient-to-r from-cyan-50 to-cyan-50 border-cyan-200">
           <CardContent className="pt-6">
             <div className="flex items-center space-x-4">
-              <div className="p-3 bg-blue-100 rounded-full">
-                <Shield className="w-6 h-6 text-blue-600" />
+              <div className="p-3 bg-cyan-100 rounded-full">
+                <Shield className="w-6 h-6 text-cyan-600" />
               </div>
               <div className="flex-1">
                 <h3 className="font-semibold text-gray-900">System Status: Operational</h3>
@@ -259,7 +259,7 @@ export default function MasterDashboard() {
           <Card className="mb-6">
             <CardHeader className="pb-2">
               <CardTitle className="text-sm font-medium flex items-center gap-2">
-                <BarChart className="w-4 h-4 text-blue-600" />
+                <BarChart className="w-4 h-4 text-cyan-600" />
                 Uso de Transacciones Mensuales
               </CardTitle>
             </CardHeader>
@@ -270,7 +270,7 @@ export default function MasterDashboard() {
               </div>
               <div className="w-full bg-gray-100 rounded-full h-2.5">
                 <div 
-                  className={`h-2.5 rounded-full transition-all ${usagePercentage > 90 ? 'bg-red-500' : 'bg-blue-600'}`} 
+                  className={`h-2.5 rounded-full transition-all ${usagePercentage > 90 ? 'bg-red-500' : 'bg-cyan-600'}`} 
                   style={{ width: `${usagePercentage}%` }}
                 ></div>
               </div>
@@ -497,8 +497,8 @@ export default function MasterDashboard() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="text-center p-4 bg-blue-50 rounded-lg">
-                <div className="text-lg font-semibold text-blue-700">1. Data Entry</div>
+              <div className="text-center p-4 bg-cyan-50 rounded-lg">
+                <div className="text-lg font-semibold text-cyan-700">1. Data Entry</div>
                 <p className="text-sm text-gray-600 mt-1">Multi-currency transactions with auto-tax</p>
               </div>
               <div className="text-center p-4 bg-green-50 rounded-lg">

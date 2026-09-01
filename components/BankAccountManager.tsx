@@ -145,7 +145,7 @@ export default function BankAccountManager() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
-          <Building2 className="w-6 h-6 text-indigo-600" />
+          <Building2 className="w-6 h-6 text-cyan-600" />
           <h2 className="text-2xl font-bold text-slate-900">Administración de Cuentas Bancarias</h2>
         </div>
         <div className="flex items-center space-x-2">

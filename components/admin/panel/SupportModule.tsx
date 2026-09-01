@@ -112,7 +112,7 @@ export default function SupportModule() {
         ] as const).map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key ? "border-blue-500 text-blue-600 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t.key ? "border-cyan-500 text-cyan-600 bg-cyan-50" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
             {t.label}
           </button>
@@ -142,7 +142,7 @@ export default function SupportModule() {
             </div>
 
             {loading ? (
-              <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+              <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" /></div>
             ) : tickets.length === 0 ? (
               <div className="p-12 text-center text-gray-500">
                 <p className="text-lg mb-2">🎫</p>
@@ -156,7 +156,7 @@ export default function SupportModule() {
                     <div className="flex items-center gap-3">
                       <div className={`w-2 h-2 rounded-full flex-shrink-0 ${
                         ticket.priority === "HIGH" ? "bg-red-500" :
-                        ticket.priority === "MEDIUM" ? "bg-yellow-500" : "bg-blue-500"
+                        ticket.priority === "MEDIUM" ? "bg-yellow-500" : "bg-cyan-500"
                       }`} />
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-medium text-gray-900 truncate">{ticket.subject}</div>
@@ -172,7 +172,7 @@ export default function SupportModule() {
                         <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                           ticket.priority === "HIGH" ? "bg-red-100 text-red-800" :
                           ticket.priority === "MEDIUM" ? "bg-yellow-100 text-yellow-800" :
-                          "bg-blue-100 text-blue-800"
+                          "bg-cyan-100 text-cyan-800"
                         }`}>{ticket.priority}</span>
                       </div>
                     </div>
@@ -209,7 +209,7 @@ export default function SupportModule() {
                 placeholder="El sistema estará en mantenimiento el día..." />
             </div>
             <button onClick={sendNotification} disabled={!notifTitle || !notifMessage}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+              className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50">
               Enviar a Todos los Usuarios
             </button>
           </div>
@@ -224,7 +224,7 @@ export default function SupportModule() {
                       <span className={`px-2 py-0.5 text-xs rounded-full ${
                         n.type === "maintenance" ? "bg-orange-100 text-orange-800" :
                         n.type === "warning" ? "bg-yellow-100 text-yellow-800" :
-                        "bg-blue-100 text-blue-800"
+                        "bg-cyan-100 text-cyan-800"
                       }`}>{n.type}</span>
                       <span className="text-sm font-medium">{n.title}</span>
                       <span className="text-xs text-gray-500">{n.sentAt ? new Date(n.sentAt).toLocaleString("es-HN") : ""}</span>
@@ -242,7 +242,7 @@ export default function SupportModule() {
         <div className="bg-white rounded-lg shadow p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Copias de Seguridad</h3>
-            <button className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Crear Backup Ahora</button>
+            <button className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700">Crear Backup Ahora</button>
           </div>
           <p className="text-sm text-gray-500 mb-4">Backups automáticos diarios de la base de datos</p>
           <div className="overflow-x-auto">
@@ -264,7 +264,7 @@ export default function SupportModule() {
                       <span className="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800">{b.status}</span>
                     </td>
                     <td className="px-4 py-3 text-sm space-x-2">
-                      <button className="text-blue-600 hover:text-blue-800 text-xs">Descargar</button>
+                      <button className="text-cyan-600 hover:text-cyan-800 text-xs">Descargar</button>
                       <button className="text-green-600 hover:text-green-800 text-xs">Restaurar</button>
                     </td>
                   </tr>
@@ -332,7 +332,7 @@ export default function SupportModule() {
                 <span className={`px-2 py-1 text-xs font-semibold rounded-full ${
                   selectedTicket.priority === "HIGH" ? "bg-red-100 text-red-800" :
                   selectedTicket.priority === "MEDIUM" ? "bg-yellow-100 text-yellow-800" :
-                  "bg-blue-100 text-blue-800"
+                  "bg-cyan-100 text-cyan-800"
                 }`}>{selectedTicket.priority}</span>
               </div>
               <p className="text-sm text-gray-700">{selectedTicket.description}</p>

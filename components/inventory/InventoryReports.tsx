@@ -219,7 +219,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando reportes de inventario...</p>
           </div>
         </CardContent>
@@ -269,10 +269,10 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-            <Package className="h-4 w-4 text-blue-600" />
+            <Package className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               {stats.totalProducts}
             </div>
             <p className="text-xs text-gray-600">
@@ -402,7 +402,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-blue-600">
+                      <div className="font-bold text-cyan-600">
                         L. {(category.value / 100).toFixed(2)}
                       </div>
                       <div className="text-sm text-gray-600">
@@ -466,7 +466,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="font-semibold mb-3 text-blue-700">Acciones Inmediatas</h4>
+              <h4 className="font-semibold mb-3 text-cyan-700">Acciones Inmediatas</h4>
               <ul className="space-y-2 text-sm text-gray-600">
                 {stats.outOfStockItems > 0 && (
                   <li className="flex items-start">
@@ -493,7 +493,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
               <ul className="space-y-2 text-sm text-gray-600">
                 {stats.stockTurnover < 2 && (
                   <li className="flex items-start">
-                    <TrendingUp className="h-4 w-4 mr-2 text-blue-500 mt-0.5" />
+                    <TrendingUp className="h-4 w-4 mr-2 text-cyan-500 mt-0.5" />
                     <span>Implementar programa de reducción de inventario</span>
                   </li>
                 )}

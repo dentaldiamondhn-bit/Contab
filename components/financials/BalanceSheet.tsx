@@ -133,7 +133,7 @@ export default function BalanceSheet({ tenantId }: BalanceSheetProps) {
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando balance general...</p>
           </div>
         </CardContent>
@@ -190,10 +190,10 @@ export default function BalanceSheet({ tenantId }: BalanceSheetProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Patrimonio</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               L. {summary.patrimonio.toFixed(2)}
             </div>
             <p className="text-xs text-gray-600">
@@ -304,24 +304,24 @@ export default function BalanceSheet({ tenantId }: BalanceSheetProps) {
 
               {/* Patrimonio */}
               <div className="mb-4">
-                <h4 className="font-medium text-blue-600 mb-2">Patrimonio</h4>
-                <div className="bg-blue-50 rounded-lg p-4">
+                <h4 className="font-medium text-cyan-600 mb-2">Patrimonio</h4>
+                <div className="bg-cyan-50 rounded-lg p-4">
                   {groupedData['PATRIMONIO']?.map((item, index) => (
                     <div key={index} className="flex justify-between py-2 border-b border-blue-100 last:border-0">
                       <div>
                         <span className="font-medium">{item.codigo_cuenta}</span>
                         <span className="ml-2 text-gray-600">{item.nombre_cuenta}</span>
                       </div>
-                      <span className="font-medium text-blue-700">
+                      <span className="font-medium text-cyan-700">
                         L. {item.saldo.toFixed(2)}
                       </span>
                     </div>
                   )) || (
                     <p className="text-gray-500 italic">No hay patrimonio registrado</p>
                   )}
-                  <div className="flex justify-between pt-2 mt-2 border-t border-blue-200 font-bold">
+                  <div className="flex justify-between pt-2 mt-2 border-t border-cyan-200 font-bold">
                     <span>Total Patrimonio:</span>
-                    <span className="text-blue-700">L. {summary.patrimonio.toFixed(2)}</span>
+                    <span className="text-cyan-700">L. {summary.patrimonio.toFixed(2)}</span>
                   </div>
                 </div>
               </div>

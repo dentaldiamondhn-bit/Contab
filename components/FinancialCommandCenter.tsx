@@ -250,9 +250,9 @@ export default function FinancialCommandCenter() {
           value={formatCurrency(metrics.netProfit)}
           change={15.7}
           icon={Target}
-          color="text-blue-600"
-          bgColor="bg-blue-50"
-          borderColor="border-blue-200"
+          color="text-cyan-600"
+          bgColor="bg-cyan-50"
+          borderColor="border-cyan-200"
           subtitle="MTD"
         />
         <MetricCard
@@ -277,7 +277,7 @@ export default function FinancialCommandCenter() {
                 <p className="text-xl font-bold text-gray-900">{operationalMetrics.totalPatients.toLocaleString()}</p>
                 <p className="text-xs text-green-600 mt-1">+5.2% from last month</p>
               </div>
-              <Users className="w-8 h-8 text-blue-600" />
+              <Users className="w-8 h-8 text-cyan-600" />
             </div>
           </CardContent>
         </Card>
@@ -301,9 +301,9 @@ export default function FinancialCommandCenter() {
               <div>
                 <p className="text-xs font-medium text-gray-500 uppercase">Avg Transaction</p>
                 <p className="text-xl font-bold text-gray-900">{formatCurrency(operationalMetrics.avgTransactionValue)}</p>
-                <p className="text-xs text-blue-600 mt-1">+3.1% from last month</p>
+                <p className="text-xs text-cyan-600 mt-1">+3.1% from last month</p>
               </div>
-              <BarChart3 className="w-8 h-8 text-indigo-600" />
+              <BarChart3 className="w-8 h-8 text-cyan-600" />
             </div>
           </CardContent>
         </Card>
@@ -425,7 +425,7 @@ export default function FinancialCommandCenter() {
               <span className="text-sm text-gray-600">All Systems Operational</span>
             </div>
             <div className="flex items-center space-x-2">
-              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+              <div className="w-2 h-2 bg-cyan-500 rounded-full"></div>
               <span className="text-sm text-gray-600">Database Connected</span>
             </div>
             <div className="flex items-center space-x-2">

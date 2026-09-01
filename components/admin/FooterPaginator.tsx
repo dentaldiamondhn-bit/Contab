@@ -131,7 +131,7 @@ export default function FooterPaginator({
                     onClick={() => onPageChange(page)}
                     className={`relative inline-flex items-center px-4 py-2 border text-sm font-medium ${
                       currentPage === page
-                        ? 'z-10 bg-blue-50 border-blue-500 text-blue-600'
+                        ? 'z-10 bg-cyan-50 border-cyan-500 text-cyan-600'
                         : 'bg-white border-gray-300 text-gray-500 hover:bg-gray-50'
                     }`}
                   >
@@ -168,7 +168,7 @@ export default function FooterPaginator({
                 value={inputPage}
                 onChange={handleInputChange}
                 onBlur={handleInputSubmit}
-                className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-16 px-2 py-1 border border-gray-300 rounded-md text-sm text-center focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                 placeholder={currentPage.toString()}
               />
               <span className="text-sm text-gray-500">de {totalPages}</span>

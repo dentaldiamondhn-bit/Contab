@@ -107,7 +107,7 @@ export default function AdminInvoicesPage() {
       case 'OVERDUE':
         return <Badge className="bg-red-100 text-red-800">Vencida</Badge>;
       case 'ACTIVE':
-        return <Badge className="bg-blue-100 text-blue-800">Activa</Badge>;
+        return <Badge className="bg-cyan-100 text-cyan-800">Activa</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
@@ -129,7 +129,7 @@ export default function AdminInvoicesPage() {
   const getInvoiceTypeColor = (type: string) => {
     switch (type) {
       case 'CUSTOMER':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
       case 'SUBSCRIPTION':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'EXPENSE':
@@ -223,7 +223,7 @@ export default function AdminInvoicesPage() {
                   onClick={() => setActiveType(tab.key as any)}
                   className={`py-4 px-6 border-b-2 font-medium text-sm ${
                     activeType === tab.key
-                      ? 'border-blue-500 text-blue-600'
+                      ? 'border-cyan-500 text-cyan-600'
                       : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                   }`}
                 >
@@ -246,14 +246,14 @@ export default function AdminInvoicesPage() {
                   placeholder="Buscar por número, cliente, RTN o empresa..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 />
               </div>
             </div>
 
             {loading ? (
               <div className="text-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
                 <p className="text-gray-500">Cargando facturas...</p>
               </div>
             ) : filteredInvoices.length === 0 ? (
@@ -322,7 +322,7 @@ export default function AdminInvoicesPage() {
                           <div className="flex justify-center gap-2">
                             <button
                               onClick={() => router.push(`/admin/billing/invoices/${invoice.id}`)}
-                              className="text-blue-600 hover:text-blue-900"
+                              className="text-cyan-600 hover:text-blue-900"
                               title="Ver detalle"
                             >
                               <Eye className="h-5 w-5" />

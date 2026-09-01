@@ -973,18 +973,18 @@ export default function TenantSettingsPage() {
       )}
 
       {/* Botón para Establecer Configuración */}
-      <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+      <div className="mb-6 p-4 bg-cyan-50 border border-cyan-200 rounded-lg">
         <div className="flex items-center justify-between">
           <div>
             <h4 className="font-semibold text-blue-900 mb-1">Establecer Configuración de Facturación</h4>
-            <p className="text-sm text-blue-700">
+            <p className="text-sm text-cyan-700">
               Guarda todos los cambios realizados y establece la configuración actual como la configuración definitiva de facturación.
             </p>
           </div>
           <Button 
             onClick={handleEstablishConfiguration}
             disabled={establishingConfig}
-            className="bg-blue-600 hover:bg-blue-700 text-white"
+            className="bg-cyan-600 hover:bg-cyan-700 text-white"
           >
             <Check className="h-4 w-4 mr-2" />
             {establishingConfig ? 'Estableciendo...' : 'Establecer Configuración'}
@@ -1046,7 +1046,7 @@ export default function TenantSettingsPage() {
           
           <div className="flex items-center justify-center">
             <label className="cursor-pointer">
-              <div className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              <div className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors">
                 <Upload className="h-4 w-4" />
                 <span>{uploadingLogo ? 'Subiendo...' : 'Subir Logo'}</span>
               </div>
@@ -1113,7 +1113,7 @@ export default function TenantSettingsPage() {
                           ...prev, 
                           isv15Enabled: e.target.checked 
                         }))}
-                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="h-4 w-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <span className="text-sm text-gray-600">
                         {taxConfig.isv15Enabled ? 'Activo' : 'Inactivo'}
@@ -1139,7 +1139,7 @@ export default function TenantSettingsPage() {
                           ...prev, 
                           isv18Enabled: e.target.checked 
                         }))}
-                        className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                        className="h-4 w-4 text-cyan-600 rounded focus:ring-cyan-500"
                       />
                       <span className="text-sm text-gray-600">
                         {taxConfig.isv18Enabled ? 'Activo' : 'Inactivo'}
@@ -1186,7 +1186,7 @@ export default function TenantSettingsPage() {
                     type="button"
                     size="sm"
                     onClick={addCustomTax}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-cyan-600 hover:bg-cyan-700"
                   >
                     <Plus className="h-3 w-3 mr-1" />
                     Agregar Impuesto
@@ -1233,7 +1233,7 @@ export default function TenantSettingsPage() {
                                 type="checkbox"
                                 checked={tax.enabled}
                                 onChange={(e) => updateCustomTax(tax.id, 'enabled', e.target.checked)}
-                                className="h-4 w-4 text-blue-600 rounded focus:ring-blue-500"
+                                className="h-4 w-4 text-cyan-600 rounded focus:ring-cyan-500"
                               />
                               <span className="text-sm text-gray-600">
                                 {tax.enabled ? 'Activo' : 'Inactivo'}
@@ -1337,7 +1337,7 @@ export default function TenantSettingsPage() {
                         <Badge className={cai.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}>
                           {cai.isActive ? 'Activo' : 'Inactivo'}
                         </Badge>
-                        <Badge className="bg-blue-100 text-blue-800">
+                        <Badge className="bg-cyan-100 text-cyan-800">
                           {cai.taxRate}% ISV
                         </Badge>
                       </div>

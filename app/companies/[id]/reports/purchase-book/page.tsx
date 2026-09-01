@@ -248,7 +248,7 @@ export default function PurchaseBookPage() {
             <CardTitle className="text-sm font-medium text-gray-600">ISV Total</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{formatCurrency(totals.tax)}</div>
+            <div className="text-2xl font-bold text-cyan-600">{formatCurrency(totals.tax)}</div>
           </CardContent>
         </Card>
       </div>
@@ -314,7 +314,7 @@ export default function PurchaseBookPage() {
       </Card>
 
       {/* SAR Format Notice */}
-      <Card className="bg-blue-50 border-blue-200 print:hidden">
+      <Card className="bg-cyan-50 border-cyan-200 print:hidden">
         <CardHeader>
           <CardTitle className="text-sm flex items-center gap-2">
             <Calculator className="w-4 h-4" />

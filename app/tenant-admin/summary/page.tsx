@@ -282,7 +282,7 @@ export default function TenantSummaryPage() {
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Plan</label>
-                <Badge className="bg-blue-100 text-blue-800">{summary.basicInfo.plan}</Badge>
+                <Badge className="bg-cyan-100 text-cyan-800">{summary.basicInfo.plan}</Badge>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">Estado</label>
@@ -322,7 +322,7 @@ export default function TenantSummaryPage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-sm text-gray-600">Recientes</span>
-                  <span className="font-semibold text-blue-600">{summary.users.recent}</span>
+                  <span className="font-semibold text-cyan-600">{summary.users.recent}</span>
                 </div>
               </div>
             </CardContent>

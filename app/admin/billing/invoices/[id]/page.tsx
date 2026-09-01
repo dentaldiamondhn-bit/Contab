@@ -128,7 +128,7 @@ export default function AdminInvoiceDetailPage() {
       case 'OVERDUE':
         return <Badge className="bg-red-100 text-red-800">Vencida</Badge>;
       case 'ACTIVE':
-        return <Badge className="bg-blue-100 text-blue-800">Activa</Badge>;
+        return <Badge className="bg-cyan-100 text-cyan-800">Activa</Badge>;
       default:
         return <Badge className="bg-gray-100 text-gray-800">{status}</Badge>;
     }
@@ -150,7 +150,7 @@ export default function AdminInvoiceDetailPage() {
   const getInvoiceTypeColor = (type: string) => {
     switch (type) {
       case 'CUSTOMER':
-        return 'bg-blue-50 text-blue-700 border-blue-200';
+        return 'bg-cyan-50 text-cyan-700 border-cyan-200';
       case 'SUBSCRIPTION':
         return 'bg-purple-50 text-purple-700 border-purple-200';
       case 'EXPENSE':
@@ -186,7 +186,7 @@ export default function AdminInvoiceDetailPage() {
     return (
       <div className="min-h-screen bg-gray-100">
         <div className="flex items-center justify-center py-12">
-          <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mr-3"></div>
+          <div className="animate-spin w-8 h-8 border-2 border-cyan-600 border-t-transparent rounded-full mr-3"></div>
           <p className="text-gray-600">Cargando factura...</p>
         </div>
       </div>
@@ -254,7 +254,7 @@ export default function AdminInvoiceDetailPage() {
             <div className="flex space-x-3">
               <button
                 onClick={() => router.push('/admin/billing/invoices')}
-                className="px-4 py-2 text-blue-600 hover:text-blue-800 border border-blue-300 rounded-lg hover:bg-blue-50 transition-colors"
+                className="px-4 py-2 text-cyan-600 hover:text-cyan-800 border border-blue-300 rounded-lg hover:bg-cyan-50 transition-colors"
               >
                 ← Volver a Facturas
               </button>
@@ -266,7 +266,7 @@ export default function AdminInvoiceDetailPage() {
                 Imprimir
               </button>
               <button
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
                 Descargar PDF
@@ -293,7 +293,7 @@ export default function AdminInvoiceDetailPage() {
                 onClick={() => setActiveTab('preview')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'preview'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -303,7 +303,7 @@ export default function AdminInvoiceDetailPage() {
                 onClick={() => setActiveTab('details')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'details'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >
@@ -313,7 +313,7 @@ export default function AdminInvoiceDetailPage() {
                 onClick={() => setActiveTab('payments')}
                 className={`py-4 px-6 border-b-2 font-medium text-sm ${
                   activeTab === 'payments'
-                    ? 'border-blue-500 text-blue-600'
+                    ? 'border-cyan-500 text-cyan-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
                 }`}
               >

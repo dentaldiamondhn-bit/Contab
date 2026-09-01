@@ -163,11 +163,11 @@ export default function HistoricoRetenciones({
   return (
     <div className="space-y-4">
       {/* Resumen del mes */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+      <Card className="bg-gradient-to-r from-cyan-50 to-cyan-50 border border-cyan-200">
         <CardContent className="p-4">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             <div className="text-center">
-              <p className="text-2xl font-bold text-blue-700">{comprobantesFiltrados.length}</p>
+              <p className="text-2xl font-bold text-cyan-700">{comprobantesFiltrados.length}</p>
               <p className="text-xs text-gray-600">Comprobantes Emitidos</p>
             </div>
             <div className="text-center">
@@ -194,7 +194,7 @@ export default function HistoricoRetenciones({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Filter className="h-5 w-5 text-blue-600" />
+            <Filter className="h-5 w-5 text-cyan-600" />
             Búsqueda y Filtros
           </CardTitle>
         </CardHeader>
@@ -244,7 +244,7 @@ export default function HistoricoRetenciones({
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <FileText className="h-5 w-5 text-blue-600" />
+            <FileText className="h-5 w-5 text-cyan-600" />
             Histórico de Comprobantes de Retención
           </CardTitle>
           <CardDescription>
@@ -329,7 +329,7 @@ export default function HistoricoRetenciones({
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <CheckCircle className="h-5 w-5 text-blue-600" />
+            <CheckCircle className="h-5 w-5 text-cyan-600" />
             Validación de Comprobantes
           </CardTitle>
         </CardHeader>

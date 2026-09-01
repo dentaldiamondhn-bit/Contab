@@ -283,7 +283,7 @@ export default function SystemConfigPage() {
       <div className="min-h-screen bg-gray-50 p-8">
         <div className="max-w-6xl mx-auto">
           <div className="text-center">
-            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
+            <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-cyan-600" />
             <p>Cargando configuración del sistema...</p>
           </div>
         </div>

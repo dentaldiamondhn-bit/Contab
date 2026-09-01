@@ -33,7 +33,7 @@ export default function TenantAdminLayout({
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando...</p>
         </div>
       </div>
@@ -44,11 +44,11 @@ export default function TenantAdminLayout({
 
   return (
     <TenantProvider>
-      <div className="flex h-screen bg-gray-50 overflow-hidden">
-        <RoleBasedSidebar />
+      <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
+        <TenantHeader tenants={[]} />
 
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <TenantHeader tenants={[]} />
+        <div className="flex flex-1 min-h-0 overflow-hidden">
+          <RoleBasedSidebar />
 
           <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
             <ErrorBoundary>

@@ -112,7 +112,7 @@ export default function AdminAuditPage() {
       case 'CREATE':
         return <Plus className="w-4 h-4 text-green-500" />;
       case 'UPDATE':
-        return <Edit className="w-4 h-4 text-blue-500" />;
+        return <Edit className="w-4 h-4 text-cyan-500" />;
       case 'DELETE':
         return <Trash2 className="w-4 h-4 text-red-500" />;
       default:
@@ -125,7 +125,7 @@ export default function AdminAuditPage() {
       case 'CREATE':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'UPDATE':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'DELETE':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
@@ -217,7 +217,7 @@ export default function AdminAuditPage() {
                   <p className="text-sm font-medium text-gray-600">Total Registros</p>
                   <p className="text-2xl font-bold text-gray-900">{logs.length}</p>
                 </div>
-                <Shield className="w-8 h-8 text-blue-400" />
+                <Shield className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -239,11 +239,11 @@ export default function AdminAuditPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Actualizaciones</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-cyan-600">
                     {logs.filter(l => l.action === 'UPDATE').length}
                   </p>
                 </div>
-                <Edit className="w-8 h-8 text-blue-400" />
+                <Edit className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>
@@ -274,7 +274,7 @@ export default function AdminAuditPage() {
                     placeholder="Buscar por tabla, registro, usuario o tenant..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                   />
                 </div>
               </div>
@@ -283,7 +283,7 @@ export default function AdminAuditPage() {
                 <select
                   value={dateRange}
                   onChange={(e) => setDateRange(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="1">Últimas 24 horas</option>
                   <option value="7">Últimos 7 días</option>
@@ -293,7 +293,7 @@ export default function AdminAuditPage() {
                 <select
                   value={filter}
                   onChange={(e) => setFilter(e.target.value as any)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="all">Todas las acciones</option>
                   <option value="CREATE">Creaciones</option>
@@ -303,7 +303,7 @@ export default function AdminAuditPage() {
                 <select
                   value={tableFilter}
                   onChange={(e) => setTableFilter(e.target.value)}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-cyan-500 focus:border-transparent"
                 >
                   <option value="all">Todas las tablas</option>
                   {getUniqueTables().map(table => (
@@ -379,7 +379,7 @@ export default function AdminAuditPage() {
                             Registro: <span className="font-mono text-xs bg-gray-100 px-1 py-0.5 rounded">{log.recordId}</span>
                           </p>
                           {log.tenantName && (
-                            <p className="text-xs text-blue-600 mt-1">
+                            <p className="text-xs text-cyan-600 mt-1">
                               <Building2 className="w-3 h-3 inline mr-1" />
                               {log.tenantName}
                             </p>
@@ -431,7 +431,7 @@ export default function AdminAuditPage() {
                               <span className="text-sm font-medium text-gray-700">Campos modificados:</span>
                               <div className="flex flex-wrap gap-1 mt-1">
                                 {log.changedFields.map((field, idx) => (
-                                  <span key={idx} className="px-2 py-1 bg-blue-100 text-blue-700 text-xs rounded">
+                                  <span key={idx} className="px-2 py-1 bg-cyan-100 text-cyan-700 text-xs rounded">
                                     {field}
                                   </span>
                                 ))}

@@ -64,7 +64,7 @@ export function TenantModuleManager({ tenantId, initialModules, onUpdate }: Tena
     <Card>
       <CardHeader>
         <CardTitle className="text-lg flex items-center gap-2">
-          <Package className="w-5 h-5 text-blue-600" />
+          <Package className="w-5 h-5 text-cyan-600" />
           Gestión de Módulos Activos
         </CardTitle>
         <CardDescription>
@@ -80,11 +80,11 @@ export function TenantModuleManager({ tenantId, initialModules, onUpdate }: Tena
                 key={module.id}
                 onClick={() => toggleModule(module.id)}
                 className={`flex items-center justify-between p-3 rounded-lg border-2 cursor-pointer transition-all ${
-                  isActive ? 'border-blue-600 bg-blue-50/30' : 'border-gray-100 hover:border-gray-200'
+                  isActive ? 'border-cyan-600 bg-cyan-50/30' : 'border-gray-100 hover:border-gray-200'
                 }`}
               >
                 <div className="flex items-center gap-3">
-                  <module.icon className={`w-5 h-5 ${isActive ? 'text-blue-600' : 'text-gray-400'}`} />
+                  <module.icon className={`w-5 h-5 ${isActive ? 'text-cyan-600' : 'text-gray-400'}`} />
                   <span className={`font-medium ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
                     {module.name}
                   </span>
@@ -106,7 +106,7 @@ export function TenantModuleManager({ tenantId, initialModules, onUpdate }: Tena
         <Button 
           onClick={handleSave} 
           disabled={isSaving} 
-          className="w-full bg-blue-600 hover:bg-blue-700"
+          className="w-full bg-cyan-600 hover:bg-cyan-700"
         >
           {isSaving ? (
             <Loader2 className="w-4 h-4 mr-2 animate-spin" />

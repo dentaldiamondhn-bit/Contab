@@ -150,7 +150,7 @@ export function BatchPolizaPrinter({ transactions }: BatchPolizaPrinterProps) {
               <div
                 key={transaction.id}
                 className={`grid grid-cols-6 gap-4 p-3 text-sm hover:bg-gray-50 ${
-                  isSelected ? 'bg-blue-50' : ''
+                  isSelected ? 'bg-cyan-50' : ''
                 }`}
               >
                 <div className="col-span-1 flex items-center">

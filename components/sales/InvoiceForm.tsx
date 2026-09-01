@@ -300,7 +300,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
     <Card className="w-full max-w-6xl mx-auto">
       <CardHeader>
         <div className="flex items-center space-x-2">
-          <FileText className="h-6 w-6 text-blue-600" />
+          <FileText className="h-6 w-6 text-cyan-600" />
           <CardTitle className="text-2xl">Nueva Factura</CardTitle>
         </div>
         <CardDescription>
@@ -529,7 +529,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
               </div>
               <div>
                 <span className="text-gray-600">ISV:</span>
-                <div className="text-xl font-bold text-blue-600">L. {(totals.taxAmount / 100).toFixed(2)}</div>
+                <div className="text-xl font-bold text-cyan-600">L. {(totals.taxAmount / 100).toFixed(2)}</div>
               </div>
               <div>
                 <span className="text-gray-600">Total:</span>

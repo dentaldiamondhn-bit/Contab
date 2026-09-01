@@ -42,8 +42,8 @@ const modules = [
     title: '📒 Registro Contable',
     description: 'Gestiona las operaciones contables, asientos, pólizas y registros diarios.',
     icon: BookOpen,
-    color: 'text-blue-600',
-    bgColor: 'bg-blue-50',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
     path: '/accounting',
     status: 'active'
   },
@@ -102,8 +102,8 @@ const modules = [
     title: '🧮 Control Financiero',
     description: 'Presupuestos, flujo de caja y análisis financiero.',
     icon: Calculator,
-    color: 'text-indigo-600',
-    bgColor: 'bg-indigo-50',
+    color: 'text-cyan-600',
+    bgColor: 'bg-cyan-50',
     path: '/financial-control',
     status: 'active'
   },
@@ -159,11 +159,31 @@ export default function CompanyModulesPage() {
   useEffect(() => {
     const fetchCompany = async () => {
       try {
-        const response = await fetch(`/api/companies/${companyId}`);
+        // Intentar primero como companyId directo
+        let response = await fetch(`/api/companies/${companyId}`);
         if (response.ok) {
           const data = await response.json();
-          setCompany(data);
+          // API puede retornar {company} o directo
+          const comp = (data as any).company || data;
+          if (comp && comp.id) { setCompany(comp); return; }
         }
+        // Si no es companyId, intentar como tenantId -> buscar primera company del tenant
+        const tRes = await fetch(`/api/tenant/companies?tenantId=${companyId}`);
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          const list = tData.companies || tData.data || [];
+          if (Array.isArray(list) && list.length > 0) { setCompany(list[0]); return; }
+        }
+        // Fallback: my-tenant
+        const mRes = await fetch('/api/tenant/my-tenant');
+        if (mRes.ok) {
+          const mData = await mRes.json();
+          if (mData.tenant) {
+            setCompany({ id: mData.tenant.id, business_name: mData.tenant.businessName, business_rtn: mData.tenant.businessRTN } as any);
+            return;
+          }
+        }
+        setCompany(null);
       } catch (error) {
         console.error('Error fetching company:', error);
       } finally {
@@ -217,7 +237,7 @@ export default function CompanyModulesPage() {
               <p className="text-gray-600">{company.business_name} • RTN: {company.business_rtn}</p>
             </div>
             <div className="flex items-center space-x-4">
-              <Building2 className="h-10 w-10 text-blue-600" />
+              <Building2 className="h-10 w-10 text-cyan-600" />
               <Button
                 variant="outline"
                 size="sm"

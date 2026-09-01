@@ -61,7 +61,7 @@ export default function AccountingPage() {
     const colors = {
       INGRESO: "bg-green-100 text-green-800",
       EGRESO: "bg-red-100 text-red-800",
-      DIARIO: "bg-blue-100 text-blue-800",
+      DIARIO: "bg-cyan-100 text-cyan-800",
       AJUSTE: "bg-yellow-100 text-yellow-800",
     };
     return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-800";
@@ -99,7 +99,7 @@ export default function AccountingPage() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card>
           <CardHeader className="text-center pb-4">
-            <CardTitle className="text-2xl font-bold text-blue-600 flex items-center justify-center">
+            <CardTitle className="text-2xl font-bold text-cyan-600 flex items-center justify-center">
               📒 Registro Contable
             </CardTitle>
             <CardDescription className="text-sm text-gray-600">
@@ -108,11 +108,11 @@ export default function AccountingPage() {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
-                <FileText className="h-8 w-8 text-blue-600" />
+              <div className="flex items-center space-x-3 p-3 bg-cyan-50 rounded-lg">
+                <FileText className="h-8 w-8 text-cyan-600" />
                 <div>
-                  <h4 className="font-semibold text-blue-800">Partidas de Diario</h4>
-                  <p className="text-sm text-blue-600">Registra transacciones con validación automática</p>
+                  <h4 className="font-semibold text-cyan-800">Partidas de Diario</h4>
+                  <p className="text-sm text-cyan-600">Registra transacciones con validación automática</p>
                 </div>
               </div>
               
@@ -198,15 +198,15 @@ export default function AccountingPage() {
       </div>
 
       {/* Upload de Archivos Excel - NUEVA SECCIÓN */}
-      <Card className="border-2 border-blue-200 bg-blue-50/50">
+      <Card className="border-2 border-cyan-200 bg-cyan-50/50">
         <CardHeader>
           <div className="flex items-center space-x-3">
-            <div className="p-3 bg-blue-600 rounded-lg">
+            <div className="p-3 bg-cyan-600 rounded-lg">
               <Upload className="h-6 w-6 text-white" />
             </div>
             <div>
               <CardTitle className="text-xl font-bold text-blue-900">📊 Importación de Archivos Excel</CardTitle>
-              <CardDescription className="text-blue-700">
+              <CardDescription className="text-cyan-700">
                 Sube archivos Excel para importar datos contables automáticamente
               </CardDescription>
             </div>
@@ -214,7 +214,7 @@ export default function AccountingPage() {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="p-4 bg-white rounded-lg border border-blue-200">
+            <div className="p-4 bg-white rounded-lg border border-cyan-200">
               <ExcelBooksUploader tenantId={currentTenant?.id || '1'} />
             </div>
             
@@ -257,9 +257,9 @@ export default function AccountingPage() {
           
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <Link href={`/companies/${currentTenant?.id || 1}/accounting/book`}>
-              <Button variant="outline" className="w-full h-20 flex-col space-y-2 border-2 border-blue-500">
-                <BookOpen className="h-6 w-6 text-blue-600" />
-                <span className="text-blue-600 font-bold">Libros Contables</span>
+              <Button variant="outline" className="w-full h-20 flex-col space-y-2 border-2 border-cyan-500">
+                <BookOpen className="h-6 w-6 text-cyan-600" />
+                <span className="text-cyan-600 font-bold">Libros Contables</span>
               </Button>
             </Link>
             

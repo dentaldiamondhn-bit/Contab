@@ -261,17 +261,17 @@ export default function PaymentLinkGenerator({
             </div>
 
             {selectedBank && (
-              <Card className="bg-blue-50 border-blue-200">
+              <Card className="bg-cyan-50 border-cyan-200">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium text-blue-900">Cuenta Seleccionada</p>
-                      <p className="text-sm text-blue-700">{selectedBank.bankName}</p>
-                      <p className="text-sm text-blue-600">
+                      <p className="text-sm text-cyan-700">{selectedBank.bankName}</p>
+                      <p className="text-sm text-cyan-600">
                         {selectedBank.accountHolder} - {selectedBank.accountNumber}
                       </p>
                     </div>
-                    <Banknote className="h-8 w-8 text-blue-600" />
+                    <Banknote className="h-8 w-8 text-cyan-600" />
                   </div>
                 </CardContent>
               </Card>
@@ -424,7 +424,7 @@ export default function PaymentLinkGenerator({
                       </div>
                     )}
                     {uploadingReceipt && (
-                      <div className="flex items-center space-x-2 text-sm text-blue-600">
+                      <div className="flex items-center space-x-2 text-sm text-cyan-600">
                         <AlertTriangle className="h-4 w-4" />
                         <span>Procesando comprobante...</span>
                       </div>

@@ -279,7 +279,7 @@ export default function VoucherFormPage() {
                 Volver
               </Button>
               <div className="flex items-center space-x-3">
-                <FileText className="h-6 w-6 text-blue-600" />
+                <FileText className="h-6 w-6 text-cyan-600" />
                 <div>
                   <h1 className="text-2xl font-bold text-gray-900">Formulario de Póliza</h1>
                   <p className="text-gray-600">Registro Contable - Partida Doble</p>
@@ -300,7 +300,7 @@ export default function VoucherFormPage() {
               <Button 
                 onClick={saveVoucher} 
                 disabled={!isBalanced || loading || voucherHeader.status === 'cancelled'}
-                className={isBalanced ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gray-300'}
+                className={isBalanced ? 'bg-cyan-600 hover:bg-cyan-700' : 'bg-gray-300'}
               >
                 <Save className="h-4 w-4 mr-2" />
                 {loading ? 'Guardando...' : 'Guardar Póliza'}

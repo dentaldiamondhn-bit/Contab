@@ -143,7 +143,7 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando libro de inventarios y balances...</p>
           </div>
         </CardContent>
@@ -157,7 +157,7 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <FileText className="h-6 w-6 mr-2 text-blue-600" />
+            <FileText className="h-6 w-6 mr-2 text-cyan-600" />
             Libro de Inventarios y Balances
           </h2>
           <p className="text-gray-600">Reporte fiscal SAR</p>
@@ -234,10 +234,10 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Patrimonio</CardTitle>
-            <Building className="h-4 w-4 text-blue-600" />
+            <Building className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               L. {totalPatrimonio.toFixed(2)}
             </div>
           </CardContent>
@@ -367,8 +367,8 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
                 </tr>
 
                 {/* Patrimonio */}
-                <tr className="bg-blue-50">
-                  <td colSpan={4} className="border border-gray-200 px-4 py-2 font-bold text-blue-700">
+                <tr className="bg-cyan-50">
+                  <td colSpan={4} className="border border-gray-200 px-4 py-2 font-bold text-cyan-700">
                     PATRIMONIO
                   </td>
                 </tr>
@@ -386,17 +386,17 @@ export default function InventoryBalanceBook({ tenantId }: InventoryBalanceBookP
                         L. {item.saldo.toFixed(2)}
                       </td>
                       <td className="border border-gray-200 px-4 py-3 text-sm">
-                        <Badge variant="outline" className="text-blue-700">
+                        <Badge variant="outline" className="text-cyan-700">
                           Patrimonio
                         </Badge>
                       </td>
                     </tr>
                   ))}
-                <tr className="bg-blue-100">
+                <tr className="bg-cyan-100">
                   <td colSpan={2} className="border border-gray-200 px-4 py-2 font-bold">
                     Total Patrimonio
                   </td>
-                  <td className="border border-gray-200 px-4 py-2 text-right font-bold text-blue-700">
+                  <td className="border border-gray-200 px-4 py-2 text-right font-bold text-cyan-700">
                     L. {totalPatrimonio.toFixed(2)}
                   </td>
                   <td className="border border-gray-200 px-4 py-2"></td>

@@ -30,7 +30,7 @@ export default function YearSelector({
         ))}
       </select>
       {showBadge && (
-        <Badge className={selectedYear === '2026' ? 'bg-purple-600' : 'bg-blue-600'}>
+        <Badge className={selectedYear === '2026' ? 'bg-purple-600' : 'bg-cyan-600'}>
           {badgeText || (selectedYear === '2026' ? 'Año Actual' : 'Histórico')}
         </Badge>
       )}

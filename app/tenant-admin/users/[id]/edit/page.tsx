@@ -162,7 +162,7 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Verificando usuario...</p>
         </div>
       </div>
@@ -173,7 +173,7 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Usuario no encontrado...</p>
         </div>
       </div>
@@ -194,7 +194,7 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Cargando usuario...</p>
         </div>
       </div>
@@ -269,7 +269,7 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
       <Card>
         <CardContent className="pt-6">
           <div className="flex items-center gap-3">
-            <Building className="h-5 w-5 text-blue-600" />
+            <Building className="h-5 w-5 text-cyan-600" />
             <div>
               <p className="font-medium">{currentTenant.businessName}</p>
               <p className="text-sm text-gray-500">RTN: {currentTenant.businessRTN}</p>
@@ -377,7 +377,7 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
                 name="isActive"
                 checked={formData.isActive}
                 onChange={handleInputChange}
-                className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                className="w-4 h-4 text-cyan-600 border-gray-300 rounded focus:ring-cyan-500"
               />
               <Label htmlFor="isActive" className="text-sm font-medium text-gray-700">
                 Usuario activo
@@ -385,10 +385,10 @@ export default function EditTenantUserPage({ params }: { params: Promise<{ id: s
             </div>
 
             {/* Info Card */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
               <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
-                <div className="text-sm text-blue-800">
+                <AlertCircle className="h-5 w-5 text-cyan-600 mt-0.5" />
+                <div className="text-sm text-cyan-800">
                   <p className="font-medium mb-1">Información importante:</p>
                   <ul className="list-disc list-inside space-y-1">
                     <li>El email no se puede modificar</li>

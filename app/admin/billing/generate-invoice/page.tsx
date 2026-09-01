@@ -631,7 +631,7 @@ export default function GenerateInvoicePage() {
           <div className="mb-8">
             <button
               onClick={() => router.push('/admin/tenants')}
-              className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+              className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
               Volver a Tenants
@@ -646,11 +646,11 @@ export default function GenerateInvoicePage() {
               <div
                 key={t.id}
                 onClick={() => handleTenantSelect(t.id)}
-                className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg hover:border-blue-500 border-2 border-transparent transition-all"
+                className="bg-white rounded-lg shadow-md p-6 cursor-pointer hover:shadow-lg hover:border-cyan-500 border-2 border-transparent transition-all"
               >
                 <div className="flex items-start gap-4">
-                  <div className="bg-blue-100 p-3 rounded-lg">
-                    <Building2 className="w-6 h-6 text-blue-600" />
+                  <div className="bg-cyan-100 p-3 rounded-lg">
+                    <Building2 className="w-6 h-6 text-cyan-600" />
                   </div>
                   <div className="flex-1">
                     <h3 className="font-semibold text-gray-900">{t.businessName}</h3>
@@ -658,7 +658,7 @@ export default function GenerateInvoicePage() {
                     <p className="text-sm text-gray-500">{t.businessEmail}</p>
                     <p className="text-sm text-gray-500 mt-1">Código: {t.tenantCode}</p>
                     {t.monthlyCost && (
-                      <p className="text-sm font-medium text-blue-600 mt-2">
+                      <p className="text-sm font-medium text-cyan-600 mt-2">
                         Costo mensual: L {t.monthlyCost.toLocaleString()}
                       </p>
                     )}
@@ -690,7 +690,7 @@ export default function GenerateInvoicePage() {
         <div className="mb-8">
           <button
             onClick={() => router.push(`/admin/tenants/${selectedTenantId}`)}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver al Tenant
@@ -784,9 +784,9 @@ export default function GenerateInvoicePage() {
                     />
                     <label
                       htmlFor="subscription"
-                      className="flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:bg-gray-50"
+                      className="flex flex-col items-center justify-center p-4 border-2 rounded-lg cursor-pointer transition-all peer-checked:border-cyan-500 peer-checked:bg-cyan-50 hover:bg-gray-50"
                     >
-                      <Receipt className="w-8 h-8 mb-2 text-blue-600" />
+                      <Receipt className="w-8 h-8 mb-2 text-cyan-600" />
                       <span className="font-medium text-sm">Suscripciones</span>
                       <span className="text-xs text-gray-500 mt-1">Factura de planes mensuales</span>
                     </label>
@@ -830,8 +830,8 @@ export default function GenerateInvoicePage() {
                     </label>
                   </div>
                 </div>
-                <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                  <p className="text-sm text-blue-800">
+                <div className="mt-4 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+                  <p className="text-sm text-cyan-800">
                     <strong>Tipo seleccionado:</strong> {
                       invoiceType === 'subscription' ? 'Suscripciones - Factura de planes mensuales del sistema' :
                       invoiceType === 'tenant-issued' ? 'Emitida por Tenant - Factura de ventas del cliente' :
@@ -854,7 +854,7 @@ export default function GenerateInvoicePage() {
                     {invoiceType === 'supplier-received' ? 'Información del Proveedor' : 'Información del Cliente'}
                     <Badge className={`ml-2 ${
                       invoiceType === 'subscription' ? 'bg-green-100 text-green-800' :
-                      invoiceType === 'tenant-issued' ? 'bg-blue-100 text-blue-800' :
+                      invoiceType === 'tenant-issued' ? 'bg-cyan-100 text-cyan-800' :
                       'bg-orange-100 text-orange-800'
                     }`}>
                       <CheckCircle className="h-3 w-3 mr-1" />
@@ -870,12 +870,12 @@ export default function GenerateInvoicePage() {
                   <div className="p-4 bg-gray-50 rounded-lg">
                     <div className={`mb-3 p-2 border rounded ${
                       invoiceType === 'subscription' ? 'bg-green-50 border-green-200' :
-                      invoiceType === 'tenant-issued' ? 'bg-blue-50 border-blue-200' :
+                      invoiceType === 'tenant-issued' ? 'bg-cyan-50 border-cyan-200' :
                       'bg-orange-50 border-orange-200'
                     }`}>
                       <p className={`text-sm font-medium ${
                         invoiceType === 'subscription' ? 'text-green-800' :
-                        invoiceType === 'tenant-issued' ? 'text-blue-800' :
+                        invoiceType === 'tenant-issued' ? 'text-cyan-800' :
                         'text-orange-800'
                       }`}>
                         <span className="inline-flex items-center">
@@ -1018,10 +1018,10 @@ export default function GenerateInvoicePage() {
                 {/* Mensaje informativo para otros tipos de factura */}
                 {invoiceType !== 'subscription' && (
                   <div className={`mb-6 p-4 rounded-lg border ${
-                    invoiceType === 'tenant-issued' ? 'bg-blue-50 border-blue-200' : 'bg-orange-50 border-orange-200'
+                    invoiceType === 'tenant-issued' ? 'bg-cyan-50 border-cyan-200' : 'bg-orange-50 border-orange-200'
                   }`}>
                     <p className={`text-sm font-medium ${
-                      invoiceType === 'tenant-issued' ? 'text-blue-800' : 'text-orange-800'
+                      invoiceType === 'tenant-issued' ? 'text-cyan-800' : 'text-orange-800'
                     }`}>
                       {invoiceType === 'tenant-issued' 
                         ? 'Factura emitida por Tenant - Agrega los productos o servicios vendidos'
@@ -1034,14 +1034,14 @@ export default function GenerateInvoicePage() {
                   {invoiceItems.map((item, index) => (
                     <div key={item.id} className="p-4 border border-gray-200 rounded-lg">
                       {item.id.startsWith('plan-') && (
-                        <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                          <p className="text-sm font-medium text-blue-800">
+                        <div className="mb-3 p-2 bg-cyan-50 border border-cyan-200 rounded">
+                          <p className="text-sm font-medium text-cyan-800">
                             <span className="inline-flex items-center">
                               <Plus className="h-3 w-3 mr-1" />
                               Plan del Tenant
                             </span>
                           </p>
-                          <p className="text-xs text-blue-600 mt-1">Este item viene de los planes activos del tenant</p>
+                          <p className="text-xs text-cyan-600 mt-1">Este item viene de los planes activos del tenant</p>
                         </div>
                       )}
                       
@@ -1158,7 +1158,7 @@ export default function GenerateInvoicePage() {
                       {invoiceType === 'subscription' ? (
                         <>
                           {caiInfo?.isSystemWide && (
-                            <Badge className="ml-2 bg-blue-100 text-blue-800">
+                            <Badge className="ml-2 bg-cyan-100 text-cyan-800">
                               Sistema ContabHN
                             </Badge>
                           )}
@@ -1193,14 +1193,14 @@ export default function GenerateInvoicePage() {
                         <p><strong>Vence:</strong> {new Date(caiInfo.expiryDate).toLocaleDateString('es-HN')}</p>
                         
                         {caiInfo.isSystemWide && (
-                          <div className="mt-3 p-2 bg-blue-50 border border-blue-200 rounded">
-                            <p className="text-sm font-medium text-blue-800">
+                          <div className="mt-3 p-2 bg-cyan-50 border border-cyan-200 rounded">
+                            <p className="text-sm font-medium text-cyan-800">
                               <span className="inline-flex items-center">
                                 <CheckCircle className="h-3 w-3 mr-1" />
                                 CAI del Sistema
                               </span>
                             </p>
-                            <p className="text-xs text-blue-600 mt-1">
+                            <p className="text-xs text-cyan-600 mt-1">
                               Este CAI es configurado a nivel del sistema ContabHN
                             </p>
                           </div>
@@ -1269,21 +1269,21 @@ export default function GenerateInvoicePage() {
                         
                         {/* Mostrar información del CAI del tenant si está disponible */}
                         {tenantCai ? (
-                          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
-                            <p className="text-sm font-medium text-blue-800 mb-2">
+                          <div className="mt-3 p-3 bg-cyan-50 border border-cyan-200 rounded">
+                            <p className="text-sm font-medium text-cyan-800 mb-2">
                               <span className="inline-flex items-center">
                                 <FileText className="h-3 w-3 mr-1" />
                                 Configuración CAI del Tenant
                               </span>
                             </p>
                             <div className="space-y-1">
-                              <p className="text-xs text-blue-600"><strong>CAI:</strong> {tenantCai.cai}</p>
-                              <p className="text-xs text-blue-600"><strong>Rango:</strong> {tenantCai.rangeStart} - {tenantCai.rangeEnd}</p>
-                              <p className="text-xs text-blue-600"><strong>Actual:</strong> {tenantCai.currentNumber}</p>
-                              <p className="text-xs text-blue-600"><strong>Vence:</strong> {new Date(tenantCai.expiryDate).toLocaleDateString('es-HN')}</p>
-                              <p className="text-xs text-blue-600"><strong>Establecimiento:</strong> {tenantCai.establishmentCode || '001'} | <strong>Punto Venta:</strong> {tenantCai.pointOfSaleCode || '001'}</p>
+                              <p className="text-xs text-cyan-600"><strong>CAI:</strong> {tenantCai.cai}</p>
+                              <p className="text-xs text-cyan-600"><strong>Rango:</strong> {tenantCai.rangeStart} - {tenantCai.rangeEnd}</p>
+                              <p className="text-xs text-cyan-600"><strong>Actual:</strong> {tenantCai.currentNumber}</p>
+                              <p className="text-xs text-cyan-600"><strong>Vence:</strong> {new Date(tenantCai.expiryDate).toLocaleDateString('es-HN')}</p>
+                              <p className="text-xs text-cyan-600"><strong>Establecimiento:</strong> {tenantCai.establishmentCode || '001'} | <strong>Punto Venta:</strong> {tenantCai.pointOfSaleCode || '001'}</p>
                               {tenantCai.economicActivity && (
-                                <p className="text-xs text-blue-600"><strong>Actividad Económica:</strong> {tenantCai.economicActivity}</p>
+                                <p className="text-xs text-cyan-600"><strong>Actividad Económica:</strong> {tenantCai.economicActivity}</p>
                               )}
                             </div>
                           </div>

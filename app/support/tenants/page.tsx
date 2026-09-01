@@ -235,7 +235,7 @@ export default function SupportTenantsPage() {
                   {tenant.businessAddress || '-'}
                 </td>
                 <td className="px-4 py-4 whitespace-nowrap">
-                  <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
+                  <span className="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-cyan-100 text-cyan-800">
                     {getPlanName(tenant.subscriptionPlan)}
                   </span>
                 </td>

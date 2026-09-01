@@ -37,7 +37,7 @@ export default function AccountingBooksTest() {
   
   return (
     <div className="p-8">
-      <h1 className="text-2xl font-bold text-blue-600 mb-4">
+      <h1 className="text-2xl font-bold text-cyan-600 mb-4">
         🧪 AccountingBooks Test Component
       </h1>
       

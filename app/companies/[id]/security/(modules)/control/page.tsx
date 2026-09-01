@@ -23,21 +23,21 @@ export default function ControlPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Shield className="h-5 w-5 text-indigo-600" />
+            <Shield className="h-5 w-5 text-cyan-600" />
             Estructura de Control y Lógica de Seguridad
           </h2>
           <p className="text-gray-600 text-sm mt-1">
             Base de datos y reglas de seguridad para control contable
           </p>
         </div>
-        <Badge variant="default" className="bg-indigo-600">Control</Badge>
+        <Badge variant="default" className="bg-cyan-600">Control</Badge>
       </div>
 
       {/* Database Structure */}
       <Card className="border-l-4 border-l-blue-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Database className="h-5 w-5 text-blue-600" />
+            <Database className="h-5 w-5 text-cyan-600" />
             1. Estructura de Control (Base de Datos)
           </CardTitle>
           <CardDescription>
@@ -229,9 +229,9 @@ export function validarFormatoFactura(numero: string): boolean {
                   <span className="text-sm">Marzo</span>
                   <Badge className="bg-green-600 text-xs">Cerrado</Badge>
                 </div>
-                <div className="flex items-center justify-between p-2 bg-blue-50 rounded border border-blue-200">
+                <div className="flex items-center justify-between p-2 bg-cyan-50 rounded border border-cyan-200">
                   <span className="text-sm">Abril</span>
-                  <Badge className="bg-blue-600 text-xs">Abierto</Badge>
+                  <Badge className="bg-cyan-600 text-xs">Abierto</Badge>
                 </div>
               </div>
             </div>
@@ -269,10 +269,10 @@ export async function POST(req: Request) {
       </Card>
 
       {/* Status Summary */}
-      <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200">
+      <Card className="bg-gradient-to-r from-cyan-50 to-cyan-50 border border-cyan-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-blue-600" />
+            <Shield className="h-5 w-5 text-cyan-600" />
             Estado de Controles de Seguridad
           </CardTitle>
         </CardHeader>
@@ -291,7 +291,7 @@ export async function POST(req: Request) {
               <p className="text-xs text-gray-600">Períodos Cerrados</p>
             </div>
             <div className="text-center p-3 bg-white rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">1</p>
+              <p className="text-2xl font-bold text-cyan-600">1</p>
               <p className="text-xs text-gray-600">Período Abierto</p>
             </div>
           </div>

@@ -167,7 +167,7 @@ export default function CalendarioRevisiones({ params }: CalendarioRevisionesPro
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <Calendar className="h-5 w-5 text-blue-600" />
+            <Calendar className="h-5 w-5 text-cyan-600" />
             Calendario de Revisiones Legales - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -178,13 +178,13 @@ export default function CalendarioRevisiones({ params }: CalendarioRevisionesPro
           <select
             value={anioSeleccionado}
             onChange={(e) => handleAnioChange(e.target.value)}
-            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500"
           >
             <option value="2026">2026</option>
             <option value="2025">2025</option>
             <option value="2024">2024</option>
           </select>
-          <Badge className={anioSeleccionado === '2026' ? 'bg-blue-600' : 'bg-gray-600'}>
+          <Badge className={anioSeleccionado === '2026' ? 'bg-cyan-600' : 'bg-gray-600'}>
             {anioSeleccionado === '2026' ? 'Año Actual' : `Histórico ${anioSeleccionado}`}
           </Badge>
         </div>
@@ -194,7 +194,7 @@ export default function CalendarioRevisiones({ params }: CalendarioRevisionesPro
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Calendar className="h-5 w-5 text-blue-600" />
+            <Calendar className="h-5 w-5 text-cyan-600" />
             Vista de Calendario
           </CardTitle>
           <CardDescription>
@@ -212,7 +212,7 @@ export default function CalendarioRevisiones({ params }: CalendarioRevisionesPro
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
-                        <Icon className="h-4 w-4 text-blue-600" />
+                        <Icon className="h-4 w-4 text-cyan-600" />
                         <Badge className={getEstadoColor(revision.estado)}>
                           {revision.estado}
                         </Badge>
@@ -271,7 +271,7 @@ export default function CalendarioRevisiones({ params }: CalendarioRevisionesPro
         <Card className="border-l-4 border-l-blue-500">
           <CardHeader className="pb-3">
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Building className="h-5 w-5 text-blue-600" />
+              <Building className="h-5 w-5 text-cyan-600" />
               Arrendamiento
             </CardTitle>
           </CardHeader>

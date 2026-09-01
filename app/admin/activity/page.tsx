@@ -202,7 +202,7 @@ export default function TenantActivityPage() {
   const getPlanColor = (plan: string) => {
     switch (plan) {
       case 'ENTERPRISE': return 'bg-purple-100 text-purple-800';
-      case 'PREMIUM': return 'bg-blue-100 text-blue-800';
+      case 'PREMIUM': return 'bg-cyan-100 text-cyan-800';
       case 'GROWTH': return 'bg-green-100 text-green-800';
       default: return 'bg-gray-100 text-gray-800';
     }
@@ -210,7 +210,7 @@ export default function TenantActivityPage() {
 
   const getCompTypeLabel = (type: string) => {
     switch (type) {
-      case 'EXTEND_DAYS': return { label: 'Extensión', icon: Calendar, color: 'text-blue-600 bg-blue-50 border-blue-200' };
+      case 'EXTEND_DAYS': return { label: 'Extensión', icon: Calendar, color: 'text-cyan-600 bg-cyan-50 border-cyan-200' };
       case 'CREDIT': return { label: 'Crédito', icon: CreditCard, color: 'text-green-600 bg-green-50 border-green-200' };
       case 'CHANGE_PLAN': return { label: 'Cambio Plan', icon: ArrowRightLeft, color: 'text-purple-600 bg-purple-50 border-purple-200' };
       default: return { label: type, icon: Gift, color: 'text-gray-600 bg-gray-50 border-gray-200' };
@@ -241,7 +241,7 @@ export default function TenantActivityPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -406,7 +406,7 @@ export default function TenantActivityPage() {
                             {tenantComps.length > 3 && (
                               <button
                                 onClick={() => openHistory(tenant)}
-                                className="text-[10px] text-blue-600 hover:underline"
+                                className="text-[10px] text-cyan-600 hover:underline"
                               >
                                 +{tenantComps.length - 3} más
                               </button>
@@ -466,7 +466,7 @@ export default function TenantActivityPage() {
                 <button
                   onClick={() => setCompForm(prev => ({ ...prev, type: 'EXTEND_DAYS' }))}
                   className={`p-3 rounded-lg border-2 text-center transition-colors ${
-                    compForm.type === 'EXTEND_DAYS' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-200 hover:border-gray-300'
+                    compForm.type === 'EXTEND_DAYS' ? 'border-cyan-500 bg-cyan-50 text-cyan-700' : 'border-gray-200 hover:border-gray-300'
                   }`}
                 >
                   <Calendar className="h-5 w-5 mx-auto mb-1" />
@@ -536,7 +536,7 @@ export default function TenantActivityPage() {
                         amount: plan ? plan.price.toString() : '',
                       }));
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 mt-1"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500 mt-1"
                   >
                     <option value="">Seleccionar plan...</option>
                     {plans.filter(p => p.isActive !== false).map(plan => (
@@ -599,7 +599,7 @@ export default function TenantActivityPage() {
               <Button
                 onClick={handleAddCompensation}
                 disabled={!compForm.description}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-cyan-600 hover:bg-cyan-700"
               >
                 Agregar Compensación
               </Button>
@@ -620,7 +620,7 @@ export default function TenantActivityPage() {
           <div className="space-y-3 max-h-96 overflow-y-auto">
             {loadingCompensations ? (
               <div className="flex items-center justify-center py-8">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600"></div>
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-cyan-600"></div>
               </div>
             ) : compensations.length === 0 ? (
               <div className="text-center py-8 text-gray-500">

@@ -13,9 +13,9 @@ export default function TaxHelperDemoPage() {
               This enhanced transaction form demonstrates the Tax Helper functionality. 
               Toggle the "Enable Tax Helper" checkbox and then mark individual entries as taxable.
             </p>
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
               <h3 className="font-semibold text-blue-900 mb-2">How it works:</h3>
-              <ol className="list-decimal list-inside space-y-1 text-sm text-blue-800">
+              <ol className="list-decimal list-inside space-y-1 text-sm text-cyan-800">
                 <li>Enable Tax Helper by checking the box</li>
                 <li>Add journal entries with amounts</li>
                 <li>Toggle the "Taxable" switch on any entry</li>

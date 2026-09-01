@@ -41,7 +41,7 @@ export default function BalanceGeneralPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
-            <Building2 className="w-6 h-6 text-blue-600" />
+            <Building2 className="w-6 h-6 text-cyan-600" />
             Balance General
           </h1>
           <p className="text-sm text-gray-500">{currentTenant?.businessName || "Empresa"}</p>
@@ -65,7 +65,7 @@ export default function BalanceGeneralPage() {
           {/* Activos */}
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg text-blue-700">Activos</CardTitle>
+              <CardTitle className="text-lg text-cyan-700">Activos</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -83,7 +83,7 @@ export default function BalanceGeneralPage() {
                         <span className="font-mono text-xs text-gray-500">{a.code}</span> {a.name}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'}`}>
                           {a.nature === 'DEBIT' ? 'Deudora' : 'Acreedora'}
                         </span>
                       </TableCell>
@@ -97,7 +97,7 @@ export default function BalanceGeneralPage() {
               </Table>
               <div className="mt-3 pt-3 border-t flex justify-between font-bold text-sm">
                 <span>Total Activos</span>
-                <span className="text-blue-700">{fmt(totalActivos)}</span>
+                <span className="text-cyan-700">{fmt(totalActivos)}</span>
               </div>
             </CardContent>
           </Card>
@@ -123,7 +123,7 @@ export default function BalanceGeneralPage() {
                         <span className="font-mono text-xs text-gray-500">{a.code}</span> {a.name}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'}`}>
                           {a.nature === 'DEBIT' ? 'Deudora' : 'Acreedora'}
                         </span>
                       </TableCell>
@@ -163,7 +163,7 @@ export default function BalanceGeneralPage() {
                         <span className="font-mono text-xs text-gray-500">{a.code}</span> {a.name}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
+                        <span className={`px-2 py-0.5 rounded text-xs font-medium ${a.nature === 'DEBIT' ? 'bg-cyan-100 text-cyan-700' : 'bg-purple-100 text-purple-700'}`}>
                           {a.nature === 'DEBIT' ? 'Deudora' : 'Acreedora'}
                         </span>
                       </TableCell>
@@ -191,7 +191,7 @@ export default function BalanceGeneralPage() {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div>
                 <div className="text-sm text-gray-500">Total Activos</div>
-                <div className="text-xl font-bold text-blue-600">{fmt(totalActivos)}</div>
+                <div className="text-xl font-bold text-cyan-600">{fmt(totalActivos)}</div>
               </div>
               <div>
                 <div className="text-sm text-gray-500">Total Pasivos</div>

@@ -181,8 +181,8 @@ export default function CierrePage({ params }: CierrePageProps) {
                 <li>✓ Protección contra errores</li>
               </ul>
             </div>
-            <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <p className="font-medium text-blue-700 mb-2">Reapertura:</p>
+            <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+              <p className="font-medium text-cyan-700 mb-2">Reapertura:</p>
               <ul className="space-y-1 text-sm text-gray-600">
                 <li>• Solo "Contador General"</li>
                 <li>• Justificación obligatoria</li>
@@ -195,10 +195,10 @@ export default function CierrePage({ params }: CierrePageProps) {
 
       {/* Resumen Histórico */}
       {anioSeleccionado !== '2026' && (
-        <Card className="border-l-4 border-l-blue-500 bg-blue-50">
+        <Card className="border-l-4 border-l-blue-500 bg-cyan-50">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <History className="h-5 w-5 text-blue-600" />
+              <History className="h-5 w-5 text-cyan-600" />
               Resumen Histórico - Año {anioSeleccionado}
             </CardTitle>
             <CardDescription>
@@ -208,7 +208,7 @@ export default function CierrePage({ params }: CierrePageProps) {
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div className="text-center p-3 bg-white rounded-lg">
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-2xl font-bold text-cyan-600">
                   {meses.filter(m => m.status === 'cerrado').length}
                 </p>
                 <p className="text-xs text-gray-600">Meses Cerrados</p>
@@ -230,8 +230,8 @@ export default function CierrePage({ params }: CierrePageProps) {
                 <p className="text-xs text-gray-600">Cierre Completo</p>
               </div>
             </div>
-            <div className="mt-4 p-3 bg-blue-100 rounded-lg border border-blue-300">
-              <p className="text-sm text-blue-800">
+            <div className="mt-4 p-3 bg-cyan-100 rounded-lg border border-blue-300">
+              <p className="text-sm text-cyan-800">
                 <strong>Nota:</strong> Este es un año fiscal histórico. Los datos son de solo lectura y no pueden ser modificados.
               </p>
             </div>
@@ -267,7 +267,7 @@ export default function CierrePage({ params }: CierrePageProps) {
               </thead>
               <tbody className="divide-y">
                 {meses.map((m, i) => (
-                  <tr key={i} className={`hover:bg-gray-50 ${m.status === 'abierto' ? 'bg-blue-50' : ''}`}>
+                  <tr key={i} className={`hover:bg-gray-50 ${m.status === 'abierto' ? 'bg-cyan-50' : ''}`}>
                     <td className="py-3 px-4 font-medium">{m.mes}</td>
                     <td className="py-3 px-4">
                       {m.status === 'cerrado' ? (
@@ -275,7 +275,7 @@ export default function CierrePage({ params }: CierrePageProps) {
                           <Lock className="h-3 w-3" /> Cerrado
                         </Badge>
                       ) : m.status === 'abierto' ? (
-                        <Badge className="bg-blue-600 gap-1">
+                        <Badge className="bg-cyan-600 gap-1">
                           <Unlock className="h-3 w-3" /> Abierto
                         </Badge>
                       ) : (
@@ -382,9 +382,9 @@ export default function CierrePage({ params }: CierrePageProps) {
               </p>
             </div>
 
-            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <div className="p-3 bg-cyan-50 rounded-lg border border-cyan-200">
               <div className="flex items-center gap-2 mb-2">
-                <Database className="h-4 w-4 text-blue-600" />
+                <Database className="h-4 w-4 text-cyan-600" />
                 <span className="font-medium text-sm">Resumen de Validación:</span>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
@@ -397,7 +397,7 @@ export default function CierrePage({ params }: CierrePageProps) {
                   <p className="text-gray-600">Errores Encontrados</p>
                 </div>
                 <div className="text-center">
-                  <p className="text-lg font-bold text-blue-600">100%</p>
+                  <p className="text-lg font-bold text-cyan-600">100%</p>
                   <p className="text-gray-600">Integridad</p>
                 </div>
                 <div className="text-center">
@@ -412,10 +412,10 @@ export default function CierrePage({ params }: CierrePageProps) {
 
       
       {/* Audit Log */}
-      <Card className="border-l-4 border-l-indigo-500">
+      <Card className="border-l-4 border-l-cyan-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <History className="h-5 w-5 text-indigo-600" />
+            <History className="h-5 w-5 text-cyan-600" />
             4. Auditoría Especial de Cierres
           </CardTitle>
           <CardDescription>
@@ -464,7 +464,7 @@ export default function CierrePage({ params }: CierrePageProps) {
               <p className="text-xs text-gray-600">Meses Cerrados</p>
             </div>
             <div className="text-center p-3 bg-white rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">1</p>
+              <p className="text-2xl font-bold text-cyan-600">1</p>
               <p className="text-xs text-gray-600">Mes Abierto</p>
             </div>
             <div className="text-center p-3 bg-white rounded-lg">
@@ -472,7 +472,7 @@ export default function CierrePage({ params }: CierrePageProps) {
               <p className="text-xs text-gray-600">Pendiente Verif.</p>
             </div>
             <div className="text-center p-3 bg-white rounded-lg">
-              <p className="text-2xl font-bold text-blue-600">1</p>
+              <p className="text-2xl font-bold text-cyan-600">1</p>
               <p className="text-xs text-gray-600">Reaperturas</p>
             </div>
           </div>

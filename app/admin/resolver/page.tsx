@@ -81,7 +81,7 @@ export default function SuperAdminResolver() {
           <Card className="border-l-4 border-l-blue-500">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5 text-blue-600" />
+                <Users className="h-5 w-5 text-cyan-600" />
                 Gestión de Usuarios
               </CardTitle>
               <CardDescription>

@@ -151,7 +151,7 @@ export default function AuditLogViewer() {
                 setSelectedTable(e.target.value);
                 setPage(1);
               }}
-              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="all">All Tables</option>
               <option value="transaction">Transactions</option>
@@ -236,7 +236,7 @@ export default function AuditLogViewer() {
                       {log.changedFields.map((field, index) => (
                         <span
                           key={index}
-                          className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs"
+                          className="px-2 py-1 bg-cyan-100 text-cyan-800 rounded text-xs"
                         >
                           {field}
                         </span>

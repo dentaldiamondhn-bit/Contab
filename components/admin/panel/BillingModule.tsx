@@ -112,7 +112,7 @@ export default function BillingModule() {
         ] as const).map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key ? "border-blue-500 text-blue-600 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t.key ? "border-cyan-500 text-cyan-600 bg-cyan-50" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
             {t.label}
           </button>
@@ -124,7 +124,7 @@ export default function BillingModule() {
           <div className="flex justify-between items-center mb-4">
             <span className="text-sm text-gray-500">{plans.length} planes configurados</span>
             <button onClick={() => { setEditingPlan(null); setPlanForm({ name: "", code: "", price: 0, maxUsers: 5, maxStorage: 100, maxTransactions: 10000, features: "" }); }}
-              className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-blue-700">+ Nuevo Plan</button>
+              className="bg-cyan-600 text-white px-4 py-2 rounded-lg text-sm hover:bg-cyan-700">+ Nuevo Plan</button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -139,7 +139,7 @@ export default function BillingModule() {
                     {plan.isActive ? "Activo" : "Inactivo"}
                   </span>
                 </div>
-                <div className="text-3xl font-bold text-blue-600 mb-3">L. {plan.price.toLocaleString()}<span className="text-sm font-normal text-gray-500">/mes</span></div>
+                <div className="text-3xl font-bold text-cyan-600 mb-3">L. {plan.price.toLocaleString()}<span className="text-sm font-normal text-gray-500">/mes</span></div>
                 <div className="space-y-2 text-sm text-gray-600 mb-4">
                   <div className="flex justify-between"><span>Usuarios máx:</span><span className="font-medium">{plan.maxUsers}</span></div>
                   <div className="flex justify-between"><span>Almacenamiento:</span><span className="font-medium">{plan.maxStorage} GB</span></div>
@@ -151,7 +151,7 @@ export default function BillingModule() {
                     <div className="text-xs font-medium text-gray-500 mb-1">Características:</div>
                     <div className="flex flex-wrap gap-1">
                       {plan.features.map((f, i) => (
-                        <span key={i} className="px-2 py-0.5 bg-blue-50 text-blue-700 text-xs rounded">{f}</span>
+                        <span key={i} className="px-2 py-0.5 bg-cyan-50 text-cyan-700 text-xs rounded">{f}</span>
                       ))}
                     </div>
                   </div>
@@ -211,7 +211,7 @@ export default function BillingModule() {
                     className="px-4 py-2 text-sm border rounded-lg hover:bg-gray-50">Cancelar</button>
                 )}
                 <button onClick={savePlan} disabled={saving || !planForm.name || !planForm.code}
-                  className="px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+                  className="px-4 py-2 text-sm bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 disabled:opacity-50">
                   {saving ? "Guardando..." : editingPlan ? "Actualizar Plan" : "Crear Plan"}
                 </button>
               </div>
@@ -232,10 +232,10 @@ export default function BillingModule() {
               <option value="CUSTOMER">Cliente</option>
               <option value="EXPENSE">Gasto</option>
             </select>
-            <button onClick={fetchInvoices} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700">Buscar</button>
+            <button onClick={fetchInvoices} className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700">Buscar</button>
           </div>
           {loadingInvoices ? (
-            <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+            <div className="flex justify-center py-8"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" /></div>
           ) : invoices.length === 0 ? (
             <div className="text-center py-12 text-gray-500">
               <p className="text-lg mb-2">📄</p>

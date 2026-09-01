@@ -41,13 +41,13 @@ export default function CAIPage() {
       </div>
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-cyan-200 bg-cyan-50/50">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <Info className="w-5 h-5 text-blue-600 mt-0.5" />
+            <Info className="w-5 h-5 text-cyan-600 mt-0.5" />
             <div className="space-y-2">
               <h3 className="font-medium text-blue-900">¿Qué es un CAI?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+              <ul className="text-sm text-cyan-800 space-y-1">
                 <li>• El Código de Autorización de Impresión (CAI) es un requisito del SAR para emitir facturas</li>
                 <li>• Cada CAI tiene un rango numerado autorizado y una fecha de vencimiento</li>
                 <li>• El sistema alertará cuando queden 10 facturas o 1 mes para vencer</li>

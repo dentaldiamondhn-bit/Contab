@@ -51,14 +51,44 @@ export default function EstadoResultadosPage() {
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [currency, setCurrency] = useState<'HNL' | 'USD'>('HNL');
-  const [companyInfo] = useState<CompanyInfo>({
-    name: 'Clínica Dental Diamond',
-    rtn: '08011999012345',
-    address: 'Colonia Palmira, Tegucigalpa, Honduras'
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    name: '',
+    rtn: '',
+    address: ''
   });
   const [resultadoData, setResultadoData] = useState<ResultadoItem[]>([]);
   const [showComparison, setShowComparison] = useState(false);
   const [previousPeriodData, setPreviousPeriodData] = useState<ResultadoItem[]>([]);
+
+  // Cargar datos de la empresa
+  useEffect(() => {
+    const fetchCompany = async () => {
+      try {
+        const response = await fetch(`/api/companies/${companyId}`);
+        if (response.ok) {
+          const data = await response.json();
+          setCompanyInfo({
+            name: data.business_name || data.businessname || data.name || data.businessName || '',
+            rtn: (data.business_rtn || data.businessrtn || data.rtn || data.businessRTN || '').split("-")[0].trim(),
+            address: data.business_address || data.businessaddress || data.address || data.businessAddress || ''
+          });
+        } else {
+          try {
+            const lr = await fetch(`/api/companies`);
+            if (lr.ok) {
+              const lj = await lr.json();
+              const list: any[] = lj.companies || lj || [];
+              const comp = list.find((c:any)=> c.tenant_id===companyId || c.id===companyId);
+              if (comp) setCompanyInfo({ name: comp.business_name || comp.name || '', rtn: comp.business_rtn || comp.rtn || '', address: comp.business_address || comp.address || '' });
+            }
+          } catch {}
+        }
+      } catch (error) {
+        console.error('Error loading company info:', error);
+      }
+    };
+    fetchCompany();
+  }, [companyId]);
 
   // Cargar fechas iniciales
   useEffect(() => {
@@ -79,7 +109,7 @@ export default function EstadoResultadosPage() {
     setLoading(true);
     try {
       const response = await fetch(
-        `/api/accounting/trial-balance?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
       );
       
       if (response.ok) {
@@ -190,9 +220,15 @@ export default function EstadoResultadosPage() {
     });
   };
 
-  // Exportar a PDF/Print
+  // Exportar a PDF/Print — solo estado, con formatos
   const handlePrint = () => {
-    window.print();
+    const el = document.getElementById("printable-resultados");
+    if (!el) return window.print();
+    const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"], style')).map(s=>s.outerHTML).join("\n");
+    const w = window.open("", "_blank", "width=900,height=700");
+    if (!w) return window.print();
+    w.document.write(`<html><head><title>Estado de Resultados - ${companyInfo.name}</title>${styles}<style>body{padding:24px;color:#111;background:white} @media print{@page{margin:12mm} .print\\:hidden{display:none!important}} table{width:100%;border-collapse:collapse} th,td{padding:8px}</style></head><body><div class="max-w-5xl mx-auto">${el.innerHTML}</div></body></html>`);
+    w.document.close(); w.focus(); setTimeout(()=>{ w.print(); w.close(); }, 400);
   };
 
   return (
@@ -232,7 +268,7 @@ export default function EstadoResultadosPage() {
         </div>
       </div>
 
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div id="printable-resultados" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">

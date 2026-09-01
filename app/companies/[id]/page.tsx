@@ -310,21 +310,48 @@ export default function CompanyDetailPage() {
     try {
       setLoading(true);
       
-      // Cargar datos reales desde el API
-      const response = await fetch('/api/companies');
-      
-      if (!response.ok) {
-        throw new Error('Error al cargar empresas desde el API');
+      // Intentar primero como companyId directo
+      let companyData: Company | null = null;
+      try {
+        const res = await fetch(`/api/companies/${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          companyData = (data as any).company || data;
+        }
+      } catch {}
+
+      // Si no se encontró y parece un tenantId (ej: ANGELOH7), buscar por tenant
+      if (!companyData || !companyData.id) {
+        try {
+          const tRes = await fetch(`/api/tenant/companies?tenantId=${companyId}`);
+          if (tRes.ok) {
+            const tData = await tRes.json();
+            const list = tData.companies || tData.data || [];
+            if (Array.isArray(list) && list.length > 0) companyData = list[0];
+          }
+        } catch {}
+      }
+      // Fallback a lista completa
+      if (!companyData || !companyData.id) {
+        const response = await fetch('/api/companies');
+        if (response.ok) {
+          const companiesData = await response.json();
+          const found = companiesData.companies?.find((c: Company) => c.id === companyId);
+          if (found) companyData = found;
+          else {
+            // Buscar por tenant_id si aún no encontrado
+            const byTenant = companiesData.companies?.find((c: any) => c.tenant_id === companyId || c.tenantId === companyId);
+            if (byTenant) companyData = byTenant;
+          }
+        }
       }
       
-      const companiesData = await response.json();
-      const companyData = companiesData.companies.find((c: Company) => c.id === companyId);
-      
-      if (companyData) {
+      if (companyData && companyData.id) {
         setCompany(companyData);
       } else {
-        console.log('Empresa no encontrada, usando empresa por defecto');
-        setCompany(mockCompany);
+        console.log('Empresa no encontrada para', companyId, 'usando por defecto');
+        // No lanzar error, mostrar mock para no romper la página
+        setCompany({ ...mockCompany, id: companyId, business_name: `Empresa ${companyId}` } as any);
       }
       
       // Cargar datos reales de CAIs y Talonarios desde el API
@@ -488,7 +515,7 @@ export default function CompanyDetailPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -499,7 +526,7 @@ export default function CompanyDetailPage() {
         <Building2 className="h-12 w-12 text-gray-400 mx-auto mb-4" />
         <h3 className="text-lg font-medium text-gray-900 mb-2">Empresa no encontrada</h3>
         <p className="text-gray-600 mb-4">La empresa que buscas no existe o ha sido eliminada</p>
-        <Button onClick={() => router.push('/companies')} className="bg-blue-600 hover:bg-blue-700">
+        <Button onClick={() => router.push('/companies')} className="bg-cyan-600 hover:bg-cyan-700">
           <ArrowLeft className="h-4 w-4 mr-2" />
           Volver a Empresas
         </Button>
@@ -581,7 +608,7 @@ export default function CompanyDetailPage() {
                       // Actualizar la actividad económica en la base de datos
                       updateCompanyField('actividad_economica', e.target.value);
                     }}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 text-sm"
                   >
                     {economicActivities.map((activity) => (
                       <option key={activity} value={activity}>
@@ -649,20 +676,20 @@ export default function CompanyDetailPage() {
 
             {/* Módulos */}
             <Card 
-              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200"
+              className="cursor-pointer hover:shadow-lg transition-shadow bg-gradient-to-br from-cyan-50 to-cyan-50 border-cyan-200"
               onClick={() => router.push(`/companies/${company.id}/modules`)}
             >
               <CardHeader>
-                <CardTitle className="flex items-center text-blue-800">
+                <CardTitle className="flex items-center text-cyan-800">
                   <LayoutGrid className="h-5 w-5 mr-2" />
                   Módulos de la Empresa
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <p className="text-sm text-blue-600">
+                <p className="text-sm text-cyan-600">
                   Accede a todos los módulos disponibles: contabilidad, facturación, inventarios, compras, reportes y más.
                 </p>
-                <Button className="w-full bg-blue-600 hover:bg-blue-700">
+                <Button className="w-full bg-cyan-600 hover:bg-cyan-700">
                   <ExternalLink className="h-4 w-4 mr-2" />
                   Ver Módulos
                 </Button>
@@ -678,7 +705,7 @@ export default function CompanyDetailPage() {
                   <FileText className="h-5 w-5 mr-2" />
                   CAI Activos
                 </div>
-                <Button onClick={() => setShowCAIDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+                <Button onClick={() => setShowCAIDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
                   <Plus className="h-4 w-4 mr-2" />
                   Nuevo CAI
                 </Button>
@@ -725,7 +752,7 @@ export default function CompanyDetailPage() {
         <TabsContent value="cai" className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">Configuración CAI</h2>
-            <Button onClick={() => setShowCAIDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowCAIDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Nuevo CAI
             </Button>
@@ -808,7 +835,7 @@ export default function CompanyDetailPage() {
         <TabsContent value="talonarios" className="space-y-6">
           <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold">Talonarios</h2>
-            <Button onClick={() => setShowTalonarioDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowTalonarioDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Nuevo Talonario
             </Button>
@@ -931,7 +958,7 @@ export default function CompanyDetailPage() {
             <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => router.push(`/companies/${company.id}/accounting/books?tab=comprobacion`)}>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Scale className="h-5 w-5 mr-2 text-blue-600" />
+                  <Scale className="h-5 w-5 mr-2 text-cyan-600" />
                   Balance de Comprobación
                 </CardTitle>
                 <CardDescription>Verifica que los débitos sean iguales a los créditos</CardDescription>
@@ -1156,7 +1183,7 @@ export default function CompanyDetailPage() {
                   id="cai_id"
                   value={talonarioFormData.cai_id}
                   onChange={(e) => setTalonarioFormData(prev => ({ ...prev, cai_id: e.target.value }))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                   required
                 >
                   <option value="">Selecciona un CAI</option>

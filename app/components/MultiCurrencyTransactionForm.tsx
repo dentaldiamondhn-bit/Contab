@@ -188,7 +188,7 @@ export default function MultiCurrencyTransactionForm() {
             <select
               value={currency}
               onChange={(e) => setCurrency(e.target.value as 'HNL' | 'USD')}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="HNL">Honduran Lempira (HNL)</option>
               <option value="USD">US Dollar (USD)</option>
@@ -204,7 +204,7 @@ export default function MultiCurrencyTransactionForm() {
               value={exchangeRate}
               onChange={(e) => setExchangeRate(parseFloat(e.target.value) || 1)}
               step="0.0001"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
               disabled={currency === 'HNL'}
             />
           </div>
@@ -217,7 +217,7 @@ export default function MultiCurrencyTransactionForm() {
               type="date"
               value={date}
               onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
 
@@ -230,7 +230,7 @@ export default function MultiCurrencyTransactionForm() {
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="Invoice #, Receipt #"
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
         </div>
@@ -244,7 +244,7 @@ export default function MultiCurrencyTransactionForm() {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             placeholder="Transaction description"
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
           />
         </div>
 
@@ -261,7 +261,7 @@ export default function MultiCurrencyTransactionForm() {
                   <select
                     value={entry.accountId}
                     onChange={(e) => updateEntry(index, 'accountId', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   >
                     <option value="">Select account...</option>
                     {accounts.map((account) => (
@@ -282,7 +282,7 @@ export default function MultiCurrencyTransactionForm() {
                     onChange={(e) => updateEntry(index, 'amount', e.target.value)}
                     step="0.01"
                     placeholder="0.00"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 
@@ -295,7 +295,7 @@ export default function MultiCurrencyTransactionForm() {
                     value={entry.description}
                     onChange={(e) => updateEntry(index, 'description', e.target.value)}
                     placeholder="Entry description"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                   />
                 </div>
 

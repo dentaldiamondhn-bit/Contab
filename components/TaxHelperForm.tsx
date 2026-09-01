@@ -185,7 +185,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                 type="text"
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                 placeholder="Enter transaction description (helps auto-categorize tax)"
               />
             </div>
@@ -194,7 +194,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
             <div>
               <div className="flex justify-between items-center mb-3">
                 <h3 className="text-lg font-semibold">Journal Entries</h3>
-                <Button type="button" onClick={addEntry} className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700">
+                <Button type="button" onClick={addEntry} className="px-3 py-1 bg-cyan-600 text-white rounded hover:bg-cyan-700">
                   Add Entry
                 </Button>
               </div>
@@ -211,7 +211,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                         <select
                           value={entry.accountId}
                           onChange={(e) => updateEntry(index, 'accountId', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                         >
                           <option value="">Select account</option>
                           {accounts.map((account) => (
@@ -232,7 +232,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                           step="0.01"
                           value={entry.amount / 100}
                           onChange={(e) => updateEntry(index, 'amount', Math.round(parseFloat(e.target.value || '0') * 100))}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           placeholder="0.00"
                         />
                       </div>
@@ -246,7 +246,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                           type="text"
                           value={entry.description}
                           onChange={(e) => updateEntry(index, 'description', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                           placeholder="Entry description"
                         />
                       </div>
@@ -295,7 +295,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                   </div>
                   <div className="text-center p-3 bg-white rounded border">
                     <div className="text-sm text-gray-600">Total Tax</div>
-                    <div className="text-lg font-semibold text-blue-600">{formatCurrency(taxResult.summary.totalTax)}</div>
+                    <div className="text-lg font-semibold text-cyan-600">{formatCurrency(taxResult.summary.totalTax)}</div>
                   </div>
                   <div className="text-center p-3 bg-white rounded border">
                     <div className="text-sm text-gray-600">Total</div>
@@ -312,7 +312,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                         <div>
                           <span className="font-medium">{entry.description || 'Entry'}</span>
                           {entry.taxEntryId && (
-                            <span className="ml-2 text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Tax Entry</span>
+                            <span className="ml-2 text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded">Tax Entry</span>
                           )}
                         </div>
                         <span className={entry.amount > 0 ? 'text-green-600' : 'text-red-600'}>
@@ -331,7 +331,7 @@ export default function TaxHelperForm({ onTransactionCreate }: TaxHelperFormProp
                       {taxResult.taxableEntries.map((taxable, index) => (
                         <div key={index} className="flex justify-between p-2 bg-yellow-50 rounded border">
                           <span>{taxable.entry.description || 'Taxable entry'}</span>
-                          <span className="text-blue-600">
+                          <span className="text-cyan-600">
                             Tax: {formatCurrency(taxable.taxAmount || 0)} ({(taxable.taxConfig?.rate || 0) * 100}%)
                           </span>
                         </div>

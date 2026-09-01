@@ -36,7 +36,7 @@ export default function SystemConfigModule() {
     economicActivity: "VENTA DE BIENES Y SERVICIOS",
   });
   const [whiteLabel, setWhiteLabel] = useState({
-    companyName: "Contab",
+    companyName: "Diamond Accounting",
     primaryColor: "#2563EB",
     secondaryColor: "#7C3AED",
     logoUrl: "",
@@ -91,7 +91,7 @@ export default function SystemConfigModule() {
         ] as const).map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === t.key ? "border-blue-500 text-blue-600 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700"
+              tab === t.key ? "border-cyan-500 text-cyan-600 bg-cyan-50" : "border-transparent text-gray-500 hover:text-gray-700"
             }`}>
             {t.icon} {t.label}
           </button>
@@ -99,7 +99,7 @@ export default function SystemConfigModule() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+        <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600" /></div>
       ) : (
         <div className="bg-white rounded-lg shadow p-6">
           {tab === "financial" && (
@@ -150,7 +150,7 @@ export default function SystemConfigModule() {
               </div>
               <button onClick={() => saveConfig("financial_config", financialConfig, "Parámetros financieros globales")}
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50">
                 {saving ? "Guardando..." : "Guardar Configuración"}
               </button>
             </div>
@@ -237,7 +237,7 @@ export default function SystemConfigModule() {
               </div>
               <button onClick={() => saveConfig("fiscal_config", fiscalConfig, "Configuración fiscal de Honduras")}
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50">
                 {saving ? "Guardando..." : "Guardar Configuración Fiscal"}
               </button>
             </div>
@@ -295,7 +295,7 @@ export default function SystemConfigModule() {
               </div>
               <button onClick={() => saveConfig("white_label", whiteLabel, "Configuración de marca personalizada")}
                 disabled={saving}
-                className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm hover:bg-blue-700 disabled:opacity-50">
+                className="px-4 py-2 bg-cyan-600 text-white rounded-lg text-sm hover:bg-cyan-700 disabled:opacity-50">
                 {saving ? "Guardando..." : "Guardar Personalización"}
               </button>
             </div>

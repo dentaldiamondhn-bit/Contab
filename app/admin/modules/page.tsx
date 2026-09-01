@@ -17,8 +17,8 @@ const categoryLabels: Record<string, string> = {
 };
 
 const categoryColors: Record<string, { bg: string; border: string; text: string; icon: string }> = {
-  main: { bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-800', icon: '📒' },
-  accounting: { bg: 'bg-indigo-50', border: 'border-indigo-200', text: 'text-indigo-800', icon: '📕' },
+  main: { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', icon: '📒' },
+  accounting: { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', icon: '📕' },
   sales: { bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-800', icon: '🧾' },
   operations: { bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-800', icon: '📦' },
   analysis: { bg: 'bg-cyan-50', border: 'border-cyan-200', text: 'text-cyan-800', icon: '📊' },
@@ -389,7 +389,7 @@ export default function ModulesPage() {
         <div className="mb-8">
           <button
             onClick={() => router.push("/admin/dashboard")}
-            className="text-blue-600 hover:text-blue-800 mb-4 inline-flex items-center"
+            className="text-cyan-600 hover:text-cyan-800 mb-4 inline-flex items-center"
           >
             ← Volver al Dashboard
           </button>
@@ -432,7 +432,7 @@ export default function ModulesPage() {
                               <div className="flex items-center gap-2">
                                 <h3 className="font-semibold text-gray-900">{module.name}</h3>
                                 {module.required && (
-                                  <span className="px-2 py-0.5 text-xs font-semibold bg-blue-100 text-blue-700 rounded-full">
+                                  <span className="px-2 py-0.5 text-xs font-semibold bg-cyan-100 text-cyan-700 rounded-full">
                                     Siempre activo
                                   </span>
                                 )}
@@ -480,7 +480,7 @@ export default function ModulesPage() {
                                     onClick={() => setActiveTab(tab)}
                                     className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                                       activeTab === tab
-                                        ? 'border-blue-500 text-blue-600'
+                                        ? 'border-cyan-500 text-cyan-600'
                                         : 'border-transparent text-gray-500 hover:text-gray-700'
                                     }`}
                                   >
@@ -508,7 +508,7 @@ export default function ModulesPage() {
                               <div className="space-y-1">
                                 {structure.pages.map((page, idx) => (
                                   <div key={idx} className="flex items-center text-sm py-1.5 px-3 rounded hover:bg-gray-50">
-                                    <svg className="w-4 h-4 text-blue-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <svg className="w-4 h-4 text-cyan-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                                     </svg>
                                     <span className="font-medium text-gray-800 mr-2">{page.label}</span>
@@ -540,7 +540,7 @@ export default function ModulesPage() {
                                       <span className="text-sm font-medium text-gray-800">{lim.label}</span>
                                       <span className="text-xs text-gray-500 ml-2">({lim.unit})</span>
                                     </div>
-                                    <span className="text-sm font-semibold text-blue-600">{lim.defaultValue} {lim.unit}</span>
+                                    <span className="text-sm font-semibold text-cyan-600">{lim.defaultValue} {lim.unit}</span>
                                   </div>
                                 ))}
                                 <p className="text-xs text-gray-500 mt-2">

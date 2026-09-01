@@ -354,19 +354,19 @@ export default function POSPage() {
           <div className="lg:col-span-2 space-y-6">
             {/* Información del CAI */}
             {caiInfo && (
-              <Card className="bg-blue-50 border-blue-200">
+              <Card className="bg-cyan-50 border-cyan-200">
                 <CardContent className="p-4">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-sm font-medium text-blue-900">CAI Vigente</p>
-                      <p className="text-xs text-blue-700">{caiInfo.cai}</p>
-                      <p className="text-xs text-blue-600">
+                      <p className="text-xs text-cyan-700">{caiInfo.cai}</p>
+                      <p className="text-xs text-cyan-600">
                         Factura: {generateInvoiceNumber()} | 
                         Restantes: {caiInfo.finalNumber - caiInfo.currentNumber + 1}
                       </p>
                     </div>
                     <div className="text-right">
-                      <p className="text-xs text-blue-600">Vence:</p>
+                      <p className="text-xs text-cyan-600">Vence:</p>
                       <p className="text-sm font-medium text-blue-900">
                         {new Date(caiInfo.expirationDate).toLocaleDateString()}
                       </p>

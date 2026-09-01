@@ -131,7 +131,7 @@ export default function AdminAccountingPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
       </div>
     );
   }
@@ -172,7 +172,7 @@ export default function AdminAccountingPage() {
             <CardTitle className="text-sm font-medium text-gray-600">Contabilidad Central</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">{stats.withAccounting}</div>
+            <div className="text-2xl font-bold text-cyan-600">{stats.withAccounting}</div>
           </CardContent>
         </Card>
         <Card>
@@ -283,7 +283,7 @@ export default function AdminAccountingPage() {
                               onClick={() => handleToggle(tenant.id, book.id, isEnabled)}
                               disabled={isToggling || !tenant.isActive}
                               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 disabled:cursor-not-allowed ${
-                                isEnabled ? 'bg-blue-600' : 'bg-gray-300'
+                                isEnabled ? 'bg-cyan-600' : 'bg-gray-300'
                               }`}
                             >
                               <span

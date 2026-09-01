@@ -97,7 +97,7 @@ export default function ComprobanteRetencion({
       {/* Botones de acción */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Badge className="bg-blue-600">Comprobante #{datosComprobante.numero}</Badge>
+          <Badge className="bg-cyan-600">Comprobante #{datosComprobante.numero}</Badge>
           <Badge variant="outline">RTN: {datosComprobante.proveedor.rtn}</Badge>
         </div>
         <div className="flex items-center gap-2">
@@ -208,7 +208,7 @@ export default function ComprobanteRetencion({
         </div>
 
         {/* Monto en letras */}
-        <div className="mb-6 p-4 bg-blue-50 border border-blue-200">
+        <div className="mb-6 p-4 bg-cyan-50 border border-cyan-200">
           <div className="font-bold text-sm mb-1">SON:</div>
           <div className="text-lg font-medium">{montoEnLetras}</div>
         </div>

@@ -97,7 +97,7 @@ export default function ActiveAuditFeed({
       case 'CREATE':
         return <TrendingUp className="w-4 h-4 text-emerald-600" />;
       case 'UPDATE':
-        return <Activity className="w-4 h-4 text-indigo-600" />;
+        return <Activity className="w-4 h-4 text-cyan-600" />;
       case 'DELETE':
         return <TrendingDown className="w-4 h-4 text-rose-600" />;
       default:
@@ -110,7 +110,7 @@ export default function ActiveAuditFeed({
       case 'CREATE':
         return 'border-emerald-500 bg-emerald-50';
       case 'UPDATE':
-        return 'border-indigo-500 bg-indigo-50';
+        return 'border-cyan-500 bg-cyan-50';
       case 'DELETE':
         return 'border-rose-500 bg-rose-50';
       default:
@@ -188,7 +188,7 @@ export default function ActiveAuditFeed({
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <Shield className="w-5 h-5 text-indigo-600" />
+            <Shield className="w-5 h-5 text-cyan-600" />
             <CardTitle className="text-lg font-bold text-slate-900 font-inter">
               Active Audit Feed
             </CardTitle>
@@ -279,7 +279,7 @@ export default function ActiveAuditFeed({
                       {log.changedFields && log.changedFields.length > 0 && (
                         <button
                           onClick={() => toggleLogExpansion(log.id)}
-                          className="text-xs text-indigo-600 hover:text-indigo-800 font-inter"
+                          className="text-xs text-cyan-600 hover:text-cyan-800 font-inter"
                         >
                           {expandedLogs.has(log.id) ? (
                             <ChevronUp className="w-3 h-3" />

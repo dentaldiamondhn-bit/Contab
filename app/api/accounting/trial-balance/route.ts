@@ -1,17 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { supabase as supabaseService } from "@/lib/supabase-db";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     
+    const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id");
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined;
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined;
     
-    const supabase = createSupabaseClient();
+    // Usar service_role para bypass RLS y soportar ANGELOH7
+    const supabase = supabaseService;
     
-    // Obtener transacciones con sus JournalEntries y Accounts
-    let query = supabase
+    // Obtener transacciones con sus JournalEntries y Accounts — filtrado por tenant real
+    let query: any = supabase
       .from("Transaction")
       .select(`
         *,
@@ -24,8 +27,12 @@ export async function GET(request: NextRequest) {
             type
           )
         )
-      `)
-      .in("tenantId", ['1', 'tenant_001']);
+      `);
+    if (tenantId) {
+      query = query.eq("tenantId", tenantId);
+    } else {
+      query = query.in("tenantId", ['1', 'tenant_001']);
+    }
     
     if (startDate) {
       query = query.gte("date", startDate.toISOString());

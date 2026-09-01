@@ -569,7 +569,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="text" 
                       id="kpi-name"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       placeholder="Ej: ROI Marketing"
                     />
                   </div>
@@ -577,7 +577,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <label className="text-sm font-medium text-gray-700">Unidad</label>
                     <select 
                       id="kpi-unit"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                     >
                       <option value="%">Porcentaje (%)</option>
                       <option value="HNL">Lempiras (HNL)</option>
@@ -592,7 +592,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="number" 
                       id="kpi-value"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       placeholder="0"
                     />
                   </div>
@@ -601,7 +601,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="number" 
                       id="kpi-target"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       placeholder="0"
                     />
                   </div>
@@ -673,7 +673,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                 <div className="border-t pt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Fijos:</span>
-                    <span className="text-blue-600">{formatCurrency(
+                    <span className="text-cyan-600">{formatCurrency(
                       fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0
                     )}</span>
                   </div>
@@ -710,7 +710,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                 <div className="border-t pt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Variables:</span>
-                    <span className="text-blue-600">{formatCurrency(
+                    <span className="text-cyan-600">{formatCurrency(
                       variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0
                     )}</span>
                   </div>

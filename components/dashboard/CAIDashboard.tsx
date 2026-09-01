@@ -250,7 +250,7 @@ export default function CAIDashboard({ compact = false }: CAIDashboardProps) {
                   <p className="text-sm font-medium text-muted-foreground">Total CAIs</p>
                   <p className="text-2xl font-bold">{statistics.totalCAIs}</p>
                 </div>
-                <FileText className="w-6 h-6 text-blue-600" />
+                <FileText className="w-6 h-6 text-cyan-600" />
               </div>
             </CardContent>
           </Card>

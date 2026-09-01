@@ -153,7 +153,7 @@ export default function AccountDetails() {
             <select
               value={selectedAccountId}
               onChange={(e) => setSelectedAccountId(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             >
               <option value="">Select an account...</option>
               {accounts.map((account) => (
@@ -172,7 +172,7 @@ export default function AccountDetails() {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
           
@@ -184,7 +184,7 @@ export default function AccountDetails() {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
             />
           </div>
           
@@ -222,7 +222,7 @@ export default function AccountDetails() {
               </div>
               <div>
                 <h3 className="text-sm font-semibold text-gray-600">Total Debits</h3>
-                <p className="text-lg font-bold text-blue-600">
+                <p className="text-lg font-bold text-cyan-600">
                   {formatCurrency(report.totalDebits)}
                 </p>
               </div>

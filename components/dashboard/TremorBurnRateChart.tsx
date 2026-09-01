@@ -109,7 +109,7 @@ export default function TremorBurnRateChart() {
       <div className="pb-3">
         <Flex justifyContent="between" alignItems="center">
           <div className="flex items-center space-x-2">
-            <Target className="w-5 h-5 text-indigo-600" />
+            <Target className="w-5 h-5 text-cyan-600" />
             <Title className="text-lg font-bold text-slate-900">
               Burn Rate Analysis
             </Title>
@@ -185,12 +185,12 @@ export default function TremorBurnRateChart() {
 
       {/* Break-Even Indicator */}
       {metrics?.breakEvenPoint && (
-        <div className="mb-4 p-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+        <div className="mb-4 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-2">
-              <Activity className="w-4 h-4 text-indigo-600" />
+              <Activity className="w-4 h-4 text-cyan-600" />
               <div>
-                <Text className="text-sm font-semibold text-indigo-900">
+                <Text className="text-sm font-semibold text-cyan-900">
                   Break-Even Point Reached
                 </Text>
                 <Text className="text-xs text-slate-600">

@@ -21,7 +21,7 @@ export default function AdminTestSimplePage() {
           <div className="mt-6 space-x-4">
             <button 
               onClick={() => window.location.href = '/admin/dashboard'}
-              className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
+              className="bg-cyan-600 text-white px-4 py-2 rounded hover:bg-cyan-700"
             >
               Ir a Admin Dashboard
             </button>

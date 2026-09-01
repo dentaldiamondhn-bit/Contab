@@ -60,7 +60,7 @@ export default function SecurityLayout({ children, params }: SecurityLayoutProps
             </Button>
           </Link>
           <div className="mt-4 flex items-center gap-2">
-            <Shield className="h-6 w-6 text-indigo-600" />
+            <Shield className="h-6 w-6 text-cyan-600" />
             <div>
               <h1 className="font-bold text-lg">Seguridad</h1>
               <p className="text-xs text-gray-500">Sistema de Control</p>
@@ -82,11 +82,11 @@ export default function SecurityLayout({ children, params }: SecurityLayoutProps
                   className={cn(
                     "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
                     isActive
-                      ? "bg-indigo-50 text-indigo-700 border-r-2 border-indigo-600"
+                      ? "bg-cyan-50 text-cyan-700 border-r-2 border-cyan-600"
                       : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                   )}
                 >
-                  <Icon className={cn("h-4 w-4", isActive ? "text-indigo-600" : "text-gray-400")} />
+                  <Icon className={cn("h-4 w-4", isActive ? "text-cyan-600" : "text-gray-400")} />
                   <span>{module.label}</span>
                   {isActive && <ChevronRight className="h-4 w-4 ml-auto" />}
                 </Link>

@@ -67,7 +67,7 @@ export default function DashboardPage() {
       console.log('[DashboardPage] → spinner: !user || !isLoaded || !mounted');
       return (
         <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600"></div>
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-cyan-600"></div>
         </div>
       );
     }
@@ -113,7 +113,7 @@ export default function DashboardPage() {
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <Link href="/transactions">
               <CardContent className="p-6 text-center">
-                <FileText className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                <FileText className="h-12 w-12 text-cyan-600 mx-auto mb-4" />
                 <h3 className="font-semibold text-lg mb-2">Transacciones</h3>
                 <p className="text-sm text-gray-600">Gestionar asientos contables</p>
               </CardContent>

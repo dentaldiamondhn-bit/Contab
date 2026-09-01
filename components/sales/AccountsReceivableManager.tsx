@@ -230,7 +230,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
       <Card className="w-full">
         <CardContent className="flex items-center justify-center py-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600 mx-auto mb-4"></div>
             <p>Cargando cuentas por cobrar...</p>
           </div>
         </CardContent>
@@ -244,7 +244,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
       <div className="flex justify-between items-center">
         <div>
           <h2 className="text-2xl font-bold flex items-center">
-            <DollarSign className="h-6 w-6 mr-2 text-blue-600" />
+            <DollarSign className="h-6 w-6 mr-2 text-cyan-600" />
             Cuentas por Cobrar
           </h2>
           <p className="text-gray-600">Gestión de cobros y seguimiento de facturas</p>
@@ -304,10 +304,10 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total por Cobrar</CardTitle>
-            <DollarSign className="h-4 w-4 text-blue-600" />
+            <DollarSign className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-600">
+            <div className="text-2xl font-bold text-cyan-600">
               L. {(totalReceivables / 100).toFixed(2)}
             </div>
             <p className="text-xs text-gray-600">
@@ -449,7 +449,7 @@ export default function AccountsReceivableManager({ tenantId }: AccountsReceivab
                           L. {(receivable.paidAmount / 100).toFixed(2)}
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-right font-medium">
-                          <span className={receivable.balanceAmount > 0 ? 'text-blue-600' : 'text-green-600'}>
+                          <span className={receivable.balanceAmount > 0 ? 'text-cyan-600' : 'text-green-600'}>
                             L. {(receivable.balanceAmount / 100).toFixed(2)}
                           </span>
                         </td>

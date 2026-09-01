@@ -321,7 +321,7 @@ export default function SuppliersPage() {
 
   const getSupplierTypeColor = (type: string) => {
     const colors: Record<string, string> = {
-      merchandise: 'bg-blue-100 text-blue-800',
+      merchandise: 'bg-cyan-100 text-cyan-800',
       services: 'bg-green-100 text-green-800',
       creditors: 'bg-purple-100 text-purple-800',
     };
@@ -366,7 +366,7 @@ export default function SuppliersPage() {
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard de Compras
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-blue-50 text-blue-700 hover:bg-blue-100">
+            <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Proveedor
             </DropdownMenuItem>

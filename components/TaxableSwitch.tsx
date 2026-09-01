@@ -82,7 +82,7 @@ export default function TaxableSwitch({
           checked={checked}
           onChange={(e) => onToggle(e.target.checked)}
           disabled={disabled}
-          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
+          className="rounded border-gray-300 text-cyan-600 focus:ring-cyan-500 disabled:opacity-50"
         />
         <label className="text-sm font-medium text-gray-700">
           Taxable
@@ -98,7 +98,7 @@ export default function TaxableSwitch({
               <span className="text-gray-600">
                 Tax: {formatCurrency(taxPreview.taxAmount)} ({(taxPreview.taxRate * 100).toFixed(1)}%)
               </span>
-              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
+              <span className="text-xs bg-cyan-100 text-cyan-800 px-2 py-1 rounded">
                 {taxPreview.taxConfig.account.code} - {taxPreview.taxConfig.account.name}
               </span>
             </div>

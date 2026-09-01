@@ -100,7 +100,7 @@ export default function CreateUserPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-gradient-to-br from-cyan-50 to-cyan-100 flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-lg shadow-lg p-8">
           <div className="text-center mb-6">
@@ -122,7 +122,7 @@ export default function CreateUserPage() {
                     placeholder="https://your-project.supabase.co"
                     value={supabaseUrl}
                     onChange={(e) => setSupabaseUrl(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                   />
                 </div>
                 <div>
@@ -134,16 +134,16 @@ export default function CreateUserPage() {
                     placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
                     value={supabaseKey}
                     onChange={(e) => setSupabaseKey(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500"
                   />
                 </div>
               </div>
             </div>
 
             {/* Info del usuario */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
               <h3 className="font-medium text-blue-900 mb-2">Usuario a crear:</h3>
-              <div className="text-sm text-blue-800 space-y-1">
+              <div className="text-sm text-cyan-800 space-y-1">
                 <p><strong>Email:</strong> admin@contab.com</p>
                 <p><strong>Password:</strong> admin123</p>
                 <p><strong>Rol:</strong> Administrador</p>
@@ -155,7 +155,7 @@ export default function CreateUserPage() {
               <button
                 onClick={createAdminUser}
                 disabled={loading}
-                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="w-full flex justify-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-cyan-600 hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-cyan-500 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 {loading ? (
                   <>
@@ -199,7 +199,7 @@ export default function CreateUserPage() {
           </div>
 
           <div className="mt-6 text-center">
-            <a href="/auth/login" className="text-sm text-blue-600 hover:text-blue-500">
+            <a href="/auth/login" className="text-sm text-cyan-600 hover:text-cyan-500">
               ← Volver al login
             </a>
           </div>

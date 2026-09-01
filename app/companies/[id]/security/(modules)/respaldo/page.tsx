@@ -95,7 +95,7 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
 
   const getTipoColor = (tipo: string) => {
     switch (tipo) {
-      case 'completo': return 'bg-blue-600';
+      case 'completo': return 'bg-cyan-600';
       case 'parcial': return 'bg-yellow-600';
       case 'incremental': return 'bg-green-600';
       default: return 'bg-gray-600';
@@ -105,7 +105,7 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
   const getEstadoColor = (estado: string) => {
     switch (estado) {
       case 'completado': return 'bg-green-600';
-      case 'en_progreso': return 'bg-blue-600';
+      case 'en_progreso': return 'bg-cyan-600';
       case 'fallido': return 'bg-red-600';
       default: return 'bg-gray-600';
     }
@@ -117,7 +117,7 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold flex items-center gap-2">
-            <DatabaseBackup className="h-5 w-5 text-indigo-600" />
+            <DatabaseBackup className="h-5 w-5 text-cyan-600" />
             Respaldo de Información - {anioSeleccionado}
           </h2>
           <p className="text-gray-600 text-sm mt-1">
@@ -146,9 +146,9 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
         <Card className="text-center">
           <CardContent className="p-4">
             <div className="flex items-center justify-center mb-2">
-              <HardDrive className="h-5 w-5 text-blue-600" />
+              <HardDrive className="h-5 w-5 text-cyan-600" />
             </div>
-            <p className="text-2xl font-bold text-blue-600">{backups.length}</p>
+            <p className="text-2xl font-bold text-cyan-600">{backups.length}</p>
             <p className="text-xs text-gray-600">Total Respaldos</p>
           </CardContent>
         </Card>
@@ -236,7 +236,7 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5 text-indigo-600" />
+            <FileText className="h-5 w-5 text-cyan-600" />
             Historial de Respaldos
           </CardTitle>
           <CardDescription>
@@ -310,10 +310,10 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
       </Card>
 
       {/* Seguridad de Respaldos */}
-      <Card className="border-l-4 border-l-indigo-500">
+      <Card className="border-l-4 border-l-cyan-500">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5 text-indigo-600" />
+            <Shield className="h-5 w-5 text-cyan-600" />
             Seguridad y Encriptación
           </CardTitle>
           <CardDescription>
@@ -323,50 +323,50 @@ export default function RespaldoPage({ params }: RespaldoPageProps) {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <Shield className="h-4 w-4 text-indigo-600" />
+                  <Shield className="h-4 w-4 text-cyan-600" />
                   <p className="font-medium">Encriptación AES-256</p>
                 </div>
                 <p className="text-sm text-gray-600">
                   Todos los archivos de respaldo están encriptados
                 </p>
-                <Badge className="mt-2 bg-indigo-600">Habilitado</Badge>
+                <Badge className="mt-2 bg-cyan-600">Habilitado</Badge>
               </div>
               
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <Calendar className="h-4 w-4 text-indigo-600" />
+                  <Calendar className="h-4 w-4 text-cyan-600" />
                   <p className="font-medium">Retención de Copias</p>
                 </div>
                 <p className="text-sm text-gray-600">
                   12 meses de historial disponible
                 </p>
-                <Badge className="mt-2 bg-indigo-600">Configurado</Badge>
+                <Badge className="mt-2 bg-cyan-600">Configurado</Badge>
               </div>
             </div>
             
             <div className="space-y-4">
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <AlertTriangle className="h-4 w-4 text-indigo-600" />
+                  <AlertTriangle className="h-4 w-4 text-cyan-600" />
                   <p className="font-medium">Verificación de Integridad</p>
                 </div>
                 <p className="text-sm text-gray-600">
                   Checksum SHA-256 al finalizar cada backup
                 </p>
-                <Badge className="mt-2 bg-indigo-600">Automático</Badge>
+                <Badge className="mt-2 bg-cyan-600">Automático</Badge>
               </div>
               
-              <div className="p-4 bg-indigo-50 rounded-lg border border-indigo-200">
+              <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
                 <div className="flex items-center gap-2 mb-2">
-                  <HardDrive className="h-4 w-4 text-indigo-600" />
+                  <HardDrive className="h-4 w-4 text-cyan-600" />
                   <p className="font-medium">Almacenamiento Local</p>
                 </div>
                 <p className="text-sm text-gray-600">
                   Copia local en servidor + nube externa
                 </p>
-                <Badge className="mt-2 bg-indigo-600">Activo</Badge>
+                <Badge className="mt-2 bg-cyan-600">Activo</Badge>
               </div>
             </div>
           </div>

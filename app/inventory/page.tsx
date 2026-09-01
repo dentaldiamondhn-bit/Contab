@@ -1624,10 +1624,10 @@ export default function InventoryPage() {
     <div className="space-y-6">
       {/* Filter Indicator */}
       {stockFilter !== 'all' && (
-        <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg p-2 mb-4">
+        <div className="flex items-center justify-between bg-cyan-50 border border-cyan-200 rounded-lg p-2 mb-4">
           <div className="flex items-center space-x-2">
-            <Filter className="h-4 w-4 text-blue-600" />
-            <span className="text-sm font-medium text-blue-800">
+            <Filter className="h-4 w-4 text-cyan-600" />
+            <span className="text-sm font-medium text-cyan-800">
               {stockFilter === 'low' ? 'Mostrando productos con stock bajo' : 'Mostrando productos agotados'}
             </span>
           </div>
@@ -1635,7 +1635,7 @@ export default function InventoryPage() {
             variant="outline"
             size="sm"
             onClick={() => setStockFilter('all')}
-            className="text-blue-600 border-blue-300 hover:bg-blue-100"
+            className="text-cyan-600 border-blue-300 hover:bg-cyan-100"
           >
             Limpiar filtro
           </Button>
@@ -1688,7 +1688,7 @@ export default function InventoryPage() {
                       <td className="px-6 py-3 text-center text-gray-600">{t.totalMovements}</td>
                       <td className="px-6 py-3 text-center font-medium">{t.totalRecords}</td>
                       <td className="px-6 py-3 text-right">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-50 text-blue-700 font-medium text-sm">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 font-medium text-sm">
                           {t.storageUsed}
                         </span>
                       </td>
@@ -1705,7 +1705,7 @@ export default function InventoryPage() {
                     <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalMovements, 0)}</td>
                     <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalRecords, 0)}</td>
                     <td className="px-6 py-3 text-right">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-blue-100 text-blue-800 font-medium text-sm">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 font-medium text-sm">
                         {formatBytes(tenantReport.reduce((s: number, t: any) => s + t.storageBytes, 0))}
                       </span>
                     </td>
@@ -1746,7 +1746,7 @@ export default function InventoryPage() {
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" className="bg-blue-600 hover:bg-blue-700 text-white">
+              <Button variant="outline" className="bg-cyan-600 hover:bg-cyan-700 text-white">
                 <MoreHorizontal className="h-4 w-4 mr-2" />
                 Acciones
               </Button>
@@ -1878,7 +1878,7 @@ export default function InventoryPage() {
                                     <p className="text-sm text-orange-600 font-medium">L {(product as any).discountPrice}</p>
                                   </>
                                 ) : (
-                                  <p className="text-sm text-blue-600">L {product.price}</p>
+                                  <p className="text-sm text-cyan-600">L {product.price}</p>
                                 )}
                               </div>
                               <Button
@@ -1979,7 +1979,7 @@ export default function InventoryPage() {
               
               <div className="space-y-6">
                 {/* Add/Edit Category Form */}
-                <div className={`border-b pb-4 ${editingCategory ? 'bg-blue-50 border-blue-200 rounded-lg p-4' : ''}`} data-edit-form="true">
+                <div className={`border-b pb-4 ${editingCategory ? 'bg-cyan-50 border-cyan-200 rounded-lg p-4' : ''}`} data-edit-form="true">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-lg font-semibold">
                       {editingCategory ? 'Editar Categoría' : 'Agregar Nueva Categoría'}
@@ -2156,7 +2156,7 @@ export default function InventoryPage() {
                           setFormData(prev => ({ ...prev, category: value }));
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       required
                     >
                       <option value="">Seleccionar categoría</option>
@@ -2196,7 +2196,7 @@ export default function InventoryPage() {
                           setFormData(prev => ({ ...prev, unit: value }));
                         }
                       }}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
                       required
                     >
                       <option value="">Seleccionar unidad</option>
@@ -2290,10 +2290,10 @@ export default function InventoryPage() {
                     {fieldErrors.nuevoStock && (
                       <p className="text-xs text-red-500 mt-1">{fieldErrors.nuevoStock}</p>
                     )}
-                    <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="mt-3 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
                     <div className="flex items-center justify-between">
-                      <span className="text-sm font-medium text-blue-700">Resumen de Stock:</span>
-                      <Badge variant="outline" className="bg-blue-100 text-blue-800">
+                      <span className="text-sm font-medium text-cyan-700">Resumen de Stock:</span>
+                      <Badge variant="outline" className="bg-cyan-100 text-cyan-800">
                         {calculateTotalStock()} unidades
                       </Badge>
                     </div>
@@ -2304,7 +2304,7 @@ export default function InventoryPage() {
                       </div>
                       <div className="flex justify-between font-bold">
                         <span className="text-gray-700">Stock Total:</span>
-                        <span className="text-blue-700">{calculateTotalStock()} unidades</span>
+                        <span className="text-cyan-700">{calculateTotalStock()} unidades</span>
                       </div>
                     </div>
                   </div>
@@ -2437,7 +2437,7 @@ export default function InventoryPage() {
                         {formData.tags.map((tag, index) => (
                           <div
                             key={`tag-${index}`}
-                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800"
+                            className="inline-flex items-center px-3 py-1 rounded-full text-sm bg-cyan-100 text-cyan-800"
                           >
                             {tag}
                             <button
@@ -2448,7 +2448,7 @@ export default function InventoryPage() {
                                   tags: prev.tags.filter((_, i) => i !== index)
                                 }));
                               }}
-                              className="ml-2 text-blue-600 hover:text-blue-800"
+                              className="ml-2 text-cyan-600 hover:text-cyan-800"
                             >
                               ×
                             </button>
@@ -2499,7 +2499,7 @@ export default function InventoryPage() {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-            <Boxes className="h-4 w-4 text-blue-600" />
+            <Boxes className="h-4 w-4 text-cyan-600" />
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">{products.length}</div>
@@ -2705,7 +2705,7 @@ export default function InventoryPage() {
         <Button
           variant={activeTab === 'inventory' ? 'default' : 'outline'}
           onClick={() => setActiveTab('inventory')}
-          className={activeTab === 'inventory' ? 'bg-blue-600' : ''}
+          className={activeTab === 'inventory' ? 'bg-cyan-600' : ''}
         >
           <Boxes className="h-4 w-4 mr-2" />
           Inventario
@@ -2822,7 +2822,7 @@ export default function InventoryPage() {
                     </div>
                     <div className="flex justify-between text-xs">
                       <span className="text-gray-500">Valor:</span>
-                      <span className="font-medium text-blue-600 text-xs">
+                      <span className="font-medium text-cyan-600 text-xs">
                         Lps. {(product.stock * product.cost).toFixed(2)}
                       </span>
                     </div>
@@ -2847,7 +2847,7 @@ export default function InventoryPage() {
                     {product.tags && product.tags.length > 0 && (
                       <div key={`product-tags-${product.id}`} className="flex flex-wrap gap-1 pt-1">
                         {product.tags.slice(0, 2).map((tag, index) => (
-                          <span key={`tag-${index}`} className="inline-block px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">
+                          <span key={`tag-${index}`} className="inline-block px-2 py-0.5 text-xs bg-cyan-100 text-cyan-800 rounded-full">
                             {tag}
                           </span>
                         ))}
@@ -2961,7 +2961,7 @@ export default function InventoryPage() {
                         <div className="text-sm text-gray-500">Stock</div>
                       </div>
                       <div className="text-right">
-                        <div className="font-semibold text-blue-600">
+                        <div className="font-semibold text-cyan-600">
                           Lps. {(product.stock * product.cost).toFixed(2)}
                         </div>
                         <div className="text-sm text-gray-500">Valor</div>
@@ -3093,7 +3093,7 @@ export default function InventoryPage() {
                           </span>
                         </td>
                         <td className="px-4 py-4 whitespace-nowrap text-sm text-gray-900">
-                          <span className="font-medium text-blue-600">
+                          <span className="font-medium text-cyan-600">
                             Lps. {(product.stock * product.cost).toFixed(2)}
                           </span>
                         </td>
@@ -3178,7 +3178,7 @@ export default function InventoryPage() {
             }
           </p>
           {!searchTerm && (
-            <Button onClick={() => setShowAddDialog(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Button onClick={() => setShowAddDialog(true)} className="bg-cyan-600 hover:bg-cyan-700">
               <Plus className="h-4 w-4 mr-2" />
               Agregar Primer Producto
             </Button>
@@ -3536,7 +3536,7 @@ export default function InventoryPage() {
                             </p>
                           )}
                           {product.promotionStartDate && (
-                            <p className="text-xs text-blue-600">
+                            <p className="text-xs text-cyan-600">
                               Promoción: {formatDateRange(product.promotionStartDate, product.promotionEndDate)}
                             </p>
                           )}
@@ -3593,7 +3593,7 @@ export default function InventoryPage() {
                           <p className="text-sm text-gray-500">{pkg.description}</p>
                           <p className="text-sm text-gray-500">{pkg.products?.length || 0} productos</p>
                           {pkg.promotionstartdate && (
-                            <p className="text-xs text-blue-600">
+                            <p className="text-xs text-cyan-600">
                               Promoción: {formatDateRange(pkg.promotionstartdate, pkg.promotionenddate)}
                             </p>
                           )}
@@ -3652,7 +3652,7 @@ export default function InventoryPage() {
                 id="type"
                 value={movementData.type}
                 onChange={(e) => setMovementData(prev => ({ ...prev, type: e.target.value as 'IN' | 'OUT' | 'ADJUSTMENT' }))}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
               >
                 <option value="IN">Entrada</option>
                 <option value="OUT">Salida</option>
@@ -3775,7 +3775,7 @@ export default function InventoryPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Costo Unitario</Label>
-                    <p className="text-lg font-bold text-blue-600">Lps. {selectedProduct.cost.toFixed(2)}</p>
+                    <p className="text-lg font-bold text-cyan-600">Lps. {selectedProduct.cost.toFixed(2)}</p>
                   </div>
                   <div>
                     <Label className="text-sm font-medium text-gray-500">Precio de Venta</Label>
@@ -3802,7 +3802,7 @@ export default function InventoryPage() {
                     <Label className="text-sm font-medium text-gray-500">Etiquetas</Label>
                     <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
                       {selectedProduct.tags.map((tag, index) => (
-                        <span key={index} className="inline-block px-3 py-1 text-sm bg-blue-100 text-blue-800 rounded-full">
+                        <span key={index} className="inline-block px-3 py-1 text-sm bg-cyan-100 text-cyan-800 rounded-full">
                           {tag}
                         </span>
                       ))}
@@ -3820,7 +3820,7 @@ export default function InventoryPage() {
                         <div className="flex items-center space-x-3">
                           <div className={`w-2 h-2 rounded-full ${
                             movement.type === 'IN' ? 'bg-green-500' : 
-                            movement.type === 'OUT' ? 'bg-red-500' : 'bg-blue-500'
+                            movement.type === 'OUT' ? 'bg-red-500' : 'bg-cyan-500'
                           }`}></div>
                           <div>
                             <p className="text-sm font-medium">
@@ -4011,12 +4011,12 @@ export default function InventoryPage() {
               </Button>
             </div>
 
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+            <div className="bg-cyan-50 border border-cyan-200 rounded-lg p-4">
               <h4 className="font-semibold text-blue-900 mb-2">Formato del Archivo:</h4>
-              <p className="text-sm text-blue-800 mb-2">
+              <p className="text-sm text-cyan-800 mb-2">
                 Tu archivo debe contener las siguientes columnas en este orden:
               </p>
-              <div className="grid grid-cols-2 gap-2 text-sm text-blue-700">
+              <div className="grid grid-cols-2 gap-2 text-sm text-cyan-700">
                 <div><strong>Nombre*</strong> - Nombre del producto</div>
                 <div><strong>Categoría*</strong> - Categoría del producto</div>
                 <div><strong>Precio*</strong> - Precio de venta</div>

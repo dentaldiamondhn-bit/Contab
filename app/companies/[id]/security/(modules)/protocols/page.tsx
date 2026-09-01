@@ -70,10 +70,10 @@ export default function ProtocolsPage() {
           </CardContent>
         </Card>
 
-        <Card className="border-blue-200">
+        <Card className="border-cyan-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <ScanLine className="h-5 w-5 text-blue-600" />
+              <ScanLine className="h-5 w-5 text-cyan-600" />
               App Check-In / Check-Out
             </CardTitle>
             <CardDescription>
@@ -81,7 +81,7 @@ export default function ProtocolsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="p-4 bg-blue-50 rounded-lg space-y-3">
+            <div className="p-4 bg-cyan-50 rounded-lg space-y-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
                   <Clock className="h-5 w-5 text-green-600" />
@@ -120,22 +120,22 @@ export default function ProtocolsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Wifi className="h-5 w-5 text-blue-600" />
+              <Wifi className="h-5 w-5 text-cyan-600" />
               Conectividad
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>WiFi de alta velocidad (500+ Mbps)</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>Red separada para equipos médicos</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-blue-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>Backup de conexión 4G/5G</span>
               </li>
             </ul>
@@ -145,22 +145,22 @@ export default function ProtocolsPage() {
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-lg">
-              <Stethoscope className="h-5 w-5 text-indigo-600" />
+              <Stethoscope className="h-5 w-5 text-cyan-600" />
               Equipamiento
             </CardTitle>
           </CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm">
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-indigo-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>Unidad dental completa</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-indigo-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>Lámpara de fotocurado</span>
               </li>
               <li className="flex items-start gap-2">
-                <CheckCircle className="h-4 w-4 text-indigo-600 mt-0.5" />
+                <CheckCircle className="h-4 w-4 text-cyan-600 mt-0.5" />
                 <span>Equipo de rayos X digital</span>
               </li>
             </ul>

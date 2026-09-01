@@ -103,7 +103,7 @@ export default function SupportAuditPage() {
       case 'CREATE':
         return <FileText className="w-4 h-4 text-green-500" />;
       case 'UPDATE':
-        return <Activity className="w-4 h-4 text-blue-500" />;
+        return <Activity className="w-4 h-4 text-cyan-500" />;
       case 'DELETE':
         return <AlertTriangle className="w-4 h-4 text-red-500" />;
       default:
@@ -116,7 +116,7 @@ export default function SupportAuditPage() {
       case 'CREATE':
         return 'bg-green-100 text-green-800 border-green-200';
       case 'UPDATE':
-        return 'bg-blue-100 text-blue-800 border-blue-200';
+        return 'bg-cyan-100 text-cyan-800 border-cyan-200';
       case 'DELETE':
         return 'bg-red-100 text-red-800 border-red-200';
       default:
@@ -188,11 +188,11 @@ export default function SupportAuditPage() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-gray-600">Actualizaciones</p>
-                  <p className="text-2xl font-bold text-blue-600">
+                  <p className="text-2xl font-bold text-cyan-600">
                     {logs.filter(l => l.action === 'UPDATE').length}
                   </p>
                 </div>
-                <Activity className="w-8 h-8 text-blue-400" />
+                <Activity className="w-8 h-8 text-cyan-400" />
               </div>
             </CardContent>
           </Card>

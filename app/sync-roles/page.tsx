@@ -54,14 +54,14 @@ export default function SyncRolesPage() {
         <button
           onClick={handleSync}
           disabled={loading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-cyan-600 text-white py-2 px-4 rounded-lg hover:bg-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {loading ? "Sincronizando..." : "Sincronizar Roles"}
         </button>
 
         {loading && (
           <div className="mt-4 text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-cyan-600"></div>
           </div>
         )}
 
@@ -88,7 +88,7 @@ export default function SyncRolesPage() {
         <div className="mt-6 text-center">
           <a
             href="/support/users"
-            className="text-blue-600 hover:text-blue-800 underline"
+            className="text-cyan-600 hover:text-cyan-800 underline"
           >
             Volver a Ver Usuarios
           </a>

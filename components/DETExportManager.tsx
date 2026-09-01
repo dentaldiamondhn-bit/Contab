@@ -158,7 +158,7 @@ export default function DETExportManager() {
   // Get file type color
   const getFileTypeColor = (type: DETFileType) => {
     switch (type) {
-      case 'PURCHASES': return 'bg-blue-100 text-blue-800';
+      case 'PURCHASES': return 'bg-cyan-100 text-cyan-800';
       case 'SALES': return 'bg-green-100 text-green-800';
       case 'SERVICES': return 'bg-purple-100 text-purple-800';
       case 'OTHER': return 'bg-gray-100 text-gray-800';
@@ -190,13 +190,13 @@ export default function DETExportManager() {
       </div>
 
       {/* Info Card */}
-      <Card className="border-blue-200 bg-blue-50/50">
+      <Card className="border-cyan-200 bg-cyan-50/50">
         <CardContent className="pt-6">
           <div className="flex items-start gap-3">
-            <AlertTriangle className="w-5 h-5 text-blue-600 mt-0.5" />
+            <AlertTriangle className="w-5 h-5 text-cyan-600 mt-0.5" />
             <div className="space-y-2">
               <h3 className="font-medium text-blue-900">¿Qué es DET Live?</h3>
-              <ul className="text-sm text-blue-800 space-y-1">
+              <ul className="text-sm text-cyan-800 space-y-1">
                 <li>• DET Live es el formato oficial del SAR para declaraciones informativas</li>
                 <li>• Genera archivos .txt con la estructura exacta requerida</li>
                 <li>• Soporta compras, ventas, servicios y otros tipos de operaciones</li>
@@ -216,12 +216,12 @@ export default function DETExportManager() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-muted-foreground">Compras</p>
-                  <p className="text-2xl font-bold text-blue-600">{statistics.purchases.count}</p>
+                  <p className="text-2xl font-bold text-cyan-600">{statistics.purchases.count}</p>
                   <p className="text-xs text-muted-foreground">
                     L {(statistics.purchases.total / 100).toFixed(2)}
                   </p>
                 </div>
-                <TrendingUp className="w-8 h-8 text-blue-600" />
+                <TrendingUp className="w-8 h-8 text-cyan-600" />
               </div>
             </CardContent>
           </Card>
@@ -470,7 +470,7 @@ export default function DETExportManager() {
               <h4 className="font-medium mb-2">Estructura del Archivo</h4>
               <div className="bg-muted p-3 rounded-lg font-mono text-sm">
                 <div className="mb-2">
-                  <span className="text-blue-600">C</span>
+                  <span className="text-cyan-600">C</span>
                   <span className="text-gray-600">202401</span>
                   <span className="text-gray-400">...</span>
                   <span className="text-gray-600"> (Línea de encabezado)</span>
