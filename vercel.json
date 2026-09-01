@@ -4,5 +4,6 @@
       "path": "/api/admin/billing/auto-generate-invoices",
       "schedule": "0 0 1 * *"
     }
-  ]
+  ],
+  "installCommand": "npm install --legacy-peer-deps"
 }
