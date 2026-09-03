@@ -37,7 +37,8 @@ import {
   X,
   ChevronDown,
   ChevronUp,
-  RefreshCw
+  RefreshCw,
+  User
 } from 'lucide-react';
 import { 
   formatDateForInput, 
