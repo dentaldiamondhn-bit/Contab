@@ -1,0 +1,26 @@
+[
+  {
+    "id": "a7q38il",
+    "rtn": "0801-19002-2783-1",
+    "name": "Distrubidora Comercial SA",
+    "commercial_name": "DICOSA",
+    "email": "Clinicadiamond@dentaldiamondhn.com",
+    "phone": "94985346",
+    "mobile": "",
+    "address": "Barrio Guamilito",
+    "city": "San Pedro Sula",
+    "country": "Honduras",
+    "supplier_type": "merchandise",
+    "category": "material",
+    "payment_terms": 0,
+    "payment_method": "card",
+    "bank_name": "",
+    "bank_account": "",
+    "account_type": "checking",
+    "is_active": true,
+    "is_preferred": false,
+    "companyId": "ANGELOH7",
+    "created_at": "2026-09-03T03:26:22.003Z",
+    "updated_at": "2026-09-03T03:31:55.117Z"
+  }
+]

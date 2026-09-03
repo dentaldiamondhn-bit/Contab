@@ -191,11 +191,11 @@ export default function InventoryPage() {
     try {
       setLoading(true);
       
-      // Cargar productos con alertas
+      // Cargar productos con alertas - tenant-aware
       const [productsRes, alertsRes, movementsRes] = await Promise.all([
-        fetch('/api/inventory/products'),
-        fetch('/api/inventory/alerts'),
-        fetch('/api/inventory/movements?limit=50'),
+        fetch(`/api/inventory/products?tenantId=${companyId}`),
+        fetch(`/api/inventory/alerts?tenantId=${companyId}`),
+        fetch(`/api/inventory/movements?tenantId=${companyId}&limit=50`),
       ]);
 
       const productsData = productsRes.ok ? await productsRes.json() : [];

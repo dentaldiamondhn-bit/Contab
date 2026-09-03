@@ -7,13 +7,14 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const withStockOnly = searchParams.get("withStock") === "true";
     const productType = searchParams.get("productType");
+    const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id") || "1";
 
     const supabase = createSupabaseClient();
 
     let query = supabase
       .from("product")
       .select('*')
-      .eq("tenant_id", "1")
+      .eq("tenant_id", tenantId)
       .eq("is_active", true);
 
     if (withStockOnly) {
@@ -157,6 +158,7 @@ export async function POST(request: NextRequest) {
       warehouseId,
       isService = false,
     } = body;
+    const tenantId = body.tenantId || body.tenant_id || new URL(request.url).searchParams.get("tenantId") || new URL(request.url).searchParams.get("companyId") || "1";
 
     const supabase = createSupabaseClient();
 
@@ -166,7 +168,7 @@ export async function POST(request: NextRequest) {
       const { data: lastProduct } = await supabase
         .from("product")
         .select("code")
-        .eq("tenant_id", "1")
+        .eq("tenant_id", tenantId)
         .ilike("code", "PROD-%")
         .order("created_at", { ascending: false })
         .limit(1)
@@ -187,7 +189,7 @@ export async function POST(request: NextRequest) {
       .from("product")
       .select("id")
       .eq("code", code)
-      .eq("tenant_id", "1")
+      .eq("tenant_id", tenantId)
       .single();
 
     if (existing) {
@@ -200,7 +202,7 @@ export async function POST(request: NextRequest) {
     const { data: product, error } = await (supabase as any)
       .from("product")
       .insert({
-        tenant_id: "1",
+        tenant_id: tenantId,
         code,
         name,
         description,
@@ -230,7 +232,7 @@ export async function POST(request: NextRequest) {
     // Si tiene stock inicial, crear movimiento de entrada
     if (currentStock > 0 && currentCost) {
       await (supabase as any).from("inventory_movement").insert({
-        tenant_id: "1",
+        tenant_id: tenantId,
         product_id: (product as any).id,
         warehouse_id: warehouseId,
         movement_type: "IN",

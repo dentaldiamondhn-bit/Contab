@@ -94,7 +94,7 @@ const modules = [
     icon: ShoppingCart,
     color: 'text-pink-600',
     bgColor: 'bg-pink-50',
-    path: '/suppliers',
+    path: '/purchases/dashboard',
     status: 'active'
   },
   {

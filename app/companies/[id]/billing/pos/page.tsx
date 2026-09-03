@@ -96,16 +96,9 @@ export default function POSPage() {
   const [showPaymentLink, setShowPaymentLink] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState<string>('');
 
-  // Cargar datos iniciales
-  useEffect(() => {
-    loadCAIInfo();
-    loadCustomers();
-    loadProducts();
-  }, []);
-
   const loadCAIInfo = async () => {
     try {
-      const response = await fetch('/api/billing/cai');
+      const response = await fetch(`/api/billing/cai?tenantId=${companyId}`);
       if (response.ok) {
         const data = await response.json();
         setCaiInfo(data);
@@ -255,6 +248,7 @@ export default function POSPage() {
     setLoading(true);
     try {
       const invoiceData = {
+        tenantId: companyId,
         invoiceNumber: generateInvoiceNumber(),
         cai: caiInfo?.cai,
         customer: {
@@ -339,6 +333,9 @@ export default function POSPage() {
                   CAI vence en {caiInfo.daysRemaining} días
                 </Badge>
               )}
+              <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/billing/invoices`)}>
+                <FileText className="h-4 w-4 mr-2" /> Ver facturas emitidas
+              </Button>
               <Button onClick={issueInvoice} disabled={!canIssueInvoice() || loading}>
                 <Receipt className="h-4 w-4 mr-2" />
                 {loading ? 'Emitiendo...' : 'Emitir Factura'}

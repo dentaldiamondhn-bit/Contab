@@ -266,6 +266,33 @@ export default function FlujoEfectivoPage() {
     w.document.close(); w.focus(); setTimeout(()=>{ w.print(); w.close(); }, 400);
   };
 
+  const handleDownloadPDF = async () => {
+    const el = document.getElementById("printable-flujo");
+    if (!el) return handlePrint();
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 10;
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= pdf.internal.pageSize.getHeight();
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        heightLeft -= pdf.internal.pageSize.getHeight();
+      }
+      const fileName = `Flujo_Efectivo_${companyInfo.name.replace(/\s+/g,"_")}_${new Date().toISOString().slice(0,10)}.pdf`;
+      pdf.save(fileName);
+    } catch (e) { handlePrint(); }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -294,12 +321,16 @@ export default function FlujoEfectivoPage() {
                 <Printer className="h-4 w-4 mr-2" />
                 Imprimir
               </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Descargar PDF
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="printable-flujo" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
@@ -349,11 +380,12 @@ export default function FlujoEfectivoPage() {
           </CardContent>
         </Card>
 
+        <div id="printable-flujo">
         {/* Encabezado del Reporte */}
         <Card className="mb-6 border-2">
-          <CardContent className="p-8 text-center">
-            <div className="mb-4">
-              <Wallet className="h-12 w-12 mx-auto text-orange-600" />
+          <CardContent className="p-8 text-center print:p-4">
+            <div className="mb-4 print:mb-2">
+              <Wallet className="h-12 w-12 mx-auto text-orange-600 print:h-8 print:w-8" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-wide">
               {companyInfo.name}
@@ -589,6 +621,7 @@ export default function FlujoEfectivoPage() {
             </p>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

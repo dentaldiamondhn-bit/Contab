@@ -13,10 +13,14 @@ import {
   X, 
   FileText,
   Calculator,
-  User
+  User,
+  Package,
+  Search
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { calculateTaxBreakdown, toCents } from "@/lib/accounting-utils";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface CustomTax {
   id: string;
@@ -90,6 +94,10 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
     taxAmount: 0,
     totalAmount: 0
   });
+  const [showInventoryModal, setShowInventoryModal] = useState(false);
+  const [inventoryProducts, setInventoryProducts] = useState<any[]>([]);
+  const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryLoading, setInventoryLoading] = useState(false);
 
   const supabase = createSupabaseClient();
 
@@ -147,20 +155,60 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
     }
   };
 
-  const addItem = () => {
-    // Usar el primer impuesto personalizado disponible o 15% como defecto
+  const loadInventoryForModal = async () => {
+    setInventoryLoading(true);
+    try {
+      const res = await fetch(`/api/inventory/products?tenantId=${tenantId}`);
+      if (res.ok) {
+        const j = await res.json();
+        const list = j.products || j.data || j || [];
+        setInventoryProducts(Array.isArray(list) ? list : []);
+      }
+    } catch (e) { console.error(e); }
+    finally { setInventoryLoading(false); }
+  };
+
+  const openInventoryModal = () => {
+    setShowInventoryModal(true);
+    loadInventoryForModal();
+  };
+
+  const selectInventoryProduct = (p:any) => {
     const defaultTaxRate = customTaxes.length > 0 ? customTaxes[0].rate : 0.15;
-    
-    setItems([...items, {
+    const price = Number(p.price || p.unitPrice || p.sale_price || 0);
+    const name = p.name || p.product_name || p.title || "Producto";
+    const desc = p.description || name;
+    // Si hay una fila vacía, rellenarla; si no, agregar nueva
+    const emptyIndex = items.findIndex(it => !it.description && !it.accountId);
+    const newItem: InvoiceItem = {
       id: crypto.randomUUID(),
-      accountId: "",
-      description: "",
+      accountId: accounts[0]?.id || "",
+      description: `${name} - ${desc}`.slice(0,120),
       quantity: 1,
-      unitPrice: 0,
+      unitPrice: price,
       taxRate: defaultTaxRate,
       taxAmount: 0,
-      totalAmount: 0
-    }]);
+      totalAmount: 0,
+    };
+    // calcular
+    const sub = newItem.quantity * newItem.unitPrice;
+    const tb = calculateTaxBreakdown(toCents(sub), newItem.taxRate);
+    newItem.taxAmount = tb.taxAmount;
+    newItem.totalAmount = toCents(sub);
+
+    if (emptyIndex >= 0) {
+      const copy = [...items];
+      copy[emptyIndex] = newItem;
+      setItems(copy);
+    } else {
+      setItems([...items, newItem]);
+    }
+    setShowInventoryModal(false);
+  };
+
+  const addItem = () => {
+    // Abrir modal de inventario en lugar de fila vacía
+    openInventoryModal();
   };
 
   const removeItem = (id: string) => {
@@ -564,5 +612,44 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
         </form>
       </CardContent>
     </Card>
+
+      {/* Modal Inventario Disponible */}
+      <Dialog open={showInventoryModal} onOpenChange={setShowInventoryModal}>
+        <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Package className="h-5 w-5" /> Inventario Disponible</DialogTitle>
+            <DialogDescription>Selecciona un producto para agregarlo como item ({inventoryProducts.length} productos)</DialogDescription>
+          </DialogHeader>
+          <div className="relative mb-4">
+            <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Buscar por nombre o SKU..." className="pl-9" value={inventorySearch} onChange={e=>setInventorySearch(e.target.value)} />
+          </div>
+          <div className="border rounded-md max-h-[50vh] overflow-y-auto">
+            {inventoryLoading ? <div className="p-8 text-center text-muted-foreground">Cargando inventario...</div> :
+              (()=> {
+                const filtered = inventoryProducts.filter((p:any)=>{
+                  const q = inventorySearch.toLowerCase();
+                  return !q || (p.name||p.product_name||"").toLowerCase().includes(q) || (p.sku||"").toLowerCase().includes(q);
+                });
+                if (filtered.length===0) return <div className="p-8 text-center text-muted-foreground">No hay productos disponibles. Ve a Inventario para agregar.</div>;
+                return <table className="w-full text-sm">
+                  <thead className="bg-gray-50 sticky top-0"><tr><th className="text-left p-2">Producto</th><th className="text-left p-2">SKU</th><th className="text-right p-2">Stock</th><th className="text-right p-2">Precio</th><th className="text-center p-2">Acción</th></tr></thead>
+                  <tbody>
+                    {filtered.map((p:any)=>(
+                      <tr key={p.id} className="border-t hover:bg-gray-50">
+                        <td className="p-2"><div className="font-medium">{p.name||p.product_name}</div><div className="text-xs text-muted-foreground">{p.description||""}</div></td>
+                        <td className="p-2 font-mono text-xs">{p.sku||"-"}</td>
+                        <td className="p-2 text-right"><Badge variant={Number(p.stock||p.quantity||0)>0?"default":"secondary"}>{p.stock ?? p.quantity ?? 0}</Badge></td>
+                        <td className="p-2 text-right">L. {Number(p.price||p.unitPrice||0).toFixed(2)}</td>
+                        <td className="p-2 text-center"><Button size="sm" onClick={()=>selectInventoryProduct(p)}><Plus className="h-4 w-4 mr-1" />Agregar</Button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>;
+              })()
+            }
+          </div>
+        </DialogContent>
+      </Dialog>
   );
 }

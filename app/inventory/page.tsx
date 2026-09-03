@@ -46,6 +46,7 @@ import {
   isDateExpired 
 } from '@/lib/date-utils';
 import { supabase } from '@/lib/supabase/standard-client';
+import { useTenant } from '@/lib/contexts/TenantContext';
 
 interface Product {
   id: string;
@@ -99,9 +100,12 @@ interface NewProductData {
   minstock: string;
   tags: string[];
   expirationDate: string;
+  supplierId: string;
 }
 
 export default function InventoryPage() {
+  const { currentTenant } = useTenant();
+  const tenantId = currentTenant?.id;
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<InventoryMovement[]>([]);
   const [loading, setLoading] = useState(false);
@@ -118,8 +122,9 @@ export default function InventoryPage() {
   const [tenantReport, setTenantReport] = useState<any[]>([]);
   const [loadingReport, setLoadingReport] = useState(false);
 
+  const [suppliers, setSuppliers] = useState<any[]>([]);
   const [formData, setFormData] = useState<NewProductData>({
-    tenantid: '1',
+    tenantid: currentTenant?.id || '',
     sku: '',
     name: '',
     description: '',
@@ -173,7 +178,7 @@ export default function InventoryPage() {
   const [packages, setPackages] = useState<any[]>([]);
   const [editingPackage, setEditingPackage] = useState<any>(null);
   const [isCategoriesCollapsed, setIsCategoriesCollapsed] = useState(true);
-  const [activeTab, setActiveTab] = useState<'inventory' | 'packages' | 'promotions'>('inventory');
+  const [activeTab, setActiveTab] = useState<'inventory' | 'packages' | 'promotions' | 'suppliers'>('inventory');
   const [showPromotionDialog, setShowPromotionDialog] = useState(false);
   const [showBulkImportDialog, setShowBulkImportDialog] = useState(false);
   const [selectedPromotionProduct, setSelectedPromotionProduct] = useState<Product | null>(null);
@@ -188,13 +193,12 @@ export default function InventoryPage() {
     promotionEndDate: ''
   });
 
-  // Debug editing state changes
-  React.useEffect(() => {
-    console.log('Editing category changed:', editingCategory);
-    console.log('Category data:', categoryData);
-  }, [editingCategory, categoryData]);
+  // Debug editing state changes - silenciado en prod
+  // React.useEffect(() => {
+  //   console.log('Editing category changed:', editingCategory);
+  // }, [editingCategory, categoryData]);
 
-  // Load packages from database
+  // Load packages from database - tenant-aware
   const loadPackages = async () => {
     try {
       const { data, error } = await supabase
@@ -206,6 +210,7 @@ export default function InventoryPage() {
             quantity
           )
         `)
+        .eq('tenantid', tenantId)
         .eq('isactive', true)
         .order('createdat', { ascending: false });
 
@@ -237,10 +242,10 @@ export default function InventoryPage() {
     }
   };
 
-  // Load packages on component mount
+  // Load packages on component mount - tenant-aware
   React.useEffect(() => {
-    loadPackages();
-  }, []);
+    if (tenantId) loadPackages();
+  }, [tenantId]);
 
   const [categories, setCategories] = useState([
     'Empaque',
@@ -553,19 +558,48 @@ export default function InventoryPage() {
     }
   }, [showPromotionDialog, selectedPromotionProduct, selectedPromotionPackage, promotionData]);
 
-  // Load data from Supabase
+  const loadSuppliers = async () => {
+    if (!tenantId) return;
+    try {
+      const res = await fetch(`/api/suppliers?tenantId=${tenantId}`);
+      if (res.ok) {
+        const j = await res.json();
+        setSuppliers(j.suppliers || j.data || []);
+        return;
+      }
+      // Fallback directo Supabase con variaciones de columna
+      const tryCols = [
+        () => supabase.from('Supplier').select('id, name').eq('tenantid', tenantId).eq('isActive', true) as any,
+        () => supabase.from('Supplier').select('id, name').eq('tenantid', tenantId) as any,
+        () => supabase.from('Supplier').select('id, name').eq('tenantId', tenantId) as any,
+        () => supabase.from('Supplier').select('id, name').limit(20) as any,
+      ];
+      for (const fn of tryCols) {
+        try {
+          const { data, error } = await fn();
+          if (!error && data) { setSuppliers(data); return; }
+        } catch {}
+      }
+      setSuppliers([]);
+    } catch { setSuppliers([]); }
+  };
+
+  // Load data from Supabase - tenant-aware
   useEffect(() => {
-    loadProducts();
-    loadMovements();
+    if (tenantId) {
+      loadProducts();
+      loadMovements();
+      loadSuppliers();
+    }
     fetchTenantReport();
-  }, []);
+  }, [tenantId]);
 
   const loadProducts = async () => {
     try {
       const { data, error } = await supabase
         .from('Product')
         .select('*')
-        .eq('tenantid', '1')
+        .eq('tenantid', tenantId)
         .eq('isActive', true)
         .order('createdat', { ascending: false });
 
@@ -582,7 +616,7 @@ export default function InventoryPage() {
       const { data, error } = await supabase
         .from('InventoryMovement')
         .select('*')
-        .eq('tenantid', '1')
+        .eq('tenantid', tenantId)
         .order('createdat', { ascending: false });
 
       if (error) throw error;
@@ -597,12 +631,17 @@ export default function InventoryPage() {
     setLoadingReport(true);
     try {
       const res = await fetch('/api/admin/inventory/report');
-      if (res.ok) {
+      const ct = res.headers.get('content-type') || '';
+      if (res.ok && ct.includes('application/json')) {
         const data = await res.json();
         setTenantReport(data.tenants || []);
+      } else if (!res.ok) {
+        // No admin o sin permiso — no mostrar error ruidoso
+        setTenantReport([]);
       }
     } catch (err) {
-      console.error('Error fetching tenant report:', err);
+      // Silenciar SyntaxError por HTML de login
+      setTenantReport([]);
     } finally {
       setLoadingReport(false);
     }
@@ -673,7 +712,7 @@ export default function InventoryPage() {
         costoFormulario: parseFloat(formData.cost)
       });
       
-      const productData = {
+      const productData: any = {
         tenantid: formData.tenantid,
         sku: formData.sku || generateSKU(),
         name: formData.name,
@@ -690,6 +729,11 @@ export default function InventoryPage() {
         expirationDate: formData.expirationDate || null,
         isActive: true
       };
+      // Proveedor opcional - si la columna existe en Supabase se guardará, si no, se guarda en tags
+      if ((formData as any).supplierId) {
+        (productData as any).supplierId = (formData as any).supplierId;
+        (productData as any).supplier_id = (formData as any).supplierId;
+      }
 
       console.log('productData a guardar:', productData);
 
@@ -740,7 +784,7 @@ export default function InventoryPage() {
       console.log('Guardado exitoso, reseteando formulario...');
       // Reset form and reload data
       setFormData({
-        tenantid: '1',
+        tenantid: tenantId,
         sku: '',
         name: '',
         description: '',
@@ -800,7 +844,7 @@ export default function InventoryPage() {
 
       // Create movement record (trigger will update stock automatically)
       const movementRecord = {
-        tenantid: '1',
+        tenantid: tenantId,
         productid: selectedProduct.id,
         type: movementData.type,
         quantity: quantity,
@@ -1274,7 +1318,7 @@ export default function InventoryPage() {
 
       if (error) throw error;
 
-      // Reload packages from database
+      // Reload packages from database - tenant-aware
       const { data, error: loadError } = await supabase
         .from('Packages')
         .select(`
@@ -1284,6 +1328,7 @@ export default function InventoryPage() {
             quantity
           )
         `)
+        .eq('tenantid', tenantId)
         .eq('isactive', true)
         .order('createdat', { ascending: false });
 
@@ -1424,7 +1469,7 @@ export default function InventoryPage() {
 
       if (error) throw error;
 
-      // Reload packages from database
+      // Reload packages from database - tenant-aware
       const { data, error: loadError } = await supabase
         .from('Packages')
         .select(`
@@ -1434,6 +1479,7 @@ export default function InventoryPage() {
             quantity
           )
         `)
+        .eq('tenantid', tenantId)
         .eq('isactive', true)
         .order('createdat', { ascending: false });
 
@@ -1533,7 +1579,7 @@ export default function InventoryPage() {
           .from('Packages')
           .insert({
             id: packageId,
-            tenantid: '1',
+            tenantid: tenantId,
             name: packageData.name,
             description: packageData.description,
             price: parseFloat(packageData.price) || 0,
@@ -1639,82 +1685,6 @@ export default function InventoryPage() {
           >
             Limpiar filtro
           </Button>
-        </div>
-      )}
-
-      {/* Tenant Inventory Report */}
-      {showTenantReport && (
-        <div className="bg-white rounded-lg border shadow-sm">
-          <div className="px-6 py-4 border-b flex items-center justify-between">
-            <div>
-              <h2 className="text-lg font-semibold">Reporte de Inventario por Empresa</h2>
-              <p className="text-sm text-gray-500">Productos totales y espacio de almacenamiento usado</p>
-            </div>
-            <Button variant="outline" size="sm" onClick={fetchTenantReport} disabled={loadingReport}>
-              <RefreshCw className={`h-4 w-4 mr-1 ${loadingReport ? 'animate-spin' : ''}`} />
-              Actualizar
-            </Button>
-          </div>
-          {loadingReport ? (
-            <div className="flex justify-center py-8">
-              <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
-            </div>
-          ) : tenantReport.length === 0 ? (
-            <div className="p-8 text-center text-gray-500">
-              <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
-              <p>No hay datos de inventario por empresa</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-left px-6 py-3 font-medium text-gray-600">Empresa</th>
-                    <th className="text-center px-6 py-3 font-medium text-gray-600">Productos</th>
-                    <th className="text-center px-6 py-3 font-medium text-gray-600">Movimientos</th>
-                    <th className="text-center px-6 py-3 font-medium text-gray-600">Registros Totales</th>
-                    <th className="text-right px-6 py-3 font-medium text-gray-600">Almacenamiento Usado</th>
-                    <th className="text-center px-6 py-3 font-medium text-gray-600">Estado</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tenantReport.map((t: any) => (
-                    <tr key={t.tenantId} className="border-b hover:bg-gray-50">
-                      <td className="px-6 py-3">
-                        <div className="font-medium text-gray-900">{t.businessName}</div>
-                        <div className="text-xs text-gray-500">{t.tenantCode}</div>
-                      </td>
-                      <td className="px-6 py-3 text-center font-semibold text-lg">{t.totalProducts}</td>
-                      <td className="px-6 py-3 text-center text-gray-600">{t.totalMovements}</td>
-                      <td className="px-6 py-3 text-center font-medium">{t.totalRecords}</td>
-                      <td className="px-6 py-3 text-right">
-                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 font-medium text-sm">
-                          {t.storageUsed}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3 text-center">
-                        <span className={`px-2 py-1 text-xs rounded-full ${t.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {t.isActive ? 'Activo' : 'Inactivo'}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                  <tr className="bg-gray-50 font-bold">
-                    <td className="px-6 py-3">TOTALES</td>
-                    <td className="px-6 py-3 text-center text-lg">{tenantReport.reduce((s: number, t: any) => s + t.totalProducts, 0)}</td>
-                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalMovements, 0)}</td>
-                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalRecords, 0)}</td>
-                    <td className="px-6 py-3 text-right">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 font-medium text-sm">
-                        {formatBytes(tenantReport.reduce((s: number, t: any) => s + t.storageBytes, 0))}
-                      </span>
-                    </td>
-                    <td></td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
         </div>
       )}
 
@@ -2222,6 +2192,20 @@ export default function InventoryPage() {
                     )}
                   </div>
                   <div>
+                    <Label htmlFor="supplierId">Proveedor</Label>
+                    <select
+                      id="supplierId"
+                      value={formData.supplierId}
+                      onChange={(e) => setFormData(prev => ({ ...prev, supplierId: e.target.value }))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                    >
+                      <option value="">Sin proveedor</option>
+                      {suppliers.map((s:any)=>(
+                        <option key={s.id} value={s.id}>{s.name} {s.rtn ? `- ${s.rtn}` : ""}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
                     <Label htmlFor="precioTotal">Precio Total *</Label>
                     <Input
                       id="precioTotal"
@@ -2572,28 +2556,6 @@ export default function InventoryPage() {
             </p>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Stock Total</CardTitle>
-            <Package className="h-4 w-4 text-purple-600" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">
-              {products.reduce((sum, p) => sum + p.stock, 0)}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Total de unidades en inventario
-            </p>
-            <div className="mt-2 space-y-1">
-              <div className="flex justify-between text-xs">
-                <span className="text-gray-500">Promedio por producto:</span>
-                <span className="font-medium">
-                  {products.length > 0 ? Math.round(products.reduce((sum, p) => sum + p.stock, 0) / products.length) : 0}
-                </span>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
         {/* Promotions Summary */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -2641,6 +2603,13 @@ export default function InventoryPage() {
               <CardTitle>Categorías de Productos</CardTitle>
             </div>
             <div className="flex items-center space-x-2">
+              <Button
+                size="sm"
+                onClick={(e) => { e.stopPropagation(); setShowCategoryDialog(true); }}
+                className="bg-cyan-600 hover:bg-cyan-700 text-white"
+              >
+                <Plus className="h-4 w-4 mr-1" /> Crear categoría
+              </Button>
               <div className="flex items-center space-x-2 text-sm text-gray-500">
                 <span>{categories.length}</span>
                 <span>·</span>
@@ -2726,6 +2695,14 @@ export default function InventoryPage() {
           <Tag className="h-4 w-4 mr-2" />
           Promociones
         </Button>
+        <Button
+          variant={activeTab === 'suppliers' ? 'default' : 'outline'}
+          onClick={() => setActiveTab('suppliers' as any)}
+          className={activeTab === 'suppliers' ? 'bg-blue-600' : ''}
+        >
+          <User className="h-4 w-4 mr-2" />
+          Proveedores
+        </Button>
       </div>
 
       {/* Tab Content */}
@@ -2733,46 +2710,74 @@ export default function InventoryPage() {
         <>
       {/* Search and Filters */}
       <Card>
-        <CardContent className="flex items-center space-x-4">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input
-              placeholder="Buscar por nombre, SKU, categoría..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
+        <CardContent className="space-y-4 pt-6">
+          <div className="flex items-center space-x-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+              <Input
+                placeholder="Buscar por nombre, SKU, categoría..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+            <div className="flex items-center border rounded-lg">
+              <Button
+                variant={viewMode === 'cards' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('cards')}
+                className="rounded-r-none"
+              >
+                <Package className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+                className="rounded-none border-l"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={viewMode === 'table' ? 'default' : 'ghost'}
+                size="sm"
+                onClick={() => setViewMode('table')}
+                className="rounded-l-none border-l"
+              >
+                <BarChart3 className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
-          <Button variant="outline" size="sm">
-            <Filter className="h-4 w-4 mr-2" />
-            Filtros
-          </Button>
-          <div className="flex items-center border rounded-lg">
-            <Button
-              variant={viewMode === 'cards' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('cards')}
-              className="rounded-r-none"
-            >
-              <Package className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'list' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('list')}
-              className="rounded-none border-l"
-            >
-              <List className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={viewMode === 'table' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setViewMode('table')}
-              className="rounded-l-none border-l"
-            >
-              <BarChart3 className="h-4 w-4" />
-            </Button>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div>
+              <Label className="text-xs">Categoría</Label>
+              <select value={stockFilter === 'all' ? 'all' : stockFilter} onChange={e=>setStockFilter(e.target.value as any)} className="w-full mt-1 p-2 border rounded-md text-sm bg-white">
+                <option value="all">Todas las categorías</option>
+                {categories.map(c=> <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">Estado de Stock</Label>
+              <select value={stockFilter} onChange={e=>setStockFilter(e.target.value as any)} className="w-full mt-1 p-2 border rounded-md text-sm bg-white">
+                <option value="all">Todo el stock</option>
+                <option value="low">Stock bajo (≤ mínimo)</option>
+                <option value="out">Agotados (0)</option>
+              </select>
+            </div>
+            <div>
+              <Label className="text-xs">Categoría exacta</Label>
+              <select onChange={e=>setSearchTerm(e.target.value)} value={categories.includes(searchTerm) ? searchTerm : ""} className="w-full mt-1 p-2 border rounded-md text-sm bg-white">
+                <option value="">Todas</option>
+                {categories.map(c=> <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+            <div className="flex items-end">
+              <Button variant="outline" size="sm" className="w-full" onClick={()=>{setSearchTerm(""); setStockFilter("all");}}>
+                <Filter className="h-4 w-4 mr-2" /> Limpiar filtros
+              </Button>
+            </div>
           </div>
+          <p className="text-xs text-muted-foreground mt-2">Filtra por categoría (usa búsqueda para SKU/stock)</p>
         </CardContent>
       </Card>
 
@@ -3636,6 +3641,41 @@ export default function InventoryPage() {
         </>
       )}
 
+      {activeTab === 'suppliers' && (
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2"><User className="h-5 w-5" /> Proveedores</CardTitle>
+              <p className="text-sm text-muted-foreground">Gestiona los proveedores de tu inventario ({suppliers.length})</p>
+            </div>
+            <Button onClick={() => window.open(`/companies/${tenantId}/suppliers`, '_self')}>
+              <Plus className="h-4 w-4 mr-2" /> Ver proveedores
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {suppliers.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">
+                <User className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay proveedores registrados para este tenant</p>
+                <p className="text-xs">Agrega uno desde el formulario de producto o ve a Proveedores</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {suppliers.map((s:any)=>(
+                  <Card key={s.id} className="hover:shadow-md">
+                    <CardContent className="p-4">
+                      <p className="font-medium">{s.name}</p>
+                      <p className="text-xs text-muted-foreground">{s.rtn || s.email || ""}</p>
+                      <p className="text-xs text-muted-foreground">{s.phone || ""}</p>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Movement Dialog */}
       <Dialog open={showMovementDialog} onOpenChange={setShowMovementDialog}>
         <DialogContent className="max-w-md">
@@ -4068,6 +4108,82 @@ export default function InventoryPage() {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Reporte de Inventario por Empresa - al final */}
+      {showTenantReport && (
+        <div className="bg-white rounded-lg border shadow-sm mt-8">
+          <div className="px-6 py-4 border-b flex items-center justify-between">
+            <div>
+              <h2 className="text-lg font-semibold">Reporte de Inventario por Empresa</h2>
+              <p className="text-sm text-gray-500">Productos totales y espacio de almacenamiento usado</p>
+            </div>
+            <Button variant="outline" size="sm" onClick={fetchTenantReport} disabled={loadingReport}>
+              <RefreshCw className={`h-4 w-4 mr-1 ${loadingReport ? 'animate-spin' : ''}`} />
+              Actualizar
+            </Button>
+          </div>
+          {loadingReport ? (
+            <div className="flex justify-center py-8">
+              <RefreshCw className="h-6 w-6 animate-spin text-gray-400" />
+            </div>
+          ) : tenantReport.length === 0 ? (
+            <div className="p-8 text-center text-gray-500">
+              <Package className="h-12 w-12 mx-auto text-gray-300 mb-3" />
+              <p>No hay datos de inventario por empresa</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left px-6 py-3 font-medium text-gray-600">Empresa</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Productos</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Movimientos</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Registros Totales</th>
+                    <th className="text-right px-6 py-3 font-medium text-gray-600">Almacenamiento Usado</th>
+                    <th className="text-center px-6 py-3 font-medium text-gray-600">Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {tenantReport.map((t: any) => (
+                    <tr key={t.tenantId} className="border-b hover:bg-gray-50">
+                      <td className="px-6 py-3">
+                        <div className="font-medium text-gray-900">{t.businessName}</div>
+                        <div className="text-xs text-gray-500">{t.tenantCode}</div>
+                      </td>
+                      <td className="px-6 py-3 text-center font-semibold text-lg">{t.totalProducts}</td>
+                      <td className="px-6 py-3 text-center text-gray-600">{t.totalMovements}</td>
+                      <td className="px-6 py-3 text-center font-medium">{t.totalRecords}</td>
+                      <td className="px-6 py-3 text-right">
+                        <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-50 text-cyan-700 font-medium text-sm">
+                          {t.storageUsed}
+                        </span>
+                      </td>
+                      <td className="px-6 py-3 text-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${t.isActive ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {t.isActive ? 'Activo' : 'Inactivo'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                  <tr className="bg-gray-50 font-bold">
+                    <td className="px-6 py-3">TOTALES</td>
+                    <td className="px-6 py-3 text-center text-lg">{tenantReport.reduce((s: number, t: any) => s + t.totalProducts, 0)}</td>
+                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalMovements, 0)}</td>
+                    <td className="px-6 py-3 text-center">{tenantReport.reduce((s: number, t: any) => s + t.totalRecords, 0)}</td>
+                    <td className="px-6 py-3 text-right">
+                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-cyan-100 text-cyan-800 font-medium text-sm">
+                        {formatBytes(tenantReport.reduce((s: number, t: any) => s + t.storageBytes, 0))}
+                      </span>
+                    </td>
+                    <td></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

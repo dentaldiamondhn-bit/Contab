@@ -103,19 +103,15 @@ export default function AccountingBooks() {
 
   const openEdit = (entry:any) => {
     setEditingEntry(entry);
-    // Diario viene de get_libro_diario_integrado con total_amount = suma debe+haber (doble), en HNL ya
-    // Transaction viene en centavos (287500 = 2875 HNL)
-    let raw = entry.total_amount ?? entry.totalAmount ?? entry.total_amount ?? 0;
-    // Si es del diario y tiene entries, total_amount es doble (debe+haber)
-    const isDiario = Array.isArray(entry.entries) && entry.entries.length > 0;
-    let display: number;
-    if (isDiario) {
-      // raw ya está en HNL y es doble (ej 5750 para 2875 real)
-      display = raw / 2;
-    } else {
-      // Transaction en centavos
-      display = raw > 1000 ? raw/100 : raw;
+    // Usar el primer valor no-cero entre totalAmount/total_amount/total (evita 0 de total_amount que oculta 600)
+    const candidates = [entry.totalAmount, entry.total_amount, (entry as any).total, (entry as any).amount];
+    let raw: number | undefined;
+    for (const v of candidates) {
+      if (v !== undefined && v !== null && Number(v) !== 0) { raw = Number(v); break; }
     }
+    if (raw === undefined) raw = Number(entry.total_amount ?? entry.totalAmount ?? 0);
+    const isDiario = Array.isArray(entry.entries) && entry.entries.length > 0;
+    const display = isDiario ? raw / 2 : raw;
     console.log("[openEdit] raw", raw, "isDiario", isDiario, "display", display, "entry", entry);
     setEditForm({
       description: entry.description || entry.descripcion || "",
@@ -125,22 +121,33 @@ export default function AccountingBooks() {
   };
 
   const saveEdit = async () => {
-    if (!editingEntry || !currentTenant?.id) return;
+    console.log("[saveEdit] click", { editingEntry, editForm, tenantId: currentTenant?.id });
+    if (!editingEntry || !currentTenant?.id) {
+      console.warn("[saveEdit] missing entry or tenant", { editingEntry, tenantId: currentTenant?.id });
+      return;
+    }
     try {
+      // Sin conversión: enviar exactamente lo ingresado
+      const payload = {
+        id: editingEntry.id,
+        description: editForm.description,
+        date: editForm.date,
+        totalAmount: Number(editForm.totalAmount) || editingEntry.total_amount || editingEntry.totalAmount,
+      };
+      console.log("[saveEdit] payload", payload);
       const res = await fetch(`/api/accounting/transactions?tenantId=${currentTenant.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: editingEntry.id,
-          description: editForm.description,
-          date: editForm.date,
-          totalAmount: Math.round(Number(editForm.totalAmount)*100) || editingEntry.total_amount || editingEntry.totalAmount,
-        }),
+        body: JSON.stringify(payload),
       });
-      if (!res.ok) throw new Error((await res.json()).error || "Error al guardar");
+      const text = await res.text();
+      console.log("[saveEdit] response", res.status, text);
+      let json:any = {};
+      try { json = JSON.parse(text); } catch {}
+      if (!res.ok) throw new Error(json.error || text || "Error al guardar");
       setEditingEntry(null);
       loadRealData();
-    } catch (e:any) { alert(e.message); }
+    } catch (e:any) { console.error("[saveEdit] error", e); alert(e.message); }
   };
 
   const formatCurrency = (amount: number) => {
@@ -218,31 +225,44 @@ export default function AccountingBooks() {
   }, [diarioEntries, searchTerm]);
 
   const trialBalanceData = useMemo(() => {
-    if (balanceComprobacion.length > 0) return balanceComprobacion;
+    console.log("[trialBalanceData] CALC INICIO", "balanceComprobacion", balanceComprobacion.length, "diario", diarioEntries.length, "allTx", allTransactions.length);
+    // Forzar local siempre para ANGELOH7
+    // if (hasRealData) return balanceComprobacion;
     
-    // Fallback local: Generar balance desde el diario si el API falla o está vacío
+    // Fallback local: Generar balance desde el diario (HNL) o transacciones (centavos)
     const accountMap = new Map<string, TrialBalance>();
-    diarioEntries.forEach(entry => {
-      entry.entries.forEach(line => {
-        const existing = accountMap.get(line.account_code);
+    const source = diarioEntries.length > 0 ? diarioEntries : (allTransactions.length>0 ? allTransactions.map((t:any)=> ({ entries: (t.entries||t.JournalEntry||[]).map((e:any)=>({account_code:e.account_code||e.Account?.code||e.accountId, account_name:e.account_name||e.Account?.name||e.code, account_type:'', debit: Number(e.debit ?? (e.amount>0?e.amount/100:0)), credit: Number(e.credit ?? (e.amount<0?Math.abs(e.amount)/100:0))}))})) : []);
+    const src = source.length>0 ? source : [];
+    console.log("[trialBalanceData] src", src.length, "ej", src[0]);
+    if (src.length===0) return balanceComprobacion;
+    console.log("[trialBalanceData] accountMap input src", src.length);
+    (src as any[]).forEach((entry:any) => {
+      (entry.entries||[]).forEach((line:any) => {
+        const code = line.account_code || line.codigo_cuenta;
+        if (!code) return;
+        const existing = accountMap.get(code);
+        const d = Number(line.debit ?? line.debe ?? 0);
+        const c = Number(line.credit ?? line.haber ?? 0);
         if (existing) {
-          existing.debit += line.debit;
-          existing.credit += line.credit;
+          existing.debit += d;
+          existing.credit += c;
           existing.balance = existing.debit - existing.credit;
         } else {
-          accountMap.set(line.account_code, {
-            account_code: line.account_code,
-            account_name: line.account_name,
-            account_type: line.account_type,
-            debit: line.debit,
-            credit: line.credit,
-            balance: line.debit - line.credit
+          accountMap.set(code, {
+            account_code: code,
+            account_name: line.account_name || line.nombre_cuenta || code,
+            account_type: line.account_type || '',
+            debit: d,
+            credit: c,
+            balance: d - c
           });
         }
       });
     });
-    return Array.from(accountMap.values()).sort((a, b) => a.account_code.localeCompare(b.account_code));
-  }, [balanceComprobacion, diarioEntries]);
+    const local = Array.from(accountMap.values()).sort((a, b) => a.account_code.localeCompare(b.account_code));
+    console.log("[trialBalanceData] local", local.length, local.slice(0,3), "total", local.reduce((s,c)=>s+c.debit,0), local.reduce((s,c)=>s+c.credit,0));
+    return local.length>0 ? local : balanceComprobacion;
+  }, [balanceComprobacion, diarioEntries, ingresos, egresos, allTransactions]);
 
   // Totales del Balance
   const totalSums = useMemo(() => {
@@ -395,7 +415,13 @@ export default function AccountingBooks() {
 
         <TabsContent value="comprobacion">
           <Card>
-            <CardHeader><CardTitle>Balance de Comprobación de Sumas y Saldos</CardTitle></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Balance de Comprobación de Sumas y Saldos</CardTitle>
+                <p className="text-sm text-muted-foreground">Recalcula si no ves cambios tras editar</p>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadRealData}><RefreshCw className="h-4 w-4 mr-2" /> Recalcular</Button>
+            </CardHeader>
             <CardContent>
               <Table className="w-full table-fixed">
                 <TableHeader>
@@ -451,20 +477,30 @@ export default function AccountingBooks() {
 
         <TabsContent value="mayor">
           <Card>
-            <CardHeader><CardTitle>Libro Mayor</CardTitle><CardDescription>Saldo por cuenta contable.</CardDescription></CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Libro Mayor</CardTitle><CardDescription>Saldo por cuenta contable.</CardDescription>
+              </div>
+              <Button variant="outline" size="sm" onClick={loadRealData}><RefreshCw className="h-4 w-4 mr-2" /> Recalcular</Button>
+            </CardHeader>
             <CardContent>
               <Table className="w-full table-fixed">
                 <TableHeader><TableRow><TableHead className="w-[40%]">Cuenta</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Débito</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Crédito</TableHead><TableHead className="w-[20%] text-right whitespace-nowrap">Saldo</TableHead></TableRow></TableHeader>
                 <TableBody>
-                  {mayorEntries.length===0 ? <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No hay datos en Libro Mayor</TableCell></TableRow> :
-                    mayorEntries.map((m:any)=> (
+                  {(() => {
+                    const nonZeroMayor = mayorEntries.filter((m:any)=>(m.debit||m.total_debe||0)>0 || (m.credit||m.total_haber||0)>0);
+                    const hasRealMayor = nonZeroMayor.length > 1 || (nonZeroMayor.length===1 && nonZeroMayor[0].account_code !== "1101.01" && nonZeroMayor[0].codigo_cuenta !== "1101.01");
+                    const mayorData = hasRealMayor ? mayorEntries : trialBalanceData;
+                    if (mayorData.length===0) return <TableRow><TableCell colSpan={4} className="text-center py-8 text-muted-foreground">No hay datos en Libro Mayor</TableCell></TableRow>;
+                    return mayorData.map((m:any)=> (
                       <TableRow key={m.account_code || m.codigo_cuenta}>
                         <TableCell><div className="font-mono text-xs">{m.account_code || m.codigo_cuenta}</div><div className="text-sm">{m.account_name || m.nombre_cuenta}</div></TableCell>
-                        <TableCell className="text-right">{formatCurrency(m.debit ?? m.total_debe ?? 0)}</TableCell>
-                        <TableCell className="text-right">{formatCurrency(m.credit ?? m.total_haber ?? 0)}</TableCell>
-                        <TableCell className="text-right font-bold">{formatCurrency(m.balance ?? m.saldo ?? 0)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(m.debit ?? m.total_debe ?? m.debit ?? 0)}</TableCell>
+                        <TableCell className="text-right">{formatCurrency(m.credit ?? m.total_haber ?? m.credit ?? 0)}</TableCell>
+                        <TableCell className="text-right font-bold">{formatCurrency(m.balance ?? m.saldo ?? (m.debit - m.credit) ?? 0)}</TableCell>
                       </TableRow>
-                    ))}
+                    ));
+                  })()}
                 </TableBody>
               </Table>
             </CardContent>

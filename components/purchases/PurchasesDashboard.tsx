@@ -51,6 +51,7 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
   const [categoryData, setCategoryData] = useState<CategoryData[]>([]);
   const [supplierData, setSupplierData] = useState<SupplierData[]>([]);
+  const [suppliersCount, setSuppliersCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedPeriod, setSelectedPeriod] = useState('6months');
   const [exportLoading, setExportLoading] = useState(false);
@@ -97,6 +98,14 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
       if (supplierRes.ok) {
         const suppliers = await supplierRes.json();
         setSupplierData(suppliers);
+      }
+
+      // Load suppliers count for conteo
+      const supCountRes = await fetch(`/api/suppliers?companyId=${companyId}`);
+      if (supCountRes.ok) {
+        const supList = await supCountRes.json();
+        const arr = Array.isArray(supList) ? supList : supList.suppliers || [];
+        setSuppliersCount(arr.length);
       }
     } catch (error) {
       console.error('Error loading dashboard data:', error);
@@ -282,6 +291,41 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
           </CardContent>
         </Card>
       </div>
+
+      {/* Conteo por Proveedor — para ANGELOH7 */}
+      <Card className="border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push(`/companies/${companyId}/suppliers?from=dashboard`)}>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShoppingCart className="h-5 w-5 text-cyan-600" />
+            Conteo por Proveedor — Base de Datos
+          </CardTitle>
+          <p className="text-sm text-muted-foreground">Total {suppliersCount} proveedores para {companyId} • clic para ver</p>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="rounded-lg border p-4 text-center bg-slate-50">
+              <p className="text-xs text-muted-foreground uppercase">Total</p>
+              <p className="text-2xl font-bold">{suppliersCount}</p>
+              <p className="text-xs text-muted-foreground">proveedores</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center bg-cyan-50">
+              <p className="text-xs text-muted-foreground uppercase">Compras</p>
+              <p className="text-2xl font-bold text-cyan-700">{dashboardData.totalPurchases}</p>
+              <p className="text-xs text-muted-foreground">transacciones</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center bg-green-50">
+              <p className="text-xs text-muted-foreground uppercase">Pendientes</p>
+              <p className="text-2xl font-bold text-green-700">{dashboardData.pendingCount}</p>
+              <p className="text-xs text-muted-foreground">por pagar</p>
+            </div>
+            <div className="rounded-lg border p-4 text-center bg-purple-50">
+              <p className="text-xs text-muted-foreground uppercase">Promedio</p>
+              <p className="text-2xl font-bold text-purple-700">{formatCurrency(dashboardData.averagePurchase)}</p>
+              <p className="text-xs text-muted-foreground">por compra</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

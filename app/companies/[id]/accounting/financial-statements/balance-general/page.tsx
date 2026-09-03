@@ -246,6 +246,37 @@ export default function BalanceGeneralPage() {
     setTimeout(()=>{ w.print(); w.close(); }, 400);
   };
 
+  const handleDownloadPDF = async () => {
+    const el = document.getElementById("printable-balance");
+    if (!el) return handlePrint();
+    try {
+      const { default: jsPDF } = await import("jspdf");
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(el, { scale: 2, useCORS: true, backgroundColor: "#ffffff" });
+      const imgData = canvas.toDataURL("image/png");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageWidth = pdf.internal.pageSize.getWidth();
+      const pageHeight = pdf.internal.pageSize.getHeight();
+      const imgWidth = pageWidth - 20;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 10;
+      pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight + 10;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 10, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      const fileName = `Balance_General_${companyInfo.name.replace(/\s+/g,"_")}_${new Date().toISOString().slice(0,10)}.pdf`;
+      pdf.save(fileName);
+    } catch (e) {
+      // Fallback a impresión si falla html2canvas
+      handlePrint();
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -278,12 +309,16 @@ export default function BalanceGeneralPage() {
                 <Printer className="h-4 w-4 mr-2" />
                 Imprimir
               </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadPDF}>
+                <Download className="h-4 w-4 mr-2" />
+                Descargar PDF
+              </Button>
             </div>
           </div>
         </div>
       </div>
 
-      <div id="printable-balance" className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
@@ -333,11 +368,12 @@ export default function BalanceGeneralPage() {
           </CardContent>
         </Card>
 
+        <div id="printable-balance">
         {/* Encabezado del Reporte */}
         <Card className="mb-6 border-2">
-          <CardContent className="p-8 text-center">
-            <div className="mb-4">
-              <Building2 className="h-12 w-12 mx-auto text-blue-600" />
+          <CardContent className="p-8 text-center print:p-4">
+            <div className="mb-4 print:mb-2">
+              <Building2 className="h-12 w-12 mx-auto text-blue-600 print:h-8 print:w-8" />
             </div>
             <h2 className="text-2xl font-bold text-gray-900 uppercase tracking-wide">
               {companyInfo.name}
@@ -566,6 +602,7 @@ export default function BalanceGeneralPage() {
             </p>
           </CardContent>
         </Card>
+        </div>
       </div>
     </div>
   );

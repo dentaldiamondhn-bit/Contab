@@ -92,47 +92,79 @@ export async function PUT(request: NextRequest) {
     const tenant = await getTenantFromRequest(request);
     if (!tenant) return NextResponse.json({ error: "Tenant no encontrado" }, { status: 401 });
     const body = await request.json();
-    const { id, description, date, totalAmount, entries } = body;
+    let { id, description, date, totalAmount, entries } = body;
     if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
-    // Actualizar Transaction
-    const { error: txErr } = await supabaseService.from("Transaction").update({
-      description: description,
-      date: date ? new Date(date).toISOString().split('T')[0] : undefined,
-      totalAmount: totalAmount !== undefined ? Math.round(Number(totalAmount)) : undefined,
-      functionalAmount: totalAmount !== undefined ? Math.round(Number(totalAmount)) : undefined,
-      originalTotal: totalAmount !== undefined ? Math.round(Number(totalAmount)) : undefined,
-      updatedAt: new Date().toISOString(),
-    } as any).eq("id", id).eq("tenantId", tenant.id) as any;
-    if (txErr) {
-      // fallback snake
-      const alt = await supabaseService.from("Transaction").update({
-        description, date: date ? new Date(date).toISOString().split('T')[0] : undefined,
-        total_amount: totalAmount, functional_amount: totalAmount, original_total: totalAmount,
-      } as any).eq("id", id).eq("tenant_id", tenant.id) as any;
-      if (alt.error) throw alt.error;
-    }
-
-    // Si vienen entries, recrear JournalEntries
-    if (Array.isArray(entries) && entries.length >= 2) {
-      await supabaseService.from("JournalEntry").delete().eq("transactionId", id) as any;
-      await supabaseService.from("JournalEntry").delete().eq("transaction_id", id) as any;
-      for (const e of entries) {
-        await supabaseService.from("JournalEntry").insert({
-          id: e.id || undefined,
-          transactionId: id,
-          accountId: e.accountId || e.account_id,
-          tenantId: tenant.id,
-          amount: Math.round(Number(e.amount)),
-          originalAmount: Math.round(Number(e.originalAmount || e.amount)),
-          currency: e.currency || "HNL",
-          exchangeRate: e.exchangeRate || 24.7,
-          description: e.description || description,
-        } as any);
+    // Si el id es sintético del libro diario (fecha-numero, ej "2026-03-20T00:00:00-45"), resolver a ids reales
+    let idsToUpdate: string[] = [id];
+    const isSynthetic = !id.match(/^[0-9a-f]{8}-[0-9a-f]{4}-/i) && id.includes("-");
+    if (isSynthetic) {
+      // id es "2026-03-21T00:00:00-46" -> fecha + numero
+      const parts = id.split("-");
+      const numero = parts[parts.length-1];
+      const fechaPart = id.slice(0, id.length - (`-${numero}`.length));
+      // Buscar transacciones reales que coincidan
+      const { data: matches } = await supabaseService.from("Transaction").select("id").eq("tenantId", tenant.id).eq("voucherNumber", parseInt(numero)||0).gte("date", fechaPart.slice(0,10)).lte("date", fechaPart.slice(0,10)) as any;
+      if (matches && matches.length>0) {
+        idsToUpdate = matches.map((m:any)=>m.id);
+        // Si hay múltiples, actualizar todas con la misma descripción/fecha/monto
+      } else {
+        // fallback: buscar por fecha y numero sin tenant filter estricto
+        const alt = await supabaseService.from("Transaction").select("id").eq("tenantId", tenant.id).eq("voucher_type", body.voucherType || "EGRESO").eq("voucher_number", parseInt(numero)||0) as any;
+        if (alt.data && alt.data.length>0) idsToUpdate = alt.data.map((m:any)=>m.id);
       }
     }
 
-    return NextResponse.json({ success: true });
+    for (const realId of idsToUpdate) {
+      const newAmt = totalAmount !== undefined ? Number(totalAmount) : undefined;
+      const { error: txErr } = await supabaseService.from("Transaction").update({
+        description: description,
+        date: date ? new Date(date).toISOString().split('T')[0] : undefined,
+        totalAmount: newAmt,
+        functionalAmount: newAmt,
+        originalTotal: newAmt,
+        updatedAt: new Date().toISOString(),
+      } as any).eq("id", realId).eq("tenantId", tenant.id) as any;
+      if (txErr) {
+        const alt = await supabaseService.from("Transaction").update({
+          description, date: date ? new Date(date).toISOString().split('T')[0] : undefined,
+          total_amount: newAmt, functional_amount: newAmt, original_total: newAmt,
+        } as any).eq("id", realId).eq("tenant_id", tenant.id) as any;
+        if (alt.error) throw alt.error;
+      }
+      // Si vienen entries, recrear solo para ese realId
+      if (Array.isArray(entries) && entries.length >= 2) {
+        await supabaseService.from("JournalEntry").delete().eq("transactionId", realId) as any;
+        await supabaseService.from("JournalEntry").delete().eq("transaction_id", realId) as any;
+        for (const e of entries) {
+          await supabaseService.from("JournalEntry").insert({
+            id: e.id || undefined,
+            transactionId: realId,
+            accountId: e.accountId || e.account_id,
+            tenantId: tenant.id,
+            amount: Math.round(Number(e.amount)),
+            originalAmount: Math.round(Number(e.originalAmount || e.amount)),
+            currency: e.currency || "HNL",
+            exchangeRate: e.exchangeRate || 24.7,
+            description: e.description || description,
+          } as any);
+        }
+      } else if (totalAmount !== undefined) {
+        const { data: jes } = await supabaseService.from("JournalEntry").select("id, amount").eq("transactionId", realId) as any;
+        let list = jes || [];
+        if (list.length===0) {
+          const alt = await supabaseService.from("JournalEntry").select("id, amount").eq("transaction_id", realId) as any;
+          list = alt.data || [];
+        }
+        const newAmt = Number(totalAmount);
+        for (const je of list) {
+          const isDebit = Number(je.amount) > 0;
+          const newAmount = isDebit ? newAmt : -newAmt;
+          await supabaseService.from("JournalEntry").update({ amount: newAmount, originalAmount: Math.abs(newAmt) } as any).eq("id", je.id) as any;
+        }
+      }
+    }
+    return NextResponse.json({ success: true, updated: idsToUpdate.length });
   } catch (e:any) {
     console.error("PUT transaction error", e);
     return NextResponse.json({ error: e.message }, { status: 500 });

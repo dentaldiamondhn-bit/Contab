@@ -112,6 +112,13 @@ export default function SuppliersPage() {
   };
 
   useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get("from")) {
+      router.replace(`/companies/${companyId}/purchases/dashboard`);
+    }
+  }, [companyId]);
+
+  useEffect(() => {
     loadSuppliers();
   }, [companyId]);
 
@@ -332,11 +339,23 @@ export default function SuppliersPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-3xl font-bold">Gestión de Proveedores</h1>
-          <p className="text-gray-500">Directorio maestro de proveedores y acreedores</p>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => {
+            const params = new URLSearchParams(window.location.search);
+            if (params.get("from") === "dashboard") router.push(`/companies/${companyId}/purchases/dashboard`);
+            else router.push(`/companies/${companyId}/modules`);
+          }}>
+            <ChevronLeft className="h-4 w-4 mr-2" /> Atrás
+          </Button>
+          <div>
+            <h1 className="text-3xl font-bold">Gestión de Proveedores</h1>
+            <p className="text-gray-500">Directorio maestro de proveedores y acreedores</p>
+          </div>
         </div>
-        
+        <div className="flex gap-2">
+          <Button onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-600 hover:bg-cyan-700">
+            <Plus className="w-4 h-4 mr-2" /> Agregar Proveedor
+          </Button>
         {/* Single Dropdown Menu - Same level as title */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -372,6 +391,7 @@ export default function SuppliersPage() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       {/* Stats */}
@@ -720,6 +740,7 @@ export default function SuppliersPage() {
                       <SelectItem value="cash">Efectivo</SelectItem>
                       <SelectItem value="transfer">Transferencia</SelectItem>
                       <SelectItem value="check">Cheque</SelectItem>
+                      <SelectItem value="card">Tarjeta</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

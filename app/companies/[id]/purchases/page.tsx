@@ -117,6 +117,10 @@ export default function PurchasesPage() {
   const { subtotal, taxAmount, total } = calculateTotals();
 
   useEffect(() => {
+    router.replace(`/companies/${companyId}/purchases/dashboard`);
+  }, [companyId]);
+
+  useEffect(() => {
     loadSuppliers();
     loadProducts();
     loadPurchases();
@@ -573,9 +577,14 @@ export default function PurchasesPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <div>
-          <h1 className="text-2xl font-bold">Compras</h1>
-          <p className="text-gray-500">Gestión de compras y facturas recibidas</p>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/modules`)}>
+            <ChevronLeft className="h-4 w-4 mr-2" /> Atrás
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold">Compras</h1>
+            <p className="text-gray-500">Gestión de compras y facturas recibidas</p>
+          </div>
         </div>
         
         {/* Single Dropdown Menu - Same level as title */}

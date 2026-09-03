@@ -363,7 +363,7 @@ export default function BalanceComprobacionPage() {
 
         {/* Tabla 6 Columnas */}
         <Card>
-          <CardContent className="p-0 overflow-x-auto">
+          <CardContent className="p-0">
             {loading ? (
               <div className="p-8 text-center text-gray-500">Cargando balance de comprobación...</div>
             ) : filteredData.length === 0 ? (
@@ -371,28 +371,29 @@ export default function BalanceComprobacionPage() {
                 No hay datos para el período seleccionado.
               </div>
             ) : (
-              <Table>
+              <div className="overflow-x-auto">
+              <Table className="w-full table-fixed min-w-[1100px]">
                 <TableHeader>
                   <TableRow className="bg-gray-100">
-                    <TableHead rowSpan={2} className="border font-bold">Código</TableHead>
-                    <TableHead rowSpan={2} className="border font-bold">Cuenta</TableHead>
-                    <TableHead colSpan={2} className="border text-center font-bold bg-cyan-50">
+                    <TableHead rowSpan={2} className="border font-bold w-[10%]">Código</TableHead>
+                    <TableHead rowSpan={2} className="border font-bold w-[28%]">Cuenta</TableHead>
+                    <TableHead colSpan={2} className="border text-center font-bold bg-cyan-50 w-[22%]">
                       Saldo Anterior
                     </TableHead>
-                    <TableHead colSpan={2} className="border text-center font-bold bg-green-50">
+                    <TableHead colSpan={2} className="border text-center font-bold bg-green-50 w-[22%]">
                       Movimientos del Período
                     </TableHead>
-                    <TableHead colSpan={2} className="border text-center font-bold bg-purple-50">
+                    <TableHead colSpan={2} className="border text-center font-bold bg-purple-50 w-[22%]">
                       Saldo Actual
                     </TableHead>
                   </TableRow>
                   <TableRow className="bg-gray-50">
-                    <TableHead className="border text-right font-medium">Debe</TableHead>
-                    <TableHead className="border text-right font-medium">Haber</TableHead>
-                    <TableHead className="border text-right font-medium">Debe</TableHead>
-                    <TableHead className="border text-right font-medium">Haber</TableHead>
-                    <TableHead className="border text-right font-medium">Debe</TableHead>
-                    <TableHead className="border text-right font-medium">Haber</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Debe</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Haber</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Debe</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Haber</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Debe</TableHead>
+                    <TableHead className="border text-right font-medium w-[11%]">Haber</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -444,6 +445,7 @@ export default function BalanceComprobacionPage() {
                   </TableRow>
                 </TableBody>
               </Table>
+              </div>
             )}
           </CardContent>
         </Card>

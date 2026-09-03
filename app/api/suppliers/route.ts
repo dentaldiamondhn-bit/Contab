@@ -7,18 +7,21 @@ const DATA_FILE = join(process.cwd(), 'suppliers-data.json');
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
+    const companyId = searchParams.get('companyId') || searchParams.get('tenantId');
     const search = searchParams.get('search');
 
-    const data = readFileSync(DATA_FILE, 'utf8');
-    let suppliers = JSON.parse(data);
+    let suppliers: any[] = [];
+    try {
+      const data = readFileSync(DATA_FILE, 'utf8');
+      suppliers = JSON.parse(data);
+    } catch { suppliers = []; }
     
     console.log('SIMPLE ROUTE - Total suppliers:', suppliers.length);
 
     let filtered = suppliers;
     
     if (companyId) {
-      filtered = filtered.filter((s: any) => s.company_id === companyId || s.companyId === companyId);
+      filtered = filtered.filter((s: any) => s.company_id === companyId || s.companyId === companyId || s.tenantId === companyId || s.tenant_id === companyId);
     }
 
     if (search) {
@@ -44,8 +47,11 @@ export async function POST(request: Request) {
     const body = await request.json();
     console.log('SIMPLE ROUTE - Creating supplier:', body);
     
-    const data = readFileSync(DATA_FILE, 'utf8');
-    let suppliers = JSON.parse(data);
+    let suppliers: any[] = [];
+    try {
+      const data = readFileSync(DATA_FILE, 'utf8');
+      suppliers = JSON.parse(data);
+    } catch { suppliers = []; }
     
     const newSupplier = {
       id: Math.random().toString(36).substring(2, 9),
@@ -61,6 +67,27 @@ export async function POST(request: Request) {
     return NextResponse.json(newSupplier, { status: 201 });
   } catch (error) {
     console.error('SIMPLE ROUTE - Error creating supplier:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: Request) {
+  try {
+    const body = await request.json();
+    const { id, ...updates } = body;
+    if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 });
+    let suppliers: any[] = [];
+    try {
+      const data = readFileSync(DATA_FILE, 'utf8');
+      suppliers = JSON.parse(data);
+    } catch { return NextResponse.json({ error: 'No hay proveedores' }, { status: 404 }); }
+    const idx = suppliers.findIndex((s:any)=> s.id===id);
+    if (idx===-1) return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+    suppliers[idx] = { ...suppliers[idx], ...updates, updated_at: new Date().toISOString() };
+    writeFileSync(DATA_FILE, JSON.stringify(suppliers, null, 2), 'utf8');
+    return NextResponse.json(suppliers[idx]);
+  } catch (error) {
+    console.error('SIMPLE ROUTE - Error patching supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
