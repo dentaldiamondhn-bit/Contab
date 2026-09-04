@@ -263,22 +263,39 @@ export default function InventoryPage() {
 
   // Predefined units
   const units = [
+    'Unidad',
     'Unidades',
+    'Caja',
     'Cajas',
+    'Paquete',
     'Paquetes',
-    'Kilogramos',
-    'Gramos',
+    'Galón',
+    'Galones',
+    'Litro',
     'Litros',
-    'Mililitros',
+    'Kilogramo',
+    'Kilogramos',
+    'Gramo',
+    'Gramos',
+    'Metro',
     'Metros',
     'Centímetros',
+    'Par',
     'Pares',
+    'Docena',
     'Docenas',
+    'Botella',
     'Botellas',
+    'Tubo',
     'Tubos',
+    'Frasco',
     'Frascos',
+    'Bolsa',
     'Bolsas',
-    'Rollo'
+    'Rollo',
+    'Servicio',
+    'Hora',
+    'Día'
   ];
 
   // State for custom values

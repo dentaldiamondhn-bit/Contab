@@ -1,54 +1,82 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
 // GET - Obtener alertas de inventario (stock bajo, vencimientos)
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const alertType = searchParams.get("type"); // 'low_stock', 'expiring', 'all'
+    const tenantId = searchParams.get("tenantId") || "1";
 
-    const supabase = createSupabaseClient();
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
-    // Consultar vista de alertas
-    let query = supabase
-      .from("inventory_stock_alert")
+    // Consultar productos activos
+    const { data: products, error } = await supabase
+      .from("product")
       .select("*")
-      .eq("tenant_id", "1");
-
-    if (alertType && alertType !== "all") {
-      query = query.eq("alert_type", alertType);
-    } else {
-      // Por defecto solo mostrar alertas (no 'normal')
-      query = query.neq("alert_type", "normal");
-    }
-
-    const { data: alerts, error } = await query;
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true);
 
     if (error) {
-      console.error("Error fetching inventory alerts:", error);
-      return NextResponse.json(
-        { error: "Error fetching alerts" },
-        { status: 500 }
-      );
+      console.error("Error fetching products for alerts:", error);
+      return NextResponse.json({ error: "Error fetching alerts" }, { status: 500 });
     }
 
-    // Contar por tipo
-    const lowStockCount = (alerts as any[])?.filter((a) => a.alert_type === "low_stock").length || 0;
-    const expiringCount = (alerts as any[])?.filter((a) => a.alert_type === "expiring").length || 0;
+    // Calcular alertas desde los productos
+    const alerts: any[] = [];
+    const today = new Date().toISOString().split('T')[0];
+
+    (products || []).forEach((p: any) => {
+      // Alerta de stock bajo
+      if (p.min_stock && p.current_stock <= p.min_stock) {
+        alerts.push({
+          id: p.id,
+          product_id: p.id,
+          code: p.code,
+          name: p.name,
+          alert_type: 'low_stock',
+          alert_message: `Stock bajo: ${p.current_stock} (mínimo: ${p.min_stock})`,
+          current_stock: p.current_stock,
+          min_stock: p.min_stock,
+        });
+      }
+      // Alerta de vencimiento
+      if (p.expiration_date && p.expiration_date <= today) {
+        alerts.push({
+          id: p.id + '-exp',
+          product_id: p.id,
+          code: p.code,
+          name: p.name,
+          alert_type: 'expiring',
+          alert_message: `Producto vencido: ${p.expiration_date}`,
+          expiration_date: p.expiration_date,
+          current_stock: p.current_stock,
+          min_stock: p.min_stock,
+        });
+      }
+    });
+
+    // Filtrar por tipo si se solicita
+    const filtered = alertType && alertType !== 'all'
+      ? alerts.filter(a => a.alert_type === alertType)
+      : alerts;
+
+    const lowStockCount = alerts.filter(a => a.alert_type === 'low_stock').length;
+    const expiringCount = alerts.filter(a => a.alert_type === 'expiring').length;
 
     return NextResponse.json({
-      alerts: alerts || [],
+      alerts: filtered,
       summary: {
-        total: alerts?.length || 0,
+        total: filtered.length,
         low_stock: lowStockCount,
         expiring: expiringCount,
       },
     });
   } catch (error) {
     console.error("Error in inventory alerts GET:", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

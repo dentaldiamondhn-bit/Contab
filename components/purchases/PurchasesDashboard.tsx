@@ -239,7 +239,7 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <Card>
+        <Card className="cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push(`/companies/${companyId}/purchases`)}>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Compras</CardTitle>
             <ShoppingCart className="h-4 w-4 text-muted-foreground" />
@@ -247,7 +247,7 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
           <CardContent>
             <div className="text-2xl font-bold">{dashboardData.totalPurchases}</div>
             <p className="text-xs text-muted-foreground">
-              {dashboardData.completedCount} completadas
+              {dashboardData.completedCount} completadas • clic para ver
             </p>
           </CardContent>
         </Card>
@@ -293,25 +293,25 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
       </div>
 
       {/* Conteo por Proveedor — para ANGELOH7 */}
-      <Card className="border-cyan-200 cursor-pointer hover:shadow-md transition-shadow" onClick={() => router.push(`/companies/${companyId}/suppliers?from=dashboard`)}>
+      <Card className="border-cyan-200">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ShoppingCart className="h-5 w-5 text-cyan-600" />
             Conteo por Proveedor — Base de Datos
           </CardTitle>
-          <p className="text-sm text-muted-foreground">Total {suppliersCount} proveedores para {companyId} • clic para ver</p>
+          <p className="text-sm text-muted-foreground">Total {suppliersCount} proveedores para {companyId}</p>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="rounded-lg border p-4 text-center bg-slate-50">
+            <div className="rounded-lg border p-4 text-center bg-slate-50 cursor-pointer hover:shadow-md hover:bg-slate-100 transition-all" onClick={() => router.push(`/companies/${companyId}/suppliers?from=dashboard`)}>
               <p className="text-xs text-muted-foreground uppercase">Total</p>
               <p className="text-2xl font-bold">{suppliersCount}</p>
-              <p className="text-xs text-muted-foreground">proveedores</p>
+              <p className="text-xs text-muted-foreground">proveedores • ver</p>
             </div>
-            <div className="rounded-lg border p-4 text-center bg-cyan-50">
+            <div className="rounded-lg border p-4 text-center bg-cyan-50 cursor-pointer hover:shadow-md hover:bg-cyan-100 transition-all" onClick={(e)=>{e.stopPropagation(); router.push(`/companies/${companyId}/purchases`);}}>
               <p className="text-xs text-muted-foreground uppercase">Compras</p>
               <p className="text-2xl font-bold text-cyan-700">{dashboardData.totalPurchases}</p>
-              <p className="text-xs text-muted-foreground">transacciones</p>
+              <p className="text-xs text-muted-foreground">transacciones • ver</p>
             </div>
             <div className="rounded-lg border p-4 text-center bg-green-50">
               <p className="text-xs text-muted-foreground uppercase">Pendientes</p>

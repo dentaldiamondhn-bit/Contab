@@ -1,15 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { createClient } from "@supabase/supabase-js";
 
 // GET - Obtener bodegas/almacenes
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseClient();
+    const { searchParams } = new URL(request.url);
+    const tenantId = searchParams.get("tenantId") || "1";
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data: warehouses, error } = await supabase
       .from("warehouse")
       .select("*")
-      .eq("tenant_id", "1")
+      .eq("tenant_id", tenantId)
       .eq("is_active", true)
       .order("name");
 
@@ -37,7 +43,10 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { code, name, location, description } = body;
 
-    const supabase = createSupabaseClient();
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
 
     const { data: warehouse, error } = await (supabase as any)
       .from("warehouse")

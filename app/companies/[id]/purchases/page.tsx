@@ -40,6 +40,8 @@ interface PurchaseItem {
   product_name: string;
   description: string;
   quantity: number;
+  unit?: string;
+  units_per_package?: number;
   unit_price: number;
   discount_percentage: number;
   discount_amount: number;
@@ -47,6 +49,7 @@ interface PurchaseItem {
   tax_rate: number;
   tax_amount: number;
   total: number;
+  total_cost?: number;
 }
 
 interface Purchase {
@@ -97,9 +100,12 @@ export default function PurchasesPage() {
     product_name: '',
     description: '',
     quantity: 1,
+    unit: 'Unidad',
+    units_per_package: 1,
     unit_price: 0,
     discount_percentage: 0,
     tax_rate: 15,
+    total_cost: 0,
   });
 
   const [caiError, setCaiError] = useState('');
@@ -115,10 +121,6 @@ export default function PurchasesPage() {
   }, [items]);
 
   const { subtotal, taxAmount, total } = calculateTotals();
-
-  useEffect(() => {
-    router.replace(`/companies/${companyId}/purchases/dashboard`);
-  }, [companyId]);
 
   useEffect(() => {
     loadSuppliers();
@@ -274,9 +276,12 @@ export default function PurchasesPage() {
       product_name: '',
       description: '',
       quantity: 1,
+      unit: 'Unidad',
+      units_per_package: 1,
       unit_price: 0,
       discount_percentage: 0,
-      tax_rate: taxRate,
+      tax_rate: 15,
+      total_cost: 0,
     });
   };
 
@@ -328,6 +333,7 @@ export default function PurchasesPage() {
 
       const purchaseData = {
         supplier_id: selectedSupplier.id,
+        supplier_name: selectedSupplier.name || selectedSupplier.businessname || '',
         invoice_number: invoiceNumber,
         cai: cai || null,
         invoice_date: invoiceDate,
@@ -446,6 +452,8 @@ export default function PurchasesPage() {
       product_name: newItem.product_name!,
       description: newItem.description || '',
       quantity: newItem.quantity || 1,
+      unit: newItem.unit || 'Unidad',
+      units_per_package: newItem.units_per_package || 1,
       unit_price: newItem.unit_price || 0,
       discount_percentage: newItem.discount_percentage || 0,
       discount_amount: 0,
@@ -453,6 +461,7 @@ export default function PurchasesPage() {
       tax_rate: taxRate,
       tax_amount: 0,
       total: 0,
+      total_cost: (newItem as any).total_cost || 0,
     };
 
     // Calculate discount amount
@@ -503,6 +512,7 @@ export default function PurchasesPage() {
 
       const purchaseData = {
         supplier_id: selectedSupplier.id,
+        supplier_name: selectedSupplier.name || selectedSupplier.businessname || '',
         invoice_number: invoiceNumber,
         cai: cai || null,
         invoice_date: invoiceDate,
@@ -570,7 +580,7 @@ export default function PurchasesPage() {
   };
 
   const formatCurrency = (amount: number) => {
-    return `L ${(amount / 100).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    return `L ${Number(amount).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
 
   return (
@@ -908,12 +918,48 @@ export default function PurchasesPage() {
               </div>
 
               <div className="space-y-2">
-                <Label>Documento Adjunto (URL)</Label>
-                <Input
-                  value={documentUrl}
-                  onChange={(e) => setDocumentUrl(e.target.value)}
-                  placeholder="https://... o ruta del archivo"
-                />
+                <Label>Documento Adjunto</Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={documentUrl}
+                    onChange={(e) => setDocumentUrl(e.target.value)}
+                    placeholder="https://... o ruta del archivo"
+                    className="flex-1"
+                  />
+                  <label className="flex items-center gap-2 px-3 py-2 border rounded-md cursor-pointer bg-white hover:bg-gray-50 text-sm whitespace-nowrap">
+                    <Upload className="h-4 w-4" /> Subir Factura
+                    <input
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png,.xlsx,.xls"
+                      className="hidden"
+                      onChange={async (e) => {
+                        const f = e.target.files?.[0];
+                        if (!f) return;
+                        // Subir a Supabase Storage (ticket-attachments) y poner URL
+                        try {
+                          const { createClient } = await import('@supabase/supabase-js');
+                          const supa = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
+                          const path = `purchases/${companyId}/${Date.now()}_${f.name}`;
+                          const { error } = await supa.storage.from('ticket-attachments').upload(path, f);
+                          if (error) throw error;
+                          const { data } = supa.storage.from('ticket-attachments').getPublicUrl(path);
+                          setDocumentUrl(data.publicUrl);
+                        } catch (err:any) {
+                          alert('Error al subir: ' + err.message);
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                {documentUrl && (
+                  <div className="flex items-center gap-2 text-xs">
+                    <a href={documentUrl} target="_blank" rel="noopener noreferrer" className="text-cyan-600 hover:underline flex items-center gap-1">
+                      <Eye className="h-3 w-3" /> Ver archivo actual
+                    </a>
+                    <span className="text-gray-400">|</span>
+                    <span className="text-green-600 truncate max-w-[200px]">{documentUrl}</span>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -954,25 +1000,114 @@ export default function PurchasesPage() {
                     />
                   </div>
 
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label>Unidad</Label>
+                      <select
+                        value={newItem.unit || 'Unidad'}
+                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      >
+                        <option value="Unidad">Unidad</option>
+                        <option value="Unidades">Unidades</option>
+                        <option value="Caja">Caja</option>
+                        <option value="Cajas">Cajas</option>
+                        <option value="Paquete">Paquete</option>
+                        <option value="Paquetes">Paquetes</option>
+                        <option value="Galón">Galón</option>
+                        <option value="Galones">Galones</option>
+                        <option value="Litro">Litro</option>
+                        <option value="Litros">Litros</option>
+                        <option value="Kilogramo">Kilogramo</option>
+                        <option value="Kilogramos">Kilogramos</option>
+                        <option value="Par">Par</option>
+                        <option value="Pares">Pares</option>
+                        <option value="Docena">Docena</option>
+                        <option value="Docenas">Docenas</option>
+                        <option value="Rollo">Rollo</option>
+                        <option value="Rollos">Rollos</option>
+                        <option value="Servicio">Servicio</option>
+                      </select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Unidades por Paquete</Label>
+                      <Input
+                        type="number"
+                        min="1"
+                        value={newItem.units_per_package || 1}
+                        onChange={(e) => {
+                          const upp = parseInt(e.target.value) || 1;
+                          const qty = newItem.quantity || 0;
+                          const total = (newItem as any).total_cost || 0;
+                          const totalUnits = qty * upp;
+                          const unitPrice = totalUnits > 0 && total > 0 ? total / totalUnits : newItem.unit_price || 0;
+                          setNewItem({
+                            ...newItem,
+                            units_per_package: upp,
+                            unit_price: Math.round(unitPrice * 100) / 100,
+                          });
+                        }}
+                        placeholder="Ej: 50"
+                      />
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-4 gap-3">
                     <div className="space-y-2">
-                      <Label>Cantidad</Label>
+                      <Label>Cantidad (Paquetes)</Label>
                       <Input
                         type="number"
                         min="0.01"
                         step="0.01"
                         value={newItem.quantity}
-                        onChange={(e) => setNewItem({ ...newItem, quantity: parseFloat(e.target.value) || 0 })}
+                        onChange={(e) => {
+                          const qty = parseFloat(e.target.value) || 0;
+                          const upp = newItem.units_per_package || 1;
+                          const total = (newItem as any).total_cost || 0;
+                          const totalUnits = qty * upp;
+                          const unitPrice = totalUnits > 0 && total > 0 ? total / totalUnits : newItem.unit_price || 0;
+                          setNewItem({
+                            ...newItem,
+                            quantity: qty,
+                            unit_price: Math.round(unitPrice * 100) / 100,
+                          });
+                        }}
+                      />
+                      <p className="text-xs text-gray-500">
+                        Total: {(newItem.quantity || 0) * (newItem.units_per_package || 1)} unidades
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Costo Total (L)</Label>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={(newItem as any).total_cost || ''}
+                        onChange={(e) => {
+                          const total = parseFloat(e.target.value) || 0;
+                          const qty = newItem.quantity || 0;
+                          const upp = newItem.units_per_package || 1;
+                          const totalUnits = qty * upp;
+                          const unitPrice = totalUnits > 0 ? total / totalUnits : 0;
+                          setNewItem({
+                            ...newItem,
+                            unit_price: Math.round(unitPrice * 100) / 100,
+                            total_cost: total,
+                          });
+                        }}
+                        placeholder="Total compra"
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label>Precio Unit.</Label>
+                      <Label>Precio Unit. (Auto)</Label>
                       <Input
                         type="number"
                         min="0"
                         step="0.01"
                         value={newItem.unit_price}
                         onChange={(e) => setNewItem({ ...newItem, unit_price: parseFloat(e.target.value) || 0 })}
+                        className="bg-gray-50 font-bold"
                       />
                     </div>
                     <div className="space-y-2">
@@ -1020,13 +1155,22 @@ export default function PurchasesPage() {
                     ) : (
                       items.map((item, index) => (
                         <tr key={index} className="border-t">
-                          <td className="p-2">{item.product_name}</td>
+                          <td className="p-2">
+                            {item.product_name}
+                            {(item.unit || item.units_per_package) && (
+                              <p className="text-xs text-gray-500">
+                                {item.units_per_package && item.units_per_package > 1
+                                  ? `${item.quantity} × ${item.units_per_package} ${item.unit || 'unidades'} = ${item.quantity * item.units_per_package} unidades`
+                                  : item.unit || ''}
+                              </p>
+                            )}
+                          </td>
                           <td className="p-2 text-center">{item.quantity}</td>
-                          <td className="p-2 text-right">{formatCurrency(item.unit_price * 100)}</td>
+                          <td className="p-2 text-right">{formatCurrency(item.unit_price)}</td>
                           <td className="p-2 text-right">{item.discount_percentage}%</td>
-                          <td className="p-2 text-right">{formatCurrency(item.subtotal * 100)}</td>
-                          <td className="p-2 text-right">{formatCurrency(item.tax_amount * 100)}</td>
-                          <td className="p-2 text-right font-medium">{formatCurrency(item.total * 100)}</td>
+                          <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
+                          <td className="p-2 text-right">{formatCurrency(item.tax_amount)}</td>
+                          <td className="p-2 text-right font-medium">{formatCurrency(item.total)}</td>
                           <td className="p-2 text-center">
                             <Button
                               variant="ghost"
@@ -1047,15 +1191,15 @@ export default function PurchasesPage() {
               <div className="bg-gray-50 p-4 rounded-lg space-y-2">
                 <div className="flex justify-between">
                   <span>Subtotal:</span>
-                  <span className="font-medium">{formatCurrency(subtotal * 100)}</span>
+                  <span className="font-medium">{formatCurrency(subtotal)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>ISV ({taxRate}%):</span>
-                  <span className="font-medium">{formatCurrency(taxAmount * 100)}</span>
+                  <span className="font-medium">{formatCurrency(taxAmount)}</span>
                 </div>
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>TOTAL:</span>
-                  <span>{formatCurrency(total * 100)}</span>
+                  <span>{formatCurrency(total)}</span>
                 </div>
               </div>
             </TabsContent>
@@ -1154,7 +1298,7 @@ export default function PurchasesPage() {
 
               <div>
                 <Label className="text-gray-500">Proveedor</Label>
-                <div className="font-medium">{(selectedPurchase as any).supplier_name || 'N/A'}</div>
+                <div className="font-medium">{suppliers.find((s: any) => s.id === (selectedPurchase as any).supplier_id)?.name || (selectedPurchase as any).supplier_name || 'N/A'}</div>
                 <div className="text-sm text-gray-600">ID: {(selectedPurchase as any).supplier_id}</div>
               </div>
 

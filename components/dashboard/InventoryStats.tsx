@@ -106,7 +106,7 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
       style: 'currency',
       currency: 'HNL',
       minimumFractionDigits: 2
-    }).format(amount / 100);
+    }).format(amount);
   };
 
   const formatNumber = (num: number) => {
@@ -180,10 +180,10 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Productos</CardTitle>
-            <Package className="h-4 w-4 text-cyan-600" />
+            <Package className="h-4 w-4 text-blue-600" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-cyan-600">
+            <div className="text-2xl font-bold text-blue-600">
               {formatNumber(stats.totalProducts)}
             </div>
             <p className="text-xs text-gray-600">
@@ -312,7 +312,7 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
                   <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                     <div className="flex items-center space-x-3">
                       <div className="p-2 bg-white rounded-lg">
-                        <Package className="h-4 w-4 text-cyan-600" />
+                        <Package className="h-4 w-4 text-blue-600" />
                       </div>
                       <div>
                         <div className="font-medium">{category.name}</div>
@@ -322,7 +322,7 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
                       </div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-cyan-600">
+                      <div className="font-bold text-blue-600">
                         {formatCurrency(category.totalValue)}
                       </div>
                       <Badge className={`text-xs ${getStockLevelColor(category.stockLevel)}`}>

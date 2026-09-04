@@ -23,7 +23,8 @@ import {
   Target,
   AlertCircle,
   AlertTriangle,
-  Plus
+  Plus,
+  Download
 } from 'lucide-react';
 
 interface FinancialControlProps {
@@ -44,6 +45,7 @@ interface KPIData {
 }
 
 interface FixedCosts {
+  [key: string]: number;
   rent: number;
   salaries: number;
   insurance: number;
@@ -54,6 +56,7 @@ interface FixedCosts {
 }
 
 interface VariableCosts {
+  [key: string]: number;
   electricity: number;
   water: number;
   cleaning: number;
@@ -134,6 +137,324 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
   const [fixedCosts, setFixedCosts] = useState<FixedCosts | null>(null);
   const [variableCosts, setVariableCosts] = useState<VariableCosts | null>(null);
   const [cashFlowData, setCashFlowData] = useState<any[]>([]);
+  const [editingCosts, setEditingCosts] = useState(false);
+  const [fixedCostsOriginal, setFixedCostsOriginal] = useState<FixedCosts | null>(null);
+  const [variableCostsOriginal, setVariableCostsOriginal] = useState<VariableCosts | null>(null);
+  const [showAddFixedCost, setShowAddFixedCost] = useState(false);
+  const [showAddVariableCost, setShowAddVariableCost] = useState(false);
+  const [newFixedCostName, setNewFixedCostName] = useState('');
+  const [newFixedCostValue, setNewFixedCostValue] = useState(0);
+  const [newVariableCostName, setNewVariableCostName] = useState('');
+  const [newVariableCostValue, setNewVariableCostValue] = useState(0);
+  const [monthlyRecords, setMonthlyRecords] = useState<any[]>([]);
+  const [showRecords, setShowRecords] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<{[key: string]: {dueDate: string, paid: boolean, paidDate?: string}}>({});
+  const [replacementFund, setReplacementFund] = useState({ percentage: 2, currentAmount: 0 });
+  const [editingFund, setEditingFund] = useState(false);
+  const [units, setUnits] = useState<any[]>([]);
+  const [editingUnits, setEditingUnits] = useState(false);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [newUnit, setNewUnit] = useState({ name: '', revenue: 0, costs: 0, utilization: 0 });
+  const [recordFilter, setRecordFilter] = useState<'all' | 'monthly' | 'quarterly' | 'yearly'>('all');
+  const [overviewPeriod, setOverviewPeriod] = useState<'current' | 'monthly' | 'quarterly' | 'yearly'>('current');
+  const [selectedRecord, setSelectedRecord] = useState<any>(null);
+
+  // Get record data based on selected period
+  const getRecordData = () => {
+    if (overviewPeriod === 'current' || !selectedRecord) {
+      return {
+        totalFixed: fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0,
+        totalVariable: variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0,
+        units: units.length,
+        utilization: units.length > 0 ? Math.round(units.reduce((sum, u) => sum + u.utilization, 0) / units.length) : 0,
+        revenue: units.reduce((sum, u) => sum + u.revenue, 0)
+      };
+    }
+    return {
+      totalFixed: selectedRecord.totalFixed || 0,
+      totalVariable: selectedRecord.totalVariable || 0,
+      units: selectedRecord.units || 0,
+      utilization: units.length > 0 ? Math.round(units.reduce((sum, u) => sum + u.utilization, 0) / units.length) : 0,
+      revenue: units.reduce((sum, u) => sum + u.revenue, 0)
+    };
+  };
+
+  // Load monthly records from localStorage
+  const loadMonthlyRecords = () => {
+    const storageKey = `monthly_records_${companyId}`;
+    const records = localStorage.getItem(storageKey);
+    if (records) {
+      setMonthlyRecords(JSON.parse(records));
+    }
+  };
+
+  // Load payment status from localStorage
+  const loadPaymentStatus = () => {
+    const storageKey = `payment_status_${companyId}`;
+    const status = localStorage.getItem(storageKey);
+    if (status) {
+      setPaymentStatus(JSON.parse(status));
+    }
+  };
+
+  // Save payment status to localStorage
+  const savePaymentStatus = (newStatus: {[key: string]: {dueDate: string, paid: boolean}}) => {
+    const storageKey = `payment_status_${companyId}`;
+    localStorage.setItem(storageKey, JSON.stringify(newStatus));
+    setPaymentStatus(newStatus);
+  };
+
+  // Toggle payment status
+  const togglePaymentStatus = (costKey: string) => {
+    const current = paymentStatus[costKey] || { dueDate: '', paid: false };
+    const newPaid = !current.paid;
+    const newStatus = {
+      ...paymentStatus,
+      [costKey]: {
+        ...current,
+        paid: newPaid,
+        paidDate: newPaid ? new Date().toISOString().split('T')[0] : undefined
+      }
+    };
+    savePaymentStatus(newStatus);
+  };
+
+  // Update paid date for a cost
+  const updatePaidDate = (costKey: string, date: string) => {
+    const current = paymentStatus[costKey] || { dueDate: '', paid: false };
+    const newStatus = {
+      ...paymentStatus,
+      [costKey]: {
+        ...current,
+        paidDate: date
+      }
+    };
+    savePaymentStatus(newStatus);
+  };
+
+  // Update due date for a cost
+  const updateDueDate = (costKey: string, date: string) => {
+    const current = paymentStatus[costKey] || { dueDate: '', paid: false };
+    const newStatus = {
+      ...paymentStatus,
+      [costKey]: {
+        ...current,
+        dueDate: date
+      }
+    };
+    savePaymentStatus(newStatus);
+  };
+
+  // Load replacement fund from localStorage
+  const loadReplacementFund = () => {
+    const storageKey = `replacement_fund_${companyId}`;
+    const fund = localStorage.getItem(storageKey);
+    if (fund) {
+      setReplacementFund(JSON.parse(fund));
+    }
+  };
+
+  // Save replacement fund to localStorage
+  const saveReplacementFund = () => {
+    const storageKey = `replacement_fund_${companyId}`;
+    localStorage.setItem(storageKey, JSON.stringify(replacementFund));
+    setEditingFund(false);
+  };
+
+  // Load units from localStorage
+  const loadUnits = () => {
+    const storageKey = `units_${companyId}`;
+    const savedUnits = localStorage.getItem(storageKey);
+    if (savedUnits) {
+      setUnits(JSON.parse(savedUnits));
+    } else {
+      // Default unit
+      setUnits([{
+        id: 'unit-1',
+        name: 'Unidad Principal',
+        revenue: 55000,
+        costs: 35000,
+        utilization: 85
+      }]);
+    }
+  };
+
+  // Save units to localStorage
+  const saveUnits = () => {
+    const storageKey = `units_${companyId}`;
+    localStorage.setItem(storageKey, JSON.stringify(units));
+    setEditingUnits(false);
+  };
+
+  // Add new unit
+  const addUnit = () => {
+    const unit = {
+      id: `unit-${Date.now()}`,
+      name: newUnit.name,
+      revenue: newUnit.revenue,
+      costs: newUnit.costs,
+      utilization: newUnit.utilization
+    };
+    setUnits([...units, unit]);
+    setNewUnit({ name: '', revenue: 0, costs: 0, utilization: 0 });
+    setShowAddUnit(false);
+  };
+
+  // Remove unit
+  const removeUnit = (id: string) => {
+    setUnits(units.filter(u => u.id !== id));
+  };
+
+  // Update unit
+  const updateUnit = (id: string, field: string, value: any) => {
+    setUnits(units.map(u => u.id === id ? { ...u, [field]: value } : u));
+  };
+
+  // Save current month record
+  const saveMonthlyRecord = () => {
+    const now = new Date();
+    const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const quarter = Math.ceil((now.getMonth() + 1) / 3);
+    const quarterKey = `${now.getFullYear()}-Q${quarter}`;
+    const yearKey = `${now.getFullYear()}`;
+
+    const createRecord = (id: string, type: string) => ({
+      id,
+      type,
+      date: now.toISOString(),
+      fixedCosts: fixedCosts || {},
+      variableCosts: variableCosts || {},
+      totalFixed: fixedCosts ? Object.values(fixedCosts).reduce((sum: number, cost: number) => sum + cost, 0) : 0,
+      totalVariable: variableCosts ? Object.values(variableCosts).reduce((sum: number, cost: number) => sum + cost, 0) : 0,
+      totalMonthly: calculateBreakeEvenPoint(),
+      kpis: kpis || {},
+      units: units.length
+    });
+
+    const storageKey = `monthly_records_${companyId}`;
+    const records = localStorage.getItem(storageKey);
+    const allRecords = records ? JSON.parse(records) : [];
+
+    // Save monthly record
+    const monthlyRecord = createRecord(monthKey, 'monthly');
+    const existingMonthlyIndex = allRecords.findIndex((r: any) => r.id === monthKey && r.type === 'monthly');
+    if (existingMonthlyIndex >= 0) {
+      allRecords[existingMonthlyIndex] = monthlyRecord;
+    } else {
+      allRecords.push(monthlyRecord);
+    }
+
+    // Save quarterly record
+    const quarterlyRecord = createRecord(quarterKey, 'quarterly');
+    const existingQuarterlyIndex = allRecords.findIndex((r: any) => r.id === quarterKey && r.type === 'quarterly');
+    if (existingQuarterlyIndex >= 0) {
+      allRecords[existingQuarterlyIndex] = quarterlyRecord;
+    } else {
+      allRecords.push(quarterlyRecord);
+    }
+
+    // Save yearly record
+    const yearlyRecord = createRecord(yearKey, 'yearly');
+    const existingYearlyIndex = allRecords.findIndex((r: any) => r.id === yearKey && r.type === 'yearly');
+    if (existingYearlyIndex >= 0) {
+      allRecords[existingYearlyIndex] = yearlyRecord;
+    } else {
+      allRecords.push(yearlyRecord);
+    }
+
+    localStorage.setItem(storageKey, JSON.stringify(allRecords));
+    setMonthlyRecords(allRecords);
+    alert('Registros guardados: mensual, trimestral y anual');
+  };
+
+  // Download record as CSV
+  const downloadRecordCSV = (record: any) => {
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    
+    let title = '';
+    if (record.type === 'monthly') {
+      const [year, month] = record.id.split('-');
+      title = `${monthNames[parseInt(month) - 1]} ${year}`;
+    } else if (record.type === 'quarterly') {
+      const [year, quarter] = record.id.split('-');
+      title = `${quarter} ${year}`;
+    } else {
+      title = `Anual ${record.id}`;
+    }
+
+    let csv = `Registro Financiero ${record.type === 'monthly' ? 'Mensual' : record.type === 'quarterly' ? 'Trimestral' : 'Anual'} - ${title}\n\n`;
+    csv += 'Costos Fijos\n';
+    Object.entries(record.fixedCosts).forEach(([key, value]) => {
+      csv += `${key.replace(/_/g, ' ')},${value}\n`;
+    });
+    csv += `Total Fijos,${record.totalFixed}\n\n`;
+    
+    csv += 'Costos Variables\n';
+    Object.entries(record.variableCosts).forEach(([key, value]) => {
+      csv += `${key.replace(/_/g, ' ')},${value}\n`;
+    });
+    csv += `Total Variables,${record.totalVariable}\n\n`;
+    
+    csv += `Total Mensual,${record.totalMonthly}\n`;
+    csv += `Unidades,${record.units || 0}\n`;
+
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `registro_${record.type}_${record.id}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Delete a record
+  const deleteRecord = (recordId: string, recordType: string) => {
+    if (confirm('¿Estás seguro de eliminar este registro?')) {
+      const storageKey = `monthly_records_${companyId}`;
+      const updatedRecords = monthlyRecords.filter(r => !(r.id === recordId && r.type === recordType));
+      localStorage.setItem(storageKey, JSON.stringify(updatedRecords));
+      setMonthlyRecords(updatedRecords);
+    }
+  };
+
+  useEffect(() => {
+    loadMonthlyRecords();
+    loadPaymentStatus();
+    loadReplacementFund();
+    loadUnits();
+  }, [companyId]);
+
+  // Auto-save at end of month
+  useEffect(() => {
+    const checkAndAutoSave = () => {
+      const now = new Date();
+      const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      const isLastDay = now.getDate() === lastDayOfMonth;
+      const hour = now.getHours();
+      
+      // Auto-save on last day of month after 6 PM
+      if (isLastDay && hour >= 18) {
+        const monthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+        const storageKey = `monthly_records_${companyId}`;
+        const records = localStorage.getItem(storageKey);
+        const allRecords = records ? JSON.parse(records) : [];
+        
+        // Check if already saved for this month
+        const alreadySaved = allRecords.some((r: any) => r.id === monthKey);
+        
+        if (!alreadySaved && (fixedCosts || variableCosts)) {
+          saveMonthlyRecord();
+        }
+      }
+    };
+
+    // Check every hour
+    const interval = setInterval(checkAndAutoSave, 60 * 60 * 1000);
+    checkAndAutoSave(); // Check immediately on mount
+    
+    return () => clearInterval(interval);
+  }, [companyId, fixedCosts, variableCosts, kpis]);
 
   // Load financial data from APIs
   useEffect(() => {
@@ -152,8 +473,17 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
         const costsResponse = await fetch(`/api/companies/${companyId}/costs`);
         if (costsResponse.ok) {
           const costsData = await costsResponse.json();
-          setFixedCosts(costsData.fixed);
-          setVariableCosts(costsData.variable);
+          // Try to load from localStorage first
+          const storageKey = `costs_${companyId}`;
+          const savedCosts = localStorage.getItem(storageKey);
+          if (savedCosts) {
+            const parsed = JSON.parse(savedCosts);
+            setFixedCosts(parsed.fixed);
+            setVariableCosts(parsed.variable);
+          } else {
+            setFixedCosts(costsData.fixed);
+            setVariableCosts(costsData.variable);
+          }
         }
 
         // Load Cash Flow
@@ -192,6 +522,52 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
       style: 'currency',
       currency: 'HNL',
     }).format(amount);
+  };
+
+  const saveCosts = async () => {
+    try {
+      const storageKey = `costs_${companyId}`;
+      localStorage.setItem(storageKey, JSON.stringify({
+        fixed: fixedCosts,
+        variable: variableCosts
+      }));
+
+      setEditingCosts(false);
+      setFixedCostsOriginal(null);
+      setVariableCostsOriginal(null);
+    } catch (error) {
+      console.error('Error saving costs:', error);
+    }
+  };
+
+  const addFixedCost = () => {
+    if (newFixedCostName && newFixedCostValue >= 0) {
+      const key = newFixedCostName.toLowerCase().replace(/\s+/g, '_');
+      setFixedCosts({ ...fixedCosts!, [key]: newFixedCostValue });
+      setNewFixedCostName('');
+      setNewFixedCostValue(0);
+      setShowAddFixedCost(false);
+    }
+  };
+
+  const removeFixedCost = (key: string) => {
+    const { [key]: _, ...rest } = fixedCosts!;
+    setFixedCosts(rest as FixedCosts);
+  };
+
+  const addVariableCost = () => {
+    if (newVariableCostName && newVariableCostValue >= 0) {
+      const key = newVariableCostName.toLowerCase().replace(/\s+/g, '_');
+      setVariableCosts({ ...variableCosts!, [key]: newVariableCostValue });
+      setNewVariableCostName('');
+      setNewVariableCostValue(0);
+      setShowAddVariableCost(false);
+    }
+  };
+
+  const removeVariableCost = (key: string) => {
+    const { [key]: _, ...rest } = variableCosts!;
+    setVariableCosts(rest as VariableCosts);
   };
 
   if (loading) {
@@ -345,16 +721,97 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="kpis">KPIs</TabsTrigger>
           <TabsTrigger value="costs">Costos</TabsTrigger>
           <TabsTrigger value="cashflow">Flujo de Caja</TabsTrigger>
           <TabsTrigger value="units">Unidades</TabsTrigger>
+          <TabsTrigger value="records">Registros</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
         <TabsContent value="overview" className="space-y-6">
+          {/* Period Selector */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <label className="text-sm font-medium text-gray-700">Período:</label>
+                  <select 
+                    value={overviewPeriod} 
+                    onChange={(e) => {
+                      setOverviewPeriod(e.target.value as any);
+                      setSelectedRecord(null);
+                    }}
+                    className="px-3 py-2 border rounded-md"
+                  >
+                    <option value="current">Actual</option>
+                    <option value="monthly">Mensual</option>
+                    <option value="quarterly">Trimestral</option>
+                    <option value="yearly">Anual</option>
+                  </select>
+                </div>
+                
+                {overviewPeriod !== 'current' && (
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm font-medium text-gray-700">Seleccionar:</label>
+                    <select 
+                      value={selectedRecord?.id || ''} 
+                      onChange={(e) => {
+                        const record = monthlyRecords.find(r => r.id === e.target.value && r.type === overviewPeriod);
+                        setSelectedRecord(record || null);
+                      }}
+                      className="px-3 py-2 border rounded-md"
+                    >
+                      <option value="">
+                        {monthlyRecords.filter(r => r.type === overviewPeriod).length === 0 
+                          ? `No hay registros ${overviewPeriod === 'monthly' ? 'mensuales' : overviewPeriod === 'quarterly' ? 'trimestrales' : 'anuales'}`
+                          : 'Seleccionar...'}
+                      </option>
+                      {monthlyRecords
+                        .filter(r => r.type === overviewPeriod)
+                        .sort((a, b) => b.id.localeCompare(a.id))
+                        .map(record => {
+                          let label = record.id;
+                          if (record.type === 'monthly') {
+                            const [year, month] = record.id.split('-');
+                            const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                            label = `${monthNames[parseInt(month) - 1]} ${year}`;
+                          } else if (record.type === 'quarterly') {
+                            label = record.id.replace('-', ' ');
+                          } else {
+                            label = `Anual ${record.id}`;
+                          }
+                          return (
+                            <option key={record.id} value={record.id}>{label}</option>
+                          );
+                        })}
+                    </select>
+                    {monthlyRecords.filter(r => r.type === overviewPeriod).length === 0 && (
+                      <span className="text-xs text-orange-500">
+                        Guarda registros primero
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {overviewPeriod !== 'current' && (
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    onClick={() => {
+                      setOverviewPeriod('current');
+                      setSelectedRecord(null);
+                    }}
+                  >
+                    Ver Actual
+                  </Button>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -363,24 +820,28 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  <span className={getOccupancyColor(kpis?.occupancyRate || 0)}>
-                    {kpis?.occupancyRate || 0}%
+                  <span className={getOccupancyColor(getRecordData().utilization)}>
+                    {getRecordData().utilization}%
                   </span>
                 </div>
-                <p className="text-xs text-gray-500">Objetivo: 70%</p>
+                <p className="text-xs text-gray-500">
+                  {overviewPeriod === 'current' ? 'Promedio actual' : `Período: ${overviewPeriod === 'monthly' ? 'Mensual' : overviewPeriod === 'quarterly' ? 'Trimestral' : 'Anual'}`}
+                </p>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Ingreso por Cubículo</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Ingresos Totales</CardTitle>
                 <DollarSign className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold text-green-600">
-                  {formatCurrency(kpis?.revenuePerUnit || 0)}
+                  {formatCurrency(getRecordData().revenue)}
                 </div>
-                <p className="text-xs text-gray-500">Promedio mensual</p>
+                <p className="text-xs text-gray-500">
+                  {getRecordData().units} unidades
+                </p>
               </CardContent>
             </Card>
 
@@ -391,8 +852,20 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">
-                  <span className={getMarginColor(kpis?.operatingMargin || 0)}>
-                    {kpis?.operatingMargin || 0}%
+                  <span className={getMarginColor(
+                    (() => {
+                      const data = getRecordData();
+                      const totalRevenue = data.revenue;
+                      const totalCosts = data.totalFixed + data.totalVariable;
+                      return totalRevenue > 0 ? Math.round(((totalRevenue - totalCosts) / totalRevenue) * 100) : 0;
+                    })()
+                  )}>
+                    {(() => {
+                      const data = getRecordData();
+                      const totalRevenue = data.revenue;
+                      const totalCosts = data.totalFixed + data.totalVariable;
+                      return totalRevenue > 0 ? Math.round(((totalRevenue - totalCosts) / totalRevenue) * 100) : 0;
+                    })()}%
                   </span>
                 </div>
                 <p className="text-xs text-gray-500">Objetivo: 25-40%</p>
@@ -401,16 +874,16 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium text-gray-600">Flujo de Caja</CardTitle>
+                <CardTitle className="text-sm font-medium text-gray-600">Costos Totales</CardTitle>
                 <Activity className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">
-                  <span className={getCashFlowColor(kpis?.cashFlow || 0)}>
-                    {formatCurrency(kpis?.cashFlow || 0)}
-                  </span>
+                <div className="text-2xl font-bold text-red-600">
+                  {formatCurrency(getRecordData().totalFixed + getRecordData().totalVariable)}
                 </div>
-                <p className="text-xs text-gray-500">Este mes</p>
+                <p className="text-xs text-gray-500">
+                  Fijos: {formatCurrency(getRecordData().totalFixed)} | Variables: {formatCurrency(getRecordData().totalVariable)}
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -425,11 +898,15 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               <div className="space-y-4">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Costos Fijos:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.rent || 0)}</span>
+                  <span className="font-medium">{formatCurrency(
+                    fixedCosts ? Object.values(fixedCosts).reduce((sum: number, cost: number) => sum + cost, 0) : 0
+                  )}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Costos Variables:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.electricity || 0)}</span>
+                  <span className="font-medium">{formatCurrency(
+                    variableCosts ? Object.values(variableCosts).reduce((sum: number, cost: number) => sum + cost, 0) : 0
+                  )}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-gray-600">Total Mensual:</span>
@@ -569,7 +1046,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="text" 
                       id="kpi-name"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="Ej: ROI Marketing"
                     />
                   </div>
@@ -577,7 +1054,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <label className="text-sm font-medium text-gray-700">Unidad</label>
                     <select 
                       id="kpi-unit"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
                       <option value="%">Porcentaje (%)</option>
                       <option value="HNL">Lempiras (HNL)</option>
@@ -592,7 +1069,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="number" 
                       id="kpi-value"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0"
                     />
                   </div>
@@ -601,7 +1078,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                     <input 
                       type="number" 
                       id="kpi-target"
-                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                       placeholder="0"
                     />
                   </div>
@@ -635,47 +1112,191 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
         {/* Costs Tab */}
         <TabsContent value="costs" className="space-y-6">
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={saveMonthlyRecord}>
+              Guardar Registro Mensual
+            </Button>
+            {editingCosts && (
+              <>
+                <Button variant="outline" onClick={() => setShowAddFixedCost(true)}>
+                  + Costo Fijo
+                </Button>
+                <Button variant="outline" onClick={() => setShowAddVariableCost(true)}>
+                  + Costo Variable
+                </Button>
+              </>
+            )}
+            <Button
+              variant={editingCosts ? "destructive" : "default"}
+              onClick={() => {
+                if (editingCosts) {
+                  setEditingCosts(false);
+                  if (fixedCostsOriginal) setFixedCosts(fixedCostsOriginal);
+                  if (variableCostsOriginal) setVariableCosts(variableCostsOriginal);
+                  setShowAddFixedCost(false);
+                  setShowAddVariableCost(false);
+                } else {
+                  setFixedCostsOriginal({ ...fixedCosts! });
+                  setVariableCostsOriginal({ ...variableCosts! });
+                  setEditingCosts(true);
+                }
+              }}
+            >
+              {editingCosts ? 'Cancelar' : 'Editar Costos'}
+            </Button>
+            {editingCosts && (
+              <Button onClick={saveCosts}>Guardar Cambios</Button>
+            )}
+          </div>
+
+          {/* Add Fixed Cost Form */}
+          {showAddFixedCost && (
+            <Card className="border-2 border-dashed">
+              <CardContent className="p-4">
+                <h4 className="font-medium mb-3">Agregar Costo Fijo</h4>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="Nombre del costo"
+                    value={newFixedCostName}
+                    onChange={(e) => setNewFixedCostName(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Monto"
+                    value={newFixedCostValue || ''}
+                    onChange={(e) => setNewFixedCostValue(parseFloat(e.target.value) || 0)}
+                    className="w-32 px-3 py-2 border rounded"
+                  />
+                  <Button onClick={addFixedCost}>Agregar</Button>
+                  <Button variant="outline" onClick={() => setShowAddFixedCost(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Add Variable Cost Form */}
+          {showAddVariableCost && (
+            <Card className="border-2 border-dashed">
+              <CardContent className="p-4">
+                <h4 className="font-medium mb-3">Agregar Costo Variable</h4>
+                <div className="flex gap-3">
+                  <input
+                    type="text"
+                    placeholder="Nombre del costo"
+                    value={newVariableCostName}
+                    onChange={(e) => setNewVariableCostName(e.target.value)}
+                    className="flex-1 px-3 py-2 border rounded"
+                  />
+                  <input
+                    type="number"
+                    placeholder="Monto"
+                    value={newVariableCostValue || ''}
+                    onChange={(e) => setNewVariableCostValue(parseFloat(e.target.value) || 0)}
+                    className="w-32 px-3 py-2 border rounded"
+                  />
+                  <Button onClick={addVariableCost}>Agregar</Button>
+                  <Button variant="outline" onClick={() => setShowAddVariableCost(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg font-bold">Costos Fijos Mensuales</CardTitle>
                 <AlertCircle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Renta del local:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.rent || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Salarios:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.salaries || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Seguros:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.insurance || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Internet:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.internet || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Permisos:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.permits || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Servicios:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.utilities || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Mantenimiento:</span>
-                  <span className="font-medium">{formatCurrency(fixedCosts?.maintenance || 0)}</span>
-                </div>
-                <div className="border-t pt-4">
+              <CardContent>
+                {editingCosts ? (
+                  <div className="space-y-3">
+                    {Object.entries(fixedCosts || {}).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                        <span className="text-gray-600 capitalize w-32">{key.replace(/_/g, ' ')}:</span>
+                        <input
+                          type="number"
+                          value={value}
+                          onChange={(e) => setFixedCosts({ ...fixedCosts!, [key]: parseFloat(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 border rounded text-right"
+                        />
+                        <input
+                          type="date"
+                          value={paymentStatus[key]?.dueDate || ''}
+                          onChange={(e) => updateDueDate(key, e.target.value)}
+                          className="px-2 py-1 border rounded text-sm"
+                          title="Fecha de pago"
+                        />
+                        <button
+                          onClick={() => removeFixedCost(key)}
+                          className="text-red-500 hover:text-red-700 ml-2"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-4 gap-2 mb-2 text-sm font-medium text-gray-500">
+                      <div>Concepto</div>
+                      <div className="text-right">Monto</div>
+                      <div>Fecha Pago</div>
+                      <div className="text-center">Pagado</div>
+                    </div>
+                    {Object.entries(fixedCosts || {}).map(([key, value]) => {
+                      const status = paymentStatus[key] || { dueDate: '', paid: false, paidDate: '' };
+                      const isOverdue = status.dueDate && !status.paid && new Date(status.dueDate) < new Date();
+                      return (
+                        <div key={key} className={`border-b ${status.paid ? 'bg-green-50' : isOverdue ? 'bg-red-50' : ''}`}>
+                          <div className="grid grid-cols-4 gap-2 items-center py-2">
+                            <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
+                            <span className="text-right font-medium">{formatCurrency(value)}</span>
+                            <span className="text-sm text-gray-500">
+                              {status.dueDate ? new Date(status.dueDate).toLocaleDateString('es-HN') : '-'}
+                            </span>
+                            <div className="text-center">
+                              <input
+                                type="checkbox"
+                                checked={status.paid}
+                                onChange={() => togglePaymentStatus(key)}
+                                className="h-4 w-4 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                          {status.paid && (
+                            <div className="grid grid-cols-4 gap-2 items-center pb-2">
+                              <div></div>
+                              <div></div>
+                              <div className="col-span-2">
+                                <label className="text-xs text-gray-500">Fecha de realización:</label>
+                                <input
+                                  type="date"
+                                  value={status.paidDate || ''}
+                                  onChange={(e) => updatePaidDate(key, e.target.value)}
+                                  className="w-full px-2 py-1 border rounded text-sm"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="border-t pt-4 mt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Fijos:</span>
-                    <span className="text-cyan-600">{formatCurrency(
+                    <span className="text-blue-600">{formatCurrency(
                       fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0
                     )}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Pagados:</span>
+                    <span className="text-green-600">
+                      {Object.keys(fixedCosts || {}).filter(k => paymentStatus[k]?.paid).length} / {Object.keys(fixedCosts || {}).length}
+                    </span>
                   </div>
                 </div>
               </CardContent>
@@ -686,63 +1307,177 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                 <CardTitle className="text-lg font-bold">Costos Variables</CardTitle>
                 <AlertTriangle className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Electricidad:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.electricity || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Agua:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.water || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Limpieza:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.cleaning || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Materiales:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.materials || 0)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-600">Preventivo:</span>
-                  <span className="font-medium">{formatCurrency(variableCosts?.preventive || 0)}</span>
-                </div>
-                <div className="border-t pt-4">
+              <CardContent>
+                {editingCosts ? (
+                  <div className="space-y-3">
+                    {Object.entries(variableCosts || {}).map(([key, value]) => (
+                      <div key={key} className="flex items-center gap-2 p-2 bg-gray-50 rounded">
+                        <span className="text-gray-600 capitalize w-32">{key.replace(/_/g, ' ')}:</span>
+                        <input
+                          type="number"
+                          value={value}
+                          onChange={(e) => setVariableCosts({ ...variableCosts!, [key]: parseFloat(e.target.value) || 0 })}
+                          className="w-28 px-2 py-1 border rounded text-right"
+                        />
+                        <input
+                          type="date"
+                          value={paymentStatus[`var_${key}`]?.dueDate || ''}
+                          onChange={(e) => updateDueDate(`var_${key}`, e.target.value)}
+                          className="px-2 py-1 border rounded text-sm"
+                          title="Fecha de pago"
+                        />
+                        <button
+                          onClick={() => removeVariableCost(key)}
+                          className="text-red-500 hover:text-red-700 ml-2"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div>
+                    <div className="grid grid-cols-4 gap-2 mb-2 text-sm font-medium text-gray-500">
+                      <div>Concepto</div>
+                      <div className="text-right">Monto</div>
+                      <div>Fecha Pago</div>
+                      <div className="text-center">Pagado</div>
+                    </div>
+                    {Object.entries(variableCosts || {}).map(([key, value]) => {
+                      const status = paymentStatus[`var_${key}`] || { dueDate: '', paid: false, paidDate: '' };
+                      const isOverdue = status.dueDate && !status.paid && new Date(status.dueDate) < new Date();
+                      return (
+                        <div key={key} className={`border-b ${status.paid ? 'bg-green-50' : isOverdue ? 'bg-red-50' : ''}`}>
+                          <div className="grid grid-cols-4 gap-2 items-center py-2">
+                            <span className="text-gray-600 capitalize">{key.replace(/_/g, ' ')}</span>
+                            <span className="text-right font-medium">{formatCurrency(value)}</span>
+                            <span className="text-sm text-gray-500">
+                              {status.dueDate ? new Date(status.dueDate).toLocaleDateString('es-HN') : '-'}
+                            </span>
+                            <div className="text-center">
+                              <input
+                                type="checkbox"
+                                checked={status.paid}
+                                onChange={() => togglePaymentStatus(`var_${key}`)}
+                                className="h-4 w-4 cursor-pointer"
+                              />
+                            </div>
+                          </div>
+                          {status.paid && (
+                            <div className="grid grid-cols-4 gap-2 items-center pb-2">
+                              <div></div>
+                              <div></div>
+                              <div className="col-span-2">
+                                <label className="text-xs text-gray-500">Fecha de realización:</label>
+                                <input
+                                  type="date"
+                                  value={status.paidDate || ''}
+                                  onChange={(e) => updatePaidDate(`var_${key}`, e.target.value)}
+                                  className="w-full px-2 py-1 border rounded text-sm"
+                                />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="border-t pt-4 mt-4">
                   <div className="flex justify-between font-bold">
                     <span>Total Variables:</span>
-                    <span className="text-cyan-600">{formatCurrency(
+                    <span className="text-blue-600">{formatCurrency(
                       variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0
                     )}</span>
+                  </div>
+                  <div className="flex justify-between text-sm mt-1">
+                    <span className="text-gray-500">Pagados:</span>
+                    <span className="text-green-600">
+                      {Object.keys(variableCosts || {}).filter(k => paymentStatus[`var_${k}`]?.paid).length} / {Object.keys(variableCosts || {}).length}
+                    </span>
                   </div>
                 </div>
               </CardContent>
             </Card>
           </div>
 
+          {/* Total Summary */}
+          <Card className="border-2 border-blue-200 bg-blue-50">
+            <CardHeader>
+              <CardTitle className="text-lg font-bold text-blue-800">Resumen de Costos</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Costos Fijos:</span>
+                  <span className="font-bold text-blue-600">
+                    {formatCurrency(fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0)}
+                  </span>
+                </div>
+                <div className="flex justify-between items-center">
+                  <span className="text-gray-700">Costos Variables:</span>
+                  <span className="font-bold text-orange-600">
+                    {formatCurrency(variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)}
+                  </span>
+                </div>
+                <div className="border-t-2 border-blue-300 pt-3">
+                  <div className="flex justify-between items-center">
+                    <span className="text-lg font-bold text-gray-800">TOTAL COSTOS MENSUALES:</span>
+                    <span className="text-2xl font-bold text-red-600">
+                      {formatCurrency(
+                        (fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                        (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)
+                      )}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
-              <CardTitle className="text-lg font-bold">Fondo de Reposición</CardTitle>
-              <PiggyBank className="h-4 w-4 text-muted-foreground" />
+              <div className="flex justify-between items-center">
+                <CardTitle className="text-lg font-bold">Fondo de Reposición</CardTitle>
+                <PiggyBank className="h-4 w-4 text-muted-foreground" />
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">Porcentaje de ahorro mensual:</p>
-                <p className="text-sm text-gray-500">
-                  Ahorrado mensual: {formatCurrency((kpis?.revenuePerUnit || 0) * 0.02)}
-                </p>
+                <label className="text-sm text-gray-600">Porcentaje de ahorro mensual (%):</label>
+                <input
+                  type="number"
+                  value={replacementFund.percentage}
+                  onChange={(e) => setReplacementFund({ ...replacementFund, percentage: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border rounded-md"
+                  min="0"
+                  max="100"
+                  step="0.5"
+                />
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">Monto total ahorrado:</p>
-                <p className="text-sm text-gray-500">
-                  Total estimado en 5 años: {formatCurrency((kpis?.revenuePerUnit || 0) * 12 * 5 * 0.02)}
-                </p>
+                <label className="text-sm text-gray-600">Ahorrado mensual:</label>
+                <div className="px-3 py-2 bg-gray-50 rounded-md">
+                  {formatCurrency((kpis?.revenuePerUnit || 0) * (replacementFund.percentage / 100))}
+                </div>
               </div>
               <div className="space-y-2">
-                <p className="text-sm text-gray-600">Valor actual del fondo:</p>
-                <p className="text-sm text-gray-500">
-                  Acumulado: {formatCurrency(kpis?.replacementFund || 0)}
-                </p>
+                <label className="text-sm text-gray-600">Total estimado en 5 años:</label>
+                <div className="px-3 py-2 bg-gray-50 rounded-md">
+                  {formatCurrency((kpis?.revenuePerUnit || 0) * 12 * 5 * (replacementFund.percentage / 100))}
+                </div>
               </div>
+              <div className="space-y-2">
+                <label className="text-sm text-gray-600">Valor actual del fondo:</label>
+                <input
+                  type="number"
+                  value={replacementFund.currentAmount}
+                  onChange={(e) => setReplacementFund({ ...replacementFund, currentAmount: parseFloat(e.target.value) || 0 })}
+                  className="w-full px-3 py-2 border rounded-md"
+                  min="0"
+                />
+              </div>
+              <Button onClick={saveReplacementFund}>Guardar Cambios</Button>
             </CardContent>
           </Card>
         </TabsContent>
@@ -815,47 +1550,350 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
         {/* Units Performance Tab */}
         <TabsContent value="units" className="space-y-6">
-          <Card>
+          {/* Cost Summary Card */}
+          <Card className="border-2 border-blue-200 bg-blue-50">
             <CardHeader>
-              <CardTitle className="text-lg font-bold">Rendimiento por Unidad</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+              <CardTitle className="text-lg font-bold text-blue-800">Costo por Unidad</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                <div className="border rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <div className="font-medium">Consultorio 1</div>
-                      <div className="text-sm text-gray-500">ID: unit-1</div>
-                    </div>
-                    <div className="text-right">
-                      <Badge variant="default">95% ocupación</Badge>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Ingresos:</span>
-                      <div className="font-medium text-green-600">{formatCurrency(55000)}</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Costos:</span>
-                      <div className="font-medium text-red-600">{formatCurrency(35000)}</div>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div>
-                      <span className="text-gray-600">Utilización:</span>
-                      <div className="font-medium">85%</div>
-                    </div>
-                    <div>
-                      <span className="text-gray-600">Beneficio:</span>
-                      <div className="font-medium text-green-600">{formatCurrency(20000)}</div>
-                    </div>
-                  </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-white rounded-lg">
+                  <p className="text-sm text-gray-600">Costos Totales Mensuales</p>
+                  <p className="text-xl font-bold text-blue-600">
+                    {formatCurrency(
+                      (fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                      (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)
+                    )}
+                  </p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg">
+                  <p className="text-sm text-gray-600">Cantidad de Unidades</p>
+                  <p className="text-xl font-bold text-green-600">{units.length}</p>
+                </div>
+                <div className="text-center p-4 bg-white rounded-lg">
+                  <p className="text-sm text-gray-600">Costo por Unidad</p>
+                  <p className="text-xl font-bold text-red-600">
+                    {units.length > 0 
+                      ? formatCurrency(
+                          ((fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                           (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)) / units.length
+                        )
+                      : formatCurrency(0)}
+                  </p>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Rendimiento por Unidad</h2>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowAddUnit(true)}>
+                + Agregar Unidad
+              </Button>
+              <Button
+                variant={editingUnits ? "destructive" : "default"}
+                onClick={() => {
+                  if (editingUnits) {
+                    setEditingUnits(false);
+                    loadUnits();
+                  } else {
+                    setEditingUnits(true);
+                  }
+                }}
+              >
+                {editingUnits ? 'Cancelar' : 'Editar'}
+              </Button>
+              {editingUnits && (
+                <Button onClick={saveUnits}>Guardar</Button>
+              )}
+            </div>
+          </div>
+
+          {/* Add Unit Form */}
+          {showAddUnit && (
+            <Card className="border-2 border-dashed">
+              <CardHeader>
+                <CardTitle className="text-lg font-bold">Agregar Nueva Unidad</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Nombre</label>
+                    <input 
+                      type="text" 
+                      value={newUnit.name}
+                      onChange={(e) => setNewUnit({ ...newUnit, name: e.target.value })}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      placeholder="Ej: Unidad 2"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Ingresos Mensuales</label>
+                    <input 
+                      type="number" 
+                      value={newUnit.revenue}
+                      onChange={(e) => setNewUnit({ ...newUnit, revenue: parseFloat(e.target.value) || 0 })}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Utilización (%)</label>
+                    <input 
+                      type="number" 
+                      value={newUnit.utilization}
+                      onChange={(e) => setNewUnit({ ...newUnit, utilization: parseFloat(e.target.value) || 0 })}
+                      className="w-full mt-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      min="0"
+                      max="100"
+                    />
+                  </div>
+                  <div className="flex items-end">
+                    <div className="text-sm text-gray-500">
+                      Costo asignado: {formatCurrency(
+                        ((fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                         (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)) / ((units.length || 0) + 1)
+                      )}
+                      <div className="text-xs text-gray-400">(con {units.length + 1} unidades)</div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button onClick={addUnit}>Agregar</Button>
+                  <Button variant="outline" onClick={() => setShowAddUnit(false)}>Cancelar</Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Units List */}
+          <Card>
+            <CardContent className="pt-6">
+              <div className="space-y-4">
+                {units.map((unit) => (
+                  <div key={unit.id} className="border rounded-lg p-4">
+                    {editingUnits ? (
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="text"
+                            value={unit.name}
+                            onChange={(e) => updateUnit(unit.id, 'name', e.target.value)}
+                            className="flex-1 px-3 py-2 border rounded-md"
+                            placeholder="Nombre de la unidad"
+                          />
+                          <button
+                            onClick={() => removeUnit(unit.id)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            ×
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <label className="text-sm text-gray-600">Ingresos:</label>
+                            <input
+                              type="number"
+                              value={unit.revenue}
+                              onChange={(e) => updateUnit(unit.id, 'revenue', parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1 border rounded"
+                            />
+                          </div>
+                          <div>
+                            <label className="text-sm text-gray-600">Utilización (%):</label>
+                            <input
+                              type="number"
+                              value={unit.utilization}
+                              onChange={(e) => updateUnit(unit.id, 'utilization', parseFloat(e.target.value) || 0)}
+                              className="w-full px-2 py-1 border rounded"
+                              min="0"
+                              max="100"
+                            />
+                          </div>
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Costo asignado: {formatCurrency(
+                            ((fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                             (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)) / (units.length || 1)
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div className="flex justify-between items-start mb-2">
+                          <div>
+                            <div className="font-medium">{unit.name}</div>
+                            <div className="text-sm text-gray-500">ID: {unit.id}</div>
+                          </div>
+                          <div className="text-right">
+                            <Badge variant="default">{unit.utilization}% ocupación</Badge>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm">
+                          <div>
+                            <span className="text-gray-600">Ingresos:</span>
+                            <div className="font-medium text-green-600">{formatCurrency(unit.revenue)}</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Costos (asignados):</span>
+                            <div className="font-medium text-red-600">
+                              {units.length > 0 
+                                ? formatCurrency(
+                                    ((fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                                     (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)) / units.length
+                                  )
+                                : formatCurrency(0)}
+                            </div>
+                            <div className="text-xs text-gray-400">Total / {units.length} unidades</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-4 text-sm mt-2">
+                          <div>
+                            <span className="text-gray-600">Utilización:</span>
+                            <div className="font-medium">{unit.utilization}%</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Beneficio:</span>
+                            <div className="font-medium text-green-600">
+                              {formatCurrency(unit.revenue - (
+                                ((fixedCosts ? Object.values(fixedCosts).reduce((sum, cost) => sum + cost, 0) : 0) +
+                                 (variableCosts ? Object.values(variableCosts).reduce((sum, cost) => sum + cost, 0) : 0)) / (units.length || 1)
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Records Tab */}
+        <TabsContent value="records" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Registros Financieros</h2>
+            <div className="flex gap-2">
+              <select 
+                value={recordFilter} 
+                onChange={(e) => setRecordFilter(e.target.value as any)}
+                className="px-3 py-2 border rounded-md"
+              >
+                <option value="all">Todos</option>
+                <option value="monthly">Mensuales</option>
+                <option value="quarterly">Trimestrales</option>
+                <option value="yearly">Anuales</option>
+              </select>
+              <Button onClick={saveMonthlyRecord}>Guardar Registros</Button>
+            </div>
+          </div>
+
+          {monthlyRecords.length === 0 ? (
+            <Card>
+              <CardContent className="p-8 text-center">
+                <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900">No hay registros</h3>
+                <p className="text-gray-500">Guarda tus primeros registros en la tab de Costos</p>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="space-y-4">
+              {monthlyRecords
+                .filter(r => recordFilter === 'all' || r.type === recordFilter)
+                .sort((a, b) => b.id.localeCompare(a.id))
+                .map((record) => {
+                  const typeLabel = record.type === 'monthly' ? 'Mensual' : 
+                                   record.type === 'quarterly' ? 'Trimestral' : 'Anual';
+                  const typeColor = record.type === 'monthly' ? 'bg-blue-100 text-blue-800' :
+                                   record.type === 'quarterly' ? 'bg-purple-100 text-purple-800' :
+                                   'bg-green-100 text-green-800';
+                  
+                  let displayTitle = record.id;
+                  if (record.type === 'monthly') {
+                    const [year, month] = record.id.split('-');
+                    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 
+                                        'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+                    displayTitle = `${monthNames[parseInt(month) - 1]} ${year}`;
+                  } else if (record.type === 'quarterly') {
+                    const [year, quarter] = record.id.split('-');
+                    displayTitle = `${quarter} ${year}`;
+                  } else {
+                    displayTitle = `Anual ${record.id}`;
+                  }
+                  
+                  return (
+                    <Card key={`${record.type}-${record.id}`}>
+                      <CardHeader>
+                        <div className="flex justify-between items-center">
+                          <div className="flex items-center gap-2">
+                            <CardTitle className="text-lg">{displayTitle}</CardTitle>
+                            <span className={`px-2 py-1 rounded text-xs font-medium ${typeColor}`}>
+                              {typeLabel}
+                            </span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => downloadRecordCSV(record)}
+                            >
+                              <Download className="h-4 w-4 mr-1" />
+                              Descargar
+                            </Button>
+                            <Button
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteRecord(record.id, record.type)}
+                            >
+                              Eliminar
+                            </Button>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">Costos Fijos</div>
+                            <div className="text-lg font-bold text-blue-600">
+                              {formatCurrency(record.totalFixed)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {Object.keys(record.fixedCosts).length} conceptos
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">Costos Variables</div>
+                            <div className="text-lg font-bold text-orange-600">
+                              {formatCurrency(record.totalVariable)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              {Object.keys(record.variableCosts).length} conceptos
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">Total</div>
+                            <div className="text-lg font-bold text-green-600">
+                              {formatCurrency(record.totalMonthly)}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Unidades: {record.units || 0}
+                            </div>
+                          </div>
+                          <div className="p-3 bg-gray-50 rounded-lg">
+                            <div className="text-sm text-gray-600">Guardado</div>
+                            <div className="text-sm font-medium">
+                              {new Date(record.date).toLocaleDateString('es-HN')}
+                            </div>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+            </div>
+          )}
         </TabsContent>
       </Tabs>
     </div>

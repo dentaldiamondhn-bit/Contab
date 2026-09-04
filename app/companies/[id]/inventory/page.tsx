@@ -103,8 +103,10 @@ export default function InventoryPage() {
     code: '',
     name: '',
     description: '',
+    unit: 'Unidad',
     unitPrice: '',
     currentCost: '',
+    totalCost: '',
     currentStock: '0',
     minStock: '0',
     maxStock: '0',
@@ -276,6 +278,7 @@ export default function InventoryPage() {
           code: newProduct.code,
           name: newProduct.name,
           description: newProduct.description,
+          unit: newProduct.unit,
           unitPrice: parseFloat(newProduct.unitPrice),
           currentCost: parseFloat(newProduct.currentCost),
           currentStock: parseInt(newProduct.currentStock),
@@ -296,8 +299,10 @@ export default function InventoryPage() {
           code: '',
           name: '',
           description: '',
+          unit: 'Unidad',
           unitPrice: '',
           currentCost: '',
+          totalCost: '',
           currentStock: '0',
           minStock: '0',
           maxStock: '0',
@@ -448,6 +453,9 @@ export default function InventoryPage() {
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
                       Nombre
                     </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                      Unidad
+                    </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
                       Stock
                     </th>
@@ -470,6 +478,7 @@ export default function InventoryPage() {
                     <tr key={product.id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 text-sm font-medium">{product.code}</td>
                       <td className="px-4 py-3 text-sm">{product.name}</td>
+                      <td className="px-4 py-3 text-sm">{product.unit || 'Unidad'}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         {product.current_stock} / {product.min_stock} min
                       </td>
@@ -675,32 +684,109 @@ export default function InventoryPage() {
             </div>
 
             <div className="space-y-2">
-              <Label>Precio Unitario (L) *</Label>
-              <Input
-                type="number"
-                value={newProduct.unitPrice}
-                onChange={(e) => setNewProduct({ ...newProduct, unitPrice: e.target.value })}
-                placeholder="0.00"
-              />
+              <Label>Unidad de Medida *</Label>
+              <select
+                value={newProduct.unit}
+                onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+              >
+                <option value="Unidad">Unidad</option>
+                <option value="Unidades">Unidades</option>
+                <option value="Caja">Caja</option>
+                <option value="Cajas">Cajas</option>
+                <option value="Paquete">Paquete</option>
+                <option value="Paquetes">Paquetes</option>
+                <option value="Galón">Galón</option>
+                <option value="Galones">Galones</option>
+                <option value="Litro">Litro</option>
+                <option value="Litros">Litros</option>
+                <option value="Kilogramo">Kilogramo</option>
+                <option value="Kilogramos">Kilogramos</option>
+                <option value="Gramo">Gramo</option>
+                <option value="Gramos">Gramos</option>
+                <option value="Metro">Metro</option>
+                <option value="Metros">Metros</option>
+                <option value="Par">Par</option>
+                <option value="Pares">Pares</option>
+                <option value="Docena">Docena</option>
+                <option value="Docenas">Docenas</option>
+                <option value="Botella">Botella</option>
+                <option value="Botellas">Botellas</option>
+                <option value="Tubo">Tubo</option>
+                <option value="Tubos">Tubos</option>
+                <option value="Frasco">Frasco</option>
+                <option value="Frascos">Frascos</option>
+                <option value="Bolsa">Bolsa</option>
+                <option value="Bolsas">Bolsas</option>
+                <option value="Rollo">Rollo</option>
+                <option value="Rollos">Rollos</option>
+                <option value="Servicio">Servicio</option>
+                <option value="Hora">Hora</option>
+                <option value="Día">Día</option>
+              </select>
             </div>
 
             <div className="space-y-2">
-              <Label>Costo Actual (L) *</Label>
-              <Input
-                type="number"
-                value={newProduct.currentCost}
-                onChange={(e) => setNewProduct({ ...newProduct, currentCost: e.target.value })}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label>Stock Inicial</Label>
+              <Label>Stock Inicial *</Label>
               <Input
                 type="number"
                 value={newProduct.currentStock}
-                onChange={(e) => setNewProduct({ ...newProduct, currentStock: e.target.value })}
+                onChange={(e) => {
+                  const stock = e.target.value;
+                  const total = parseFloat(newProduct.totalCost) || 0;
+                  const units = parseInt(stock) || 0;
+                  const unitPrice = units > 0 ? (total / units).toFixed(2) : '';
+                  setNewProduct({
+                    ...newProduct,
+                    currentStock: stock,
+                    unitPrice: unitPrice,
+                    currentCost: unitPrice,
+                  });
+                }}
                 placeholder="0"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Costo Total (L) *</Label>
+              <Input
+                type="number"
+                value={newProduct.totalCost}
+                onChange={(e) => {
+                  const total = e.target.value;
+                  const units = parseInt(newProduct.currentStock) || 0;
+                  const totalNum = parseFloat(total) || 0;
+                  const unitPrice = units > 0 ? (totalNum / units).toFixed(2) : '';
+                  setNewProduct({
+                    ...newProduct,
+                    totalCost: total,
+                    unitPrice: unitPrice,
+                    currentCost: unitPrice,
+                  });
+                }}
+                placeholder="Costo total de la compra"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Precio Unitario (L) - Auto-calculado</Label>
+              <Input
+                type="number"
+                value={newProduct.unitPrice}
+                onChange={(e) => setNewProduct({ ...newProduct, unitPrice: e.target.value, currentCost: e.target.value })}
+                placeholder="Se calcula: Costo Total / Stock"
+                className="bg-gray-50"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Costo Unitario (L) - Auto-calculado</Label>
+              <Input
+                type="number"
+                value={newProduct.currentCost}
+                onChange={(e) => setNewProduct({ ...newProduct, currentCost: e.target.value, unitPrice: e.target.value })}
+                placeholder="Se calcula: Costo Total / Stock"
+                className="bg-gray-50"
               />
             </div>
 

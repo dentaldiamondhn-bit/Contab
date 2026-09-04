@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
 import { readFileSync, writeFileSync } from 'fs';
 import { join } from 'path';
+import { createClient } from '@supabase/supabase-js';
 
 const DATA_FILE = join(process.cwd(), 'purchases-data.json');
+
+const supabase = createClient(
+  process.env.SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface Purchase {
   id: string;
@@ -73,6 +79,65 @@ export async function POST(request: Request) {
     
     purchases.push(newPurchase);
     savePurchases(purchases);
+
+    // Create/update products in Supabase product table
+    if (body.items && Array.isArray(body.items) && body.companyId) {
+      const tenantId = body.companyId;
+      
+      for (const item of body.items) {
+        const productName = item.product_name || item.description || '';
+        if (!productName) continue;
+
+        const quantity = Number(item.quantity) || 0;
+        const unitPrice = Math.round(Number(item.unit_price) || 0);
+
+        // Check if product already exists for this tenant (lowercase table)
+        const { data: existing } = await supabase
+          .from('product')
+          .select('id, current_stock')
+          .eq('tenant_id', tenantId)
+          .ilike('name', productName)
+          .maybeSingle();
+
+        if (existing) {
+          // Update stock and price
+          const newStock = (Number(existing.current_stock) || 0) + quantity;
+          await supabase
+            .from('product')
+            .update({
+              current_stock: newStock,
+              stock_quantity: newStock,
+              unit_price: unitPrice || undefined,
+              current_cost: unitPrice,
+            })
+            .eq('id', existing.id);
+        } else {
+          // Create new product
+          const productCode = 'PRD-' + Date.now().toString(36).toUpperCase().slice(-4);
+          await supabase
+            .from('product')
+            .insert({
+              tenant_id: tenantId,
+              code: productCode,
+              name: productName,
+              description: item.description || '',
+              category: body.purchase_type === 'expense' ? 'Servicios' : 'Insumos',
+              unit: item.unit || 'Unidad',
+              unit_price: unitPrice,
+              current_cost: unitPrice,
+              current_stock: quantity,
+              stock_quantity: quantity,
+              min_stock: 0,
+              max_stock: 0,
+              tax_rate: 15,
+              is_active: true,
+              is_service: body.purchase_type === 'expense',
+              product_type: body.purchase_type === 'expense' ? 'service' : 'product',
+              valuation_method: 'weighted_average',
+            });
+        }
+      }
+    }
     
     return NextResponse.json(newPurchase, { status: 201 });
   } catch (error) {

@@ -1,0 +1,90 @@
+[
+  {
+    "id": "1788412490923dhtf6r7hx",
+    "supplier_id": "a7q38il",
+    "invoice_number": "0080020100018980",
+    "cai": "57EC05-A2D1FA-D4AAE0-63BE03-09097C-65",
+    "invoice_date": "2026-09-03",
+    "items": [
+      {
+        "product_name": "Guantes",
+        "description": "",
+        "quantity": 1,
+        "unit_price": 119,
+        "discount_percentage": 0,
+        "discount_amount": 0,
+        "subtotal": 119,
+        "tax_rate": 15,
+        "tax_amount": 18,
+        "total": 137
+      }
+    ],
+    "subtotal": 119,
+    "tax_rate": 15,
+    "tax_amount": 18,
+    "total": 137,
+    "purchase_type": "merchandise",
+    "expense_category": null,
+    "document_url": null,
+    "is_credit": false,
+    "due_date": null,
+    "companyId": "ANGELOH7",
+    "created_at": "2026-09-03T05:14:50.923Z",
+    "updated_at": "2026-09-03T05:14:50.923Z",
+    "amount_paid": 137,
+    "balance_due": 0,
+    "status": "completed",
+    "supplier_name": "Distrubidora Comercial SA"
+  },
+  {
+    "id": "1788486759578tkz2v60lr",
+    "supplier_id": "a7q38il",
+    "supplier_name": "Distrubidora Comercial SA",
+    "invoice_number": "0080020100018981",
+    "cai": "57EC05-A2D1FA-D4AAE0-63BE03-09097C-65",
+    "invoice_date": "2026-09-04",
+    "items": [
+      {
+        "product_id": "1dca7ec1-3a07-4e53-868b-956e47c7aa32",
+        "product_code": "PRD-GUAN",
+        "product_name": "Guantes",
+        "description": "",
+        "quantity": 50,
+        "unit_price": 2,
+        "discount_percentage": 0,
+        "discount_amount": 0,
+        "subtotal": 119,
+        "tax_rate": 15,
+        "tax_amount": 18,
+        "total": 137
+      },
+      {
+        "product_name": "gasas",
+        "description": "",
+        "quantity": 50,
+        "unit_price": 6,
+        "discount_percentage": 0,
+        "discount_amount": 0,
+        "subtotal": 300,
+        "tax_rate": 15,
+        "tax_amount": 45,
+        "total": 345
+      }
+    ],
+    "subtotal": 419,
+    "tax_rate": 15,
+    "tax_amount": 63,
+    "total": 482,
+    "purchase_type": "merchandise",
+    "expense_category": null,
+    "document_url": null,
+    "is_credit": false,
+    "due_date": null,
+    "companyId": "ANGELOH7",
+    "created_at": "2026-09-04T01:52:39.578Z",
+    "updated_at": "2026-09-04T01:52:39.578Z",
+    "amount_paid": 482,
+    "balance_due": 0,
+    "status": "completed"
+  }
+]

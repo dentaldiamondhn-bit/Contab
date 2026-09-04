@@ -1,0 +1,22 @@
+[
+  {
+    "id": "1788412520450zntskznr3",
+    "purchase_id": "1788412490923dhtf6r7hx",
+    "amount": 137,
+    "payment_date": "2026-09-03",
+    "payment_method": "card",
+    "reference": null,
+    "notes": null,
+    "created_at": "2026-09-03T05:15:20.450Z"
+  },
+  {
+    "id": "1788486787824eydf6y443",
+    "purchase_id": "1788486759578tkz2v60lr",
+    "amount": 482,
+    "payment_date": "2026-09-04",
+    "payment_method": "cash",
+    "reference": null,
+    "notes": null,
+    "created_at": "2026-09-04T01:53:07.824Z"
+  }
+]
