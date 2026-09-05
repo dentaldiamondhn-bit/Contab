@@ -109,22 +109,13 @@ export default function HRDashboardPage() {
       path: '/hr/employees'
     },
     {
-      title: 'Departamentos',
-      description: 'Crear y gestionar departamentos de la empresa',
+      title: 'Departamentos y Puestos',
+      description: 'Crear y gestionar departamentos y puestos de la empresa',
       icon: Building2,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',
-      count: `${departments.length} departamentos`,
+      count: `${departments.length} deptos, ${positions.length} puestos`,
       path: '/hr/departments'
-    },
-    {
-      title: 'Puestos',
-      description: 'Crear y gestionar puestos por departamento',
-      icon: Briefcase,
-      color: 'text-teal-600',
-      bgColor: 'bg-teal-50',
-      count: `${positions.length} puestos`,
-      path: '/hr/positions'
     },
     {
       title: 'Asistencia',
