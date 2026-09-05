@@ -11,7 +11,13 @@ import {
   Minus,
   Loader2,
   User,
-  Briefcase
+  Briefcase,
+  FileText,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Send,
+  Trash2
 } from 'lucide-react';
 
 interface Employee {
@@ -23,6 +29,20 @@ interface Employee {
   startDate: string;
   salary: number;
   status: string;
+}
+
+interface VacationRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string;
+  status: 'pending' | 'approved' | 'rejected';
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
 }
 
 interface UsedDays {
@@ -37,11 +57,19 @@ export default function VacationsPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [usedDays, setUsedDays] = useState<UsedDays>({});
+  const [requests, setRequests] = useState<VacationRequest[]>([]);
+
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [reqForm, setReqForm] = useState({ startDate: '', endDate: '', reason: '' });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
-    const saved = localStorage.getItem(`vacation_used_${companyId}`);
-    if (saved) setUsedDays(JSON.parse(saved));
+    const savedUsed = localStorage.getItem(`vacation_used_${companyId}`);
+    if (savedUsed) setUsedDays(JSON.parse(savedUsed));
+    const savedReqs = localStorage.getItem(`vacation_requests_${companyId}`);
+    if (savedReqs) setRequests(JSON.parse(savedReqs));
   }, [companyId]);
 
   const fetchEmployees = async () => {
@@ -61,11 +89,6 @@ export default function VacationsPage() {
     }
   };
 
-  const saveUsedDays = (updated: UsedDays) => {
-    setUsedDays(updated);
-    localStorage.setItem(`vacation_used_${companyId}`, JSON.stringify(updated));
-  };
-
   const calculateVacationDays = (startDate: string): number => {
     if (!startDate) return 0;
     const start = new Date(startDate);
@@ -73,7 +96,6 @@ export default function VacationsPage() {
     const yearsDiff = now.getFullYear() - start.getFullYear();
     const monthsDiff = now.getMonth() - start.getMonth();
     const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
-
     if (totalYears < 1) return 0;
     if (totalYears === 1) return 10;
     if (totalYears === 2) return 12;
@@ -90,17 +112,80 @@ export default function VacationsPage() {
     return yearsDiff + (monthsDiff < 0 ? -1 : 0);
   };
 
-  const useVacation = (empId: string, days: number) => {
-    const currentUsed = usedDays[empId] || 0;
-    const emp = employees.find(e => e.id === empId);
-    if (!emp) return;
-    const totalDays = calculateVacationDays(emp.startDate);
-    const newUsed = Math.max(0, Math.min(totalDays, currentUsed + days));
-    saveUsedDays({ ...usedDays, [empId]: newUsed });
+  const calcDaysBetween = (start: string, end: string): number => {
+    if (!start || !end) return 0;
+    const s = new Date(start);
+    const e = new Date(end);
+    const diff = Math.ceil((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    return diff > 0 ? diff : 0;
+  };
+
+  const openRequestModal = (emp: Employee) => {
+    setSelectedEmployee(emp);
+    setReqForm({ startDate: '', endDate: '', reason: '' });
+    setShowRequestModal(true);
+  };
+
+  const handleSubmitRequest = () => {
+    if (!selectedEmployee || !reqForm.startDate || !reqForm.endDate || !reqForm.reason) return;
+    const days = calcDaysBetween(reqForm.startDate, reqForm.endDate);
+    if (days <= 0) return;
+
+    const totalDays = calculateVacationDays(selectedEmployee.startDate);
+    const used = usedDays[selectedEmployee.id] || 0;
+    const available = totalDays - used;
+    if (days > available) return;
+
+    const newRequest: VacationRequest = {
+      id: `vr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      employeeId: selectedEmployee.id,
+      employeeName: `${selectedEmployee.firstName} ${selectedEmployee.lastName}`,
+      startDate: reqForm.startDate,
+      endDate: reqForm.endDate,
+      days,
+      reason: reqForm.reason,
+      status: 'pending',
+      createdAt: new Date().toISOString()
+    };
+
+    const updated = [newRequest, ...requests];
+    setRequests(updated);
+    localStorage.setItem(`vacation_requests_${companyId}`, JSON.stringify(updated));
+    setShowRequestModal(false);
+    setSelectedEmployee(null);
+  };
+
+  const resolveRequest = (reqId: string, status: 'approved' | 'rejected') => {
+    const updated = requests.map(r => {
+      if (r.id === reqId) {
+        return { ...r, status, resolvedAt: new Date().toISOString(), resolvedBy: 'Administrador' };
+      }
+      return r;
+    });
+    setRequests(updated);
+    localStorage.setItem(`vacation_requests_${companyId}`, JSON.stringify(updated));
+
+    if (status === 'approved') {
+      const req = requests.find(r => r.id === reqId);
+      if (req) {
+        const currentUsed = usedDays[req.employeeId] || 0;
+        const updatedUsed = { ...usedDays, [req.employeeId]: currentUsed + req.days };
+        setUsedDays(updatedUsed);
+        localStorage.setItem(`vacation_used_${companyId}`, JSON.stringify(updatedUsed));
+      }
+    }
+  };
+
+  const deleteRequest = (reqId: string) => {
+    const updated = requests.filter(r => r.id !== reqId);
+    setRequests(updated);
+    localStorage.setItem(`vacation_requests_${companyId}`, JSON.stringify(updated));
   };
 
   const allEmployees = employees;
   const activeEmployees = employees.filter(e => e.status === 'active');
+  const pendingRequests = requests.filter(r => r.status === 'pending');
+  const processedRequests = requests.filter(r => r.status !== 'pending');
 
   const totalAvailable = activeEmployees.reduce((sum, e) => {
     const total = calculateVacationDays(e.startDate);
@@ -108,6 +193,15 @@ export default function VacationsPage() {
     return sum + (total - used);
   }, 0);
   const totalUsed = activeEmployees.reduce((sum, e) => sum + (usedDays[e.id] || 0), 0);
+
+  const getAvailableDays = (emp: Employee): number => {
+    const total = calculateVacationDays(emp.startDate);
+    const used = usedDays[emp.id] || 0;
+    return total - used;
+  };
+
+  const reqDays = calcDaysBetween(reqForm.startDate, reqForm.endDate);
+  const reqEmpAvailable = selectedEmployee ? getAvailableDays(selectedEmployee) : 0;
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -123,7 +217,7 @@ export default function VacationsPage() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
@@ -151,7 +245,98 @@ export default function VacationsPage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="text-center">
+              <Clock className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+              <div className="text-2xl font-bold text-yellow-600">{pendingRequests.length}</div>
+              <div className="text-sm text-gray-500">Solicitudes Pendientes</div>
+            </div>
+          </CardContent>
+        </Card>
       </div>
+
+      {/* Pending Requests */}
+      {pendingRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Clock className="h-5 w-5 text-yellow-600" />
+              Solicitudes Pendientes ({pendingRequests.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {pendingRequests.map((req) => (
+                <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
+                  <div className="flex-1">
+                    <div className="font-medium">{req.employeeName}</div>
+                    <div className="text-sm text-gray-600">
+                      {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''}
+                    </div>
+                    <div className="text-sm text-gray-500 mt-1">
+                      <FileText className="h-3 w-3 inline mr-1" />
+                      {req.reason}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4">
+                    <Button
+                      size="sm"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => resolveRequest(req.id, 'approved')}
+                    >
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Aprobar
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => resolveRequest(req.id, 'rejected')}
+                    >
+                      <XCircle className="h-4 w-4 mr-1" />
+                      Rechazar
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Processed Requests History */}
+      {processedRequests.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-gray-500" />
+              Historial de Solicitudes ({processedRequests.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {processedRequests.map((req) => (
+                <div key={req.id} className={`flex items-center justify-between p-3 border rounded-lg ${req.status === 'approved' ? 'bg-green-50' : 'bg-red-50'}`}>
+                  <div className="flex-1">
+                    <div className="font-medium text-sm">{req.employeeName}</div>
+                    <div className="text-xs text-gray-500">
+                      {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''} • {req.reason}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={`text-xs font-medium px-2 py-1 rounded ${req.status === 'approved' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                      {req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
+                    </span>
+                    <Button size="sm" variant="ghost" onClick={() => deleteRequest(req.id)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Employee Vacations */}
       <Card>
@@ -178,6 +363,7 @@ export default function VacationsPage() {
                 const percentage = totalDays > 0 ? (used / totalDays) * 100 : 0;
                 const years = getYearsOfService(emp.startDate);
                 const isActive = emp.status === 'active';
+                const empPending = requests.filter(r => r.employeeId === emp.id && r.status === 'pending').length;
 
                 return (
                   <div key={emp.id} className={`p-4 border rounded-lg ${!isActive ? 'bg-gray-50 opacity-60' : ''}`}>
@@ -190,6 +376,7 @@ export default function VacationsPage() {
                         <div className="text-xs text-gray-400">
                           Antigüedad: {years} año{years !== 1 ? 's' : ''} • Ingreso: {emp.startDate || 'N/A'}
                           {!isActive && <span className="ml-2 text-orange-500 font-medium">({emp.status})</span>}
+                          {empPending > 0 && <span className="ml-2 text-yellow-600 font-medium">• {empPending} solicitud{empPending !== 1 ? 'es' : ''} pendiente{empPending !== 1 ? 's' : ''}</span>}
                         </div>
                       </div>
                       <div className="flex items-center gap-4">
@@ -211,11 +398,12 @@ export default function VacationsPage() {
                             </Button>
                             <Button
                               size="sm"
-                              variant="outline"
-                              onClick={() => useVacation(emp.id, 1)}
+                              className="bg-blue-600 hover:bg-blue-700 text-white"
+                              onClick={() => openRequestModal(emp)}
                               disabled={available <= 0}
                             >
-                              <Plus className="h-4 w-4" />
+                              <Send className="h-4 w-4 mr-1" />
+                              Solicitar
                             </Button>
                           </div>
                         )}
@@ -238,6 +426,89 @@ export default function VacationsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Request Modal */}
+      {showRequestModal && selectedEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold">Solicitar Vacaciones</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {selectedEmployee.firstName} {selectedEmployee.lastName} • {selectedEmployee.position}
+              </p>
+              <div className="flex gap-4 mt-2 text-sm">
+                <span className="text-blue-600 font-medium">
+                  Disponibles: {reqEmpAvailable} días
+                </span>
+                <span className="text-gray-500">
+                  Totales: {calculateVacationDays(selectedEmployee.startDate)} días
+                </span>
+              </div>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Fecha Inicio *</label>
+                  <input
+                    type="date"
+                    value={reqForm.startDate}
+                    onChange={(e) => setReqForm({ ...reqForm, startDate: e.target.value })}
+                    className="w-full border rounded px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-gray-700">Fecha Fin *</label>
+                  <input
+                    type="date"
+                    value={reqForm.endDate}
+                    onChange={(e) => setReqForm({ ...reqForm, endDate: e.target.value })}
+                    min={reqForm.startDate}
+                    className="w-full border rounded px-3 py-2 mt-1 text-sm"
+                  />
+                </div>
+              </div>
+
+              {reqDays > 0 && (
+                <div className={`p-3 rounded-lg text-sm ${reqDays > reqEmpAvailable ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                  <span className="font-medium">{reqDays} día{reqDays !== 1 ? 's' : ''}</span> solicitado{reqDays !== 1 ? 's' : ''}
+                  {reqDays > reqEmpAvailable && (
+                    <span className="block mt-1 text-red-600 font-medium">
+                      Excede los {reqEmpAvailable} días disponibles
+                    </span>
+                  )}
+                </div>
+              )}
+
+              <div>
+                <label className="text-sm font-medium text-gray-700">Motivo de la solicitud *</label>
+                <textarea
+                  value={reqForm.reason}
+                  onChange={(e) => setReqForm({ ...reqForm, reason: e.target.value })}
+                  rows={3}
+                  placeholder="Ej: Vacaciones anuales, viaje familiar, asuntos personales..."
+                  className="w-full border rounded px-3 py-2 mt-1 text-sm"
+                />
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => { setShowRequestModal(false); setSelectedEmployee(null); }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+                disabled={!reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || reqDays > reqEmpAvailable || submitting}
+                onClick={handleSubmitRequest}
+              >
+                <Send className="h-4 w-4 mr-1" />
+                Enviar Solicitud
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
