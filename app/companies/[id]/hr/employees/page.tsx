@@ -2087,6 +2087,7 @@ export default function EmployeesPage() {
           </CardContent>
         </Card>
       ) : (
+        <>
         <div className="space-y-3">
           {paginatedEmployees.map((emp) => (
             <Card key={emp.id}>
@@ -2277,6 +2278,7 @@ export default function EmployeesPage() {
             </div>
           </div>
         )}
+        </>
       )}
       {/* Deactivation Modal */}
       {showDeactivateModal && deactivatingEmployee && (
