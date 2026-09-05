@@ -16,7 +16,8 @@ import {
   Upload,
   Download,
   Filter,
-  X
+  X,
+  Save
 } from 'lucide-react';
 
 interface Employee {
@@ -103,6 +104,7 @@ export default function EmployeesPage() {
   const [filterContract, setFilterContract] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
@@ -238,6 +240,13 @@ export default function EmployeesPage() {
     if (confirm('¿Eliminar este empleado?')) {
       saveEmployees(employees.filter(e => e.id !== id));
     }
+  };
+
+  const updateEmployee = () => {
+    if (!editingEmployee) return;
+    saveEmployees(employees.map(e => e.id === editingEmployee.id ? editingEmployee : e));
+    setSelectedEmployee(editingEmployee);
+    setEditingEmployee(null);
   };
 
   const toggleEmployeeStatus = (id: string) => {
@@ -1335,28 +1344,48 @@ export default function EmployeesPage() {
         </div>
       )}
       {/* Employee Detail Modal */}
-      {selectedEmployee && (
+      {(selectedEmployee || editingEmployee) && (() => {
+        const emp = editingEmployee || selectedEmployee!;
+        const isEditing = !!editingEmployee;
+        const updateField = (field: string, value: any) => {
+          setEditingEmployee({ ...emp, [field]: value });
+        };
+        return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
               <div className="flex items-center gap-4">
-                {selectedEmployee.photo ? (
-                  <img src={selectedEmployee.photo} alt="" className="w-16 h-16 rounded-full object-cover" />
+                {emp.photo ? (
+                  <img src={emp.photo} alt="" className="w-16 h-16 rounded-full object-cover" />
                 ) : (
                   <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
                     <span className="text-2xl font-bold text-gray-400">
-                      {(selectedEmployee.firstName || '').charAt(0)}{(selectedEmployee.lastName || '').charAt(0)}
+                      {(emp.firstName || '').charAt(0)}{(emp.lastName || '').charAt(0)}
                     </span>
                   </div>
                 )}
                 <div>
-                  <h2 className="text-xl font-bold">{selectedEmployee.firstName} {selectedEmployee.lastName}</h2>
-                  <p className="text-gray-500">{selectedEmployee.employeeId} • {selectedEmployee.position} • {selectedEmployee.department}</p>
+                  <h2 className="text-xl font-bold">{emp.firstName} {emp.lastName}</h2>
+                  <p className="text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
                 </div>
               </div>
-              <Button variant="ghost" onClick={() => setSelectedEmployee(null)}>
-                <X className="h-5 w-5" />
-              </Button>
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <Button onClick={updateEmployee}><Save className="h-4 w-4 mr-2" />Guardar</Button>
+                    <Button variant="outline" onClick={() => setEditingEmployee(null)}>Cancelar</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => { setEditingEmployee({ ...emp }); setSelectedEmployee(null); }}>
+                      <Edit className="h-4 w-4 mr-2" />Editar
+                    </Button>
+                    <Button variant="ghost" onClick={() => setSelectedEmployee(null)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </>
+                )}
+              </div>
             </div>
             
             <div className="p-6 space-y-6">
@@ -1364,11 +1393,23 @@ export default function EmployeesPage() {
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Datos Personales</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{selectedEmployee.identityNumber || '-'}</p></div>
-                  <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{selectedEmployee.civilStatus || '-'}</p></div>
-                  <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{selectedEmployee.phone || '-'}</p></div>
-                  <div><span className="text-gray-500">Email:</span><p className="font-medium">{selectedEmployee.email || '-'}</p></div>
-                  <div className="col-span-2 md:col-span-4"><span className="text-gray-500">Dirección:</span><p className="font-medium">{selectedEmployee.address || '-'}</p></div>
+                  {isEditing ? (
+                    <>
+                      <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="unión libre">Unión Libre</option></select></div>
+                      <div><label className="text-gray-500">Teléfono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div className="col-span-2 md:col-span-4"><label className="text-gray-500">Dirección:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
+                      <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
+                      <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
+                      <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
+                      <div className="col-span-2 md:col-span-4"><span className="text-gray-500">Dirección:</span><p className="font-medium">{emp.address || '-'}</p></div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1376,16 +1417,30 @@ export default function EmployeesPage() {
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Contrato y Trabajo</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{selectedEmployee.employeeId}</p></div>
-                  <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{selectedEmployee.contractType || '-'}</p></div>
-                  <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{selectedEmployee.supervisor || '-'}</p></div>
-                  <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(selectedEmployee.salary)}</p></div>
-                  <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{selectedEmployee.startDate || '-'}</p></div>
-                  <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{selectedEmployee.schedule || '-'}</p></div>
-                  <div><span className="text-gray-500">Horario:</span><p className="font-medium">{selectedEmployee.scheduleHours || '-'}</p></div>
-                  <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{selectedEmployee.modality || '-'}</p></div>
-                  <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(selectedEmployee.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
-                  <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{calculateVacationDays(selectedEmployee.startDate)} días</p></div>
+                  <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
+                  {isEditing ? (
+                    <>
+                      <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
+                      <div><label className="text-gray-500">Jefe Directo:</label><input type="text" value={emp.supervisor || ''} onChange={(e) => updateField('supervisor', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
+                      <div><label className="text-gray-500">Horario:</label><input type="text" value={emp.scheduleHours || ''} onChange={(e) => updateField('scheduleHours', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="híbrido">Híbrido</option></select></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
+                      <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.supervisor || '-'}</p></div>
+                      <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
+                      <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
+                      <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
+                      <div><span className="text-gray-500">Horario:</span><p className="font-medium">{emp.scheduleHours || '-'}</p></div>
+                      <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
+                    </>
+                  )}
+                  <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
+                  <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{calculateVacationDays(emp.startDate)} días</p></div>
                 </div>
               </div>
 
@@ -1393,10 +1448,21 @@ export default function EmployeesPage() {
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Nivel Académico</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{selectedEmployee.educationLevel || '-'}</p></div>
-                  <div><span className="text-gray-500">Institución:</span><p className="font-medium">{selectedEmployee.university || '-'}</p></div>
-                  <div><span className="text-gray-500">Título:</span><p className="font-medium">{selectedEmployee.degree || '-'}</p></div>
-                  <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{selectedEmployee.graduationYear || '-'}</p></div>
+                  {isEditing ? (
+                    <>
+                      <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">Básico</option><option value="medio">Medio</option><option value="tecnico">Técnico</option><option value="universitario">Universitario</option><option value="maestria">Maestría</option><option value="doctorado">Doctorado</option></select></div>
+                      <div><label className="text-gray-500">Institución:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Título:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Año Graduación:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{emp.educationLevel || '-'}</p></div>
+                      <div><span className="text-gray-500">Institución:</span><p className="font-medium">{emp.university || '-'}</p></div>
+                      <div><span className="text-gray-500">Título:</span><p className="font-medium">{emp.degree || '-'}</p></div>
+                      <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1404,10 +1470,21 @@ export default function EmployeesPage() {
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Habilidades y Competencias</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{selectedEmployee.languages || '-'}</p></div>
-                  <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{selectedEmployee.certifications || '-'}</p></div>
-                  <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{selectedEmployee.driverLicense ? 'Sí' : 'No'}</p></div>
-                  <div className="col-span-3"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{selectedEmployee.otherSkills || '-'}</p></div>
+                  {isEditing ? (
+                    <>
+                      <div className="col-span-2"><label className="text-gray-500">Idiomas:</label><input type="text" value={emp.languages || ''} onChange={(e) => updateField('languages', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div className="col-span-2"><label className="text-gray-500">Certificaciones:</label><input type="text" value={emp.certifications || ''} onChange={(e) => updateField('certifications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div className="flex items-center gap-2"><label className="text-gray-500">Licencia Conducir:</label><input type="checkbox" checked={emp.driverLicense || false} onChange={(e) => updateField('driverLicense', e.target.checked)} className="h-4 w-4" /></div>
+                      <div className="col-span-3"><label className="text-gray-500">Otras Habilidades:</label><input type="text" value={emp.otherSkills || ''} onChange={(e) => updateField('otherSkills', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{emp.languages || '-'}</p></div>
+                      <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{emp.certifications || '-'}</p></div>
+                      <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'Sí' : 'No'}</p></div>
+                      <div className="col-span-3"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{emp.otherSkills || '-'}</p></div>
+                    </>
+                  )}
                 </div>
               </div>
 
@@ -1415,42 +1492,62 @@ export default function EmployeesPage() {
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Seguridad Social</h3>
                 <div className="grid grid-cols-3 gap-4 text-sm">
-                  <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{selectedEmployee.socialSecurityNumber || '-'}</p></div>
-                  <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{selectedEmployee.pensionFund || '-'}</p></div>
-                  <div><span className="text-gray-500">Aseg. Riesgos Laborales:</span><p className="font-medium">{selectedEmployee.laborRiskInsurer || '-'}</p></div>
+                  {isEditing ? (
+                    <>
+                      <div><label className="text-gray-500">No. Seguridad Social:</label><input type="text" value={emp.socialSecurityNumber || ''} onChange={(e) => updateField('socialSecurityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Fondo de Pensiones:</label><input type="text" value={emp.pensionFund || ''} onChange={(e) => updateField('pensionFund', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                      <div><label className="text-gray-500">Aseg. Riesgos Laborales:</label><input type="text" value={emp.laborRiskInsurer || ''} onChange={(e) => updateField('laborRiskInsurer', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{emp.socialSecurityNumber || '-'}</p></div>
+                      <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{emp.pensionFund || '-'}</p></div>
+                      <div><span className="text-gray-500">Aseg. Riesgos Laborales:</span><p className="font-medium">{emp.laborRiskInsurer || '-'}</p></div>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Permisos */}
-              {(selectedEmployee.workPermitStatus || selectedEmployee.visaExpiry) && (
-                <div>
-                  <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Permisos y Visas</h3>
-                  <div className="grid grid-cols-2 gap-4 text-sm">
-                    <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium capitalize">{selectedEmployee.workPermitStatus || '-'}</p></div>
-                    <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{selectedEmployee.visaExpiry || '-'}</p></div>
-                  </div>
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Permisos y Visas</h3>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  {isEditing ? (
+                    <>
+                      <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option><option value="asilo">Asilo Político</option></select></div>
+                      <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                    </>
+                  ) : (
+                    <>
+                      <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium capitalize">{emp.workPermitStatus || 'No aplica'}</p></div>
+                      <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
+                    </>
+                  )}
                 </div>
-              )}
+              </div>
 
               {/* Documentos */}
               <div>
                 <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Documentos Adjuntos</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                   {[
-                    { label: 'CV', value: selectedEmployee.cv },
-                    { label: 'Identidad', value: selectedEmployee.docIdentity },
-                    { label: 'Comprobante Domicilio', value: selectedEmployee.docAddressProof },
-                    { label: 'Contrato', value: selectedEmployee.docContract },
-                    { label: 'NDA', value: selectedEmployee.docNDA },
-                    { label: 'Cert. Estudios', value: selectedEmployee.docEducationCerts },
-                    { label: 'Cert. Empleos', value: selectedEmployee.docPreviousJobs },
-                    { label: 'Cert. Médico', value: selectedEmployee.docMedicalCert }
+                    { label: 'CV', field: 'cv', value: emp.cv },
+                    { label: 'Identidad', field: 'docIdentity', value: emp.docIdentity },
+                    { label: 'Comprobante Domicilio', field: 'docAddressProof', value: emp.docAddressProof },
+                    { label: 'Contrato', field: 'docContract', value: emp.docContract },
+                    { label: 'NDA', field: 'docNDA', value: emp.docNDA },
+                    { label: 'Cert. Estudios', field: 'docEducationCerts', value: emp.docEducationCerts },
+                    { label: 'Cert. Empleos', field: 'docPreviousJobs', value: emp.docPreviousJobs },
+                    { label: 'Cert. Médico', field: 'docMedicalCert', value: emp.docMedicalCert }
                   ].map((doc, i) => (
                     <div key={i} className={`p-2 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
                       <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
                       <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
                         {doc.value ? 'Cargado' : 'Sin archivo'}
                       </p>
+                      {isEditing && doc.value && (
+                        <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500 mt-1">Eliminar</button>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1458,7 +1555,8 @@ export default function EmployeesPage() {
             </div>
           </div>
         </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
