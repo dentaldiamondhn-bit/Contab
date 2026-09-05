@@ -129,8 +129,13 @@ function emptyUsage(): UsageRecord {
 
 function getUsage(usedDays: UsedDays, empId: string, typeId: string): UsageRecord {
   const rec = usedDays[empId]?.[typeId];
-  if (!rec) return emptyUsage();
-  return rec;
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear = now.getFullYear();
+  if (!rec) return { annual: 0, monthly: 0, month: curMonth, year: curYear };
+  if (rec.year === curYear && rec.month === curMonth) return rec;
+  if (rec.year === curYear) return { annual: rec.annual, monthly: 0, month: curMonth, year: curYear };
+  return { annual: 0, monthly: 0, month: curMonth, year: curYear };
 }
 
 export default function PermissionsPage() {
