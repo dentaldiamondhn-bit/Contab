@@ -19,7 +19,9 @@ import {
 
 interface Employee {
   id: string;
-  name: string;
+  firstName: string;
+  lastName: string;
+  identityNumber: string;
   position: string;
   department: string;
   salary: number;
@@ -27,6 +29,8 @@ interface Employee {
   status: 'active' | 'inactive';
   phone: string;
   email: string;
+  address: string;
+  civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'unión libre';
   vacationDays: number;
   usedVacationDays: number;
 }
@@ -60,13 +64,17 @@ export default function EmployeesPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
-    name: '',
+    firstName: '',
+    lastName: '',
+    identityNumber: '',
     position: '',
     department: '',
     salary: 0,
     startDate: '',
     phone: '',
     email: '',
+    address: '',
+    civilStatus: 'soltero' as const,
     vacationDays: 15
   });
 
@@ -100,7 +108,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ name: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', vacationDays: 0 });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0 });
     setShowAddEmployee(false);
   };
 
@@ -339,14 +347,64 @@ export default function EmployeesPage() {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
-                <label className="text-sm font-medium">Nombre completo *</label>
+                <label className="text-sm font-medium">Nombres *</label>
                 <input
                   type="text"
-                  value={newEmployee.name}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, name: e.target.value })}
+                  value={newEmployee.firstName}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: Juan Carlos"
                   required
                 />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Apellidos *</label>
+                <input
+                  type="text"
+                  value={newEmployee.lastName}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: Pérez López"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">No. Identidad *</label>
+                <input
+                  type="text"
+                  value={newEmployee.identityNumber}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, identityNumber: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: 0801-1990-12345"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Estado Civil *</label>
+                <select
+                  value={newEmployee.civilStatus}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, civilStatus: e.target.value as any })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                >
+                  <option value="soltero">Soltero/a</option>
+                  <option value="casado">Casado/a</option>
+                  <option value="divorciado">Divorciado/a</option>
+                  <option value="viudo">Viudo/a</option>
+                  <option value="unión libre">Unión Libre</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Departamento *</label>
+                <select
+                  value={newEmployee.department}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value, position: '' })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                >
+                  <option value="">Seleccionar departamento...</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-sm font-medium">Cargo *</label>
@@ -377,19 +435,6 @@ export default function EmployeesPage() {
                 )}
               </div>
               <div>
-                <label className="text-sm font-medium">Departamento</label>
-                <select
-                  value={newEmployee.department}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value, position: '' })}
-                  className="w-full mt-1 px-3 py-2 border rounded-md"
-                >
-                  <option value="">Seleccionar departamento...</option>
-                  {departments.map((dept) => (
-                    <option key={dept.id} value={dept.name}>{dept.name}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
                 <label className="text-sm font-medium">Salario mensual (L.) *</label>
                 <input
                   type="number"
@@ -413,6 +458,16 @@ export default function EmployeesPage() {
                   Se calcula automáticamente por antigüedad
                 </div>
               </div>
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">Dirección exacta</label>
+                <input
+                  type="text"
+                  value={newEmployee.address}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, address: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: Col. Kennedy, Calle 12, Casa #456"
+                />
+              </div>
               <div>
                 <label className="text-sm font-medium">Teléfono</label>
                 <input
@@ -420,6 +475,7 @@ export default function EmployeesPage() {
                   value={newEmployee.phone}
                   onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="9999-8888"
                 />
               </div>
               <div>
@@ -429,6 +485,7 @@ export default function EmployeesPage() {
                   value={newEmployee.email}
                   onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="correo@ejemplo.com"
                 />
               </div>
             </div>
@@ -455,17 +512,20 @@ export default function EmployeesPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{emp.name}</h3>
+                      <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
                       <Badge variant={emp.status === 'active' ? 'default' : 'secondary'}>
                         {emp.status === 'active' ? 'Activo' : 'Inactivo'}
                       </Badge>
                     </div>
                     <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
-                    <div className="flex gap-4 mt-2 text-sm text-gray-600">
+                    <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                      {emp.identityNumber && <span>Identidad: {emp.identityNumber}</span>}
                       <span>Salario: {formatCurrency(emp.salary)}</span>
                       <span>Ingreso: {emp.startDate || '-'}</span>
-                      <span>Tel: {emp.phone || '-'}</span>
-                      <span>Email: {emp.email || '-'}</span>
+                      {emp.phone && <span>Tel: {emp.phone}</span>}
+                      {emp.email && <span>Email: {emp.email}</span>}
+                      {emp.address && <span>Dirección: {emp.address}</span>}
+                      {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
                       <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
                       <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
                     </div>
