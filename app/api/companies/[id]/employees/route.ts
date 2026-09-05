@@ -196,9 +196,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     }
 
     return NextResponse.json(data);
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error creating employee:', error);
-    return NextResponse.json({ error: 'Error creating employee' }, { status: 500 });
+    return NextResponse.json({ error: error.message || 'Error creating employee', stack: error.stack }, { status: 500 });
   }
 }
 
