@@ -83,6 +83,8 @@ interface HRDocument {
   date: string;
   file: string;
   observations: string;
+  uploadedBy: string;
+  uploadedAt: string;
 }
 
 interface Department {
@@ -119,7 +121,9 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
       type: 'amonestacion',
       date: new Date().toISOString().split('T')[0],
       file: '',
-      observations: ''
+      observations: '',
+      uploadedBy: 'Usuario Actual',
+      uploadedAt: new Date().toISOString()
     };
     updateField('hrDocuments', [...(emp.hrDocuments || []), newDoc]);
   };
@@ -390,6 +394,10 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                         className="w-full mt-1 px-2 py-1 border rounded text-sm"
                         placeholder="Notas adicionales..."
                       />
+                    </div>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                      <span>Subido por: <span className="text-gray-600">{doc.uploadedBy || 'Desconocido'}</span></span>
+                      <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString('es-HN') : ''}</span>
                     </div>
                   </div>
                 ))}
