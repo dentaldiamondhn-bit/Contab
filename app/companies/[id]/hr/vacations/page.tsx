@@ -49,7 +49,9 @@ export default function VacationsPage() {
       setLoading(true);
       const res = await fetch(`/api/companies/${companyId}/employees`);
       const data = await res.json();
-      if (data.employees) {
+      if (Array.isArray(data)) {
+        setEmployees(data);
+      } else if (data.employees) {
         setEmployees(data.employees);
       }
     } catch (err) {

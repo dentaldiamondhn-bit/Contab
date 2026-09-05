@@ -53,14 +53,16 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
 }
 
 async function logHistory(employeeId: string, tenantId: string, action: string, description: string, changes: string[], performedBy?: string) {
-  await supabase.from('employee_history').insert({
-    employee_id: employeeId,
-    tenant_id: tenantId,
-    action,
-    description,
-    changes: changes.length > 0 ? changes : null,
-    performed_by: performedBy || null
-  });
+  try {
+    await supabase.from('employee_history').insert({
+      employee_id: employeeId,
+      tenant_id: tenantId,
+      action,
+      description,
+      changes: changes.length > 0 ? changes : null,
+      performed_by: performedBy || null
+    });
+  } catch {}
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -158,42 +160,46 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }));
 
     for (let emp of employees) {
-      const { data: hrDocs } = await supabase
-        .from('employee_hr_documents')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('employee_id', emp.id);
-      
-      if (hrDocs) {
-        emp.hrDocuments = hrDocs.map((doc: any) => ({
-          id: doc.id,
-          name: doc.name,
-          type: doc.type,
-          date: doc.date,
-          file: doc.file,
-          observations: doc.observations,
-          uploadedBy: doc.uploaded_by,
-          uploadedAt: doc.uploaded_at
-        }));
-      }
+      try {
+        const { data: hrDocs } = await supabase
+          .from('employee_hr_documents')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('employee_id', emp.id);
+        
+        if (hrDocs) {
+          emp.hrDocuments = hrDocs.map((doc: any) => ({
+            id: doc.id,
+            name: doc.name,
+            type: doc.type,
+            date: doc.date,
+            file: doc.file,
+            observations: doc.observations,
+            uploadedBy: doc.uploaded_by,
+            uploadedAt: doc.uploaded_at
+          }));
+        }
+      } catch {}
 
-      const { data: history } = await supabase
-        .from('employee_history')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('employee_id', emp.id)
-        .order('created_at', { ascending: false });
+      try {
+        const { data: history } = await supabase
+          .from('employee_history')
+          .select('*')
+          .eq('tenant_id', tenantId)
+          .eq('employee_id', emp.id)
+          .order('created_at', { ascending: false });
 
-      if (history) {
-        emp.history = history.map((h: any) => ({
-          id: h.id,
-          action: h.action,
-          description: h.description,
-          changes: h.changes || [],
-          performedBy: h.performed_by,
-          date: h.created_at
-        }));
-      }
+        if (history) {
+          emp.history = history.map((h: any) => ({
+            id: h.id,
+            action: h.action,
+            description: h.description,
+            changes: h.changes || [],
+            performedBy: h.performed_by,
+            date: h.created_at
+          }));
+        }
+      } catch {}
     }
 
     return NextResponse.json(employees);
