@@ -120,7 +120,7 @@ interface UsedDays {
   [empId: string]: { [typeId: string]: UsageRecord };
 }
 
-type Tab = 'control' | 'solicitudes';
+type Tab = 'control' | 'solicitudes' | 'recuento';
 
 function emptyUsage(): UsageRecord {
   return { annual: 0, monthly: 0, month: getCurrentMonth(), year: getCurrentYear() };
@@ -440,6 +440,11 @@ export default function PermissionsPage() {
               <span className="ml-2 bg-yellow-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{pendingRequests.length}</span>
             )}
           </button>
+          <button onClick={() => setActiveTab('recuento')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'recuento' ? 'border-blue-600 text-blue-600 bg-blue-50' : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'}`}>
+            <BarChart3 className="h-4 w-4 inline mr-2" />
+            Recuento
+          </button>
         </div>
       </div>
 
@@ -670,6 +675,212 @@ export default function PermissionsPage() {
           </Card>
         </div>
       )}
+
+      {/* Tab: Recuento */}
+      {activeTab === 'recuento' && (() => {
+        const approved = requests.filter(r => r.status === 'approved');
+        const rejected = requests.filter(r => r.status === 'rejected');
+        const pending = requests.filter(r => r.status === 'pending');
+
+        const byType = permTypes.map(pt => {
+          const typeApproved = approved.filter(r => r.typeId === pt.id);
+          const totalDays = typeApproved.reduce((s, r) => s + r.days, 0);
+          return { ...pt, count: typeApproved.length, totalDays };
+        }).sort((a, b) => b.count - a.count);
+
+        const byEmployee: { [key: string]: { name: string; count: number; totalDays: number; types: { [typeId: string]: number } } } = {};
+        approved.forEach(r => {
+          if (!byEmployee[r.employeeId]) byEmployee[r.employeeId] = { name: r.employeeName, count: 0, totalDays: 0, types: {} };
+          byEmployee[r.employeeId].count++;
+          byEmployee[r.employeeId].totalDays += r.days;
+          byEmployee[r.employeeId].types[r.typeId] = (byEmployee[r.employeeId].types[r.typeId] || 0) + r.days;
+        });
+        const empList = Object.entries(byEmployee).sort((a, b) => b[1].count - a[1].count);
+
+        const byMonth: { [key: string]: { count: number; totalDays: number } } = {};
+        approved.forEach(r => {
+          const d = new Date(r.resolvedAt || r.createdAt);
+          const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+          if (!byMonth[key]) byMonth[key] = { count: 0, totalDays: 0 };
+          byMonth[key].count++;
+          byMonth[key].totalDays += r.days;
+        });
+        const monthList = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+
+        return (
+          <div className="space-y-6">
+            {/* Resumen general */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <CheckCircle className="h-8 w-8 text-green-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-green-600">{approved.length}</div>
+                    <div className="text-sm text-gray-500">Aprobadas</div>
+                    <div className="text-xs text-gray-400">{approved.reduce((s, r) => s + r.days, 0)} días totales</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <XCircle className="h-8 w-8 text-red-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-red-600">{rejected.length}</div>
+                    <div className="text-sm text-gray-500">Rechazadas</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <Clock className="h-8 w8 text-yellow-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-yellow-600">{pending.length}</div>
+                    <div className="text-sm text-gray-500">Pendientes</div>
+                  </div>
+                </CardContent>
+              </Card>
+              <Card>
+                <CardContent className="pt-6">
+                  <div className="text-center">
+                    <TrendingUp className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+                    <div className="text-2xl font-bold text-blue-600">{approved.reduce((s, r) => s + r.days, 0)}</div>
+                    <div className="text-sm text-gray-500">Días Aprobados</div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Por tipo */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" />
+                  Recuento por Tipo de Permiso
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {byType.every(t => t.count === 0) ? (
+                  <p className="text-center text-gray-500 py-4">No hay permisos aprobados aún</p>
+                ) : (
+                  <div className="space-y-3">
+                    {byType.filter(t => t.count > 0).map(pt => {
+                      const Icon = ICON_MAP[pt.icon] || Star;
+                      const colors = getColorClasses(pt.colorValue);
+                      const maxBar = byType[0]?.count || 1;
+                      return (
+                        <div key={pt.id} className={`flex items-center gap-4 p-3 rounded-lg border ${colors.border} ${colors.bg}`}>
+                          <Icon className={`h-5 w-5 ${colors.text} shrink-0`} />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className={`font-medium ${colors.text}`}>{pt.label}</span>
+                              <span className="text-sm font-bold">{pt.count} permiso{pt.count !== 1 ? 's' : ''} • {pt.totalDays} días</span>
+                            </div>
+                            <div className="w-full bg-gray-200 rounded-full h-2">
+                              <div className={`h-2 rounded-full ${colors.text.replace('text-', 'bg-')}`}
+                                style={{ width: `${(pt.count / maxBar) * 100}%` }} />
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Por empleado */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Recuento por Empleado
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {empList.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No hay permisos aprobados aún</p>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b text-left text-gray-500">
+                          <th className="pb-2 font-medium">Empleado</th>
+                          <th className="pb-2 font-medium text-center">Total Permisos</th>
+                          <th className="pb-2 font-medium text-center">Total Días</th>
+                          {permTypes.map(pt => (
+                            <th key={pt.id} className="pb-2 font-medium text-center">{pt.label}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {empList.map(([empId, data]) => (
+                          <tr key={empId} className="border-b hover:bg-gray-50">
+                            <td className="py-3 font-medium">{data.name}</td>
+                            <td className="py-3 text-center">
+                              <span className="bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-medium">{data.count}</span>
+                            </td>
+                            <td className="py-3 text-center font-bold">{data.totalDays}</td>
+                            {permTypes.map(pt => (
+                              <td key={pt.id} className="py-3 text-center">
+                                {data.types[pt.id] ? (
+                                  <span className={`px-2 py-0.5 rounded text-xs font-medium ${getColorClasses(pt.colorValue).bg} ${getColorClasses(pt.colorValue).text}`}>
+                                    {data.types[pt.id]}
+                                  </span>
+                                ) : (
+                                  <span className="text-gray-300">—</span>
+                                )}
+                              </td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Por mes */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Recuento por Mes
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {monthList.length === 0 ? (
+                  <p className="text-center text-gray-500 py-4">No hay permisos aprobados aún</p>
+                ) : (
+                  <div className="space-y-2">
+                    {monthList.map(([key, data]) => {
+                      const [year, month] = key.split('-');
+                      const monthName = MONTH_NAMES[parseInt(month) - 1];
+                      const maxM = monthList[0]?.[1].count || 1;
+                      return (
+                        <div key={key} className="flex items-center gap-4 p-3 border rounded-lg hover:bg-gray-50">
+                          <div className="w-20 font-medium text-gray-700">{monthName} {year}</div>
+                          <div className="flex-1">
+                            <div className="w-full bg-gray-200 rounded-full h-3">
+                              <div className="h-3 rounded-full bg-blue-500"
+                                style={{ width: `${(data.count / maxM) * 100}%` }} />
+                            </div>
+                          </div>
+                          <div className="text-right w-32">
+                            <span className="font-bold">{data.count}</span>
+                            <span className="text-gray-500 text-sm"> permisos</span>
+                            <span className="text-gray-400 text-sm"> • {data.totalDays} días</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        );
+      })()}
 
       {/* Request Modal */}
       {showRequestModal && (
