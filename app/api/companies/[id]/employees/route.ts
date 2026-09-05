@@ -304,7 +304,10 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         uploaded_at: doc.uploadedAt
       }));
 
-      await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      const { error: hrError } = await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      if (hrError) {
+        console.error('HR documents insert error (POST):', JSON.stringify(hrError));
+      }
     }
 
     return NextResponse.json(data);
@@ -318,6 +321,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id: tenantId } = await params;
     const body = await request.json();
+
+    console.log('PUT employee:', body.id, 'hrDocs:', body.hrDocuments?.length || 0);
 
     let positionId = null;
     if (body.position) {
@@ -452,7 +457,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         uploaded_at: doc.uploadedAt
       }));
 
-      await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      const { error: hrError } = await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      if (hrError) {
+        console.error('HR documents insert error:', JSON.stringify(hrError));
+      }
     }
 
     return NextResponse.json({ success: true });

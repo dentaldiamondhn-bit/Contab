@@ -821,12 +821,17 @@ export default function EmployeesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(emp)
       });
+      const data = await res.json();
       if (res.ok) {
         await loadData();
         showUploadMessage('Empleado actualizado correctamente');
+      } else {
+        console.error('Update error:', data);
+        showUploadMessage(`Error: ${data.error || 'No se pudo guardar'}`);
       }
     } catch (error) {
       console.error('Error updating employee:', error);
+      showUploadMessage('Error de conexión al guardar');
     }
   };
 
