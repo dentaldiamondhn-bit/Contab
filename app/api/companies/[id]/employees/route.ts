@@ -123,6 +123,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const tenantId = params.id;
     const body = await request.json();
 
+    let positionId = null;
+    if (body.position) {
+      const { data: pos } = await supabase
+        .from('positions')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('name', body.position)
+        .single();
+      positionId = pos?.id || null;
+    }
+
     const { data, error } = await supabase
       .from('employees')
       .insert({
@@ -135,7 +146,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         rtn: body.identityNumber,
         photo: body.photo,
         cv: body.cv,
-        position_id: body.position || null,
+        position_id: positionId,
         department: body.department || null,
         base_salary: body.salary || 0,
         hire_date: body.startDate || null,
@@ -207,6 +218,17 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const tenantId = params.id;
     const body = await request.json();
 
+    let positionId = null;
+    if (body.position) {
+      const { data: pos } = await supabase
+        .from('positions')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('name', body.position)
+        .single();
+      positionId = pos?.id || null;
+    }
+
     const { error } = await supabase
       .from('employees')
       .update({
@@ -217,8 +239,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
         rtn: body.identityNumber,
         photo: body.photo,
         cv: body.cv,
-        position_id: body.position,
-        department: body.department,
+        position_id: positionId,
+        department: body.department || null,
         base_salary: body.salary || 0,
         hire_date: body.startDate || null,
         status: body.status,
