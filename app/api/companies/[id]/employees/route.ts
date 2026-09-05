@@ -174,9 +174,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .select()
       .single();
 
-    if (error) throw error;
-
-    // Save HR documents
+    if (error) {
+      console.error('Supabase insert error:', JSON.stringify(error));
+      return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
+    }
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
         id: doc.id,
