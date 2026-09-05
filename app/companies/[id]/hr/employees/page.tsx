@@ -19,7 +19,8 @@ import {
   X,
   Save,
   Plus,
-  FileText
+  FileText,
+  Eye
 } from 'lucide-react';
 
 interface Employee {
@@ -402,9 +403,22 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                 <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
                   {doc.value ? 'Cargado' : 'Sin archivo'}
                 </p>
-                {isEditing && doc.value && (
-                  <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500 mt-1">Eliminar</button>
-                )}
+                <div className="flex items-center gap-2 mt-1">
+                  {doc.value && (
+                    <a
+                      href={doc.value}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-500 hover:text-blue-700 flex items-center gap-1 text-xs"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Ver
+                    </a>
+                  )}
+                  {isEditing && doc.value && (
+                    <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500">Eliminar</button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -514,6 +528,17 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
                       <span>Subido por: <span className="text-gray-600">{doc.uploadedBy || 'Desconocido'}</span></span>
                       <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString('es-HN') : ''}</span>
+                      {doc.file && (
+                        <a
+                          href={doc.file}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-blue-500 hover:text-blue-700 flex items-center gap-1"
+                        >
+                          <Eye className="h-3 w-3" />
+                          Ver archivo
+                        </a>
+                      )}
                     </div>
                   </div>
                 ))}
