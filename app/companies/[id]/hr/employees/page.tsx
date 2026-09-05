@@ -1110,11 +1110,21 @@ export default function EmployeesPage() {
     <div className="container mx-auto p-6 space-y-6">
       {/* Upload Notification */}
       {uploadMessage && (
-        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right">
-          <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
-            <CheckCircle className="h-5 w-5" />
-            <span>{uploadMessage}</span>
+        <div className="fixed top-4 right-4 z-[9999]">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 border-2 border-green-300" style={{ animation: 'slideIn 0.3s ease-out' }}>
+            <div className="bg-white/20 rounded-full p-1">
+              <CheckCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{uploadMessage}</p>
+            </div>
           </div>
+          <style>{`
+            @keyframes slideIn {
+              from { transform: translateX(100%); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+          `}</style>
         </div>
       )}
 
