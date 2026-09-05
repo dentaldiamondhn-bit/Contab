@@ -58,6 +58,14 @@ interface Employee {
   // Permisos
   workPermitStatus: string;
   visaExpiry: string;
+  // Documentos adjuntos
+  docIdentity: string;
+  docAddressProof: string;
+  docContract: string;
+  docNDA: string;
+  docEducationCerts: string;
+  docPreviousJobs: string;
+  docMedicalCert: string;
 }
 
 interface Department {
@@ -120,7 +128,14 @@ export default function EmployeesPage() {
     pensionFund: '',
     laborRiskInsurer: '',
     workPermitStatus: '',
-    visaExpiry: ''
+    visaExpiry: '',
+    docIdentity: '',
+    docAddressProof: '',
+    docContract: '',
+    docNDA: '',
+    docEducationCerts: '',
+    docPreviousJobs: '',
+    docMedicalCert: ''
   });
 
   useEffect(() => {
@@ -174,6 +189,21 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5000000) {
+        alert('El archivo no debe superar 5MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewEmployee({ ...newEmployee, [field]: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const addEmployee = () => {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
@@ -183,7 +213,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '' });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '' });
     setShowAddEmployee(false);
   };
 
@@ -870,6 +900,243 @@ export default function EmployeesPage() {
                     </label>
                   )}
                   <span className="text-xs text-gray-500">Máximo 2MB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Documentos Adjuntos */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Documentos Adjuntos</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Copia de documento de identidad */}
+                <div>
+                  <label className="text-sm font-medium">Copia de documento de identidad</label>
+                  <div className="mt-1">
+                    {newEmployee.docIdentity ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docIdentity: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docIdentity')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comprobante de domicilio */}
+                <div>
+                  <label className="text-sm font-medium">Comprobante de domicilio</label>
+                  <div className="mt-1">
+                    {newEmployee.docAddressProof ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docAddressProof: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docAddressProof')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contrato de trabajo firmado */}
+                <div>
+                  <label className="text-sm font-medium">Contrato de trabajo firmado</label>
+                  <div className="mt-1">
+                    {newEmployee.docContract ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docContract: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docContract')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Acuerdo de confidencialidad/NDA */}
+                <div>
+                  <label className="text-sm font-medium">Acuerdo de confidencialidad / NDA</label>
+                  <div className="mt-1">
+                    {newEmployee.docNDA ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docNDA: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docNDA')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados de estudios */}
+                <div>
+                  <label className="text-sm font-medium">Certificados de estudios</label>
+                  <div className="mt-1">
+                    {newEmployee.docEducationCerts ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docEducationCerts: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docEducationCerts')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados de empleos anteriores */}
+                <div>
+                  <label className="text-sm font-medium">Certificados de empleos anteriores</label>
+                  <div className="mt-1">
+                    {newEmployee.docPreviousJobs ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docPreviousJobs: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docPreviousJobs')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados médicos ocupacionales */}
+                <div>
+                  <label className="text-sm font-medium">Certificados médicos ocupacionales de ingreso</label>
+                  <div className="mt-1">
+                    {newEmployee.docMedicalCert ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docMedicalCert: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docMedicalCert')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
