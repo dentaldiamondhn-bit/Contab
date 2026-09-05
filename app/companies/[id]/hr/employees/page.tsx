@@ -22,6 +22,7 @@ interface Employee {
   firstName: string;
   lastName: string;
   identityNumber: string;
+  photo: string;
   position: string;
   department: string;
   salary: number;
@@ -67,6 +68,7 @@ export default function EmployeesPage() {
     firstName: '',
     lastName: '',
     identityNumber: '',
+    photo: '',
     position: '',
     department: '',
     salary: 0,
@@ -99,6 +101,21 @@ export default function EmployeesPage() {
     setEmployees(data);
   };
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 500000) {
+        alert('La foto no debe superar 500KB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewEmployee({ ...newEmployee, photo: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const addEmployee = () => {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
@@ -108,7 +125,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0 });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0 });
     setShowAddEmployee(false);
   };
 
@@ -380,6 +397,43 @@ export default function EmployeesPage() {
                 />
               </div>
               <div>
+                <label className="text-sm font-medium">Foto del empleado</label>
+                <div className="mt-1 flex items-center gap-4">
+                  {newEmployee.photo ? (
+                    <div className="relative">
+                      <img 
+                        src={newEmployee.photo} 
+                        alt="Preview" 
+                        className="w-20 h-20 object-cover rounded-full border-2 border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewEmployee({ ...newEmployee, photo: '' })}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-blue-400">
+                        <UserPlus className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    <p>Formato: JPG, PNG</p>
+                    <p>Tamaño máximo: 500KB</p>
+                  </div>
+                </div>
+              </div>
+              <div>
                 <label className="text-sm font-medium">Estado Civil *</label>
                 <select
                   value={newEmployee.civilStatus}
@@ -510,24 +564,39 @@ export default function EmployeesPage() {
             <Card key={emp.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
-                      <Badge variant={emp.status === 'active' ? 'default' : 'secondary'}>
-                        {emp.status === 'active' ? 'Activo' : 'Inactivo'}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
-                    <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
-                      {emp.identityNumber && <span>Identidad: {emp.identityNumber}</span>}
-                      <span>Salario: {formatCurrency(emp.salary)}</span>
-                      <span>Ingreso: {emp.startDate || '-'}</span>
-                      {emp.phone && <span>Tel: {emp.phone}</span>}
-                      {emp.email && <span>Email: {emp.email}</span>}
-                      {emp.address && <span>Dirección: {emp.address}</span>}
-                      {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
-                      <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
-                      <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
+                  <div className="flex items-start gap-4">
+                    {emp.photo ? (
+                      <img 
+                        src={emp.photo} 
+                        alt={`${emp.firstName} ${emp.lastName}`}
+                        className="w-16 h-16 object-cover rounded-full border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                        <span className="text-xl font-medium text-gray-400">
+                          {(emp.firstName || emp.name || '').charAt(0)}{(emp.lastName || '').charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
+                        <Badge variant={emp.status === 'active' ? 'default' : 'secondary'}>
+                          {emp.status === 'active' ? 'Activo' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
+                      <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                        {emp.identityNumber && <span>Identidad: {emp.identityNumber}</span>}
+                        <span>Salario: {formatCurrency(emp.salary)}</span>
+                        <span>Ingreso: {emp.startDate || '-'}</span>
+                        {emp.phone && <span>Tel: {emp.phone}</span>}
+                        {emp.email && <span>Email: {emp.email}</span>}
+                        {emp.address && <span>Dirección: {emp.address}</span>}
+                        {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
+                        <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
+                        <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
+                      </div>
                     </div>
                   </div>
                   <div className="flex gap-2">
