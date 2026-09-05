@@ -27,7 +27,8 @@ import {
   Lock,
   Cog,
   ExternalLink,
-  RefreshCw
+  RefreshCw,
+  UserCheck
 } from 'lucide-react';
 
 interface Company {
@@ -145,6 +146,16 @@ const modules = [
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
     path: '/tax-integration',
+    status: 'active'
+  },
+  {
+    id: 'hr',
+    title: '👥 Recursos Humanos',
+    description: 'Gestión de empleados, nómina, asistencia y vacaciones.',
+    icon: UserCheck,
+    color: 'text-indigo-600',
+    bgColor: 'bg-indigo-50',
+    path: '/hr',
     status: 'active'
   }
 ];
