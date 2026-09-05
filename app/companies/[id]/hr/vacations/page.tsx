@@ -35,7 +35,8 @@ import {
   Shield,
   Coffee,
   TrendingUp,
-  BarChart3
+  BarChart3,
+  User
 } from 'lucide-react';
 
 type IconName = 'Plane' | 'Heart' | 'Stethoscope' | 'BriefcaseBusiness' | 'Ban' | 'Star' | 'Zap' | 'Gift' | 'Home' | 'BookOpen' | 'Shield' | 'Coffee';
