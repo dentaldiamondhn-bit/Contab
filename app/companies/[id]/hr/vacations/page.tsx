@@ -17,6 +17,7 @@ interface Employee {
   name: string;
   position: string;
   department: string;
+  startDate: string;
   vacationDays: number;
   usedVacationDays: number;
   status: 'active' | 'inactive';
@@ -42,18 +43,34 @@ export default function VacationsPage() {
 
   const activeEmployees = employees.filter(e => e.status === 'active');
 
+  const calculateVacationDays = (startDate: string): number => {
+    if (!startDate) return 15;
+    const start = new Date(startDate);
+    const now = new Date();
+    const yearsDiff = now.getFullYear() - start.getFullYear();
+    const monthsDiff = now.getMonth() - start.getMonth();
+    const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
+    
+    if (totalYears < 1) return 0;
+    if (totalYears === 1) return 10;
+    if (totalYears === 2) return 12;
+    if (totalYears === 3) return 14;
+    return Math.min(20, 14 + (totalYears - 3));
+  };
+
   const useVacation = (empId: string, days: number) => {
     saveEmployees(employees.map(e => {
       if (e.id === empId) {
-        const available = e.vacationDays - e.usedVacationDays;
-        const newUsed = Math.max(0, Math.min(e.vacationDays, e.usedVacationDays + days));
+        const totalDays = calculateVacationDays(e.startDate);
+        const available = totalDays - e.usedVacationDays;
+        const newUsed = Math.max(0, Math.min(totalDays, e.usedVacationDays + days));
         return { ...e, usedVacationDays: newUsed };
       }
       return e;
     }));
   };
 
-  const totalAvailable = activeEmployees.reduce((sum, e) => sum + (e.vacationDays - e.usedVacationDays), 0);
+  const totalAvailable = activeEmployees.reduce((sum, e) => sum + (calculateVacationDays(e.startDate) - e.usedVacationDays), 0);
   const totalUsed = activeEmployees.reduce((sum, e) => sum + e.usedVacationDays, 0);
 
   return (
@@ -99,19 +116,22 @@ export default function VacationsPage() {
         <CardContent>
           <div className="space-y-4">
             {activeEmployees.map((emp) => {
-              const available = emp.vacationDays - emp.usedVacationDays;
-              const percentage = emp.vacationDays > 0 ? (emp.usedVacationDays / emp.vacationDays) * 100 : 0;
+              const totalDays = calculateVacationDays(emp.startDate);
+              const available = totalDays - emp.usedVacationDays;
+              const percentage = totalDays > 0 ? (emp.usedVacationDays / totalDays) * 100 : 0;
+              const years = Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000));
               return (
                 <div key={emp.id} className="p-4 border rounded-lg">
                   <div className="flex justify-between items-center mb-3">
                     <div>
                       <div className="font-medium">{emp.name}</div>
                       <div className="text-sm text-gray-500">{emp.position} • {emp.department}</div>
+                      <div className="text-xs text-gray-400">Antigüedad: {years} año{years !== 1 ? 's' : ''}</div>
                     </div>
                     <div className="flex items-center gap-4">
                       <div className="text-right">
                         <div className="font-bold text-blue-600">{available} días disponibles</div>
-                        <div className="text-sm text-gray-500">de {emp.vacationDays} días totales</div>
+                        <div className="text-sm text-gray-500">de {totalDays} días totales</div>
                       </div>
                       <div className="flex gap-1">
                         <Button

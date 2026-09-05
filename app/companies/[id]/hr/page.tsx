@@ -59,7 +59,23 @@ export default function HRDashboardPage() {
 
   const activeEmployees = employees.filter(e => e.status === 'active');
   const totalPayroll = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
-  const pendingVacations = activeEmployees.reduce((sum, e) => sum + (e.vacationDays - e.usedVacationDays), 0);
+  
+  const calculateVacationDays = (startDate: string): number => {
+    if (!startDate) return 15;
+    const start = new Date(startDate);
+    const now = new Date();
+    const yearsDiff = now.getFullYear() - start.getFullYear();
+    const monthsDiff = now.getMonth() - start.getMonth();
+    const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
+    
+    if (totalYears < 1) return 0;
+    if (totalYears === 1) return 10;
+    if (totalYears === 2) return 12;
+    if (totalYears === 3) return 14;
+    return Math.min(20, 14 + (totalYears - 3));
+  };
+  
+  const pendingVacations = activeEmployees.reduce((sum, e) => sum + (calculateVacationDays(e.startDate) - e.usedVacationDays), 0);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {

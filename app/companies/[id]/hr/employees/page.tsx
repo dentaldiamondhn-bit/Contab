@@ -82,11 +82,12 @@ export default function EmployeesPage() {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
       ...newEmployee,
+      vacationDays: calculateVacationDays(newEmployee.startDate),
       status: 'active',
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ name: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', vacationDays: 15 });
+    setNewEmployee({ name: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', vacationDays: 0 });
     setShowAddEmployee(false);
   };
 
@@ -108,6 +109,22 @@ export default function EmployeesPage() {
       currency: 'HNL',
       minimumFractionDigits: 2
     }).format(amount);
+  };
+
+  const calculateVacationDays = (startDate: string): number => {
+    if (!startDate) return 15;
+    const start = new Date(startDate);
+    const now = new Date();
+    const yearsDiff = now.getFullYear() - start.getFullYear();
+    const monthsDiff = now.getMonth() - start.getMonth();
+    const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
+    
+    if (totalYears < 1) return 0;
+    if (totalYears === 1) return 10;
+    if (totalYears === 2) return 12;
+    if (totalYears === 3) return 14;
+    // 4+ años: 14 + 1 por cada año adicional, máximo 20
+    return Math.min(20, 14 + (totalYears - 3));
   };
 
   const filteredEmployees = employees.filter(emp =>
@@ -350,7 +367,7 @@ export default function EmployeesPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Fecha de ingreso</label>
+                <label className="text-sm font-medium">Fecha de ingreso *</label>
                 <input
                   type="date"
                   value={newEmployee.startDate}
@@ -360,12 +377,9 @@ export default function EmployeesPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Días de vacaciones</label>
-                <input
-                  type="number"
-                  value={newEmployee.vacationDays}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, vacationDays: parseInt(e.target.value) || 15 })}
-                  className="w-full mt-1 px-3 py-2 border rounded-md"
-                />
+                <div className="w-full mt-1 px-3 py-2 border rounded-md bg-gray-50 text-gray-600">
+                  Se calcula automáticamente por antigüedad
+                </div>
               </div>
               <div>
                 <label className="text-sm font-medium">Teléfono</label>
@@ -420,7 +434,8 @@ export default function EmployeesPage() {
                       <span>Ingreso: {emp.startDate || '-'}</span>
                       <span>Tel: {emp.phone || '-'}</span>
                       <span>Email: {emp.email || '-'}</span>
-                      <span>Vacaciones: {emp.vacationDays - emp.usedVacationDays} días</span>
+                      <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
+                      <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
