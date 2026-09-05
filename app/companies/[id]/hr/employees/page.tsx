@@ -263,9 +263,9 @@ export default function EmployeesPage() {
   };
 
   const filteredEmployees = employees.filter(emp =>
-    emp.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    emp.department.toLowerCase().includes(searchTerm.toLowerCase())
+    (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
