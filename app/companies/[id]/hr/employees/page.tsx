@@ -17,7 +17,9 @@ import {
   Download,
   Filter,
   X,
-  Save
+  Save,
+  Plus,
+  Badge
 } from 'lucide-react';
 
 interface Employee {
@@ -70,6 +72,17 @@ interface Employee {
   docEducationCerts: string;
   docPreviousJobs: string;
   docMedicalCert: string;
+  // Documentos de RRHH
+  hrDocuments: HRDocument[];
+}
+
+interface HRDocument {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  file: string;
+  observations: string;
 }
 
 interface Department {
@@ -146,7 +159,8 @@ export default function EmployeesPage() {
     docNDA: '',
     docEducationCerts: '',
     docPreviousJobs: '',
-    docMedicalCert: ''
+    docMedicalCert: '',
+    hrDocuments: []
   });
 
   useEffect(() => {
@@ -232,7 +246,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '' });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [] });
     setShowAddEmployee(false);
   };
 
@@ -1551,6 +1565,173 @@ export default function EmployeesPage() {
                     </div>
                   ))}
                 </div>
+              </div>
+
+              {/* Documentos de RRHH */}
+              <div>
+                <div className="flex justify-between items-center border-b pb-2 mb-3">
+                  <h3 className="font-bold text-gray-800">Documentos de RRHH</h3>
+                  {isEditing && (
+                    <Button size="sm" variant="outline" onClick={() => {
+                      const newDoc: HRDocument = {
+                        id: `hrdoc-${Date.now()}`,
+                        name: '',
+                        type: 'amonestacion',
+                        date: new Date().toISOString().split('T')[0],
+                        file: '',
+                        observations: ''
+                      };
+                      updateField('hrDocuments', [...(emp.hrDocuments || []), newDoc]);
+                    }}>
+                      <Plus className="h-4 w-4 mr-1" />
+                      Agregar Documento
+                    </Button>
+                  )}
+                </div>
+                
+                {(emp.hrDocuments || []).length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-4">No hay documentos de RRHH registrados</p>
+                ) : (
+                  <div className="space-y-3">
+                    {(emp.hrDocuments || []).map((doc, index) => (
+                      <div key={doc.id} className="border rounded-lg p-4 bg-gray-50">
+                        {isEditing ? (
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                            <div>
+                              <label className="text-xs text-gray-500">Tipo de documento</label>
+                              <select
+                                value={doc.type}
+                                onChange={(e) => {
+                                  const updated = [...emp.hrDocuments];
+                                  updated[index] = { ...doc, type: e.target.value };
+                                  updateField('hrDocuments', updated);
+                                }}
+                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                              >
+                                <option value="amonestacion">Amonestación</option>
+                                <option value="autorizacion_vacaciones">Autorización de Vacaciones</option>
+                                <option value="contrato">Contrato</option>
+                                <option value="acuerdo_confidencialidad">Acuerdo de Confidencialidad</option>
+                                <option value="permiso">Permiso</option>
+                                <option value="constancia">Constancia</option>
+                                <option value="referencia_laboral">Referencia Laboral</option>
+                                <option value="otro">Otro</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Nombre del documento</label>
+                              <input
+                                type="text"
+                                value={doc.name}
+                                onChange={(e) => {
+                                  const updated = [...emp.hrDocuments];
+                                  updated[index] = { ...doc, name: e.target.value };
+                                  updateField('hrDocuments', updated);
+                                }}
+                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                                placeholder="Ej: Amonestación verbal"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Fecha</label>
+                              <input
+                                type="date"
+                                value={doc.date}
+                                onChange={(e) => {
+                                  const updated = [...emp.hrDocuments];
+                                  updated[index] = { ...doc, date: e.target.value };
+                                  updateField('hrDocuments', updated);
+                                }}
+                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                              />
+                            </div>
+                            <div className="md:col-span-2">
+                              <label className="text-xs text-gray-500">Observaciones</label>
+                              <input
+                                type="text"
+                                value={doc.observations}
+                                onChange={(e) => {
+                                  const updated = [...emp.hrDocuments];
+                                  updated[index] = { ...doc, observations: e.target.value };
+                                  updateField('hrDocuments', updated);
+                                }}
+                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                                placeholder="Notas adicionales..."
+                              />
+                            </div>
+                            <div>
+                              <label className="text-xs text-gray-500">Archivo</label>
+                              <div className="mt-1">
+                                {doc.file ? (
+                                  <div className="flex items-center gap-2">
+                                    <CheckCircle className="h-4 w-4 text-green-500" />
+                                    <span className="text-sm text-green-700">Cargado</span>
+                                    <button onClick={() => {
+                                      const updated = [...emp.hrDocuments];
+                                      updated[index] = { ...doc, file: '' };
+                                      updateField('hrDocuments', updated);
+                                    }} className="text-red-500 text-xs">Quitar</button>
+                                  </div>
+                                ) : (
+                                  <label className="cursor-pointer">
+                                    <div className="px-2 py-1 border border-dashed border-gray-300 rounded text-xs text-gray-600 hover:border-blue-400">
+                                      Subir archivo
+                                    </div>
+                                    <input
+                                      type="file"
+                                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                                      onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) {
+                                          const reader = new FileReader();
+                                          reader.onloadend = () => {
+                                            const updated = [...emp.hrDocuments];
+                                            updated[index] = { ...doc, file: reader.result as string };
+                                            updateField('hrDocuments', updated);
+                                          };
+                                          reader.readAsDataURL(file);
+                                        }
+                                      }}
+                                      className="hidden"
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                            </div>
+                            <div className="flex items-end">
+                              <Button size="sm" variant="destructive" onClick={() => {
+                                const updated = emp.hrDocuments.filter((_, i) => i !== index);
+                                updateField('hrDocuments', updated);
+                              }}>
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex justify-between items-start">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="default" className="bg-purple-100 text-purple-800 capitalize">
+                                  {doc.type.replace(/_/g, ' ')}
+                                </Badge>
+                                <span className="font-medium">{doc.name || 'Sin nombre'}</span>
+                              </div>
+                              <p className="text-sm text-gray-500 mt-1">Fecha: {doc.date} {doc.observations && `• ${doc.observations}`}</p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {doc.file && (
+                                <Badge variant="default" className="bg-green-100 text-green-800">
+                                  <CheckCircle className="h-3 w-3 mr-1" />
+                                  Archivo
+                                </Badge>
+                              )}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>
