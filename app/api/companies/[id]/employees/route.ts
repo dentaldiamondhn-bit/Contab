@@ -423,11 +423,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const action = actionMap[newStatus] || 'update';
         let description = '';
         if (newStatus === 'terminated') {
-          description = `Desactivado por ${body.terminationPerformedBy || 'N/A'}. Razón: ${body.terminationReason || 'N/A'}`;
+          description = `Desactivado por ${body.terminationPerformedBy || 'N/A'}. Solicitado por: ${body.terminationRequestedBy || 'N/A'}. Razón: ${body.terminationReason || 'N/A'}`;
         } else if (newStatus === 'suspended') {
-          description = `Suspendido por ${body.suspensionPerformedBy || 'N/A'}. Razón: ${body.suspensionReason || 'N/A'}`;
+          description = `Suspendido por ${body.suspensionPerformedBy || 'N/A'}. Solicitado por: ${body.suspensionRequestedBy || 'N/A'}. Razón: ${body.suspensionReason || 'N/A'}`;
         } else if (newStatus === 'active' && (prevStatus === 'terminated' || prevStatus === 'inactive')) {
-          description = `Reactivado por ${body.reactivationPerformedBy || 'N/A'}. Razón: ${body.reactivationReason || 'N/A'}`;
+          description = `Reactivado por ${body.reactivationPerformedBy || 'N/A'}. Solicitado por: ${body.reactivationRequestedBy || 'N/A'}. Razón: ${body.reactivationReason || 'N/A'}`;
         } else {
           description = `Estado cambiado de "${prevStatus}" a "${newStatus}"`;
         }
