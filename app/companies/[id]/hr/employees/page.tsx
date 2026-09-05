@@ -74,6 +74,24 @@ interface Employee {
   docMedicalCert: string;
   // Documentos de RRHH
   hrDocuments: HRDocument[];
+  // Ficha médica
+  medicalRecord: MedicalRecord;
+}
+
+interface MedicalRecord {
+  bloodType: string;
+  allergies: string;
+  chronicDiseases: string;
+  currentMedications: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  insuranceProvider: string;
+  insuranceNumber: string;
+  lastCheckup: string;
+  disabilities: string;
+  height: string;
+  weight: string;
+  notes: string;
 }
 
 interface HRDocument {
@@ -110,6 +128,7 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
     { id: 'trabajo', label: 'Trabajo' },
     { id: 'academico', label: 'Académico' },
     { id: 'habilidades', label: 'Habilidades' },
+    { id: 'medico', label: 'Ficha Médica' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'rrhh', label: 'Doc. RRHH' }
   ];
@@ -267,6 +286,103 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
             )}
           </div>
         )}
+
+        {/* Ficha Médica Tab */}
+        {activeTab === 'medico' && (() => {
+          const med = emp.medicalRecord || {};
+          const updateMed = (field: string, value: any) => {
+            updateField('medicalRecord', { ...med, [field]: value });
+          };
+          return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              {isEditing ? (
+                <>
+                  <div><label className="text-gray-500">Tipo de Sangre:</label><select value={med.bloodType || ''} onChange={(e) => updateMed('bloodType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Seleccionar</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
+                  <div><label className="text-gray-500">Altura (cm):</label><input type="text" value={med.height || ''} onChange={(e) => updateMed('height', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 175" /></div>
+                  <div><label className="text-gray-500">Peso (kg):</label><input type="text" value={med.weight || ''} onChange={(e) => updateMed('weight', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 70" /></div>
+                  <div><label className="text-gray-500">Último Examen Médico:</label><input type="date" value={med.lastCheckup || ''} onChange={(e) => updateMed('lastCheckup', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                </>
+              ) : (
+                <>
+                  <div><span className="text-gray-500">Tipo de Sangre:</span><p className="font-medium">{med.bloodType || '-'}</p></div>
+                  <div><span className="text-gray-500">Altura:</span><p className="font-medium">{med.height ? `${med.height} cm` : '-'}</p></div>
+                  <div><span className="text-gray-500">Peso:</span><p className="font-medium">{med.weight ? `${med.weight} kg` : '-'}</p></div>
+                  <div><span className="text-gray-500">Último Examen Médico:</span><p className="font-medium">{med.lastCheckup || '-'}</p></div>
+                </>
+              )}
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Condiciones de Salud</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Alergias:</label><textarea value={med.allergies || ''} onChange={(e) => updateMed('allergies', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 las alergias conocidas..." /></div>
+                    <div><label className="text-gray-500">Enfermedades Crónicas:</label><textarea value={med.chronicDiseases || ''} onChange={(e) => updateMed('chronicDiseases', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 las enfermedades crónicas..." /></div>
+                    <div><label className="text-gray-500">Medicamentos Actuales:</label><textarea value={med.currentMedications || ''} onChange={(e) => updateMed('currentMedications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 los medicamentos que toma..." /></div>
+                    <div><label className="text-gray-500">Discapacidades:</label><textarea value={med.disabilities || ''} onChange={(e) => updateMed('disabilities', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 discapacidades si aplica..." /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Alergias:</span><p className="font-medium">{med.allergies || 'Ninguna conocida'}</p></div>
+                    <div><span className="text-gray-500">Enfermedades Crónicas:</span><p className="font-medium">{med.chronicDiseases || 'Ninguna'}</p></div>
+                    <div><span className="text-gray-500">Medicamentos Actuales:</span><p className="font-medium">{med.currentMedications || 'Ninguno'}</p></div>
+                    <div><span className="text-gray-500">Discapacidades:</span><p className="font-medium">{med.disabilities || 'Ninguna'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Contacto de Emergencia</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Nombre:</label><input type="text" value={med.emergencyContact || ''} onChange={(e) => updateMed('emergencyContact', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Nombre del contacto" /></div>
+                    <div><label className="text-gray-500">Teléfono:</label><input type="text" value={med.emergencyPhone || ''} onChange={(e) => updateMed('emergencyPhone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="9999-8888" /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Nombre:</span><p className="font-medium">{med.emergencyContact || '-'}</p></div>
+                    <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{med.emergencyPhone || '-'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Seguro Médico</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Proveedor de Seguro:</label><input type="text" value={med.insuranceProvider || ''} onChange={(e) => updateMed('insuranceProvider', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: IHSS, Sanitas" /></div>
+                    <div><label className="text-gray-500">No. Póliza:</label><input type="text" value={med.insuranceNumber || ''} onChange={(e) => updateMed('insuranceNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Número de póliza" /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Proveedor de Seguro:</span><p className="font-medium">{med.insuranceProvider || '-'}</p></div>
+                    <div><span className="text-gray-500">No. Póliza:</span><p className="font-medium">{med.insuranceNumber || '-'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {isEditing && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-700 mb-3">Notas Médicas</h4>
+                <textarea value={med.notes || ''} onChange={(e) => updateMed('notes', e.target.value)} className="w-full px-2 py-1 border rounded text-sm" rows={3} placeholder="Notas adicionales del expediente médico..." />
+              </div>
+            )}
+            {!isEditing && med.notes && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-700 mb-3">Notas Médicas</h4>
+                <p className="text-sm">{med.notes}</p>
+              </div>
+            )}
+          </div>
+          );
+        })()}
 
         {/* Documentos Tab */}
         {activeTab === 'documentos' && (
@@ -469,7 +585,22 @@ export default function EmployeesPage() {
     docEducationCerts: '',
     docPreviousJobs: '',
     docMedicalCert: '',
-    hrDocuments: []
+    hrDocuments: [],
+    medicalRecord: {
+      bloodType: '',
+      allergies: '',
+      chronicDiseases: '',
+      currentMedications: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      insuranceProvider: '',
+      insuranceNumber: '',
+      lastCheckup: '',
+      disabilities: '',
+      height: '',
+      weight: '',
+      notes: ''
+    }
   });
 
   useEffect(() => {
