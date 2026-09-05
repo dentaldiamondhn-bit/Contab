@@ -102,6 +102,7 @@ export default function EmployeesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterContract, setFilterContract] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
@@ -1308,6 +1309,13 @@ export default function EmployeesPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      onClick={() => setSelectedEmployee(emp)}
+                    >
+                      Ver
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
                       onClick={() => toggleEmployeeStatus(emp.id)}
                     >
                       {emp.status === 'active' ? 'Desactivar' : 'Activar'}
@@ -1324,6 +1332,131 @@ export default function EmployeesPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+      {/* Employee Detail Modal */}
+      {selectedEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+              <div className="flex items-center gap-4">
+                {selectedEmployee.photo ? (
+                  <img src={selectedEmployee.photo} alt="" className="w-16 h-16 rounded-full object-cover" />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
+                    <span className="text-2xl font-bold text-gray-400">
+                      {(selectedEmployee.firstName || '').charAt(0)}{(selectedEmployee.lastName || '').charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-xl font-bold">{selectedEmployee.firstName} {selectedEmployee.lastName}</h2>
+                  <p className="text-gray-500">{selectedEmployee.employeeId} • {selectedEmployee.position} • {selectedEmployee.department}</p>
+                </div>
+              </div>
+              <Button variant="ghost" onClick={() => setSelectedEmployee(null)}>
+                <X className="h-5 w-5" />
+              </Button>
+            </div>
+            
+            <div className="p-6 space-y-6">
+              {/* Datos Personales */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Datos Personales</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{selectedEmployee.identityNumber || '-'}</p></div>
+                  <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{selectedEmployee.civilStatus || '-'}</p></div>
+                  <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{selectedEmployee.phone || '-'}</p></div>
+                  <div><span className="text-gray-500">Email:</span><p className="font-medium">{selectedEmployee.email || '-'}</p></div>
+                  <div className="col-span-2 md:col-span-4"><span className="text-gray-500">Dirección:</span><p className="font-medium">{selectedEmployee.address || '-'}</p></div>
+                </div>
+              </div>
+
+              {/* Contrato y Trabajo */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Contrato y Trabajo</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{selectedEmployee.employeeId}</p></div>
+                  <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{selectedEmployee.contractType || '-'}</p></div>
+                  <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{selectedEmployee.supervisor || '-'}</p></div>
+                  <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(selectedEmployee.salary)}</p></div>
+                  <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{selectedEmployee.startDate || '-'}</p></div>
+                  <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{selectedEmployee.schedule || '-'}</p></div>
+                  <div><span className="text-gray-500">Horario:</span><p className="font-medium">{selectedEmployee.scheduleHours || '-'}</p></div>
+                  <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{selectedEmployee.modality || '-'}</p></div>
+                  <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(selectedEmployee.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
+                  <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{calculateVacationDays(selectedEmployee.startDate)} días</p></div>
+                </div>
+              </div>
+
+              {/* Académico */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Nivel Académico</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{selectedEmployee.educationLevel || '-'}</p></div>
+                  <div><span className="text-gray-500">Institución:</span><p className="font-medium">{selectedEmployee.university || '-'}</p></div>
+                  <div><span className="text-gray-500">Título:</span><p className="font-medium">{selectedEmployee.degree || '-'}</p></div>
+                  <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{selectedEmployee.graduationYear || '-'}</p></div>
+                </div>
+              </div>
+
+              {/* Habilidades */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Habilidades y Competencias</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                  <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{selectedEmployee.languages || '-'}</p></div>
+                  <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{selectedEmployee.certifications || '-'}</p></div>
+                  <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{selectedEmployee.driverLicense ? 'Sí' : 'No'}</p></div>
+                  <div className="col-span-3"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{selectedEmployee.otherSkills || '-'}</p></div>
+                </div>
+              </div>
+
+              {/* Seguridad Social */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Seguridad Social</h3>
+                <div className="grid grid-cols-3 gap-4 text-sm">
+                  <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{selectedEmployee.socialSecurityNumber || '-'}</p></div>
+                  <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{selectedEmployee.pensionFund || '-'}</p></div>
+                  <div><span className="text-gray-500">Aseg. Riesgos Laborales:</span><p className="font-medium">{selectedEmployee.laborRiskInsurer || '-'}</p></div>
+                </div>
+              </div>
+
+              {/* Permisos */}
+              {(selectedEmployee.workPermitStatus || selectedEmployee.visaExpiry) && (
+                <div>
+                  <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Permisos y Visas</h3>
+                  <div className="grid grid-cols-2 gap-4 text-sm">
+                    <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium capitalize">{selectedEmployee.workPermitStatus || '-'}</p></div>
+                    <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{selectedEmployee.visaExpiry || '-'}</p></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Documentos */}
+              <div>
+                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Documentos Adjuntos</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {[
+                    { label: 'CV', value: selectedEmployee.cv },
+                    { label: 'Identidad', value: selectedEmployee.docIdentity },
+                    { label: 'Comprobante Domicilio', value: selectedEmployee.docAddressProof },
+                    { label: 'Contrato', value: selectedEmployee.docContract },
+                    { label: 'NDA', value: selectedEmployee.docNDA },
+                    { label: 'Cert. Estudios', value: selectedEmployee.docEducationCerts },
+                    { label: 'Cert. Empleos', value: selectedEmployee.docPreviousJobs },
+                    { label: 'Cert. Médico', value: selectedEmployee.docMedicalCert }
+                  ].map((doc, i) => (
+                    <div key={i} className={`p-2 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                      <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
+                      <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
+                        {doc.value ? 'Cargado' : 'Sin archivo'}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>
