@@ -663,6 +663,7 @@ export default function EmployeesPage() {
   const [filterStatus, setFilterStatus] = useState('');
   const [filterContract, setFilterContract] = useState('');
   const [showFilters, setShowFilters] = useState(false);
+  const [sortBy, setSortBy] = useState('');
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -1043,6 +1044,25 @@ export default function EmployeesPage() {
     return matchesSearch && matchesDept && matchesPos && matchesStatus && matchesContract;
   });
 
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    switch (sortBy) {
+      case 'az':
+        return (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
+      case 'za':
+        return (`${b.firstName} ${b.lastName}`).localeCompare(`${a.firstName} ${a.lastName}`);
+      case 'asc':
+        return a.salary - b.salary;
+      case 'desc':
+        return b.salary - a.salary;
+      case 'newest':
+        return new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime();
+      case 'oldest':
+        return new Date(a.startDate || 0).getTime() - new Date(b.startDate || 0).getTime();
+      default:
+        return 0;
+    }
+  });
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1250,7 +1270,7 @@ export default function EmployeesPage() {
               Filtros {(filterDepartment || filterPosition || filterStatus || filterContract) ? '(activos)' : ''}
             </Button>
             {(filterDepartment || filterPosition || filterStatus || filterContract) && (
-              <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); setSortBy(''); }}>
                 <X className="h-4 w-4 mr-1" />
                 Limpiar
               </Button>
@@ -1258,7 +1278,7 @@ export default function EmployeesPage() {
           </div>
           
           {showFilters && (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2 border-t">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-2 border-t">
               <div>
                 <label className="text-xs font-medium text-gray-600">Departamento</label>
                 <select
@@ -1314,11 +1334,27 @@ export default function EmployeesPage() {
                   <option value="temporada">Temporada</option>
                 </select>
               </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Ordenar por</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Predeterminado</option>
+                  <option value="az">Nombre A → Z</option>
+                  <option value="za">Nombre Z → A</option>
+                  <option value="asc">Salario ascendente</option>
+                  <option value="desc">Salario descendente</option>
+                  <option value="newest">Más reciente primero</option>
+                  <option value="oldest">Más antiguo primero</option>
+                </select>
+              </div>
             </div>
           )}
           
           <div className="text-sm text-gray-500">
-            {filteredEmployees.length} empleado{filteredEmployees.length !== 1 ? 's' : ''} encontrado{filteredEmployees.length !== 1 ? 's' : ''}
+            {sortedEmployees.length} empleado{sortedEmployees.length !== 1 ? 's' : ''} encontrado{sortedEmployees.length !== 1 ? 's' : ''}
           </div>
         </CardContent>
       </Card>
@@ -2034,7 +2070,7 @@ export default function EmployeesPage() {
       )}
 
       {/* Employees List */}
-      {filteredEmployees.length === 0 ? (
+      {sortedEmployees.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <p className="text-gray-500">No hay empleados registrados</p>
@@ -2042,7 +2078,7 @@ export default function EmployeesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {filteredEmployees.map((emp) => (
+          {sortedEmployees.map((emp) => (
             <Card key={emp.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
