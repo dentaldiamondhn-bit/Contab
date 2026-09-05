@@ -12,7 +12,9 @@ import {
   Edit,
   CheckCircle,
   XCircle,
-  Search
+  Search,
+  Upload,
+  Download
 } from 'lucide-react';
 
 interface Employee {
@@ -37,6 +39,8 @@ export default function EmployeesPage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
     name: '',
     position: '',
@@ -101,6 +105,69 @@ export default function EmployeesPage() {
     emp.department.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        alert('El archivo debe tener al menos un encabezado y una fila de datos');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const preview: any[] = [];
+
+      for (let i = 1; i < Math.min(lines.length, 11); i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        preview.push(row);
+      }
+
+      setUploadPreview(preview);
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmUpload = () => {
+    const newEmployees = uploadPreview.map(row => ({
+      id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      name: row.name || row.nombre || '',
+      position: row.position || row.cargo || row.puesto || '',
+      department: row.department || row.departamento || '',
+      salary: parseFloat(row.salary || row.salario || '0') || 0,
+      startDate: row.startdate || row.fecha_ingreso || row.fecha || '',
+      status: 'active' as const,
+      phone: row.phone || row.telefono || '',
+      email: row.email || row.correo || '',
+      vacationDays: parseInt(row.vacationdays || row.dias_vacaciones || '15') || 15,
+      usedVacationDays: 0
+    })).filter(emp => emp.name);
+
+    saveEmployees([...employees, ...newEmployees]);
+    setUploadPreview([]);
+    setShowUpload(false);
+    alert(`${newEmployees.length} empleados importados correctamente`);
+  };
+
+  const downloadTemplate = () => {
+    const csv = 'name,position,department,salary,startDate,phone,email,vacationDays\nJuan Pérez,Doctor,Medicina,15000,2024-01-15,9999-8888,juan@email.com,15\nMaría López,Enfermera,Enfermería,12000,2024-02-01,8888-7777,maria@email.com,15';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template_empleados.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -113,12 +180,98 @@ export default function EmployeesPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Button>
+          <Button variant="outline" onClick={downloadTemplate}>
+            <Download className="h-4 w-4 mr-2" />
+            Descargar Template
+          </Button>
+          <Button variant="outline" onClick={() => setShowUpload(true)}>
+            <Upload className="h-4 w-4 mr-2" />
+            Subir Archivo
+          </Button>
           <Button onClick={() => setShowAddEmployee(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Agregar Empleado
           </Button>
         </div>
       </div>
+
+      {/* Upload Modal */}
+      {showUpload && (
+        <Card className="border-2 border-blue-200">
+          <CardHeader>
+            <CardTitle>Importar Empleados desde Archivo CSV</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg">
+              <h4 className="font-medium text-blue-800 mb-2">Formato del archivo CSV:</h4>
+              <ul className="text-sm text-blue-700 space-y-1">
+                <li>• <strong>name</strong> o <strong>nombre</strong>: Nombre completo del empleado</li>
+                <li>• <strong>position</strong> o <strong>cargo</strong>: Cargo o puesto</li>
+                <li>• <strong>department</strong> o <strong>departamento</strong>: Departamento</li>
+                <li>• <strong>salary</strong> o <strong>salario</strong>: Salario mensual</li>
+                <li>• <strong>startDate</strong> o <strong>fecha</strong>: Fecha de ingreso</li>
+                <li>• <strong>phone</strong> o <strong>telefono</strong>: Teléfono</li>
+                <li>• <strong>email</strong> o <strong>correo</strong>: Correo electrónico</li>
+                <li>• <strong>vacationDays</strong> o <strong>dias_vacaciones</strong>: Días de vacaciones</li>
+              </ul>
+            </div>
+            
+            <div className="flex gap-2">
+              <input
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleFileUpload}
+                className="flex-1 px-3 py-2 border rounded-md"
+              />
+              <Button variant="outline" onClick={() => { setShowUpload(false); setUploadPreview([]); }}>
+                Cancelar
+              </Button>
+            </div>
+
+            {uploadPreview.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2">Vista previa ({uploadPreview.length} empleados):</h4>
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="text-left py-2 px-3">Nombre</th>
+                        <th className="text-left py-2 px-3">Cargo</th>
+                        <th className="text-left py-2 px-3">Departamento</th>
+                        <th className="text-right py-2 px-3">Salario</th>
+                        <th className="text-left py-2 px-3">Fecha</th>
+                        <th className="text-left py-2 px-3">Teléfono</th>
+                        <th className="text-left py-2 px-3">Email</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadPreview.map((row, index) => (
+                        <tr key={index} className="border-t">
+                          <td className="py-2 px-3">{row.name || row.nombre}</td>
+                          <td className="py-2 px-3">{row.position || row.cargo || row.puesto}</td>
+                          <td className="py-2 px-3">{row.department || row.departamento}</td>
+                          <td className="py-2 px-3 text-right">{row.salary || row.salario}</td>
+                          <td className="py-2 px-3">{row.startdate || row.fecha_ingreso || row.fecha}</td>
+                          <td className="py-2 px-3">{row.phone || row.telefono}</td>
+                          <td className="py-2 px-3">{row.email || row.correo}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={confirmUpload}>
+                    Confirmar Importación ({uploadPreview.length} empleados)
+                  </Button>
+                  <Button variant="outline" onClick={() => setUploadPreview([])}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search */}
       <Card>
