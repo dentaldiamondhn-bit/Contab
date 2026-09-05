@@ -83,6 +83,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       docPreviousJobs: emp.doc_previous_jobs || '',
       docMedicalCert: emp.doc_medical_cert || '',
       medicalRecord: typeof emp.medical_record === 'string' ? JSON.parse(emp.medical_record || '{}') : (emp.medical_record || {}),
+      terminationDate: emp.termination_date || '',
+      terminationReason: emp.termination_reason || '',
+      terminationRequestedBy: emp.termination_requested_by || '',
+      terminationPerformedBy: emp.termination_performed_by || '',
+      rehireable: emp.rehireable ?? true,
       hrDocuments: []
     }));
 
@@ -176,7 +181,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         doc_education_certs: body.docEducationCerts,
         doc_previous_jobs: body.docPreviousJobs,
         doc_medical_cert: body.docMedicalCert,
-        medical_record: body.medicalRecord || {}
+        medical_record: body.medicalRecord || {},
+        termination_date: body.terminationDate || null,
+        termination_reason: body.terminationReason || null,
+        termination_requested_by: body.terminationRequestedBy || null,
+        termination_performed_by: body.terminationPerformedBy || null,
+        rehireable: body.rehireable ?? true
       })
       .select()
       .single();
@@ -270,6 +280,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         doc_previous_jobs: body.docPreviousJobs,
         doc_medical_cert: body.docMedicalCert,
         medical_record: body.medicalRecord || {},
+        termination_date: body.terminationDate || null,
+        termination_reason: body.terminationReason || null,
+        termination_requested_by: body.terminationRequestedBy || null,
+        termination_performed_by: body.terminationPerformedBy || null,
+        rehireable: body.rehireable ?? true,
         updated_at: new Date().toISOString()
       })
       .eq('id', body.id)

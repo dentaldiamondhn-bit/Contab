@@ -35,7 +35,7 @@ interface Employee {
   department: string;
   salary: number;
   startDate: string;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'terminated';
   phone: string;
   email: string;
   address: string;
@@ -77,6 +77,12 @@ interface Employee {
   hrDocuments: HRDocument[];
   // Ficha médica
   medicalRecord: MedicalRecord;
+  // Terminación
+  terminationDate: string;
+  terminationReason: string;
+  terminationRequestedBy: string;
+  terminationPerformedBy: string;
+  rehireable: boolean;
 }
 
 interface MedicalRecord {
@@ -573,6 +579,14 @@ export default function EmployeesPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatingEmployee, setDeactivatingEmployee] = useState<Employee | null>(null);
+  const [deactivateForm, setDeactivateForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: '',
+    rehireable: true
+  });
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -814,9 +828,31 @@ export default function EmployeesPage() {
   const toggleEmployeeStatus = async (id: string) => {
     const emp = employees.find(e => e.id === id);
     if (emp) {
-      const updatedEmp = { ...emp, status: emp.status === 'active' ? 'inactive' : 'active' };
-      await updateEmployeeToAPI(updatedEmp);
+      if (emp.status === 'active') {
+        setDeactivatingEmployee(emp);
+        setDeactivateForm({ reason: '', requestedBy: '', performedBy: '', rehireable: true });
+        setShowDeactivateModal(true);
+      } else {
+        const updatedEmp = { ...emp, status: 'active', terminationDate: '', terminationReason: '', terminationRequestedBy: '', terminationPerformedBy: '', rehireable: true };
+        await updateEmployeeToAPI(updatedEmp);
+      }
     }
+  };
+
+  const confirmDeactivation = async () => {
+    if (!deactivatingEmployee) return;
+    const updatedEmp = {
+      ...deactivatingEmployee,
+      status: 'terminated',
+      terminationDate: new Date().toISOString().split('T')[0],
+      terminationReason: deactivateForm.reason,
+      terminationRequestedBy: deactivateForm.requestedBy,
+      terminationPerformedBy: deactivateForm.performedBy,
+      rehireable: deactivateForm.rehireable
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowDeactivateModal(false);
+    setDeactivatingEmployee(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -1870,8 +1906,8 @@ export default function EmployeesPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{emp.employeeId}</span>
                         <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
-                        <Badge variant={emp.status === 'active' ? 'default' : 'secondary'}>
-                          {emp.status === 'active' ? 'Activo' : 'Inactivo'}
+                        <Badge variant={emp.status === 'active' ? 'default' : emp.status === 'terminated' ? 'destructive' : 'secondary'}>
+                          {emp.status === 'active' ? 'Activo' : emp.status === 'terminated' ? 'Terminado' : 'Inactivo'}
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
@@ -1915,6 +1951,75 @@ export default function EmployeesPage() {
               </CardContent>
             </Card>
           ))}
+        </div>
+      )}
+      {/* Deactivation Modal */}
+      {showDeactivateModal && deactivatingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-red-600">Desactivar Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {deactivatingEmployee.firstName} {deactivatingEmployee.lastName} ({deactivatingEmployee.employeeId})
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de desactivación *</label>
+                <textarea
+                  value={deactivateForm.reason}
+                  onChange={(e) => setDeactivateForm({ ...deactivateForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  placeholder="Describa la razón de la desactivación..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={deactivateForm.requestedBy}
+                    onChange={(e) => setDeactivateForm({ ...deactivateForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Realizado por *</label>
+                  <input
+                    type="text"
+                    value={deactivateForm.performedBy}
+                    onChange={(e) => setDeactivateForm({ ...deactivateForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Nombre de quien realiza"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="rehireable"
+                  checked={deactivateForm.rehireable}
+                  onChange={(e) => setDeactivateForm({ ...deactivateForm, rehireable: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 rounded"
+                />
+                <label htmlFor="rehireable" className="text-sm font-medium text-gray-700">El empleado es recontratable</label>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowDeactivateModal(false); setDeactivatingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeactivation}
+                disabled={!deactivateForm.reason || !deactivateForm.requestedBy || !deactivateForm.performedBy}
+              >
+                Desactivar Empleado
+              </Button>
+            </div>
+          </div>
         </div>
       )}
       {/* Employee Detail Modal */}
