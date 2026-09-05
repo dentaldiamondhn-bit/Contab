@@ -10,7 +10,6 @@ import {
   Plus,
   Minus,
   Loader2,
-  User,
   Briefcase,
   FileText,
   CheckCircle,
@@ -34,7 +33,9 @@ import {
   Home,
   BookOpen,
   Shield,
-  Coffee
+  Coffee,
+  TrendingUp,
+  BarChart3
 } from 'lucide-react';
 
 type IconName = 'Plane' | 'Heart' | 'Stethoscope' | 'BriefcaseBusiness' | 'Ban' | 'Star' | 'Zap' | 'Gift' | 'Home' | 'BookOpen' | 'Shield' | 'Coffee';
@@ -62,21 +63,25 @@ interface PermissionTypeDef {
   icon: IconName;
   colorValue: string;
   annualDays: number;
+  hasLimit: boolean;
   description: string;
   isDefault?: boolean;
 }
 
 const DEFAULT_TYPES: PermissionTypeDef[] = [
-  { id: 'vacaciones', label: 'Vacaciones', icon: 'Plane', colorValue: 'blue', annualDays: 0, description: 'Según ley: <1 año=0, 1=10, 2=12, 3=14, 4+=min(20)', isDefault: true },
-  { id: 'personal', label: 'Permiso Personal', icon: 'Heart', colorValue: 'pink', annualDays: 5, description: '5 días al año por motivo personal', isDefault: true },
-  { id: 'enfermedad', label: 'Enfermedad', icon: 'Stethoscope', colorValue: 'red', annualDays: 12, description: 'Hasta 12 días al año con certificado médico', isDefault: true },
-  { id: 'especial', label: 'Permiso Especial', icon: 'BriefcaseBusiness', colorValue: 'purple', annualDays: 3, description: '3 días al año por motivos especiales', isDefault: true },
-  { id: 'sin_sueldo', label: 'Sin Goce de Sueldo', icon: 'Ban', colorValue: 'gray', annualDays: 10, description: 'Hasta 10 días al año sin goce de salario', isDefault: true },
+  { id: 'vacaciones', label: 'Vacaciones', icon: 'Plane', colorValue: 'blue', annualDays: 0, hasLimit: true, description: 'Según ley: <1 año=0, 1=10, 2=12, 3=14, 4+=min(20)', isDefault: true },
+  { id: 'personal', label: 'Permiso Personal', icon: 'Heart', colorValue: 'pink', annualDays: 5, hasLimit: true, description: '5 días al año por motivo personal', isDefault: true },
+  { id: 'enfermedad', label: 'Enfermedad', icon: 'Stethoscope', colorValue: 'red', annualDays: 12, hasLimit: true, description: 'Hasta 12 días al año con certificado médico', isDefault: true },
+  { id: 'especial', label: 'Permiso Especial', icon: 'BriefcaseBusiness', colorValue: 'purple', annualDays: 3, hasLimit: true, description: '3 días al año por motivos especiales', isDefault: true },
+  { id: 'sin_sueldo', label: 'Sin Goce de Sueldo', icon: 'Ban', colorValue: 'gray', annualDays: 10, hasLimit: true, description: 'Hasta 10 días al año sin goce de salario', isDefault: true },
 ];
 
 function getColorClasses(colorValue: string) {
   return COLOR_OPTIONS.find(c => c.value === colorValue) || COLOR_OPTIONS[0];
 }
+
+function getCurrentYear() { return new Date().getFullYear(); }
+function getCurrentMonth() { return new Date().getMonth() + 1; }
 
 interface Employee {
   id: string;
@@ -104,11 +109,31 @@ interface PermissionRequest {
   resolvedBy?: string;
 }
 
+interface UsageRecord {
+  annual: number;
+  monthly: number;
+  month: number;
+  year: number;
+}
+
 interface UsedDays {
-  [empId: string]: { [typeId: string]: number };
+  [empId: string]: { [typeId: string]: UsageRecord };
 }
 
 type Tab = 'control' | 'solicitudes';
+
+function emptyUsage(): UsageRecord {
+  return { annual: 0, monthly: 0, month: getCurrentMonth(), year: getCurrentYear() };
+}
+
+function getUsage(usedDays: UsedDays, empId: string, typeId: string): UsageRecord {
+  const rec = usedDays[empId]?.[typeId];
+  if (!rec) return emptyUsage();
+  const now = new Date();
+  if (rec.year !== now.getFullYear()) return { annual: 0, monthly: 0, month: now.getMonth() + 1, year: now.getFullYear() };
+  if (rec.month !== now.getMonth() + 1) return { annual: rec.annual, monthly: 0, month: now.getMonth() + 1, year: now.getFullYear() };
+  return rec;
+}
 
 export default function PermissionsPage() {
   const params = useParams();
@@ -129,15 +154,13 @@ export default function PermissionsPage() {
 
   const [showTypesModal, setShowTypesModal] = useState(false);
   const [editingType, setEditingType] = useState<PermissionTypeDef | null>(null);
-  const [typeForm, setTypeForm] = useState({ label: '', icon: 'Star' as IconName, colorValue: 'blue', annualDays: 0, description: '' });
+  const [typeForm, setTypeForm] = useState({ label: '', icon: 'Star' as IconName, colorValue: 'blue', annualDays: 0, hasLimit: true, description: '' });
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
     const savedTypes = localStorage.getItem(`permission_types_${companyId}`);
-    if (savedTypes) {
-      setPermTypes(JSON.parse(savedTypes));
-    }
+    if (savedTypes) setPermTypes(JSON.parse(savedTypes));
     const savedUsed = localStorage.getItem(`permissions_used_${companyId}`);
     if (savedUsed) setUsedDays(JSON.parse(savedUsed));
     const savedReqs = localStorage.getItem(`permissions_requests_${companyId}`);
@@ -180,16 +203,18 @@ export default function PermissionsPage() {
   const getMaxDays = (emp: Employee, typeId: string): number => {
     const pt = permTypes.find(t => t.id === typeId);
     if (!pt) return 0;
+    if (!pt.hasLimit) return Infinity;
     if (typeId === 'vacaciones') return calculateVacationDays(emp.startDate);
     return pt.annualDays;
   };
 
-  const getUsedDays = (empId: string, typeId: string): number => {
-    return usedDays[empId]?.[typeId] || 0;
-  };
+  const getUsageForEmp = (empId: string, typeId: string): UsageRecord => getUsage(usedDays, empId, typeId);
 
   const getAvailableDays = (emp: Employee, typeId: string): number => {
-    return getMaxDays(emp, typeId) - getUsedDays(emp.id, typeId);
+    const max = getMaxDays(emp, typeId);
+    if (max === Infinity) return Infinity;
+    const usage = getUsageForEmp(emp.id, typeId);
+    return max - usage.annual;
   };
 
   const getYearsOfService = (startDate: string): number => {
@@ -221,7 +246,7 @@ export default function PermissionsPage() {
     const days = calcDaysBetween(reqForm.startDate, reqForm.endDate);
     if (days <= 0) return;
     const available = getAvailableDays(selectedEmployee, reqForm.typeId);
-    if (days > available) return;
+    if (available !== Infinity && days > available) return;
 
     const newRequest: PermissionRequest = {
       id: `pr_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -258,8 +283,14 @@ export default function PermissionsPage() {
       const req = requests.find(r => r.id === reqId);
       if (req) {
         const empUsed = usedDays[req.employeeId] || {};
-        const currentUsed = empUsed[req.typeId] || 0;
-        const updatedUsed = { ...usedDays, [req.employeeId]: { ...empUsed, [req.typeId]: currentUsed + req.days } };
+        const current = getUsage(usedDays, req.employeeId, req.typeId);
+        const updatedRec: UsageRecord = {
+          annual: current.annual + req.days,
+          monthly: current.monthly + req.days,
+          month: getCurrentMonth(),
+          year: getCurrentYear()
+        };
+        const updatedUsed = { ...usedDays, [req.employeeId]: { ...empUsed, [req.typeId]: updatedRec } };
         setUsedDays(updatedUsed);
         localStorage.setItem(`permissions_used_${companyId}`, JSON.stringify(updatedUsed));
       }
@@ -274,26 +305,28 @@ export default function PermissionsPage() {
 
   const useManual = (empId: string, typeId: string, days: number) => {
     const empUsed = usedDays[empId] || {};
-    const currentUsed = empUsed[typeId] || 0;
+    const current = getUsage(usedDays, empId, typeId);
     const emp = employees.find(e => e.id === empId);
     if (!emp) return;
     const max = getMaxDays(emp, typeId);
-    const newUsed = Math.max(0, Math.min(max, currentUsed + days));
-    const updated = { ...usedDays, [empId]: { ...empUsed, [typeId]: newUsed } };
+    const newAnnual = Math.max(0, max === Infinity ? current.annual + days : Math.min(max, current.annual + days));
+    const newMonthly = Math.max(0, current.monthly + days);
+    const updatedRec: UsageRecord = { annual: newAnnual, monthly: newMonthly, month: getCurrentMonth(), year: getCurrentYear() };
+    const updated = { ...usedDays, [empId]: { ...empUsed, [typeId]: updatedRec } };
     setUsedDays(updated);
     localStorage.setItem(`permissions_used_${companyId}`, JSON.stringify(updated));
   };
 
   const openAddType = () => {
     setEditingType(null);
-    setTypeForm({ label: '', icon: 'Star', colorValue: 'blue', annualDays: 5, description: '' });
+    setTypeForm({ label: '', icon: 'Star', colorValue: 'blue', annualDays: 5, hasLimit: true, description: '' });
     setIsAdding(true);
     setShowTypesModal(true);
   };
 
   const openEditType = (pt: PermissionTypeDef) => {
     setEditingType(pt);
-    setTypeForm({ label: pt.label, icon: pt.icon, colorValue: pt.colorValue, annualDays: pt.annualDays, description: pt.description });
+    setTypeForm({ label: pt.label, icon: pt.icon, colorValue: pt.colorValue, annualDays: pt.annualDays, hasLimit: pt.hasLimit, description: pt.description });
     setIsAdding(false);
     setShowTypesModal(true);
   };
@@ -301,7 +334,7 @@ export default function PermissionsPage() {
   const saveType = () => {
     if (!typeForm.label.trim()) return;
     if (editingType) {
-      const updated = permTypes.map(t => t.id === editingType.id ? { ...t, label: typeForm.label, icon: typeForm.icon, colorValue: typeForm.colorValue, annualDays: typeForm.annualDays, description: typeForm.description } : t);
+      const updated = permTypes.map(t => t.id === editingType.id ? { ...t, label: typeForm.label, icon: typeForm.icon, colorValue: typeForm.colorValue, annualDays: typeForm.annualDays, hasLimit: typeForm.hasLimit, description: typeForm.description } : t);
       saveTypes(updated);
     } else {
       const newType: PermissionTypeDef = {
@@ -310,6 +343,7 @@ export default function PermissionsPage() {
         icon: typeForm.icon,
         colorValue: typeForm.colorValue,
         annualDays: typeForm.annualDays,
+        hasLimit: typeForm.hasLimit,
         description: typeForm.description,
       };
       saveTypes([...permTypes, newType]);
@@ -334,7 +368,6 @@ export default function PermissionsPage() {
   const activeEmployees = employees.filter(e => e.status === 'active' || e.status === 'suspended');
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const processedRequests = requests.filter(r => r.status !== 'pending');
-
   const typesToShow = filterType === 'all' ? permTypes : permTypes.filter(t => t.id === filterType);
 
   const reqDays = calcDaysBetween(reqForm.startDate, reqForm.endDate);
@@ -344,6 +377,8 @@ export default function PermissionsPage() {
     try { return new Date(iso).toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }); }
     catch { return iso; }
   };
+
+  const MONTH_NAMES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -369,17 +404,19 @@ export default function PermissionsPage() {
         {permTypes.map((pt) => {
           const Icon = ICON_MAP[pt.icon] || Star;
           const colors = getColorClasses(pt.colorValue);
-          const totalUsed = activeEmployees.reduce((sum, e) => sum + getUsedDays(e.id, pt.id), 0);
-          const totalAvail = activeEmployees.reduce((sum, e) => sum + getAvailableDays(e, pt.id), 0);
+          const totalUsedAnnual = activeEmployees.reduce((sum, e) => sum + getUsageForEmp(e.id, pt.id).annual, 0);
+          const totalUsedMonthly = activeEmployees.reduce((sum, e) => sum + getUsageForEmp(e.id, pt.id).monthly, 0);
           return (
             <Card key={pt.id} className={`cursor-pointer hover:shadow-md transition-shadow ${filterType === pt.id ? 'ring-2 ring-blue-500' : ''}`}
               onClick={() => setFilterType(filterType === pt.id ? 'all' : pt.id)}>
               <CardContent className="pt-4 pb-3">
                 <div className="text-center">
                   <Icon className={`h-6 w-6 ${colors.text} mx-auto mb-1`} />
-                  <div className="text-lg font-bold">{totalAvail}</div>
+                  <div className="text-lg font-bold">{totalUsedAnnual}</div>
                   <div className="text-xs text-gray-500">{pt.label}</div>
-                  <div className="text-xs text-gray-400 mt-1">Usados: {totalUsed}</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    <BarChart3 className="h-3 w-3 inline" /> {MONTH_NAMES[getCurrentMonth() - 1]}: {totalUsedMonthly}
+                  </div>
                 </div>
               </CardContent>
             </Card>
@@ -426,24 +463,23 @@ export default function PermissionsPage() {
                 <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
                 <span className="ml-3 text-gray-500">Cargando empleados...</span>
               </div>
-            ) : employees.length === 0 ? (
+            ) : activeEmployees.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No hay empleados registrados</p>
+                <p>No hay empleados activos o suspendidos</p>
               </div>
             ) : (
               <div className="space-y-6">
-                {employees.filter(e => e.status === 'active' || e.status === 'suspended').map((emp) => {
+                {activeEmployees.map((emp) => {
                   const years = getYearsOfService(emp.startDate);
-                  const isActive = emp.status === 'active';
                   return (
-                    <div key={emp.id} className={`p-4 border rounded-lg ${!isActive ? 'bg-gray-50 opacity-60' : ''}`}>
+                    <div key={emp.id} className="p-4 border rounded-lg">
                       <div className="mb-3">
                         <div className="font-medium">{emp.firstName} {emp.lastName}</div>
                         <div className="text-sm text-gray-500">{emp.position} • {emp.department}</div>
                         <div className="text-xs text-gray-400">
                           Antigüedad: {years} año{years !== 1 ? 's' : ''} • Ingreso: {emp.startDate || 'N/A'}
-                          {!isActive && <span className="ml-2 text-orange-500 font-medium">({emp.status})</span>}
+                          {emp.status === 'suspended' && <span className="ml-2 text-orange-500 font-medium">(Suspendido)</span>}
                         </div>
                       </div>
                       <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
@@ -451,36 +487,61 @@ export default function PermissionsPage() {
                           const Icon = ICON_MAP[pt.icon] || Star;
                           const colors = getColorClasses(pt.colorValue);
                           const max = getMaxDays(emp, pt.id);
-                          const used = getUsedDays(emp.id, pt.id);
-                          const available = max - used;
-                          const percentage = max > 0 ? (used / max) * 100 : 0;
+                          const usage = getUsageForEmp(emp.id, pt.id);
+                          const available = max === Infinity ? Infinity : max - usage.annual;
+                          const hasLimit = pt.hasLimit && max !== Infinity;
+                          const percentage = hasLimit && max > 0 ? (usage.annual / max) * 100 : 0;
+
                           return (
                             <div key={pt.id} className={`p-3 rounded-lg border ${colors.border} ${colors.bg}`}>
                               <div className="flex items-center gap-2 mb-2">
                                 <Icon className={`h-4 w-4 ${colors.text}`} />
                                 <span className={`text-sm font-medium ${colors.text}`}>{pt.label}</span>
                               </div>
-                              <div className="text-lg font-bold">{available} <span className="text-xs font-normal text-gray-500">/ {max} disp.</span></div>
-                              <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-                                <div className={`h-2 rounded-full ${percentage > 80 ? 'bg-red-500' : percentage > 50 ? 'bg-orange-500' : 'bg-blue-500'}`}
-                                  style={{ width: `${Math.min(100, percentage)}%` }} />
+
+                              {/* Annual */}
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-lg font-bold">{usage.annual}</span>
+                                {hasLimit ? (
+                                  <span className="text-xs text-gray-500">/ {max} anual</span>
+                                ) : (
+                                  <span className="text-xs text-gray-500">días anuales</span>
+                                )}
                               </div>
-                              <div className="flex justify-between mt-1 text-xs text-gray-500">
-                                <span>Usados: {used}</span>
-                                <span>{Math.round(percentage)}%</span>
+
+                              {/* Monthly */}
+                              <div className="flex items-center gap-1 mt-1">
+                                <TrendingUp className="h-3 w-3 text-gray-400" />
+                                <span className="text-xs text-gray-600">
+                                  {MONTH_NAMES[getCurrentMonth() - 1]}: <strong>{usage.monthly}</strong> días
+                                </span>
                               </div>
-                              {isActive && (
-                                <div className="flex gap-1 mt-2">
-                                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
-                                    onClick={() => useManual(emp.id, pt.id, -1)} disabled={used <= 0}>
-                                    <Minus className="h-3 w-3" />
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
-                                    onClick={() => useManual(emp.id, pt.id, 1)} disabled={available <= 0}>
-                                    <Plus className="h-3 w-3" />
-                                  </Button>
-                                </div>
+
+                              {/* Progress bar (only if has limit) */}
+                              {hasLimit && (
+                                <>
+                                  <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                                    <div className={`h-2 rounded-full ${percentage > 80 ? 'bg-red-500' : percentage > 50 ? 'bg-orange-500' : 'bg-blue-500'}`}
+                                      style={{ width: `${Math.min(100, percentage)}%` }} />
+                                  </div>
+                                  <div className="flex justify-between mt-1 text-xs text-gray-500">
+                                    <span>{Math.round(percentage)}% usado</span>
+                                    <span>Disp: {available}</span>
+                                  </div>
+                                </>
                               )}
+
+                              {/* +/- buttons */}
+                              <div className="flex gap-1 mt-2">
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                                  onClick={() => useManual(emp.id, pt.id, -1)} disabled={usage.annual <= 0 && usage.monthly <= 0}>
+                                  <Minus className="h-3 w-3" />
+                                </Button>
+                                <Button size="sm" variant="outline" className="h-6 px-2 text-xs"
+                                  onClick={() => useManual(emp.id, pt.id, 1)} disabled={hasLimit && available <= 0}>
+                                  <Plus className="h-3 w-3" />
+                                </Button>
+                              </div>
                             </div>
                           );
                         })}
@@ -638,17 +699,27 @@ export default function PermissionsPage() {
                   <select value={reqForm.typeId} onChange={(e) => setReqForm({ ...reqForm, typeId: e.target.value })}
                     className="w-full border rounded px-3 py-2 mt-1 text-sm">
                     <option value="">-- Seleccionar tipo --</option>
-                    {permTypes.map(pt => (
-                      <option key={pt.id} value={pt.id}>{pt.label} — {getAvailableDays(selectedEmployee, pt.id)} días disponibles</option>
-                    ))}
+                    {permTypes.map(pt => {
+                      const avail = getAvailableDays(selectedEmployee, pt.id);
+                      return (
+                        <option key={pt.id} value={pt.id}>
+                          {pt.label} — {avail === Infinity ? 'Sin límite' : `${avail} días disponibles`}
+                        </option>
+                      );
+                    })}
                   </select>
                   {reqForm.typeId && <p className="text-xs text-gray-400 mt-1">{permTypes.find(t => t.id === reqForm.typeId)?.description}</p>}
                 </div>
                 {reqForm.typeId && (
                   <div className={`p-3 rounded-lg border ${getColorClasses(permTypes.find(t => t.id === reqForm.typeId)?.colorValue || 'blue').border} ${getColorClasses(permTypes.find(t => t.id === reqForm.typeId)?.colorValue || 'blue').bg}`}>
-                    <span className={`text-sm font-medium ${getColorClasses(permTypes.find(t => t.id === reqForm.typeId)?.colorValue || 'blue').text}`}>
-                      Disponibles: {reqEmpAvailable} días
-                    </span>
+                    <div className="flex items-center justify-between">
+                      <span className={`text-sm font-medium ${getColorClasses(permTypes.find(t => t.id === reqForm.typeId)?.colorValue || 'blue').text}`}>
+                        Disponibles: {reqEmpAvailable === Infinity ? 'Sin límite' : `${reqEmpAvailable} días`}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Usados este mes: {getUsageForEmp(selectedEmployee.id, reqForm.typeId).monthly}
+                      </span>
+                    </div>
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">
@@ -664,9 +735,11 @@ export default function PermissionsPage() {
                   </div>
                 </div>
                 {reqDays > 0 && (
-                  <div className={`p-3 rounded-lg text-sm ${reqDays > reqEmpAvailable ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
+                  <div className={`p-3 rounded-lg text-sm ${reqEmpAvailable !== Infinity && reqDays > reqEmpAvailable ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-blue-50 text-blue-700 border border-blue-200'}`}>
                     <span className="font-medium">{reqDays} día{reqDays !== 1 ? 's' : ''}</span> solicitado{reqDays !== 1 ? 's' : ''}
-                    {reqDays > reqEmpAvailable && <span className="block mt-1 text-red-600 font-medium">Excede los {reqEmpAvailable} días disponibles</span>}
+                    {reqEmpAvailable !== Infinity && reqDays > reqEmpAvailable && (
+                      <span className="block mt-1 text-red-600 font-medium">Excede los {reqEmpAvailable} días disponibles</span>
+                    )}
                   </div>
                 )}
                 <div>
@@ -681,7 +754,7 @@ export default function PermissionsPage() {
               <Button variant="outline" onClick={() => { setShowRequestModal(false); setSelectedEmployee(null); }}>Cancelar</Button>
               {selectedEmployee && (
                 <Button className="bg-blue-600 hover:bg-blue-700 text-white"
-                  disabled={!reqForm.typeId || !reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || reqDays > reqEmpAvailable}
+                  disabled={!reqForm.typeId || !reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || (reqEmpAvailable !== Infinity && reqDays > reqEmpAvailable)}
                   onClick={handleSubmitRequest}>
                   <Send className="h-4 w-4 mr-1" />Enviar Solicitud
                 </Button>
@@ -719,7 +792,9 @@ export default function PermissionsPage() {
                             <Icon className={`h-5 w-5 ${colors.text}`} />
                             <div>
                               <div className={`font-medium ${colors.text}`}>{pt.label}</div>
-                              <div className="text-xs text-gray-500">{pt.annualDays === 0 ? 'Según ley' : `${pt.annualDays} días/año`} • {pt.description}</div>
+                              <div className="text-xs text-gray-500">
+                                {pt.hasLimit ? (pt.annualDays === 0 ? 'Según ley' : `${pt.annualDays} días/año`) : 'Sin límite'} • {pt.description}
+                              </div>
                             </div>
                           </div>
                           <div className="flex gap-1">
@@ -744,26 +819,40 @@ export default function PermissionsPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Días anuales</label>
-                      <input type="number" value={typeForm.annualDays} min={0}
-                        onChange={(e) => setTypeForm({ ...typeForm, annualDays: parseInt(e.target.value) || 0 })}
-                        className="w-full border rounded px-3 py-2 mt-1 text-sm" />
-                      <p className="text-xs text-gray-400 mt-1">0 = calculado por ley (solo vacaciones)</p>
+                      <label className="text-sm font-medium text-gray-700">Tiene límite anual</label>
+                      <div className="flex items-center gap-3 mt-2">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox" checked={typeForm.hasLimit}
+                            onChange={(e) => setTypeForm({ ...typeForm, hasLimit: e.target.checked })}
+                            className="rounded border-gray-300" />
+                          <span className="text-sm">Sí tiene límite</span>
+                        </label>
+                      </div>
                     </div>
                     <div>
-                      <label className="text-sm font-medium text-gray-700">Ícono</label>
-                      <div className="flex flex-wrap gap-2 mt-2">
-                        {ICON_OPTIONS.map(iconName => {
-                          const Ic = ICON_MAP[iconName];
-                          return (
-                            <button key={iconName}
-                              className={`p-2 rounded border ${typeForm.icon === iconName ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
-                              onClick={() => setTypeForm({ ...typeForm, icon: iconName })}>
-                              <Ic className="h-4 w-4" />
-                            </button>
-                          );
-                        })}
-                      </div>
+                      <label className="text-sm font-medium text-gray-700">Días anuales</label>
+                      <input type="number" value={typeForm.annualDays} min={0}
+                        disabled={!typeForm.hasLimit}
+                        onChange={(e) => setTypeForm({ ...typeForm, annualDays: parseInt(e.target.value) || 0 })}
+                        className="w-full border rounded px-3 py-2 mt-1 text-sm disabled:opacity-50 disabled:bg-gray-100" />
+                      <p className="text-xs text-gray-400 mt-1">
+                        {typeForm.hasLimit ? '0 = calculado por ley (vacaciones)' : 'Sin límite — solo conteo anual y mensual'}
+                      </p>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-700">Ícono</label>
+                    <div className="flex flex-wrap gap-2 mt-2">
+                      {ICON_OPTIONS.map(iconName => {
+                        const Ic = ICON_MAP[iconName];
+                        return (
+                          <button key={iconName}
+                            className={`p-2 rounded border ${typeForm.icon === iconName ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'}`}
+                            onClick={() => setTypeForm({ ...typeForm, icon: iconName })}>
+                            <Ic className="h-4 w-4" />
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                   <div>
