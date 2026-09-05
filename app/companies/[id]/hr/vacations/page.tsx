@@ -327,7 +327,7 @@ export default function PermissionsPage() {
     if (filterType === typeId) setFilterType('all');
   };
 
-  const activeEmployees = employees.filter(e => e.status === 'active');
+  const activeEmployees = employees.filter(e => e.status === 'active' || e.status === 'suspended');
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const processedRequests = requests.filter(r => r.status !== 'pending');
 
@@ -346,7 +346,7 @@ export default function PermissionsPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Permisos y Ausencias</h1>
-          <p className="text-gray-500">{activeEmployees.length} empleados activos • {pendingRequests.length} solicitudes pendientes</p>
+          <p className="text-gray-500">{activeEmployees.length} empleados (activos y suspendidos) • {pendingRequests.length} solicitudes pendientes</p>
         </div>
         <div className="flex gap-2">
           <Button variant="outline" onClick={openAddType}>
@@ -429,7 +429,7 @@ export default function PermissionsPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                {employees.map((emp) => {
+                {employees.filter(e => e.status === 'active' || e.status === 'suspended').map((emp) => {
                   const years = getYearsOfService(emp.startDate);
                   const isActive = emp.status === 'active';
                   return (
