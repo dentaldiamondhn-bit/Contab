@@ -635,21 +635,72 @@ export default function EmployeesPage() {
     loadData();
   }, [companyId]);
 
-  const loadData = () => {
-    const empKey = `employees_${companyId}`;
+  const loadData = async () => {
     const deptKey = `departments_${companyId}`;
     const posKey = `positions_${companyId}`;
-    const savedEmp = localStorage.getItem(empKey);
     const savedDept = localStorage.getItem(deptKey);
     const savedPos = localStorage.getItem(posKey);
-    if (savedEmp) setEmployees(JSON.parse(savedEmp));
     if (savedDept) setDepartments(JSON.parse(savedDept));
     if (savedPos) setPositions(JSON.parse(savedPos));
+
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees`);
+      if (res.ok) {
+        const data = await res.json();
+        setEmployees(data);
+      }
+    } catch (error) {
+      console.error('Error loading employees:', error);
+    }
   };
 
-  const saveEmployees = (data: Employee[]) => {
-    localStorage.setItem(`employees_${companyId}`, JSON.stringify(data));
+  const saveEmployees = async (data: Employee[]) => {
     setEmployees(data);
+  };
+
+  const saveEmployeeToAPI = async (emp: Employee) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emp)
+      });
+      if (res.ok) {
+        await loadData();
+        showUploadMessage('Empleado guardado correctamente');
+      }
+    } catch (error) {
+      console.error('Error saving employee:', error);
+    }
+  };
+
+  const updateEmployeeToAPI = async (emp: Employee) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emp)
+      });
+      if (res.ok) {
+        await loadData();
+        showUploadMessage('Empleado actualizado correctamente');
+      }
+    } catch (error) {
+      console.error('Error updating employee:', error);
+    }
+  };
+
+  const deleteEmployeeFromAPI = async (employeeId: string) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees?employeeId=${employeeId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        await loadData();
+      }
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+    }
   };
 
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -710,7 +761,7 @@ export default function EmployeesPage() {
     return `${prefix}-${number}`;
   };
 
-  const addEmployee = () => {
+  const addEmployee = async () => {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
       employeeId: generateEmployeeId(),
@@ -719,28 +770,30 @@ export default function EmployeesPage() {
       status: 'active',
       usedVacationDays: 0
     };
-    saveEmployees([...employees, emp]);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [] });
+    await saveEmployeeToAPI(emp);
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
     setShowAddEmployee(false);
   };
 
-  const removeEmployee = (id: string) => {
+  const removeEmployee = async (id: string) => {
     if (confirm('¿Eliminar este empleado?')) {
-      saveEmployees(employees.filter(e => e.id !== id));
+      await deleteEmployeeFromAPI(id);
     }
   };
 
-  const updateEmployee = () => {
+  const updateEmployee = async () => {
     if (!editingEmployee) return;
-    saveEmployees(employees.map(e => e.id === editingEmployee.id ? editingEmployee : e));
+    await updateEmployeeToAPI(editingEmployee);
     setSelectedEmployee(editingEmployee);
     setEditingEmployee(null);
   };
 
-  const toggleEmployeeStatus = (id: string) => {
-    saveEmployees(employees.map(e => 
-      e.id === id ? { ...e, status: e.status === 'active' ? 'inactive' : 'active' } : e
-    ));
+  const toggleEmployeeStatus = async (id: string) => {
+    const emp = employees.find(e => e.id === id);
+    if (emp) {
+      const updatedEmp = { ...emp, status: emp.status === 'active' ? 'inactive' : 'active' };
+      await updateEmployeeToAPI(updatedEmp);
+    }
   };
 
   const formatCurrency = (amount: number) => {
