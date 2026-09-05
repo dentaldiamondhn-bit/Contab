@@ -122,7 +122,7 @@ interface Position {
   maxSalary: number;
 }
 
-function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void }) {
+function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void }) {
   const [activeTab, setActiveTab] = useState('personal');
   const tabs = [
     { id: 'personal', label: 'Personal' },
@@ -1888,7 +1888,7 @@ export default function EmployeesPage() {
             </div>
 
             {/* Tabs */}
-            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} />
+            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} />
           </div>
         </div>
         );
