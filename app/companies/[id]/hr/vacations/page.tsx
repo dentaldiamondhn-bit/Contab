@@ -22,7 +22,19 @@ import {
   Settings,
   Pencil,
   Save,
-  X
+  X,
+  Plane,
+  Heart,
+  Stethoscope,
+  BriefcaseBusiness,
+  Ban,
+  Star,
+  Zap,
+  Gift,
+  Home,
+  BookOpen,
+  Shield,
+  Coffee
 } from 'lucide-react';
 
 type IconName = 'Plane' | 'Heart' | 'Stethoscope' | 'BriefcaseBusiness' | 'Ban' | 'Star' | 'Zap' | 'Gift' | 'Home' | 'BookOpen' | 'Shield' | 'Coffee';
