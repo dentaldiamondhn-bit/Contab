@@ -18,8 +18,7 @@ import {
   Filter,
   X,
   Save,
-  Plus,
-  Badge
+  Plus
 } from 'lucide-react';
 
 interface Employee {
