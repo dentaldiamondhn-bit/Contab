@@ -40,6 +40,15 @@ interface Department {
   createdAt: string;
 }
 
+interface Position {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  minSalary: number;
+  maxSalary: number;
+}
+
 export default function HRDashboardPage() {
   const params = useParams();
   const router = useRouter();
@@ -47,14 +56,18 @@ export default function HRDashboardPage() {
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
     const empKey = `employees_${companyId}`;
     const deptKey = `departments_${companyId}`;
+    const posKey = `positions_${companyId}`;
     const savedEmp = localStorage.getItem(empKey);
     const savedDept = localStorage.getItem(deptKey);
+    const savedPos = localStorage.getItem(posKey);
     if (savedEmp) setEmployees(JSON.parse(savedEmp));
     if (savedDept) setDepartments(JSON.parse(savedDept));
+    if (savedPos) setPositions(JSON.parse(savedPos));
   }, [companyId]);
 
   const activeEmployees = employees.filter(e => e.status === 'active');
@@ -103,6 +116,15 @@ export default function HRDashboardPage() {
       bgColor: 'bg-indigo-50',
       count: `${departments.length} departamentos`,
       path: '/hr/departments'
+    },
+    {
+      title: 'Puestos',
+      description: 'Crear y gestionar puestos por departamento',
+      icon: Briefcase,
+      color: 'text-teal-600',
+      bgColor: 'bg-teal-50',
+      count: `${positions.length} puestos`,
+      path: '/hr/positions'
     },
     {
       title: 'Asistencia',

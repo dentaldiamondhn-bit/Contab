@@ -38,6 +38,15 @@ interface Department {
   manager: string;
 }
 
+interface Position {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  minSalary: number;
+  maxSalary: number;
+}
+
 export default function EmployeesPage() {
   const params = useParams();
   const router = useRouter();
@@ -45,6 +54,7 @@ export default function EmployeesPage() {
   
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showUpload, setShowUpload] = useState(false);
@@ -67,10 +77,13 @@ export default function EmployeesPage() {
   const loadData = () => {
     const empKey = `employees_${companyId}`;
     const deptKey = `departments_${companyId}`;
+    const posKey = `positions_${companyId}`;
     const savedEmp = localStorage.getItem(empKey);
     const savedDept = localStorage.getItem(deptKey);
+    const savedPos = localStorage.getItem(posKey);
     if (savedEmp) setEmployees(JSON.parse(savedEmp));
     if (savedDept) setDepartments(JSON.parse(savedDept));
+    if (savedPos) setPositions(JSON.parse(savedPos));
   };
 
   const saveEmployees = (data: Employee[]) => {
@@ -337,12 +350,21 @@ export default function EmployeesPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Cargo *</label>
-                <input
-                  type="text"
+                <select
                   value={newEmployee.position}
                   onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
-                />
+                >
+                  <option value="">Seleccionar puesto...</option>
+                  {positions
+                    .filter(p => !newEmployee.department || p.department === newEmployee.department)
+                    .map((pos) => (
+                      <option key={pos.id} value={pos.name}>{pos.name}</option>
+                    ))}
+                </select>
+                {newEmployee.department && positions.filter(p => p.department === newEmployee.department).length === 0 && (
+                  <p className="text-xs text-orange-500 mt-1">No hay puestos para este departamento</p>
+                )}
               </div>
               <div>
                 <label className="text-sm font-medium">Departamento</label>
