@@ -6,9 +6,9 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantId = params.id;
+    const { id: tenantId } = await params;
     
     const { data, error } = await supabase
       .from('employees')
@@ -18,7 +18,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (error) throw error;
 
-    // Load positions to resolve names
     const { data: positions } = await supabase
       .from('positions')
       .select('*')
@@ -29,7 +28,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       positions.forEach((p: any) => { posMap[p.id] = p.name; });
     }
 
-    // Calculate vacation days from hire date
     const calcVacationDays = (hireDate: string) => {
       if (!hireDate) return 0;
       const totalYears = Math.floor((new Date().getTime() - new Date(hireDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
@@ -40,7 +38,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return Math.min(20, 14 + (totalYears - 3));
     };
 
-    // Map database fields to frontend format
     const employees = data.map((emp: any) => ({
       id: emp.id,
       employeeId: emp.employee_code || emp.employee_id || '',
@@ -89,7 +86,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       hrDocuments: []
     }));
 
-    // Load HR documents for each employee
     for (let emp of employees) {
       const { data: hrDocs } = await supabase
         .from('employee_hr_documents')
@@ -118,9 +114,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantId = params.id;
+    const { id: tenantId } = await params;
     const body = await request.json();
 
     let positionId = null;
@@ -213,9 +209,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 }
 
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantId = params.id;
+    const { id: tenantId } = await params;
     const body = await request.json();
 
     let positionId = null;
@@ -281,7 +277,6 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     if (error) throw error;
 
-    // Update HR documents
     await supabase
       .from('employee_hr_documents')
       .delete()
@@ -312,9 +307,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   }
 }
 
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const tenantId = params.id;
+    const { id: tenantId } = await params;
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
 
@@ -322,14 +317,12 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: 'Employee ID required' }, { status: 400 });
     }
 
-    // Delete HR documents first
     await supabase
       .from('employee_hr_documents')
       .delete()
       .eq('employee_id', employeeId)
       .eq('tenant_id', tenantId);
 
-    // Delete employee
     const { error } = await supabase
       .from('employees')
       .delete()
