@@ -352,14 +352,24 @@ export default function EmployeesPage() {
                 <label className="text-sm font-medium">Cargo *</label>
                 <select
                   value={newEmployee.position}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, position: e.target.value })}
+                  onChange={(e) => {
+                    const posName = e.target.value;
+                    const pos = positions.find(p => p.name === posName && p.department === newEmployee.department);
+                    setNewEmployee({ 
+                      ...newEmployee, 
+                      position: posName,
+                      salary: pos ? pos.minSalary || pos.maxSalary || 0 : newEmployee.salary
+                    });
+                  }}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
                 >
                   <option value="">Seleccionar puesto...</option>
                   {positions
                     .filter(p => !newEmployee.department || p.department === newEmployee.department)
                     .map((pos) => (
-                      <option key={pos.id} value={pos.name}>{pos.name}</option>
+                      <option key={pos.id} value={pos.name}>
+                        {pos.name} {pos.minSalary > 0 || pos.maxSalary > 0 ? `(${pos.minSalary > 0 ? formatCurrency(pos.minSalary) : '?'} - ${pos.maxSalary > 0 ? formatCurrency(pos.maxSalary) : '?'})` : ''}
+                      </option>
                     ))}
                 </select>
                 {newEmployee.department && positions.filter(p => p.department === newEmployee.department).length === 0 && (
@@ -370,7 +380,7 @@ export default function EmployeesPage() {
                 <label className="text-sm font-medium">Departamento</label>
                 <select
                   value={newEmployee.department}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value, position: '' })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
                 >
                   <option value="">Seleccionar departamento...</option>
