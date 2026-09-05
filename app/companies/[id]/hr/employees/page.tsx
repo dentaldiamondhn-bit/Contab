@@ -512,7 +512,10 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                                   const fileName = file.name.replace(/\.[^/.]+$/, '');
                                   updateHRDoc(index, 'name', fileName);
                                   const reader = new FileReader();
-                                  reader.onloadend = () => updateHRDoc(index, 'file', reader.result as string);
+                                  reader.onloadend = () => {
+                                    updateHRDoc(index, 'file', reader.result as string);
+                                    showUploadMessage(`"${file.name}" subido correctamente`);
+                                  };
                                   reader.readAsDataURL(file);
                                 }
                               }}
@@ -568,6 +571,7 @@ export default function EmployeesPage() {
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showUpload, setShowUpload] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
@@ -678,6 +682,11 @@ export default function EmployeesPage() {
     }
   };
 
+  const showUploadMessage = (message: string) => {
+    setUploadMessage(message);
+    setTimeout(() => setUploadMessage(''), 3000);
+  };
+
   const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -688,6 +697,7 @@ export default function EmployeesPage() {
       const reader = new FileReader();
       reader.onloadend = () => {
         setNewEmployee({ ...newEmployee, [field]: reader.result as string });
+        showUploadMessage(`"${file.name}" subido correctamente`);
       };
       reader.readAsDataURL(file);
     }
@@ -838,6 +848,16 @@ export default function EmployeesPage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {/* Upload Notification */}
+      {uploadMessage && (
+        <div className="fixed top-4 right-4 z-50 animate-in slide-in-from-right">
+          <div className="bg-green-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2">
+            <CheckCircle className="h-5 w-5" />
+            <span>{uploadMessage}</span>
+          </div>
+        </div>
+      )}
+
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Gestión de Empleados</h1>
