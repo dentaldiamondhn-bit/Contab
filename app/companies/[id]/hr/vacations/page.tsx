@@ -7,7 +7,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   ArrowLeft,
   Calendar,
-  Plus,
   Minus,
   Loader2,
   User,
@@ -17,7 +16,8 @@ import {
   XCircle,
   Clock,
   Send,
-  Trash2
+  Trash2,
+  Inbox
 } from 'lucide-react';
 
 interface Employee {
@@ -49,6 +49,8 @@ interface UsedDays {
   [empId: string]: number;
 }
 
+type Tab = 'control' | 'solicitudes';
+
 export default function VacationsPage() {
   const params = useParams();
   const router = useRouter();
@@ -58,11 +60,11 @@ export default function VacationsPage() {
   const [loading, setLoading] = useState(true);
   const [usedDays, setUsedDays] = useState<UsedDays>({});
   const [requests, setRequests] = useState<VacationRequest[]>([]);
+  const [activeTab, setActiveTab] = useState<Tab>('control');
 
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [reqForm, setReqForm] = useState({ startDate: '', endDate: '', reason: '' });
-  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     fetchEmployees();
@@ -185,7 +187,17 @@ export default function VacationsPage() {
     localStorage.setItem(`vacation_requests_${companyId}`, JSON.stringify(updated));
   };
 
-  const allEmployees = employees;
+  const useVacation = (empId: string, days: number) => {
+    const currentUsed = usedDays[empId] || 0;
+    const emp = employees.find(e => e.id === empId);
+    if (!emp) return;
+    const totalDays = calculateVacationDays(emp.startDate);
+    const newUsed = Math.max(0, Math.min(totalDays, currentUsed + days));
+    const updated = { ...usedDays, [empId]: newUsed };
+    setUsedDays(updated);
+    localStorage.setItem(`vacation_used_${companyId}`, JSON.stringify(updated));
+  };
+
   const activeEmployees = employees.filter(e => e.status === 'active');
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const processedRequests = requests.filter(r => r.status !== 'pending');
@@ -206,6 +218,14 @@ export default function VacationsPage() {
   const reqDays = calcDaysBetween(reqForm.startDate, reqForm.endDate);
   const reqEmpAvailable = selectedEmployee ? getAvailableDays(selectedEmployee) : 0;
 
+  const formatDate = (iso: string) => {
+    try {
+      return new Date(iso).toLocaleDateString('es-HN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    } catch {
+      return iso;
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       <div className="flex justify-between items-center">
@@ -225,7 +245,7 @@ export default function VacationsPage() {
           <CardContent className="pt-6">
             <div className="text-center">
               <User className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-blue-600">{allEmployees.length}</div>
+              <div className="text-2xl font-bold text-blue-600">{employees.length}</div>
               <div className="text-sm text-gray-500">Total Empleados</div>
             </div>
           </CardContent>
@@ -259,179 +279,231 @@ export default function VacationsPage() {
         </Card>
       </div>
 
-      {/* Pending Requests */}
-      {pendingRequests.length > 0 && (
+      {/* Tabs */}
+      <div className="border-b">
+        <div className="flex gap-0">
+          <button
+            onClick={() => setActiveTab('control')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'control'
+                ? 'border-blue-600 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Calendar className="h-4 w-4 inline mr-2" />
+            Control de Vacaciones
+          </button>
+          <button
+            onClick={() => setActiveTab('solicitudes')}
+            className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === 'solicitudes'
+                ? 'border-blue-600 text-blue-600 bg-blue-50'
+                : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
+            }`}
+          >
+            <Inbox className="h-4 w-4 inline mr-2" />
+            Solicitudes
+            {pendingRequests.length > 0 && (
+              <span className="ml-2 bg-yellow-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
+                {pendingRequests.length}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Tab: Control de Vacaciones */}
+      {activeTab === 'control' && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Clock className="h-5 w-5 text-yellow-600" />
-              Solicitudes Pendientes ({pendingRequests.length})
-            </CardTitle>
+            <CardTitle>Vacaciones por Empleado</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {pendingRequests.map((req) => (
-                <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
-                  <div className="flex-1">
-                    <div className="font-medium">{req.employeeName}</div>
-                    <div className="text-sm text-gray-600">
-                      {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''}
+            {loading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
+                <span className="ml-3 text-gray-500">Cargando empleados...</span>
+              </div>
+            ) : employees.length === 0 ? (
+              <div className="text-center py-12 text-gray-500">
+                <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay empleados registrados</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {employees.map((emp) => {
+                  const totalDays = calculateVacationDays(emp.startDate);
+                  const used = usedDays[emp.id] || 0;
+                  const available = totalDays - used;
+                  const percentage = totalDays > 0 ? (used / totalDays) * 100 : 0;
+                  const years = getYearsOfService(emp.startDate);
+                  const isActive = emp.status === 'active';
+
+                  return (
+                    <div key={emp.id} className={`p-4 border rounded-lg ${!isActive ? 'bg-gray-50 opacity-60' : ''}`}>
+                      <div className="flex justify-between items-center mb-3">
+                        <div>
+                          <div className="font-medium">
+                            {emp.firstName} {emp.lastName}
+                          </div>
+                          <div className="text-sm text-gray-500">{emp.position} • {emp.department}</div>
+                          <div className="text-xs text-gray-400">
+                            Antigüedad: {years} año{years !== 1 ? 's' : ''} • Ingreso: {emp.startDate || 'N/A'}
+                            {!isActive && <span className="ml-2 text-orange-500 font-medium">({emp.status})</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="text-right">
+                            <div className={`font-bold ${available > 0 ? 'text-blue-600' : 'text-red-600'}`}>
+                              {available} días disponibles
+                            </div>
+                            <div className="text-sm text-gray-500">de {totalDays} días totales</div>
+                          </div>
+                          {isActive && (
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => useVacation(emp.id, -1)}
+                                disabled={used <= 0}
+                              >
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                className="bg-blue-600 hover:bg-blue-700 text-white"
+                                onClick={() => openRequestModal(emp)}
+                                disabled={available <= 0}
+                              >
+                                <Send className="h-4 w-4 mr-1" />
+                                Solicitar
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3">
+                        <div
+                          className={`h-3 rounded-full ${percentage > 80 ? 'bg-red-500' : percentage > 50 ? 'bg-orange-500' : 'bg-blue-500'}`}
+                          style={{ width: `${Math.min(100, percentage)}%` }}
+                        />
+                      </div>
+                      <div className="flex justify-between mt-2 text-sm text-gray-500">
+                        <span>Usados: {used} días</span>
+                        <span>{Math.round(percentage)}% utilizado</span>
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500 mt-1">
-                      <FileText className="h-3 w-3 inline mr-1" />
-                      {req.reason}
-                    </div>
-                  </div>
-                  <div className="flex gap-2 ml-4">
-                    <Button
-                      size="sm"
-                      className="bg-green-600 hover:bg-green-700 text-white"
-                      onClick={() => resolveRequest(req.id, 'approved')}
-                    >
-                      <CheckCircle className="h-4 w-4 mr-1" />
-                      Aprobar
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => resolveRequest(req.id, 'rejected')}
-                    >
-                      <XCircle className="h-4 w-4 mr-1" />
-                      Rechazar
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}
 
-      {/* Processed Requests History */}
-      {processedRequests.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CheckCircle className="h-5 w-5 text-gray-500" />
-              Historial de Solicitudes ({processedRequests.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-2">
-              {processedRequests.map((req) => (
-                <div key={req.id} className={`flex items-center justify-between p-3 border rounded-lg ${req.status === 'approved' ? 'bg-green-50' : 'bg-red-50'}`}>
-                  <div className="flex-1">
-                    <div className="font-medium text-sm">{req.employeeName}</div>
-                    <div className="text-xs text-gray-500">
-                      {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''} • {req.reason}
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {req.resolvedBy && <span>{req.status === 'approved' ? 'Aprobado' : 'Rechazado'} por: {req.resolvedBy}</span>}
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className={`text-xs font-medium px-2 py-1 rounded ${req.status === 'approved' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
-                      {req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
-                    </span>
-                    <Button size="sm" variant="ghost" onClick={() => deleteRequest(req.id)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
-                  </div>
+      {/* Tab: Solicitudes */}
+      {activeTab === 'solicitudes' && (
+        <div className="space-y-6">
+          {/* Pending */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Clock className="h-5 w-5 text-yellow-600" />
+                Solicitudes Pendientes ({pendingRequests.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {pendingRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Inbox className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                  <p>No hay solicitudes pendientes</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+              ) : (
+                <div className="space-y-3">
+                  {pendingRequests.map((req) => (
+                    <div key={req.id} className="flex items-center justify-between p-4 border rounded-lg bg-yellow-50">
+                      <div className="flex-1">
+                        <div className="font-medium">{req.employeeName}</div>
+                        <div className="text-sm text-gray-600">
+                          {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          <FileText className="h-3 w-3 inline mr-1" />
+                          {req.reason}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          Creada: {formatDate(req.createdAt)}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 ml-4">
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700 text-white"
+                          onClick={() => resolveRequest(req.id, 'approved')}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" />
+                          Aprobar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          onClick={() => resolveRequest(req.id, 'rejected')}
+                        >
+                          <XCircle className="h-4 w-4 mr-1" />
+                          Rechazar
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* History */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <CheckCircle className="h-5 w-5 text-gray-500" />
+                Historial de Solicitudes ({processedRequests.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {processedRequests.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Inbox className="h-10 w-10 mx-auto mb-2 text-gray-300" />
+                  <p>No hay solicitudes procesadas</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {processedRequests.map((req) => (
+                    <div key={req.id} className={`flex items-center justify-between p-3 border rounded-lg ${req.status === 'approved' ? 'bg-green-50' : 'bg-red-50'}`}>
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{req.employeeName}</div>
+                        <div className="text-xs text-gray-500">
+                          {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''} • {req.reason}
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          {req.resolvedBy && <span>{req.status === 'approved' ? 'Aprobado' : 'Rechazado'} por: {req.resolvedBy}</span>}
+                          {req.resolvedAt && <span> • {formatDate(req.resolvedAt)}</span>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-medium px-2 py-1 rounded ${req.status === 'approved' ? 'bg-green-200 text-green-800' : 'bg-red-200 text-red-800'}`}>
+                          {req.status === 'approved' ? 'Aprobado' : 'Rechazado'}
+                        </span>
+                        <Button size="sm" variant="ghost" onClick={() => deleteRequest(req.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       )}
-
-      {/* Employee Vacations */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vacaciones por Empleado</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-              <span className="ml-3 text-gray-500">Cargando empleados...</span>
-            </div>
-          ) : allEmployees.length === 0 ? (
-            <div className="text-center py-12 text-gray-500">
-              <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-              <p>No hay empleados registrados</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {allEmployees.map((emp) => {
-                const totalDays = calculateVacationDays(emp.startDate);
-                const used = usedDays[emp.id] || 0;
-                const available = totalDays - used;
-                const percentage = totalDays > 0 ? (used / totalDays) * 100 : 0;
-                const years = getYearsOfService(emp.startDate);
-                const isActive = emp.status === 'active';
-                const empPending = requests.filter(r => r.employeeId === emp.id && r.status === 'pending').length;
-
-                return (
-                  <div key={emp.id} className={`p-4 border rounded-lg ${!isActive ? 'bg-gray-50 opacity-60' : ''}`}>
-                    <div className="flex justify-between items-center mb-3">
-                      <div>
-                        <div className="font-medium">
-                          {emp.firstName} {emp.lastName}
-                        </div>
-                        <div className="text-sm text-gray-500">{emp.position} • {emp.department}</div>
-                        <div className="text-xs text-gray-400">
-                          Antigüedad: {years} año{years !== 1 ? 's' : ''} • Ingreso: {emp.startDate || 'N/A'}
-                          {!isActive && <span className="ml-2 text-orange-500 font-medium">({emp.status})</span>}
-                          {empPending > 0 && <span className="ml-2 text-yellow-600 font-medium">• {empPending} solicitud{empPending !== 1 ? 'es' : ''} pendiente{empPending !== 1 ? 's' : ''}</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4">
-                        <div className="text-right">
-                          <div className={`font-bold ${available > 0 ? 'text-blue-600' : 'text-red-600'}`}>
-                            {available} días disponibles
-                          </div>
-                          <div className="text-sm text-gray-500">de {totalDays} días totales</div>
-                        </div>
-                        {isActive && (
-                          <div className="flex gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => useVacation(emp.id, -1)}
-                              disabled={used <= 0}
-                            >
-                              <Minus className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="bg-blue-600 hover:bg-blue-700 text-white"
-                              onClick={() => openRequestModal(emp)}
-                              disabled={available <= 0}
-                            >
-                              <Send className="h-4 w-4 mr-1" />
-                              Solicitar
-                            </Button>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="w-full bg-gray-200 rounded-full h-3">
-                      <div
-                        className={`h-3 rounded-full ${percentage > 80 ? 'bg-red-500' : percentage > 50 ? 'bg-orange-500' : 'bg-blue-500'}`}
-                        style={{ width: `${Math.min(100, percentage)}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between mt-2 text-sm text-gray-500">
-                      <span>Usados: {used} días</span>
-                      <span>{Math.round(percentage)}% utilizado</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Request Modal */}
       {showRequestModal && selectedEmployee && (
@@ -505,7 +577,7 @@ export default function VacationsPage() {
               </Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || reqDays > reqEmpAvailable || submitting}
+                disabled={!reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || reqDays > reqEmpAvailable}
                 onClick={handleSubmitRequest}
               >
                 <Send className="h-4 w-4 mr-1" />
