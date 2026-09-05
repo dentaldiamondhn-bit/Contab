@@ -130,9 +130,6 @@ function emptyUsage(): UsageRecord {
 function getUsage(usedDays: UsedDays, empId: string, typeId: string): UsageRecord {
   const rec = usedDays[empId]?.[typeId];
   if (!rec) return emptyUsage();
-  const now = new Date();
-  if (rec.year !== now.getFullYear()) return { annual: 0, monthly: 0, month: now.getMonth() + 1, year: now.getFullYear() };
-  if (rec.month !== now.getMonth() + 1) return { annual: rec.annual, monthly: 0, month: now.getMonth() + 1, year: now.getFullYear() };
   return rec;
 }
 
