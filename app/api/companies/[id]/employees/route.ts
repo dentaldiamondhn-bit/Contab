@@ -18,25 +18,47 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
     if (error) throw error;
 
+    // Load positions to resolve names
+    const { data: positions } = await supabase
+      .from('positions')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    const posMap: Record<string, string> = {};
+    if (positions) {
+      positions.forEach((p: any) => { posMap[p.id] = p.name; });
+    }
+
+    // Calculate vacation days from hire date
+    const calcVacationDays = (hireDate: string) => {
+      if (!hireDate) return 0;
+      const totalYears = Math.floor((new Date().getTime() - new Date(hireDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
+      if (totalYears < 1) return 0;
+      if (totalYears === 1) return 10;
+      if (totalYears === 2) return 12;
+      if (totalYears === 3) return 14;
+      return Math.min(20, 14 + (totalYears - 3));
+    };
+
     // Map database fields to frontend format
     const employees = data.map((emp: any) => ({
       id: emp.id,
-      employeeId: emp.employee_id || '',
+      employeeId: emp.employee_code || emp.employee_id || '',
       firstName: emp.first_name || '',
       lastName: emp.last_name || '',
-      identityNumber: emp.identity_number || '',
+      identityNumber: emp.identity_number || emp.id_number || '',
       photo: emp.photo || '',
       cv: emp.cv || '',
-      position: emp.position_id || '',
+      position: posMap[emp.position_id] || emp.position_id || '',
       department: emp.department || '',
-      salary: emp.base_salary || 0,
+      salary: parseFloat(emp.base_salary) || 0,
       startDate: emp.hire_date || '',
       status: emp.status || 'active',
       phone: emp.phone || '',
       email: emp.email || '',
       address: emp.address || '',
       civilStatus: emp.civil_status || '',
-      vacationDays: 0,
+      vacationDays: calcVacationDays(emp.hire_date),
       usedVacationDays: 0,
       contractType: emp.contract_type || 'indefinido',
       supervisor: emp.supervisor || '',
@@ -63,7 +85,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       docEducationCerts: emp.doc_education_certs || '',
       docPreviousJobs: emp.doc_previous_jobs || '',
       docMedicalCert: emp.doc_medical_cert || '',
-      medicalRecord: emp.medical_record || {},
+      medicalRecord: typeof emp.medical_record === 'string' ? JSON.parse(emp.medical_record || '{}') : (emp.medical_record || {}),
       hrDocuments: []
     }));
 
@@ -105,10 +127,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from('employees')
       .insert({
         tenant_id: tenantId,
-        employee_id: body.employeeId,
+        company_id: tenantId,
+        employee_code: body.employeeId,
         first_name: body.firstName,
         last_name: body.lastName,
-        identity_number: body.identityNumber,
+        id_number: body.identityNumber,
+        rtn: body.identityNumber,
         photo: body.photo,
         cv: body.cv,
         position_id: body.position,
@@ -185,10 +209,11 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const { error } = await supabase
       .from('employees')
       .update({
-        employee_id: body.employeeId,
+        employee_code: body.employeeId,
         first_name: body.firstName,
         last_name: body.lastName,
-        identity_number: body.identityNumber,
+        id_number: body.identityNumber,
+        rtn: body.identityNumber,
         photo: body.photo,
         cv: body.cv,
         position_id: body.position,
