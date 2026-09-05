@@ -39,6 +39,7 @@ interface VacationRequest {
   endDate: string;
   days: number;
   reason: string;
+  requestedBy: string;
   status: 'pending' | 'approved' | 'rejected';
   createdAt: string;
   resolvedAt?: string;
@@ -61,7 +62,7 @@ export default function VacationsPage() {
 
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [reqForm, setReqForm] = useState({ startDate: '', endDate: '', reason: '' });
+  const [reqForm, setReqForm] = useState({ startDate: '', endDate: '', reason: '', requestedBy: '' });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -122,12 +123,12 @@ export default function VacationsPage() {
 
   const openRequestModal = (emp: Employee) => {
     setSelectedEmployee(emp);
-    setReqForm({ startDate: '', endDate: '', reason: '' });
+    setReqForm({ startDate: '', endDate: '', reason: '', requestedBy: '' });
     setShowRequestModal(true);
   };
 
   const handleSubmitRequest = () => {
-    if (!selectedEmployee || !reqForm.startDate || !reqForm.endDate || !reqForm.reason) return;
+    if (!selectedEmployee || !reqForm.startDate || !reqForm.endDate || !reqForm.reason || !reqForm.requestedBy) return;
     const days = calcDaysBetween(reqForm.startDate, reqForm.endDate);
     if (days <= 0) return;
 
@@ -144,6 +145,7 @@ export default function VacationsPage() {
       endDate: reqForm.endDate,
       days,
       reason: reqForm.reason,
+      requestedBy: reqForm.requestedBy,
       status: 'pending',
       createdAt: new Date().toISOString()
     };
@@ -156,9 +158,12 @@ export default function VacationsPage() {
   };
 
   const resolveRequest = (reqId: string, status: 'approved' | 'rejected') => {
+    const approver = prompt(`Nombre de quien ${status === 'approved' ? 'aprueba' : 'rechaza'}:`);
+    if (!approver || !approver.trim()) return;
+
     const updated = requests.map(r => {
       if (r.id === reqId) {
-        return { ...r, status, resolvedAt: new Date().toISOString(), resolvedBy: 'Administrador' };
+        return { ...r, status, resolvedAt: new Date().toISOString(), resolvedBy: approver.trim() };
       }
       return r;
     });
@@ -278,6 +283,11 @@ export default function VacationsPage() {
                       <FileText className="h-3 w-3 inline mr-1" />
                       {req.reason}
                     </div>
+                    {req.requestedBy && (
+                      <div className="text-xs text-gray-400 mt-1">
+                        Solicitado por: <span className="font-medium text-gray-500">{req.requestedBy}</span>
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 ml-4">
                     <Button
@@ -321,6 +331,10 @@ export default function VacationsPage() {
                     <div className="font-medium text-sm">{req.employeeName}</div>
                     <div className="text-xs text-gray-500">
                       {req.startDate} al {req.endDate} • {req.days} día{req.days !== 1 ? 's' : ''} • {req.reason}
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {req.requestedBy && <span>Solicitado por: {req.requestedBy} • </span>}
+                      {req.resolvedBy && <span>{req.status === 'approved' ? 'Aprobado' : 'Rechazado'} por: {req.resolvedBy}</span>}
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
@@ -480,6 +494,17 @@ export default function VacationsPage() {
               )}
 
               <div>
+                <label className="text-sm font-medium text-gray-700">Solicitado por *</label>
+                <input
+                  type="text"
+                  value={reqForm.requestedBy}
+                  onChange={(e) => setReqForm({ ...reqForm, requestedBy: e.target.value })}
+                  placeholder="Nombre de quien solicita"
+                  className="w-full border rounded px-3 py-2 mt-1 text-sm"
+                />
+              </div>
+
+              <div>
                 <label className="text-sm font-medium text-gray-700">Motivo de la solicitud *</label>
                 <textarea
                   value={reqForm.reason}
@@ -499,7 +524,7 @@ export default function VacationsPage() {
               </Button>
               <Button
                 className="bg-blue-600 hover:bg-blue-700 text-white"
-                disabled={!reqForm.startDate || !reqForm.endDate || !reqForm.reason || reqDays <= 0 || reqDays > reqEmpAvailable || submitting}
+                disabled={!reqForm.startDate || !reqForm.endDate || !reqForm.reason || !reqForm.requestedBy || reqDays <= 0 || reqDays > reqEmpAvailable || submitting}
                 onClick={handleSubmitRequest}
               >
                 <Send className="h-4 w-4 mr-1" />
