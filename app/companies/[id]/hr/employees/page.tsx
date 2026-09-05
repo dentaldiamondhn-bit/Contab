@@ -14,7 +14,9 @@ import {
   XCircle,
   Search,
   Upload,
-  Download
+  Download,
+  Filter,
+  X
 } from 'lucide-react';
 
 interface Employee {
@@ -95,6 +97,11 @@ export default function EmployeesPage() {
   const [positions, setPositions] = useState<Position[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterPosition, setFilterPosition] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterContract, setFilterContract] = useState('');
+  const [showFilters, setShowFilters] = useState(false);
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [newEmployee, setNewEmployee] = useState({
@@ -262,11 +269,21 @@ export default function EmployeesPage() {
     return Math.min(20, 14 + (totalYears - 3));
   };
 
-  const filteredEmployees = employees.filter(emp =>
-    (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const filteredEmployees = employees.filter(emp => {
+    const matchesSearch = searchTerm === '' || 
+      (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.identityNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesDept = filterDepartment === '' || emp.department === filterDepartment;
+    const matchesPos = filterPosition === '' || emp.position === filterPosition;
+    const matchesStatus = filterStatus === '' || emp.status === filterStatus;
+    const matchesContract = filterContract === '' || emp.contractType === filterContract;
+    
+    return matchesSearch && matchesDept && matchesPos && matchesStatus && matchesContract;
+  });
 
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -438,16 +455,92 @@ export default function EmployeesPage() {
 
       {/* Search */}
       <Card>
-        <CardContent className="pt-6">
-          <div className="relative">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Buscar por nombre, cargo o departamento..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border rounded-md"
-            />
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, identidad, No. empleado..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full pl-10 pr-4 py-2 border rounded-md"
+              />
+            </div>
+            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros {(filterDepartment || filterPosition || filterStatus || filterContract) ? '(activos)' : ''}
+            </Button>
+            {(filterDepartment || filterPosition || filterStatus || filterContract) && (
+              <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); }}>
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+          
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-2 border-t">
+              <div>
+                <label className="text-xs font-medium text-gray-600">Departamento</label>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Cargo</label>
+                <select
+                  value={filterPosition}
+                  onChange={(e) => setFilterPosition(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  {positions
+                    .filter(p => !filterDepartment || p.department === filterDepartment)
+                    .map((pos) => (
+                      <option key={pos.id} value={pos.name}>{pos.name}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Estado</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Inactivos</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Tipo de contrato</label>
+                <select
+                  value={filterContract}
+                  onChange={(e) => setFilterContract(e.target.value)}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="indefinido">Indefinido</option>
+                  <option value="determinado">Determinado</option>
+                  <option value="por obra">Por Obra</option>
+                  <option value="prueba">Prueba</option>
+                  <option value="temporada">Temporada</option>
+                </select>
+              </div>
+            </div>
+          )}
+          
+          <div className="text-sm text-gray-500">
+            {filteredEmployees.length} empleado{filteredEmployees.length !== 1 ? 's' : ''} encontrado{filteredEmployees.length !== 1 ? 's' : ''}
           </div>
         </CardContent>
       </Card>
