@@ -92,6 +92,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       reactivationReason: emp.reactivation_reason || '',
       reactivationRequestedBy: emp.reactivation_requested_by || '',
       reactivationPerformedBy: emp.reactivation_performed_by || '',
+      suspensionDate: emp.suspension_date || '',
+      suspensionReason: emp.suspension_reason || '',
+      suspensionRequestedBy: emp.suspension_requested_by || '',
+      suspensionPerformedBy: emp.suspension_performed_by || '',
       hrDocuments: []
     }));
 
@@ -194,7 +198,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         reactivation_date: body.reactivationDate || null,
         reactivation_reason: body.reactivationReason || null,
         reactivation_requested_by: body.reactivationRequestedBy || null,
-        reactivation_performed_by: body.reactivationPerformedBy || null
+        reactivation_performed_by: body.reactivationPerformedBy || null,
+        suspension_date: body.suspensionDate || null,
+        suspension_reason: body.suspensionReason || null,
+        suspension_requested_by: body.suspensionRequestedBy || null,
+        suspension_performed_by: body.suspensionPerformedBy || null
       })
       .select()
       .single();
@@ -297,6 +305,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         reactivation_reason: body.reactivationReason || null,
         reactivation_requested_by: body.reactivationRequestedBy || null,
         reactivation_performed_by: body.reactivationPerformedBy || null,
+        suspension_date: body.suspensionDate || null,
+        suspension_reason: body.suspensionReason || null,
+        suspension_requested_by: body.suspensionRequestedBy || null,
+        suspension_performed_by: body.suspensionPerformedBy || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', body.id)

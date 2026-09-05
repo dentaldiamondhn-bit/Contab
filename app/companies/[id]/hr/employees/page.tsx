@@ -35,7 +35,7 @@ interface Employee {
   department: string;
   salary: number;
   startDate: string;
-  status: 'active' | 'inactive' | 'terminated';
+  status: 'active' | 'inactive' | 'terminated' | 'suspended';
   phone: string;
   email: string;
   address: string;
@@ -88,6 +88,11 @@ interface Employee {
   reactivationReason: string;
   reactivationRequestedBy: string;
   reactivationPerformedBy: string;
+  // Suspensión
+  suspensionDate: string;
+  suspensionReason: string;
+  suspensionRequestedBy: string;
+  suspensionPerformedBy: string;
 }
 
 interface MedicalRecord {
@@ -599,6 +604,13 @@ export default function EmployeesPage() {
     requestedBy: '',
     performedBy: ''
   });
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendingEmployee, setSuspendingEmployee] = useState<Employee | null>(null);
+  const [suspendForm, setSuspendForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: ''
+  });
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -852,6 +864,15 @@ export default function EmployeesPage() {
     }
   };
 
+  const openSuspendModal = (id: string) => {
+    const emp = employees.find(e => e.id === id);
+    if (emp) {
+      setSuspendingEmployee(emp);
+      setSuspendForm({ reason: '', requestedBy: '', performedBy: '' });
+      setShowSuspendModal(true);
+    }
+  };
+
   const confirmDeactivation = async () => {
     if (!deactivatingEmployee) return;
     const updatedEmp = {
@@ -881,6 +902,21 @@ export default function EmployeesPage() {
     await updateEmployeeToAPI(updatedEmp);
     setShowReactivateModal(false);
     setReactivatingEmployee(null);
+  };
+
+  const confirmSuspension = async () => {
+    if (!suspendingEmployee) return;
+    const updatedEmp = {
+      ...suspendingEmployee,
+      status: 'suspended',
+      suspensionDate: new Date().toISOString().split('T')[0],
+      suspensionReason: suspendForm.reason,
+      suspensionRequestedBy: suspendForm.requestedBy,
+      suspensionPerformedBy: suspendForm.performedBy
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowSuspendModal(false);
+    setSuspendingEmployee(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -1934,8 +1970,8 @@ export default function EmployeesPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{emp.employeeId}</span>
                         <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
-                        <Badge variant={emp.status === 'active' ? 'default' : emp.status === 'terminated' ? 'destructive' : 'secondary'}>
-                          {emp.status === 'active' ? 'Activo' : emp.status === 'terminated' ? 'Terminado' : 'Inactivo'}
+                        <Badge variant={emp.status === 'active' ? 'default' : emp.status === 'terminated' ? 'destructive' : emp.status === 'suspended' ? 'outline' : 'secondary'}>
+                          {emp.status === 'active' ? 'Activo' : emp.status === 'terminated' ? 'Terminado' : emp.status === 'suspended' ? 'Suspendido' : 'Inactivo'}
                         </Badge>
                       </div>
                       <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
@@ -1960,13 +1996,56 @@ export default function EmployeesPage() {
                     >
                       Ver
                     </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toggleEmployeeStatus(emp.id)}
-                    >
-                      {emp.status === 'active' ? 'Desactivar' : 'Activar'}
-                    </Button>
+                    {emp.status === 'active' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Desactivar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                          onClick={() => openSuspendModal(emp.id)}
+                        >
+                          Suspender
+                        </Button>
+                      </>
+                    )}
+                    {emp.status === 'suspended' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Reactivar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Desactivar
+                        </Button>
+                      </>
+                    )}
+                    {emp.status === 'terminated' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => toggleEmployeeStatus(emp.id)}
+                      >
+                        Reactivar
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="destructive"
@@ -2115,6 +2194,74 @@ export default function EmployeesPage() {
                 disabled={!reactivateForm.reason || !reactivateForm.requestedBy || !reactivateForm.performedBy}
               >
                 Reactivar Empleado
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Suspension Modal */}
+      {showSuspendModal && suspendingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-amber-600">Suspender Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {suspendingEmployee.firstName} {suspendingEmployee.lastName} ({suspendingEmployee.employeeId})
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-700">
+                  Fecha de suspensión: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  El empleado será marcado como suspendido hasta nueva decisión.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de suspensión *</label>
+                <textarea
+                  value={suspendForm.reason}
+                  onChange={(e) => setSuspendForm({ ...suspendForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  rows={3}
+                  placeholder="Describa la razón de la suspensión..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={suspendForm.requestedBy}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Realizado por *</label>
+                  <input
+                    type="text"
+                    value={suspendForm.performedBy}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Nombre de quien realiza"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowSuspendModal(false); setSuspendingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="default"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={confirmSuspension}
+                disabled={!suspendForm.reason || !suspendForm.requestedBy || !suspendForm.performedBy}
+              >
+                Suspender Empleado
               </Button>
             </div>
           </div>
