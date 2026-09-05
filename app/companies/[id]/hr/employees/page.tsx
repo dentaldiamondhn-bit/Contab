@@ -647,10 +647,33 @@ export default function EmployeesPage() {
       const res = await fetch(`/api/companies/${companyId}/employees`);
       if (res.ok) {
         const data = await res.json();
-        setEmployees(data);
+        if (data.length > 0) {
+          setEmployees(data);
+        } else {
+          // Fallback to localStorage if no employees in DB
+          const empKey = `employees_${companyId}`;
+          const savedEmp = localStorage.getItem(empKey);
+          if (savedEmp) {
+            const localEmps = JSON.parse(savedEmp);
+            setEmployees(localEmps);
+            // Migrate to Supabase
+            for (const emp of localEmps) {
+              await fetch(`/api/companies/${companyId}/employees`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(emp)
+              });
+            }
+            await loadData();
+          }
+        }
       }
     } catch (error) {
       console.error('Error loading employees:', error);
+      // Fallback to localStorage on error
+      const empKey = `employees_${companyId}`;
+      const savedEmp = localStorage.getItem(empKey);
+      if (savedEmp) setEmployees(JSON.parse(savedEmp));
     }
   };
 
