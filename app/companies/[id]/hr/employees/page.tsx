@@ -31,12 +31,20 @@ interface Employee {
   usedVacationDays: number;
 }
 
+interface Department {
+  id: string;
+  name: string;
+  description: string;
+  manager: string;
+}
+
 export default function EmployeesPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
   
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
   const [showAddEmployee, setShowAddEmployee] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
   const [showUpload, setShowUpload] = useState(false);
@@ -58,8 +66,11 @@ export default function EmployeesPage() {
 
   const loadData = () => {
     const empKey = `employees_${companyId}`;
+    const deptKey = `departments_${companyId}`;
     const savedEmp = localStorage.getItem(empKey);
+    const savedDept = localStorage.getItem(deptKey);
     if (savedEmp) setEmployees(JSON.parse(savedEmp));
+    if (savedDept) setDepartments(JSON.parse(savedDept));
   };
 
   const saveEmployees = (data: Employee[]) => {
@@ -318,13 +329,16 @@ export default function EmployeesPage() {
               </div>
               <div>
                 <label className="text-sm font-medium">Departamento</label>
-                <input
-                  type="text"
+                <select
                   value={newEmployee.department}
                   onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
-                  placeholder="Ej: Administración"
-                />
+                >
+                  <option value="">Seleccionar departamento...</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
               </div>
               <div>
                 <label className="text-sm font-medium">Salario mensual (L.) *</label>
