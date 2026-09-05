@@ -509,6 +509,8 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                               onChange={(e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
+                                  const fileName = file.name.replace(/\.[^/.]+$/, '');
+                                  updateHRDoc(index, 'name', fileName);
                                   const reader = new FileReader();
                                   reader.onloadend = () => updateHRDoc(index, 'file', reader.result as string);
                                   reader.readAsDataURL(file);
