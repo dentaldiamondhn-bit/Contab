@@ -484,10 +484,18 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                       </div>
                       <div className="flex items-end gap-2">
                         {doc.file ? (
-                          <div className="flex items-center gap-1 text-green-600 text-sm">
-                            <CheckCircle className="h-4 w-4" />
-                            <span>Archivo</span>
-                            <button onClick={() => updateHRDoc(index, 'file', '')} className="text-red-500 text-xs ml-2">Quitar</button>
+                          <div className="flex items-center gap-1 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-green-600">Archivo</span>
+                            <a
+                              href={doc.file}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:text-blue-700 text-xs ml-1"
+                            >
+                              Ver
+                            </a>
+                            <button onClick={() => updateHRDoc(index, 'file', '')} className="text-red-500 text-xs ml-1">Quitar</button>
                           </div>
                         ) : (
                           <label className="cursor-pointer">
@@ -528,17 +536,6 @@ function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boole
                     <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
                       <span>Subido por: <span className="text-gray-600">{doc.uploadedBy || 'Desconocido'}</span></span>
                       <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString('es-HN') : ''}</span>
-                      {doc.file && (
-                        <a
-                          href={doc.file}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:text-blue-700 flex items-center gap-1"
-                        >
-                          <Eye className="h-3 w-3" />
-                          Ver archivo
-                        </a>
-                      )}
                     </div>
                   </div>
                 ))}
