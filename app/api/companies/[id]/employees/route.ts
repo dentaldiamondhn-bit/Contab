@@ -127,7 +127,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       .from('employees')
       .insert({
         tenant_id: tenantId,
-        company_id: tenantId,
+        company_id: 'demo-company-id',
         employee_code: body.employeeId,
         first_name: body.firstName,
         last_name: body.lastName,
