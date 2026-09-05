@@ -664,6 +664,8 @@ export default function EmployeesPage() {
   const [filterContract, setFilterContract] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
   const [showUpload, setShowUpload] = useState(false);
@@ -1063,6 +1065,14 @@ export default function EmployeesPage() {
     }
   });
 
+  const totalPages = Math.ceil(sortedEmployees.length / itemsPerPage);
+  const paginatedEmployees = sortedEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1261,7 +1271,7 @@ export default function EmployeesPage() {
                 type="text"
                 placeholder="Buscar por nombre, identidad, No. empleado..."
                 value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2 border rounded-md"
               />
             </div>
@@ -1270,7 +1280,7 @@ export default function EmployeesPage() {
               Filtros {(filterDepartment || filterPosition || filterStatus || filterContract) ? '(activos)' : ''}
             </Button>
             {(filterDepartment || filterPosition || filterStatus || filterContract) && (
-                <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); setSortBy(''); }}>
+                <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); setSortBy(''); setCurrentPage(1); }}>
                 <X className="h-4 w-4 mr-1" />
                 Limpiar
               </Button>
@@ -1283,7 +1293,7 @@ export default function EmployeesPage() {
                 <label className="text-xs font-medium text-gray-600">Departamento</label>
                 <select
                   value={filterDepartment}
-                  onChange={(e) => setFilterDepartment(e.target.value)}
+                  onChange={(e) => { setFilterDepartment(e.target.value); setCurrentPage(1); }}
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Todos</option>
@@ -1296,7 +1306,7 @@ export default function EmployeesPage() {
                 <label className="text-xs font-medium text-gray-600">Cargo</label>
                 <select
                   value={filterPosition}
-                  onChange={(e) => setFilterPosition(e.target.value)}
+                  onChange={(e) => { setFilterPosition(e.target.value); setCurrentPage(1); }}
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Todos</option>
@@ -1311,7 +1321,7 @@ export default function EmployeesPage() {
                 <label className="text-xs font-medium text-gray-600">Estado</label>
                 <select
                   value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value)}
+                  onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Todos</option>
@@ -1323,7 +1333,7 @@ export default function EmployeesPage() {
                 <label className="text-xs font-medium text-gray-600">Tipo de contrato</label>
                 <select
                   value={filterContract}
-                  onChange={(e) => setFilterContract(e.target.value)}
+                  onChange={(e) => { setFilterContract(e.target.value); setCurrentPage(1); }}
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Todos</option>
@@ -1338,7 +1348,7 @@ export default function EmployeesPage() {
                 <label className="text-xs font-medium text-gray-600">Ordenar por</label>
                 <select
                   value={sortBy}
-                  onChange={(e) => setSortBy(e.target.value)}
+                  onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Predeterminado</option>
@@ -2078,7 +2088,7 @@ export default function EmployeesPage() {
         </Card>
       ) : (
         <div className="space-y-3">
-          {sortedEmployees.map((emp) => (
+          {paginatedEmployees.map((emp) => (
             <Card key={emp.id}>
               <CardContent className="p-4">
                 <div className="flex justify-between items-start">
@@ -2189,6 +2199,84 @@ export default function EmployeesPage() {
             </Card>
           ))}
         </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Mostrar</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span>por página</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+              >
+                «
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                ‹
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                  if (idx > 0 && typeof arr[idx - 1] === 'number' && (page as number) - (arr[idx - 1] as number) > 1) {
+                    acc.push('...');
+                  }
+                  acc.push(page);
+                  return acc;
+                }, [])
+                .map((page, idx) => (
+                  typeof page === 'number' ? (
+                    <Button
+                      key={idx}
+                      size="sm"
+                      variant={currentPage === page ? 'default' : 'outline'}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ) : (
+                    <span key={idx} className="px-2 text-gray-400">...</span>
+                  )
+                ))}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                ›
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                »
+              </Button>
+            </div>
+            <div className="text-sm text-gray-500">
+              Página {currentPage} de {totalPages} ({sortedEmployees.length} registros)
+            </div>
+          </div>
+        )}
       )}
       {/* Deactivation Modal */}
       {showDeactivateModal && deactivatingEmployee && (
