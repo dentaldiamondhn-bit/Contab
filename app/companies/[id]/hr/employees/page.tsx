@@ -19,6 +19,7 @@ import {
 
 interface Employee {
   id: string;
+  employeeId: string;
   firstName: string;
   lastName: string;
   identityNumber: string;
@@ -58,7 +59,7 @@ interface Employee {
   // Permisos
   workPermitStatus: string;
   visaExpiry: string;
-  // Documentos adjuntos
+  // Documentos
   docIdentity: string;
   docAddressProof: string;
   docContract: string;
@@ -204,9 +205,17 @@ export default function EmployeesPage() {
     }
   };
 
+  const generateEmployeeId = () => {
+    const empCount = employees.length + 1;
+    const prefix = companyId.substring(0, 4).toUpperCase();
+    const number = String(empCount).padStart(4, '0');
+    return `${prefix}-${number}`;
+  };
+
   const addEmployee = () => {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
+      employeeId: generateEmployeeId(),
       ...newEmployee,
       vacationDays: calculateVacationDays(newEmployee.startDate),
       status: 'active',
@@ -450,6 +459,10 @@ export default function EmployeesPage() {
             <CardTitle>Nuevo Empleado</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <label className="text-sm font-medium text-gray-600">No. Empleado (generado automáticamente)</label>
+              <div className="text-lg font-bold text-blue-600">{generateEmployeeId()}</div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="text-sm font-medium">Nombres *</label>
@@ -1178,6 +1191,7 @@ export default function EmployeesPage() {
                     )}
                     <div className="flex-1">
                       <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{emp.employeeId}</span>
                         <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
                         <Badge variant={emp.status === 'active' ? 'default' : 'secondary'}>
                           {emp.status === 'active' ? 'Activo' : 'Inactivo'}
