@@ -692,25 +692,25 @@ export default function PermissionsPage() {
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
             <div className="border-b px-6 py-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">{isAdding ? 'Agregar Tipo de Permiso' : 'Gestionar Tipos de Permiso'}</h2>
-              <Button variant="ghost" size="sm" onClick={() => { setShowTypesModal(false); setEditingType(null); }}>
+              <h2 className="text-lg font-bold">
+                {editingType ? `Editar: ${editingType.label}` : isAdding ? 'Nuevo Tipo de Permiso' : 'Gestionar Tipos de Permiso'}
+              </h2>
+              <Button variant="ghost" size="sm" onClick={() => { setShowTypesModal(false); setEditingType(null); setIsAdding(false); }}>
                 <X className="h-4 w-4" />
               </Button>
             </div>
             <div className="p-6">
               {!isAdding && !editingType ? (
                 <div className="space-y-4">
-                  <div className="flex justify-end">
-                    <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white" onClick={openAddType}>
-                      <Plus className="h-4 w-4 mr-1" />Nuevo Tipo
-                    </Button>
-                  </div>
+                  <Button size="sm" className="bg-blue-600 hover:bg-blue-700 text-white w-full" onClick={openAddType}>
+                    <Plus className="h-4 w-4 mr-2" />Agregar Nuevo Tipo
+                  </Button>
                   <div className="space-y-2">
                     {permTypes.map((pt) => {
                       const Icon = ICON_MAP[pt.icon] || Star;
                       const colors = getColorClasses(pt.colorValue);
                       return (
-                        <div key={pt.id} className={`flex items-center justify-between p-3 border rounded-lg ${colors.bg} ${colors.border}`}>
+                        <div key={pt.id} className={`flex items-center justify-between p-3 border rounded-lg ${colors.bg} ${colors.border} hover:shadow-sm transition-shadow`}>
                           <div className="flex items-center gap-3">
                             <Icon className={`h-5 w-5 ${colors.text}`} />
                             <div>
@@ -719,11 +719,11 @@ export default function PermissionsPage() {
                             </div>
                           </div>
                           <div className="flex gap-1">
-                            <Button size="sm" variant="outline" onClick={() => openEditType(pt)}>
-                              <Pencil className="h-3 w-3" />
+                            <Button size="sm" variant="outline" onClick={() => openEditType(pt)} title="Editar">
+                              <Pencil className="h-3 w-3 mr-1" /> Editar
                             </Button>
                             {!pt.isDefault && (
-                              <Button size="sm" variant="destructive" onClick={() => deleteType(pt.id)}>
+                              <Button size="sm" variant="destructive" onClick={() => deleteType(pt.id)} title="Eliminar">
                                 <Trash2 className="h-3 w-3" />
                               </Button>
                             )}
@@ -782,7 +782,9 @@ export default function PermissionsPage() {
                       placeholder="Descripción corta" className="w-full border rounded px-3 py-2 mt-1 text-sm" />
                   </div>
                   <div className="flex justify-end gap-2 pt-4 border-t">
-                    <Button variant="outline" onClick={() => { setIsAdding(false); setEditingType(null); setShowTypesModal(false); }}>Cancelar</Button>
+                    <Button variant="outline" onClick={() => { setIsAdding(false); setEditingType(null); }}>
+                      ← Volver a la lista
+                    </Button>
                     <Button className="bg-blue-600 hover:bg-blue-700 text-white" disabled={!typeForm.label.trim()} onClick={saveType}>
                       <Save className="h-4 w-4 mr-1" />{editingType ? 'Guardar Cambios' : 'Crear Tipo'}
                     </Button>
