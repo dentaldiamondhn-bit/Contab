@@ -6,3 +6,6 @@ node_modules
 *.log
 .DS_Store
 Thumbs.db
+
+# clerk configuration (can include secrets)
+/.clerk/
