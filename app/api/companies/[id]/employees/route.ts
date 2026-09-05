@@ -26,8 +26,8 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
   const changes: string[] = [];
   const fieldMap: Record<string, string> = {
     firstName: 'first_name', lastName: 'last_name', identityNumber: 'id_number',
-    position: 'position', department: 'department', salary: 'base_salary',
-    startDate: 'hire_date', status: 'status', phone: 'phone',
+    position: 'position', department: 'department',
+    startDate: 'hire_date', phone: 'phone',
     email: 'email', address: 'address', civilStatus: 'civil_status',
     contractType: 'contract_type', supervisor: 'supervisor',
     schedule: 'schedule', modality: 'modality', educationLevel: 'education_level',
@@ -46,7 +46,7 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
   }
   const oldSalary = parseFloat(oldEmp.base_salary) || 0;
   const newSalary = newBody.salary || 0;
-  if (oldSalary !== newSalary) {
+  if (oldSalary !== newSalary && (oldSalary || newSalary)) {
     changes.push(`Salario: "${oldSalary}" → "${newSalary}"`);
   }
   return changes;
