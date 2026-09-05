@@ -23,6 +23,7 @@ interface Employee {
   lastName: string;
   identityNumber: string;
   photo: string;
+  cv: string;
   position: string;
   department: string;
   salary: number;
@@ -34,6 +35,29 @@ interface Employee {
   civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'unión libre';
   vacationDays: number;
   usedVacationDays: number;
+  // Contrato y trabajo
+  contractType: 'indefinido' | 'determinado' | 'por obra' | 'prueba' | 'temporada';
+  supervisor: string;
+  schedule: 'completa' | 'media' | 'personalizada';
+  scheduleHours: string;
+  modality: 'presencial' | 'remoto' | 'híbrido';
+  // Académico
+  educationLevel: 'basico' | 'medio' | 'universitario' | 'tecnico' | 'maestria' | 'doctorado';
+  university: string;
+  degree: string;
+  graduationYear: string;
+  // Habilidades
+  languages: string;
+  certifications: string;
+  driverLicense: boolean;
+  otherSkills: string;
+  // Seguridad Social
+  socialSecurityNumber: string;
+  pensionFund: string;
+  laborRiskInsurer: string;
+  // Permisos
+  workPermitStatus: string;
+  visaExpiry: string;
 }
 
 interface Department {
@@ -69,6 +93,7 @@ export default function EmployeesPage() {
     lastName: '',
     identityNumber: '',
     photo: '',
+    cv: '',
     position: '',
     department: '',
     salary: 0,
@@ -77,7 +102,25 @@ export default function EmployeesPage() {
     email: '',
     address: '',
     civilStatus: 'soltero' as const,
-    vacationDays: 15
+    vacationDays: 15,
+    contractType: 'indefinido' as const,
+    supervisor: '',
+    schedule: 'completa' as const,
+    scheduleHours: '08:00 - 17:00',
+    modality: 'presencial' as const,
+    educationLevel: 'universitario' as const,
+    university: '',
+    degree: '',
+    graduationYear: '',
+    languages: '',
+    certifications: '',
+    driverLicense: false,
+    otherSkills: '',
+    socialSecurityNumber: '',
+    pensionFund: '',
+    laborRiskInsurer: '',
+    workPermitStatus: '',
+    visaExpiry: ''
   });
 
   useEffect(() => {
@@ -116,6 +159,21 @@ export default function EmployeesPage() {
     }
   };
 
+  const handleCVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2000000) {
+        alert('El CV no debe superar 2MB');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setNewEmployee({ ...newEmployee, cv: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   const addEmployee = () => {
     const emp: Employee = {
       id: `emp-${Date.now()}`,
@@ -125,7 +183,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     saveEmployees([...employees, emp]);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0 });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '' });
     setShowAddEmployee(false);
   };
 
@@ -451,7 +509,11 @@ export default function EmployeesPage() {
                 <label className="text-sm font-medium">Departamento *</label>
                 <select
                   value={newEmployee.department}
-                  onChange={(e) => setNewEmployee({ ...newEmployee, department: e.target.value, position: '' })}
+                  onChange={(e) => {
+                    const deptName = e.target.value;
+                    const dept = departments.find(d => d.name === deptName);
+                    setNewEmployee({ ...newEmployee, department: deptName, position: '', supervisor: dept?.manager || '' });
+                  }}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
                 >
                   <option value="">Seleccionar departamento...</option>
@@ -543,6 +605,275 @@ export default function EmployeesPage() {
                 />
               </div>
             </div>
+
+            {/* Contrato y Trabajo */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Contrato y Trabajo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Tipo de contrato *</label>
+                  <select
+                    value={newEmployee.contractType}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, contractType: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="indefinido">Indefinido</option>
+                    <option value="determinado">Determinado</option>
+                    <option value="por obra">Por Obra</option>
+                    <option value="prueba">Período de Prueba</option>
+                    <option value="temporada">Temporada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Jefe Directo</label>
+                  <input
+                    type="text"
+                    value={newEmployee.supervisor}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, supervisor: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Se asigna según departamento"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Jornada *</label>
+                  <select
+                    value={newEmployee.schedule}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, schedule: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="completa">Tiempo Completo</option>
+                    <option value="media">Medio Tiempo</option>
+                    <option value="personalizada">Personalizada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Horario</label>
+                  <input
+                    type="text"
+                    value={newEmployee.scheduleHours}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleHours: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="08:00 - 17:00"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Modalidad *</label>
+                  <select
+                    value={newEmployee.modality}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, modality: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="presencial">Presencial</option>
+                    <option value="remoto">Remoto</option>
+                    <option value="híbrido">Híbrido</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Nivel Académico */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Nivel Académico</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Nivel de escolaridad</label>
+                  <select
+                    value={newEmployee.educationLevel}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, educationLevel: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="basico">Básico</option>
+                    <option value="medio">Medio</option>
+                    <option value="tecnico">Técnico</option>
+                    <option value="universitario">Universitario</option>
+                    <option value="maestria">Maestría</option>
+                    <option value="doctorado">Doctorado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Institución de egreso</label>
+                  <input
+                    type="text"
+                    value={newEmployee.university}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, university: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Universidad Nacional"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Título / Carrera</label>
+                  <input
+                    type="text"
+                    value={newEmployee.degree}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, degree: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Ingeniero en Sistemas"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Año de graduación</label>
+                  <input
+                    type="text"
+                    value={newEmployee.graduationYear}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, graduationYear: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: 2020"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Habilidades */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Habilidades y Competencias</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Idiomas</label>
+                  <input
+                    type="text"
+                    value={newEmployee.languages}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, languages: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Español (nativo), Inglés (avanzado)"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Certificaciones profesionales</label>
+                  <input
+                    type="text"
+                    value={newEmployee.certifications}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, certifications: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: PMP, CPA, Scrum Master"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Otras habilidades</label>
+                  <input
+                    type="text"
+                    value={newEmployee.otherSkills}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, otherSkills: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Manejo de Excel, Trabajo en equipo"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium">Licencia de conducir</label>
+                  <input
+                    type="checkbox"
+                    checked={newEmployee.driverLicense}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, driverLicense: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Seguridad Social */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Seguridad Social y Legal</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">No. Seguridad Social (IHSS)</label>
+                  <input
+                    type="text"
+                    value={newEmployee.socialSecurityNumber}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, socialSecurityNumber: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Número de afiliación"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Fondo de pensiones</label>
+                  <input
+                    type="text"
+                    value={newEmployee.pensionFund}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, pensionFund: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: RAP, AHPRONAFI"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Aseguradora de riesgos laborales</label>
+                  <input
+                    type="text"
+                    value={newEmployee.laborRiskInsurer}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, laborRiskInsurer: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: ARL Confederación"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Permisos y Visas */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Permisos y Visas (Empleados Extranjeros)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Estatus legal de trabajo</label>
+                  <select
+                    value={newEmployee.workPermitStatus}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, workPermitStatus: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="">No aplica</option>
+                    <option value="nacional">Nacional</option>
+                    <option value="residencia_permanente">Residencia Permanente</option>
+                    <option value="residencia_temporal">Residencia Temporal</option>
+                    <option value="permiso_trabajo">Permiso de Trabajo</option>
+                    <option value="asilo">Asilo Político</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Vigencia de visa</label>
+                  <input
+                    type="date"
+                    value={newEmployee.visaExpiry}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, visaExpiry: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CV */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Curriculum Vitae</h3>
+              <div>
+                <label className="text-sm font-medium">Archivo CV (PDF)</label>
+                <div className="mt-1 flex items-center gap-4">
+                  {newEmployee.cv ? (
+                    <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span className="text-sm text-green-700">CV cargado</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewEmployee({ ...newEmployee, cv: '' })}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <div className="px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                        <Upload className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-600">Seleccionar archivo PDF</span>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleCVUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <span className="text-xs text-gray-500">Máximo 2MB</span>
+                </div>
+              </div>
+            </div>
+
             <div className="flex gap-2">
               <Button onClick={addEmployee}>Guardar</Button>
               <Button variant="outline" onClick={() => setShowAddEmployee(false)}>Cancelar</Button>
