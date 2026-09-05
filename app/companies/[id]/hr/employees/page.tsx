@@ -18,7 +18,8 @@ import {
   Filter,
   X,
   Save,
-  Plus
+  Plus,
+  FileText
 } from 'lucide-react';
 
 interface Employee {
@@ -98,6 +99,307 @@ interface Position {
   description: string;
   minSalary: number;
   maxSalary: number;
+}
+
+function ModalTabs({ emp, isEditing, updateField }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void }) {
+  const [activeTab, setActiveTab] = useState('personal');
+  const tabs = [
+    { id: 'personal', label: 'Personal' },
+    { id: 'trabajo', label: 'Trabajo' },
+    { id: 'academico', label: 'Académico' },
+    { id: 'habilidades', label: 'Habilidades' },
+    { id: 'documentos', label: 'Documentos' },
+    { id: 'rrhh', label: 'Doc. RRHH' }
+  ];
+
+  const addHRDocument = () => {
+    const newDoc: HRDocument = {
+      id: `hrdoc-${Date.now()}`,
+      name: '',
+      type: 'amonestacion',
+      date: new Date().toISOString().split('T')[0],
+      file: '',
+      observations: ''
+    };
+    updateField('hrDocuments', [...(emp.hrDocuments || []), newDoc]);
+  };
+
+  const updateHRDoc = (index: number, field: string, value: any) => {
+    const updated = [...emp.hrDocuments];
+    updated[index] = { ...updated[index], [field]: value };
+    updateField('hrDocuments', updated);
+  };
+
+  const removeHRDoc = (index: number) => {
+    updateField('hrDocuments', emp.hrDocuments.filter((_: any, i: number) => i !== index));
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL', minimumFractionDigits: 2 }).format(amount);
+  };
+
+  return (
+    <>
+      {/* Tab Navigation */}
+      <div className="border-b px-6 flex gap-1 overflow-x-auto flex-shrink-0">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="p-6 overflow-y-auto flex-1">
+        {/* Personal Tab */}
+        {activeTab === 'personal' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="unión libre">Unión Libre</option></select></div>
+                <div><label className="text-gray-500">Teléfono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2"><label className="text-gray-500">Dirección:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">No. Seguridad Social:</label><input type="text" value={emp.socialSecurityNumber || ''} onChange={(e) => updateField('socialSecurityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Fondo de Pensiones:</label><input type="text" value={emp.pensionFund || ''} onChange={(e) => updateField('pensionFund', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Aseg. Riesgos:</label><input type="text" value={emp.laborRiskInsurer || ''} onChange={(e) => updateField('laborRiskInsurer', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
+                <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
+                <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
+                <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">Dirección:</span><p className="font-medium">{emp.address || '-'}</p></div>
+                <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{emp.socialSecurityNumber || '-'}</p></div>
+                <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{emp.pensionFund || '-'}</p></div>
+                <div><span className="text-gray-500">Aseg. Riesgos:</span><p className="font-medium">{emp.laborRiskInsurer || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Trabajo Tab */}
+        {activeTab === 'trabajo' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
+                <div><label className="text-gray-500">Jefe Directo:</label><input type="text" value={emp.supervisor || ''} onChange={(e) => updateField('supervisor', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
+                <div><label className="text-gray-500">Horario:</label><input type="text" value={emp.scheduleHours || ''} onChange={(e) => updateField('scheduleHours', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="híbrido">Híbrido</option></select></div>
+                <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option></select></div>
+                <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
+                <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.supervisor || '-'}</p></div>
+                <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
+                <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
+                <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
+                <div><span className="text-gray-500">Horario:</span><p className="font-medium">{emp.scheduleHours || '-'}</p></div>
+                <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
+                <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium">{emp.workPermitStatus || 'No aplica'}</p></div>
+                <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
+              </>
+            )}
+            <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
+            <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) < 1 ? 0 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 1 ? 10 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 2 ? 12 : Math.min(20, 14 + Math.max(0, Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) - 3))} días</p></div>
+          </div>
+        )}
+
+        {/* Académico Tab */}
+        {activeTab === 'academico' && (
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">Básico</option><option value="medio">Medio</option><option value="tecnico">Técnico</option><option value="universitario">Universitario</option><option value="maestria">Maestría</option><option value="doctorado">Doctorado</option></select></div>
+                <div><label className="text-gray-500">Institución:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Título:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Año Graduación:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{emp.educationLevel || '-'}</p></div>
+                <div><span className="text-gray-500">Institución:</span><p className="font-medium">{emp.university || '-'}</p></div>
+                <div><span className="text-gray-500">Título:</span><p className="font-medium">{emp.degree || '-'}</p></div>
+                <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Habilidades Tab */}
+        {activeTab === 'habilidades' && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div className="col-span-2"><label className="text-gray-500">Idiomas:</label><input type="text" value={emp.languages || ''} onChange={(e) => updateField('languages', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2"><label className="text-gray-500">Certificaciones:</label><input type="text" value={emp.certifications || ''} onChange={(e) => updateField('certifications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="flex items-center gap-2"><label className="text-gray-500">Licencia Conducir:</label><input type="checkbox" checked={emp.driverLicense || false} onChange={(e) => updateField('driverLicense', e.target.checked)} className="h-4 w-4" /></div>
+                <div className="col-span-2"><label className="text-gray-500">Otras Habilidades:</label><input type="text" value={emp.otherSkills || ''} onChange={(e) => updateField('otherSkills', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{emp.languages || '-'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{emp.certifications || '-'}</p></div>
+                <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'Sí' : 'No'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{emp.otherSkills || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Documentos Tab */}
+        {activeTab === 'documentos' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'CV', field: 'cv', value: emp.cv },
+              { label: 'Identidad', field: 'docIdentity', value: emp.docIdentity },
+              { label: 'Comprobante Domicilio', field: 'docAddressProof', value: emp.docAddressProof },
+              { label: 'Contrato', field: 'docContract', value: emp.docContract },
+              { label: 'NDA', field: 'docNDA', value: emp.docNDA },
+              { label: 'Cert. Estudios', field: 'docEducationCerts', value: emp.docEducationCerts },
+              { label: 'Cert. Empleos', field: 'docPreviousJobs', value: emp.docPreviousJobs },
+              { label: 'Cert. Médico', field: 'docMedicalCert', value: emp.docMedicalCert }
+            ].map((doc, i) => (
+              <div key={i} className={`p-3 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
+                <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
+                  {doc.value ? 'Cargado' : 'Sin archivo'}
+                </p>
+                {isEditing && doc.value && (
+                  <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500 mt-1">Eliminar</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* RRHH Documents Tab */}
+        {activeTab === 'rrhh' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-gray-500">{(emp.hrDocuments || []).length} documento{(emp.hrDocuments || []).length !== 1 ? 's' : ''}</p>
+              <Button size="sm" onClick={addHRDocument}>
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar Documento
+              </Button>
+            </div>
+            
+            {(emp.hrDocuments || []).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay documentos de RRHH</p>
+                <p className="text-sm">Haz clic en "Agregar Documento" para comenzar</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(emp.hrDocuments || []).map((doc: HRDocument, index: number) => (
+                  <div key={doc.id} className="border rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500">Tipo</label>
+                        <select
+                          value={doc.type}
+                          onChange={(e) => updateHRDoc(index, 'type', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        >
+                          <option value="amonestacion">Amonestación</option>
+                          <option value="autorizacion_vacaciones">Autorización Vacaciones</option>
+                          <option value="contrato">Contrato</option>
+                          <option value="acuerdo_confidencialidad">Acuerdo Confidencialidad</option>
+                          <option value="permiso">Permiso</option>
+                          <option value="constancia">Constancia</option>
+                          <option value="referencia_laboral">Referencia Laboral</option>
+                          <option value="otro">Otro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Nombre</label>
+                        <input
+                          type="text"
+                          value={doc.name}
+                          onChange={(e) => updateHRDoc(index, 'name', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                          placeholder="Nombre del documento"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Fecha</label>
+                        <input
+                          type="date"
+                          value={doc.date}
+                          onChange={(e) => updateHRDoc(index, 'date', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div className="flex items-end gap-2">
+                        {doc.file ? (
+                          <div className="flex items-center gap-1 text-green-600 text-sm">
+                            <CheckCircle className="h-4 w-4" />
+                            <span>Archivo</span>
+                            <button onClick={() => updateHRDoc(index, 'file', '')} className="text-red-500 text-xs ml-2">Quitar</button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <div className="px-3 py-1 border border-dashed border-gray-300 rounded text-xs text-gray-600 hover:border-blue-400">
+                              <Upload className="h-3 w-3 inline mr-1" />
+                              Subir
+                            </div>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onloadend = () => updateHRDoc(index, 'file', reader.result as string);
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                        <Button size="sm" variant="ghost" className="text-red-500" onClick={() => removeHRDoc(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-500">Observaciones</label>
+                      <input
+                        type="text"
+                        value={doc.observations}
+                        onChange={(e) => updateHRDoc(index, 'observations', e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        placeholder="Notas adicionales..."
+                      />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
 }
 
 export default function EmployeesPage() {
@@ -1365,21 +1667,22 @@ export default function EmployeesPage() {
         };
         return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="sticky top-0 bg-white border-b px-6 py-4 flex justify-between items-center">
+          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="border-b px-6 py-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-4">
                 {emp.photo ? (
-                  <img src={emp.photo} alt="" className="w-16 h-16 rounded-full object-cover" />
+                  <img src={emp.photo} alt="" className="w-14 h-14 rounded-full object-cover" />
                 ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center">
-                    <span className="text-2xl font-bold text-gray-400">
+                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                    <span className="text-xl font-bold text-gray-400">
                       {(emp.firstName || '').charAt(0)}{(emp.lastName || '').charAt(0)}
                     </span>
                   </div>
                 )}
                 <div>
-                  <h2 className="text-xl font-bold">{emp.firstName} {emp.lastName}</h2>
-                  <p className="text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
+                  <h2 className="text-lg font-bold">{emp.firstName} {emp.lastName}</h2>
+                  <p className="text-sm text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -1400,339 +1703,9 @@ export default function EmployeesPage() {
                 )}
               </div>
             </div>
-            
-            <div className="p-6 space-y-6">
-              {/* Datos Personales */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Datos Personales</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  {isEditing ? (
-                    <>
-                      <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="unión libre">Unión Libre</option></select></div>
-                      <div><label className="text-gray-500">Teléfono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div className="col-span-2 md:col-span-4"><label className="text-gray-500">Dirección:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
-                      <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
-                      <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
-                      <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
-                      <div className="col-span-2 md:col-span-4"><span className="text-gray-500">Dirección:</span><p className="font-medium">{emp.address || '-'}</p></div>
-                    </>
-                  )}
-                </div>
-              </div>
 
-              {/* Contrato y Trabajo */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Contrato y Trabajo</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
-                  {isEditing ? (
-                    <>
-                      <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
-                      <div><label className="text-gray-500">Jefe Directo:</label><input type="text" value={emp.supervisor || ''} onChange={(e) => updateField('supervisor', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
-                      <div><label className="text-gray-500">Horario:</label><input type="text" value={emp.scheduleHours || ''} onChange={(e) => updateField('scheduleHours', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="híbrido">Híbrido</option></select></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
-                      <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.supervisor || '-'}</p></div>
-                      <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
-                      <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
-                      <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
-                      <div><span className="text-gray-500">Horario:</span><p className="font-medium">{emp.scheduleHours || '-'}</p></div>
-                      <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
-                    </>
-                  )}
-                  <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
-                  <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{calculateVacationDays(emp.startDate)} días</p></div>
-                </div>
-              </div>
-
-              {/* Académico */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Nivel Académico</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  {isEditing ? (
-                    <>
-                      <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">Básico</option><option value="medio">Medio</option><option value="tecnico">Técnico</option><option value="universitario">Universitario</option><option value="maestria">Maestría</option><option value="doctorado">Doctorado</option></select></div>
-                      <div><label className="text-gray-500">Institución:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Título:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Año Graduación:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{emp.educationLevel || '-'}</p></div>
-                      <div><span className="text-gray-500">Institución:</span><p className="font-medium">{emp.university || '-'}</p></div>
-                      <div><span className="text-gray-500">Título:</span><p className="font-medium">{emp.degree || '-'}</p></div>
-                      <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Habilidades */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Habilidades y Competencias</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                  {isEditing ? (
-                    <>
-                      <div className="col-span-2"><label className="text-gray-500">Idiomas:</label><input type="text" value={emp.languages || ''} onChange={(e) => updateField('languages', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div className="col-span-2"><label className="text-gray-500">Certificaciones:</label><input type="text" value={emp.certifications || ''} onChange={(e) => updateField('certifications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div className="flex items-center gap-2"><label className="text-gray-500">Licencia Conducir:</label><input type="checkbox" checked={emp.driverLicense || false} onChange={(e) => updateField('driverLicense', e.target.checked)} className="h-4 w-4" /></div>
-                      <div className="col-span-3"><label className="text-gray-500">Otras Habilidades:</label><input type="text" value={emp.otherSkills || ''} onChange={(e) => updateField('otherSkills', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{emp.languages || '-'}</p></div>
-                      <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{emp.certifications || '-'}</p></div>
-                      <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'Sí' : 'No'}</p></div>
-                      <div className="col-span-3"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{emp.otherSkills || '-'}</p></div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Seguridad Social */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Seguridad Social</h3>
-                <div className="grid grid-cols-3 gap-4 text-sm">
-                  {isEditing ? (
-                    <>
-                      <div><label className="text-gray-500">No. Seguridad Social:</label><input type="text" value={emp.socialSecurityNumber || ''} onChange={(e) => updateField('socialSecurityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Fondo de Pensiones:</label><input type="text" value={emp.pensionFund || ''} onChange={(e) => updateField('pensionFund', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                      <div><label className="text-gray-500">Aseg. Riesgos Laborales:</label><input type="text" value={emp.laborRiskInsurer || ''} onChange={(e) => updateField('laborRiskInsurer', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{emp.socialSecurityNumber || '-'}</p></div>
-                      <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{emp.pensionFund || '-'}</p></div>
-                      <div><span className="text-gray-500">Aseg. Riesgos Laborales:</span><p className="font-medium">{emp.laborRiskInsurer || '-'}</p></div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Permisos */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Permisos y Visas</h3>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  {isEditing ? (
-                    <>
-                      <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option><option value="asilo">Asilo Político</option></select></div>
-                      <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                    </>
-                  ) : (
-                    <>
-                      <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium capitalize">{emp.workPermitStatus || 'No aplica'}</p></div>
-                      <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
-                    </>
-                  )}
-                </div>
-              </div>
-
-              {/* Documentos */}
-              <div>
-                <h3 className="font-bold text-gray-800 border-b pb-2 mb-3">Documentos Adjuntos</h3>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {[
-                    { label: 'CV', field: 'cv', value: emp.cv },
-                    { label: 'Identidad', field: 'docIdentity', value: emp.docIdentity },
-                    { label: 'Comprobante Domicilio', field: 'docAddressProof', value: emp.docAddressProof },
-                    { label: 'Contrato', field: 'docContract', value: emp.docContract },
-                    { label: 'NDA', field: 'docNDA', value: emp.docNDA },
-                    { label: 'Cert. Estudios', field: 'docEducationCerts', value: emp.docEducationCerts },
-                    { label: 'Cert. Empleos', field: 'docPreviousJobs', value: emp.docPreviousJobs },
-                    { label: 'Cert. Médico', field: 'docMedicalCert', value: emp.docMedicalCert }
-                  ].map((doc, i) => (
-                    <div key={i} className={`p-2 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
-                      <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
-                      <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
-                        {doc.value ? 'Cargado' : 'Sin archivo'}
-                      </p>
-                      {isEditing && doc.value && (
-                        <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500 mt-1">Eliminar</button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Documentos de RRHH */}
-              <div>
-                <div className="flex justify-between items-center border-b pb-2 mb-3">
-                  <h3 className="font-bold text-gray-800">Documentos de RRHH</h3>
-                  {isEditing && (
-                    <Button size="sm" variant="outline" onClick={() => {
-                      const newDoc: HRDocument = {
-                        id: `hrdoc-${Date.now()}`,
-                        name: '',
-                        type: 'amonestacion',
-                        date: new Date().toISOString().split('T')[0],
-                        file: '',
-                        observations: ''
-                      };
-                      updateField('hrDocuments', [...(emp.hrDocuments || []), newDoc]);
-                    }}>
-                      <Plus className="h-4 w-4 mr-1" />
-                      Agregar Documento
-                    </Button>
-                  )}
-                </div>
-                
-                {(emp.hrDocuments || []).length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-4">No hay documentos de RRHH registrados</p>
-                ) : (
-                  <div className="space-y-3">
-                    {(emp.hrDocuments || []).map((doc, index) => (
-                      <div key={doc.id} className="border rounded-lg p-4 bg-gray-50">
-                        {isEditing ? (
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                            <div>
-                              <label className="text-xs text-gray-500">Tipo de documento</label>
-                              <select
-                                value={doc.type}
-                                onChange={(e) => {
-                                  const updated = [...emp.hrDocuments];
-                                  updated[index] = { ...doc, type: e.target.value };
-                                  updateField('hrDocuments', updated);
-                                }}
-                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
-                              >
-                                <option value="amonestacion">Amonestación</option>
-                                <option value="autorizacion_vacaciones">Autorización de Vacaciones</option>
-                                <option value="contrato">Contrato</option>
-                                <option value="acuerdo_confidencialidad">Acuerdo de Confidencialidad</option>
-                                <option value="permiso">Permiso</option>
-                                <option value="constancia">Constancia</option>
-                                <option value="referencia_laboral">Referencia Laboral</option>
-                                <option value="otro">Otro</option>
-                              </select>
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-500">Nombre del documento</label>
-                              <input
-                                type="text"
-                                value={doc.name}
-                                onChange={(e) => {
-                                  const updated = [...emp.hrDocuments];
-                                  updated[index] = { ...doc, name: e.target.value };
-                                  updateField('hrDocuments', updated);
-                                }}
-                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
-                                placeholder="Ej: Amonestación verbal"
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-500">Fecha</label>
-                              <input
-                                type="date"
-                                value={doc.date}
-                                onChange={(e) => {
-                                  const updated = [...emp.hrDocuments];
-                                  updated[index] = { ...doc, date: e.target.value };
-                                  updateField('hrDocuments', updated);
-                                }}
-                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
-                              />
-                            </div>
-                            <div className="md:col-span-2">
-                              <label className="text-xs text-gray-500">Observaciones</label>
-                              <input
-                                type="text"
-                                value={doc.observations}
-                                onChange={(e) => {
-                                  const updated = [...emp.hrDocuments];
-                                  updated[index] = { ...doc, observations: e.target.value };
-                                  updateField('hrDocuments', updated);
-                                }}
-                                className="w-full mt-1 px-2 py-1 border rounded text-sm"
-                                placeholder="Notas adicionales..."
-                              />
-                            </div>
-                            <div>
-                              <label className="text-xs text-gray-500">Archivo</label>
-                              <div className="mt-1">
-                                {doc.file ? (
-                                  <div className="flex items-center gap-2">
-                                    <CheckCircle className="h-4 w-4 text-green-500" />
-                                    <span className="text-sm text-green-700">Cargado</span>
-                                    <button onClick={() => {
-                                      const updated = [...emp.hrDocuments];
-                                      updated[index] = { ...doc, file: '' };
-                                      updateField('hrDocuments', updated);
-                                    }} className="text-red-500 text-xs">Quitar</button>
-                                  </div>
-                                ) : (
-                                  <label className="cursor-pointer">
-                                    <div className="px-2 py-1 border border-dashed border-gray-300 rounded text-xs text-gray-600 hover:border-blue-400">
-                                      Subir archivo
-                                    </div>
-                                    <input
-                                      type="file"
-                                      accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                                      onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) {
-                                          const reader = new FileReader();
-                                          reader.onloadend = () => {
-                                            const updated = [...emp.hrDocuments];
-                                            updated[index] = { ...doc, file: reader.result as string };
-                                            updateField('hrDocuments', updated);
-                                          };
-                                          reader.readAsDataURL(file);
-                                        }
-                                      }}
-                                      className="hidden"
-                                    />
-                                  </label>
-                                )}
-                              </div>
-                            </div>
-                            <div className="flex items-end">
-                              <Button size="sm" variant="destructive" onClick={() => {
-                                const updated = emp.hrDocuments.filter((_, i) => i !== index);
-                                updateField('hrDocuments', updated);
-                              }}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <div className="flex items-center gap-2">
-                                <Badge variant="default" className="bg-purple-100 text-purple-800 capitalize">
-                                  {doc.type.replace(/_/g, ' ')}
-                                </Badge>
-                                <span className="font-medium">{doc.name || 'Sin nombre'}</span>
-                              </div>
-                              <p className="text-sm text-gray-500 mt-1">Fecha: {doc.date} {doc.observations && `• ${doc.observations}`}</p>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {doc.file && (
-                                <Badge variant="default" className="bg-green-100 text-green-800">
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Archivo
-                                </Badge>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
+            {/* Tabs */}
+            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} />
           </div>
         </div>
         );
