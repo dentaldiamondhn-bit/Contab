@@ -88,6 +88,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       terminationRequestedBy: emp.termination_requested_by || '',
       terminationPerformedBy: emp.termination_performed_by || '',
       rehireable: emp.rehireable ?? true,
+      reactivationDate: emp.reactivation_date || '',
+      reactivationReason: emp.reactivation_reason || '',
+      reactivationRequestedBy: emp.reactivation_requested_by || '',
+      reactivationPerformedBy: emp.reactivation_performed_by || '',
       hrDocuments: []
     }));
 
@@ -186,7 +190,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         termination_reason: body.terminationReason || null,
         termination_requested_by: body.terminationRequestedBy || null,
         termination_performed_by: body.terminationPerformedBy || null,
-        rehireable: body.rehireable ?? true
+        rehireable: body.rehireable ?? true,
+        reactivation_date: body.reactivationDate || null,
+        reactivation_reason: body.reactivationReason || null,
+        reactivation_requested_by: body.reactivationRequestedBy || null,
+        reactivation_performed_by: body.reactivationPerformedBy || null
       })
       .select()
       .single();
@@ -285,6 +293,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         termination_requested_by: body.terminationRequestedBy || null,
         termination_performed_by: body.terminationPerformedBy || null,
         rehireable: body.rehireable ?? true,
+        reactivation_date: body.reactivationDate || null,
+        reactivation_reason: body.reactivationReason || null,
+        reactivation_requested_by: body.reactivationRequestedBy || null,
+        reactivation_performed_by: body.reactivationPerformedBy || null,
         updated_at: new Date().toISOString()
       })
       .eq('id', body.id)

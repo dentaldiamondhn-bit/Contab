@@ -83,6 +83,11 @@ interface Employee {
   terminationRequestedBy: string;
   terminationPerformedBy: string;
   rehireable: boolean;
+  // Reactivación
+  reactivationDate: string;
+  reactivationReason: string;
+  reactivationRequestedBy: string;
+  reactivationPerformedBy: string;
 }
 
 interface MedicalRecord {
@@ -587,6 +592,13 @@ export default function EmployeesPage() {
     performedBy: '',
     rehireable: true
   });
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [reactivatingEmployee, setReactivatingEmployee] = useState<Employee | null>(null);
+  const [reactivateForm, setReactivateForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: ''
+  });
   const [newEmployee, setNewEmployee] = useState({
     firstName: '',
     lastName: '',
@@ -833,8 +845,9 @@ export default function EmployeesPage() {
         setDeactivateForm({ reason: '', requestedBy: '', performedBy: '', rehireable: true });
         setShowDeactivateModal(true);
       } else {
-        const updatedEmp = { ...emp, status: 'active', terminationDate: '', terminationReason: '', terminationRequestedBy: '', terminationPerformedBy: '', rehireable: true };
-        await updateEmployeeToAPI(updatedEmp);
+        setReactivatingEmployee(emp);
+        setReactivateForm({ reason: '', requestedBy: '', performedBy: '' });
+        setShowReactivateModal(true);
       }
     }
   };
@@ -853,6 +866,21 @@ export default function EmployeesPage() {
     await updateEmployeeToAPI(updatedEmp);
     setShowDeactivateModal(false);
     setDeactivatingEmployee(null);
+  };
+
+  const confirmReactivation = async () => {
+    if (!reactivatingEmployee) return;
+    const updatedEmp = {
+      ...reactivatingEmployee,
+      status: 'active',
+      reactivationDate: new Date().toISOString().split('T')[0],
+      reactivationReason: reactivateForm.reason,
+      reactivationRequestedBy: reactivateForm.requestedBy,
+      reactivationPerformedBy: reactivateForm.performedBy
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowReactivateModal(false);
+    setReactivatingEmployee(null);
   };
 
   const formatCurrency = (amount: number) => {
@@ -2017,6 +2045,76 @@ export default function EmployeesPage() {
                 disabled={!deactivateForm.reason || !deactivateForm.requestedBy || !deactivateForm.performedBy}
               >
                 Desactivar Empleado
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reactivation Modal */}
+      {showReactivateModal && reactivatingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-green-600">Reactivar Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {reactivatingEmployee.firstName} {reactivatingEmployee.lastName} ({reactivatingEmployee.employeeId})
+              </p>
+              {reactivatingEmployee.terminationReason && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Última razón de salida: {reactivatingEmployee.terminationReason}
+                </p>
+              )}
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-green-700">
+                  Fecha de reactivación: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de reactivación *</label>
+                <textarea
+                  value={reactivateForm.reason}
+                  onChange={(e) => setReactivateForm({ ...reactivateForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  rows={3}
+                  placeholder="Describa la razón de la reactivación..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={reactivateForm.requestedBy}
+                    onChange={(e) => setReactivateForm({ ...reactivateForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reactivado por *</label>
+                  <input
+                    type="text"
+                    value={reactivateForm.performedBy}
+                    onChange={(e) => setReactivateForm({ ...reactivateForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Nombre de quien reactiva"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowReactivateModal(false); setReactivatingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={confirmReactivation}
+                disabled={!reactivateForm.reason || !reactivateForm.requestedBy || !reactivateForm.performedBy}
+              >
+                Reactivar Empleado
               </Button>
             </div>
           </div>
