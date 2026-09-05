@@ -2036,7 +2036,7 @@ export default function EmployeesPage() {
                         </Button>
                       </>
                     )}
-                    {emp.status === 'terminated' && (
+                    {(emp.status === 'terminated' || emp.status === 'inactive') && (
                       <Button
                         size="sm"
                         variant="outline"
