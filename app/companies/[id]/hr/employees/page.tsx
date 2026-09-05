@@ -93,6 +93,17 @@ interface Employee {
   suspensionReason: string;
   suspensionRequestedBy: string;
   suspensionPerformedBy: string;
+  // Historial
+  history: HistoryEntry[];
+}
+
+interface HistoryEntry {
+  id: string;
+  action: string;
+  description: string;
+  changes: string[];
+  performedBy: string;
+  date: string;
 }
 
 interface MedicalRecord {
@@ -147,7 +158,8 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
     { id: 'habilidades', label: 'Habilidades' },
     { id: 'medico', label: 'Ficha Médica' },
     { id: 'documentos', label: 'Documentos' },
-    { id: 'rrhh', label: 'Doc. RRHH' }
+    { id: 'rrhh', label: 'Doc. RRHH' },
+    { id: 'historial', label: 'Historial' }
   ];
 
   const addHRDocument = () => {
@@ -560,6 +572,72 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'historial' && (
+          <div>
+            {(!emp.history || emp.history.length === 0) ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay registros de cambios</p>
+                <p className="text-sm">Las acciones realizadas sobre este empleado se registrarán aquí</p>
+              </div>
+            ) : (
+              <div className="space-y-0">
+                {emp.history.map((entry: HistoryEntry, index: number) => {
+                  const actionColors: Record<string, { bg: string; text: string; icon: string }> = {
+                    creation: { bg: 'bg-green-50', text: 'text-green-700', icon: 'bg-green-500' },
+                    update: { bg: 'bg-blue-50', text: 'text-blue-700', icon: 'bg-blue-500' },
+                    deactivation: { bg: 'bg-red-50', text: 'text-red-700', icon: 'bg-red-500' },
+                    reactivation: { bg: 'bg-green-50', text: 'text-green-700', icon: 'bg-green-500' },
+                    suspension: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'bg-amber-500' }
+                  };
+                  const actionLabels: Record<string, string> = {
+                    creation: 'Creación',
+                    update: 'Actualización',
+                    deactivation: 'Desactivación',
+                    reactivation: 'Reactivación',
+                    suspension: 'Suspensión'
+                  };
+                  const colors = actionColors[entry.action] || actionColors.update;
+                  return (
+                    <div key={entry.id} className="flex gap-4 pb-4 relative">
+                      {index < emp.history.length - 1 && (
+                        <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-gray-200" />
+                      )}
+                      <div className={`w-6 h-6 rounded-full ${colors.icon} flex-shrink-0 flex items-center justify-center z-10`}>
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      </div>
+                      <div className={`flex-1 rounded-lg p-3 ${colors.bg}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold uppercase ${colors.text}`}>
+                              {actionLabels[entry.action] || entry.action}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {entry.date ? new Date(entry.date).toLocaleString('es-HN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">{entry.description}</p>
+                        {entry.changes && entry.changes.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {entry.changes.map((change: string, ci: number) => (
+                              <div key={ci} className="text-xs text-gray-600 bg-white/60 rounded px-2 py-1">
+                                {change}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {entry.performedBy && (
+                          <p className="text-xs text-gray-400 mt-1">Por: {entry.performedBy}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>

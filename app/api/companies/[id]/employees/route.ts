@@ -6,6 +6,63 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+function fieldLabel(key: string): string {
+  const labels: Record<string, string> = {
+    firstName: 'Nombre', lastName: 'Apellido', identityNumber: 'Identidad',
+    position: 'Puesto', department: 'Departamento', salary: 'Salario',
+    startDate: 'Fecha de ingreso', status: 'Estado', phone: 'Teléfono',
+    email: 'Email', address: 'Dirección', civilStatus: 'Estado civil',
+    contractType: 'Tipo de contrato', supervisor: 'Supervisor',
+    schedule: 'Horario', modality: 'Modalidad', educationLevel: 'Nivel educativo',
+    university: 'Universidad', degree: 'Título', languages: 'Idiomas',
+    certifications: 'Certificaciones', otherSkills: 'Otras habilidades',
+    docIdentity: 'Doc. Identidad', docContract: 'Doc. Contrato',
+    photo: 'Foto', cv: 'CV'
+  };
+  return labels[key] || key;
+}
+
+function detectChanges(oldEmp: any, newBody: any): string[] {
+  const changes: string[] = [];
+  const fieldMap: Record<string, string> = {
+    firstName: 'first_name', lastName: 'last_name', identityNumber: 'id_number',
+    position: 'position', department: 'department', salary: 'base_salary',
+    startDate: 'hire_date', status: 'status', phone: 'phone',
+    email: 'email', address: 'address', civilStatus: 'civil_status',
+    contractType: 'contract_type', supervisor: 'supervisor',
+    schedule: 'schedule', modality: 'modality', educationLevel: 'education_level',
+    university: 'university', degree: 'degree', languages: 'languages',
+    certifications: 'certifications', otherSkills: 'other_skills'
+  };
+  for (const [frontendKey, dbKey] of Object.entries(fieldMap)) {
+    const oldVal = String(oldEmp[dbKey] || '');
+    const newVal = String(newBody[frontendKey] || '');
+    if (oldVal !== newVal && (oldVal || newVal)) {
+      changes.push(`${fieldLabel(frontendKey)}: "${oldVal || 'vacío'}" → "${newVal || 'vacío'}"`);
+    }
+  }
+  if (String(oldEmp.status || '') !== String(newBody.status || '')) {
+    changes.push(`Estado: "${oldEmp.status}" → "${newBody.status}"`);
+  }
+  const oldSalary = parseFloat(oldEmp.base_salary) || 0;
+  const newSalary = newBody.salary || 0;
+  if (oldSalary !== newSalary) {
+    changes.push(`Salario: "${oldSalary}" → "${newSalary}"`);
+  }
+  return changes;
+}
+
+async function logHistory(employeeId: string, tenantId: string, action: string, description: string, changes: string[], performedBy?: string) {
+  await supabase.from('employee_history').insert({
+    employee_id: employeeId,
+    tenant_id: tenantId,
+    action,
+    description,
+    changes: changes.length > 0 ? changes : null,
+    performed_by: performedBy || null
+  });
+}
+
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: tenantId } = await params;
@@ -96,7 +153,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       suspensionReason: emp.suspension_reason || '',
       suspensionRequestedBy: emp.suspension_requested_by || '',
       suspensionPerformedBy: emp.suspension_performed_by || '',
-      hrDocuments: []
+      hrDocuments: [],
+      history: []
     }));
 
     for (let emp of employees) {
@@ -116,6 +174,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
           observations: doc.observations,
           uploadedBy: doc.uploaded_by,
           uploadedAt: doc.uploaded_at
+        }));
+      }
+
+      const { data: history } = await supabase
+        .from('employee_history')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .eq('employee_id', emp.id)
+        .order('created_at', { ascending: false });
+
+      if (history) {
+        emp.history = history.map((h: any) => ({
+          id: h.id,
+          action: h.action,
+          description: h.description,
+          changes: h.changes || [],
+          performedBy: h.performed_by,
+          date: h.created_at
         }));
       }
     }
@@ -211,6 +287,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       console.error('Supabase insert error:', JSON.stringify(error));
       return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
     }
+
+    await logHistory(data.id, tenantId, 'creation', `Empleado ${body.firstName} ${body.lastName} creado`, [`Código: ${body.employeeId}`, `Puesto: ${body.position || 'N/A'}`, `Departamento: ${body.department || 'N/A'}`]);
+
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
         id: doc.id,
@@ -250,6 +329,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         .single();
       positionId = pos?.id || null;
     }
+
+    const { data: oldEmp } = await supabase
+      .from('employees')
+      .select('*')
+      .eq('id', body.id)
+      .single();
 
     const { error } = await supabase
       .from('employees')
@@ -319,6 +404,34 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
     }
 
+    if (oldEmp) {
+      const prevStatus = oldEmp.status || 'active';
+      const newStatus = body.status;
+      const changes = detectChanges(oldEmp, body);
+
+      if (prevStatus !== newStatus) {
+        const actionMap: Record<string, string> = {
+          'terminated': 'deactivation',
+          'suspended': 'suspension',
+          'active': 'reactivation'
+        };
+        const action = actionMap[newStatus] || 'update';
+        let description = '';
+        if (newStatus === 'terminated') {
+          description = `Desactivado por ${body.terminationPerformedBy || 'N/A'}. Razón: ${body.terminationReason || 'N/A'}`;
+        } else if (newStatus === 'suspended') {
+          description = `Suspendido por ${body.suspensionPerformedBy || 'N/A'}. Razón: ${body.suspensionReason || 'N/A'}`;
+        } else if (newStatus === 'active' && (prevStatus === 'terminated' || prevStatus === 'inactive')) {
+          description = `Reactivado por ${body.reactivationPerformedBy || 'N/A'}. Razón: ${body.reactivationReason || 'N/A'}`;
+        } else {
+          description = `Estado cambiado de "${prevStatus}" a "${newStatus}"`;
+        }
+        await logHistory(body.id, tenantId, action, description, changes);
+      } else if (changes.length > 0) {
+        await logHistory(body.id, tenantId, 'update', `Datos actualizados por edición`, changes);
+      }
+    }
+
     await supabase
       .from('employee_hr_documents')
       .delete()
@@ -358,6 +471,12 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     if (!employeeId) {
       return NextResponse.json({ error: 'Employee ID required' }, { status: 400 });
     }
+
+    await supabase
+      .from('employee_history')
+      .delete()
+      .eq('employee_id', employeeId)
+      .eq('tenant_id', tenantId);
 
     await supabase
       .from('employee_hr_documents')
