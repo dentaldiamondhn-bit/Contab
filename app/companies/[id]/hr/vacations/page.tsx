@@ -320,8 +320,12 @@ export default function PermissionsPage() {
 
   const deleteType = (typeId: string) => {
     const pt = permTypes.find(t => t.id === typeId);
-    if (pt?.isDefault) { alert('No se pueden eliminar los tipos por defecto'); return; }
-    if (!confirm(`¿Eliminar "${pt?.label}"? Se conservarán los registros existentes.`)) return;
+    if (!pt) return;
+    const hasRecords = requests.some(r => r.typeId === typeId) || Object.values(usedDays).some(ud => ud[typeId]);
+    const msg = hasRecords
+      ? `"${pt.label}" tiene registros asociados. Se eliminará el tipo pero los registros existentes se conservarán. ¿Continuar?`
+      : `¿Eliminar el tipo "${pt.label}"?`;
+    if (!confirm(msg)) return;
     const updated = permTypes.filter(t => t.id !== typeId);
     saveTypes(updated);
     if (filterType === typeId) setFilterType('all');
@@ -722,11 +726,9 @@ export default function PermissionsPage() {
                             <Button size="sm" variant="outline" onClick={() => openEditType(pt)} title="Editar">
                               <Pencil className="h-3 w-3 mr-1" /> Editar
                             </Button>
-                            {!pt.isDefault && (
-                              <Button size="sm" variant="destructive" onClick={() => deleteType(pt.id)} title="Eliminar">
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            )}
+                            <Button size="sm" variant="destructive" onClick={() => deleteType(pt.id)} title="Eliminar">
+                              <Trash2 className="h-3 w-3 mr-1" /> Eliminar
+                            </Button>
                           </div>
                         </div>
                       );
