@@ -16,7 +16,8 @@ import {
   Download,
   Briefcase,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  Building2
 } from 'lucide-react';
 
 interface Employee {
@@ -31,17 +32,29 @@ interface Employee {
   usedVacationDays: number;
 }
 
+interface Department {
+  id: string;
+  name: string;
+  description: string;
+  manager: string;
+  createdAt: string;
+}
+
 export default function HRDashboardPage() {
   const params = useParams();
   const router = useRouter();
   const companyId = params.id as string;
   
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
 
   useEffect(() => {
     const empKey = `employees_${companyId}`;
+    const deptKey = `departments_${companyId}`;
     const savedEmp = localStorage.getItem(empKey);
+    const savedDept = localStorage.getItem(deptKey);
     if (savedEmp) setEmployees(JSON.parse(savedEmp));
+    if (savedDept) setDepartments(JSON.parse(savedDept));
   }, [companyId]);
 
   const activeEmployees = employees.filter(e => e.status === 'active');
@@ -65,6 +78,15 @@ export default function HRDashboardPage() {
       bgColor: 'bg-blue-50',
       count: `${activeEmployees.length} activos`,
       path: '/hr/employees'
+    },
+    {
+      title: 'Departamentos',
+      description: 'Crear y gestionar departamentos de la empresa',
+      icon: Building2,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      count: `${departments.length} departamentos`,
+      path: '/hr/departments'
     },
     {
       title: 'Asistencia',
@@ -101,15 +123,6 @@ export default function HRDashboardPage() {
       bgColor: 'bg-cyan-50',
       count: 'Ver reportes',
       path: '/hr/reports'
-    },
-    {
-      title: 'Configuración',
-      description: 'Configuración de departamentos, cargos y políticas',
-      icon: Briefcase,
-      color: 'text-gray-600',
-      bgColor: 'bg-gray-50',
-      count: 'Configurar',
-      path: '/hr/settings'
     }
   ];
 
