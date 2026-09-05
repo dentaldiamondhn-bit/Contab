@@ -314,7 +314,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .eq('id', body.id)
       .eq('tenant_id', tenantId);
 
-    if (error) throw error;
+    if (error) {
+      console.error('Supabase update error:', JSON.stringify(error));
+      return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
+    }
 
     await supabase
       .from('employee_hr_documents')
