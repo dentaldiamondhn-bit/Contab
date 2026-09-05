@@ -538,10 +538,11 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
                                 const file = e.target.files?.[0];
                                 if (file) {
                                   const fileName = file.name.replace(/\.[^/.]+$/, '');
-                                  updateHRDoc(index, 'name', fileName);
                                   const reader = new FileReader();
                                   reader.onloadend = () => {
-                                    updateHRDoc(index, 'file', reader.result as string);
+                                    const updated = [...emp.hrDocuments];
+                                    updated[index] = { ...updated[index], name: fileName, file: reader.result as string };
+                                    updateField('hrDocuments', updated);
                                     showUploadMessage(`"${file.name}" subido correctamente`);
                                   };
                                   reader.readAsDataURL(file);
