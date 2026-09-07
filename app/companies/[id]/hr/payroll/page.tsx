@@ -259,7 +259,7 @@ export default function PayrollPage() {
   const loadAttendanceDeductions = () => {
     const saved = localStorage.getItem(`attendance_${companyId}`);
     if (!saved) return;
-    const records: { employeeId: string; status: string; amount?: number; overtimeAmount?: number; overtimeHours?: number; date: string }[] = JSON.parse(saved);
+    const records: { employeeId: string; status: string; amount?: number; overtimeAmount?: number; overtimeHours?: number; date: string; holidayType?: string }[] = JSON.parse(saved);
     const now = new Date();
     const closingMonth = config.closingMonth - 1;
     const closingYear = config.closingYear;
@@ -279,7 +279,10 @@ export default function PayrollPage() {
         const otAmount = r.overtimeAmount || amt;
         if (otAmount > 0) grouped[r.employeeId].push({ amount: otAmount, type: 'income', label: `Horas Extra${r.overtimeHours ? ` (${r.overtimeHours}h)` : ''}` });
       } else if (r.status === 'holiday') {
-        if (amt > 0) grouped[r.employeeId].push({ amount: amt, type: 'income', label: 'Día Feriado' });
+        if (amt > 0) {
+          const typeLabel = r.holidayType === 'doble' ? ' (Doble)' : r.holidayType === 'triple' ? ' (Triple)' : ' (Normal)';
+          grouped[r.employeeId].push({ amount: amt, type: 'income', label: `Día Feriado${typeLabel}` });
+        }
       } else if (r.status === 'vacation') {
         if (amt > 0) grouped[r.employeeId].push({ amount: amt, type: 'income', label: 'Vacaciones' });
       }
