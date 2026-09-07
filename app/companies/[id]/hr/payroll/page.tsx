@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -190,6 +190,8 @@ export default function PayrollPage() {
   const [attendanceDeductions, setAttendanceDeductions] = useState<Record<string, { amount: number; type: 'deduction' | 'income'; label: string }[]>>({});
   const [closingPeriod, setClosingPeriod] = useState<'1ra' | '2da'>('1ra');
   const [closingWeek, setClosingWeek] = useState(1);
+  const [showMenu, setShowMenu] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     loadEmployees();
@@ -198,6 +200,14 @@ export default function PayrollPage() {
     loadEmployeeDeductions();
     loadAttendanceDeductions();
   }, [companyId]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setShowMenu(false);
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const loadEmployees = async () => {
     try {
@@ -820,54 +830,59 @@ export default function PayrollPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Button>
-          <Button variant="outline" onClick={() => { setEditConfig(config); setShowConfig(true); }}>
-            <Settings className="h-4 w-4 mr-2" />
-            Configurar
-          </Button>
           {activeTab === 'current' && (
-            <>
-              {(config.frequency === 'quincenal' || config.frequency === 'cada_2_semanas' || config.frequency === 'semanal') && (
-                <div className="flex items-center gap-2 border rounded-md px-3 py-1.5">
-                  <span className="text-xs text-gray-500">Período:</span>
-                  {config.frequency === 'quincenal' && (
-                    <select value={closingPeriod} onChange={(e) => setClosingPeriod(e.target.value as '1ra' | '2da')} className="text-sm border rounded px-2 py-1">
-                      <option value="1ra">1ra Quincena (1-15)</option>
-                      <option value="2da">2da Quincena (16-fin)</option>
-                    </select>
+            <div className="relative" ref={menuRef}>
+              <Button variant="outline" onClick={() => setShowMenu(!showMenu)}>
+                <Settings className="h-4 w-4 mr-2" />
+                Acciones
+              </Button>
+              {showMenu && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white border rounded-lg shadow-lg z-50 py-1">
+                  <button onClick={() => { setEditConfig(config); setShowConfig(true); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <Settings className="h-4 w-4" /> Configurar
+                  </button>
+                  {(config.frequency === 'quincenal' || config.frequency === 'cada_2_semanas' || config.frequency === 'semanal') && (
+                    <div className="px-4 py-2 border-t">
+                      <span className="text-xs text-gray-500">Período:</span>
+                      {config.frequency === 'quincenal' && (
+                        <select value={closingPeriod} onChange={(e) => setClosingPeriod(e.target.value as '1ra' | '2da')} className="w-full mt-1 text-sm border rounded px-2 py-1">
+                          <option value="1ra">1ra Quincena (1-15)</option>
+                          <option value="2da">2da Quincena (16-fin)</option>
+                        </select>
+                      )}
+                      {config.frequency === 'cada_2_semanas' && (
+                        <select value={closingWeek} onChange={(e) => setClosingWeek(parseInt(e.target.value))} className="w-full mt-1 text-sm border rounded px-2 py-1">
+                          <option value={1}>Semana 1 (1-14)</option>
+                          <option value={2}>Semana 2 (15-28)</option>
+                        </select>
+                      )}
+                      {config.frequency === 'semanal' && (
+                        <select value={closingWeek} onChange={(e) => setClosingWeek(parseInt(e.target.value))} className="w-full mt-1 text-sm border rounded px-2 py-1">
+                          <option value={1}>Semana 1 (1-7)</option>
+                          <option value={2}>Semana 2 (8-14)</option>
+                          <option value={3}>Semana 3 (15-21)</option>
+                          <option value={4}>Semana 4 (22-fin)</option>
+                        </select>
+                      )}
+                    </div>
                   )}
-                  {config.frequency === 'cada_2_semanas' && (
-                    <select value={closingWeek} onChange={(e) => setClosingWeek(parseInt(e.target.value))} className="text-sm border rounded px-2 py-1">
-                      <option value={1}>Semana 1 (1-14)</option>
-                      <option value={2}>Semana 2 (15-28)</option>
-                    </select>
-                  )}
-                  {config.frequency === 'semanal' && (
-                    <select value={closingWeek} onChange={(e) => setClosingWeek(parseInt(e.target.value))} className="text-sm border rounded px-2 py-1">
-                      <option value={1}>Semana 1 (1-7)</option>
-                      <option value={2}>Semana 2 (8-14)</option>
-                      <option value={3}>Semana 3 (15-21)</option>
-                      <option value={4}>Semana 4 (22-fin)</option>
-                    </select>
-                  )}
+                  <div className="border-t" />
+                  <button onClick={() => { downloadCSV(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <Download className="h-4 w-4" /> Descargar CSV
+                  </button>
+                  <button onClick={() => { generateAllVouchers(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <FileText className="h-4 w-4" /> Vauchers
+                  </button>
+                  <button onClick={() => { loadAttendanceDeductions(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <RefreshCw className="h-4 w-4" /> Recargar Asistencia
+                  </button>
+                  <div className="border-t" />
+                  <button onClick={() => { closePayroll(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-red-50 text-red-600 text-left">
+                    <Lock className="h-4 w-4" /> Cerrar Nómina
+                  </button>
                 </div>
               )}
-              <Button onClick={downloadCSV}>
-                <Download className="h-4 w-4 mr-2" />
-                Descargar CSV
-              </Button>
-              <Button onClick={generateAllVouchers} variant="outline">
-                <FileText className="h-4 w-4 mr-2" />
-                Vauchers
-              </Button>
-              <Button onClick={loadAttendanceDeductions} variant="outline">
-                <RefreshCw className="h-4 w-4 mr-2" />
-                Recargar Asistencia
-              </Button>
-              <Button onClick={closePayroll} className="bg-green-600 hover:bg-green-700">
-                <Lock className="h-4 w-4 mr-2" />
-                Cerrar Nómina
-              </Button>
-            </>
+            </div>
           )}
         </div>
       </div>
