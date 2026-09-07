@@ -572,10 +572,7 @@ export default function PayrollPage() {
       <table>
         <tr><th>Descripción</th><th style="width:60px">Cantidad</th><th style="width:55px">Unidad</th><th style="width:70px">Monto</th></tr>
         <tr><td>Salario Regular</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(periodSalary)}</td></tr>
-        ${attdIncs.filter(i => i.label.toLowerCase().includes('incapacidad')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        ${attdIncs.filter(i => i.label.toLowerCase().includes('horas extra') || i.label.toLowerCase().includes('overtime')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        ${attdIncs.filter(i => !i.label.toLowerCase().includes('incapacidad') && !i.label.toLowerCase().includes('horas extra') && !i.label.toLowerCase().includes('overtime')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        <tr class="total-row"><td colspan="3">Total Salario Ordinario</td><td class="amount currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</td></tr>
+        <tr class="total-row"><td colspan="3">Total Salario Ordinario</td><td class="amount currency">${formatCurrency(periodSalary)}</td></tr>
       </table>
 
       <div class="section-title">Deducciones del Empleado</div>
@@ -749,10 +746,7 @@ export default function PayrollPage() {
       <table>
         <tr><th>Descripción</th><th style="width:60px">Cantidad</th><th style="width:55px">Unidad</th><th style="width:70px">Monto</th></tr>
         <tr><td>Salario Regular</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(periodSalary)}</td></tr>
-        ${attdIncs.filter(i => i.label.toLowerCase().includes('incapacidad')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        ${attdIncs.filter(i => i.label.toLowerCase().includes('horas extra') || i.label.toLowerCase().includes('overtime')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        ${attdIncs.filter(i => !i.label.toLowerCase().includes('incapacidad') && !i.label.toLowerCase().includes('horas extra') && !i.label.toLowerCase().includes('overtime')).map(i => `<tr><td>${i.label}</td><td class="amount">1</td><td>Periodo</td><td class="amount currency">${formatCurrency(i.amount)}</td></tr>`).join('')}
-        <tr class="total-row"><td colspan="3">Total Salario Ordinario</td><td class="amount currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</td></tr>
+        <tr class="total-row"><td colspan="3">Total Salario Ordinario</td><td class="amount currency">${formatCurrency(periodSalary)}</td></tr>
       </table>
 
       <div class="section-title">Deducciones del Empleado</div>
