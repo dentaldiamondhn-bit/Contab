@@ -581,10 +581,10 @@ export default function PayrollPage() {
       <div class="section-title">Deducciones del Empleado</div>
       <table>
         <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${igssEnabled ? `<tr><td>IGSS Empleado (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
-        ${ihssEnabled ? `<tr><td>IHSS (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
-        ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
+        ${customNonStd.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
+        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${customNonStd.length === 0 && attdDeds.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin deducciones adicionales</td><td class="amount">-</td></tr>' : ''}
+        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency(calc.totalDeductions - (igssEnabled ? calc.igssEmployee : 0) - (ihssEnabled ? calc.ihss : 0) - (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
     </div>
 
@@ -769,10 +769,10 @@ export default function PayrollPage() {
       <div class="section-title">Deducciones del Empleado</div>
       <table>
         <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${igssEnabled ? `<tr><td>IGSS Empleado (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
-        ${ihssEnabled ? `<tr><td>IHSS (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
-        ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
+        ${customNonStd.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
+        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${customNonStd.length === 0 && attdDeds.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin deducciones adicionales</td><td class="amount">-</td></tr>' : ''}
+        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency(calc.totalDeductions - (igssEnabled ? calc.igssEmployee : 0) - (ihssEnabled ? calc.ihss : 0) - (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
     </div>
 
