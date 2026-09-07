@@ -502,6 +502,7 @@ export default function PayrollPage() {
     const hoursPerDay = 8;
     const valuePerHour = emp.salary / (30 * hoursPerDay);
     const periodoPago = `${periodDates.start} al ${periodDates.end}`;
+    const customNonStd = calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP'));
 
     const html = `<!DOCTYPE html>
 <html><head><meta charset="utf-8"><title>Voucher de Pago - ${emp.name}</title>
@@ -583,9 +584,7 @@ export default function PayrollPage() {
         ${igssEnabled ? `<tr><td>IGSS Empleado (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
         ${ihssEnabled ? `<tr><td>IHSS (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
         ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        ${calc.customItems.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
+        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
     </div>
 
@@ -596,9 +595,7 @@ export default function PayrollPage() {
         ${igssEnabled ? `<tr><td>Seguro Social IGSS (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
         ${ihssEnabled ? `<tr><td>IHSS Vivienda (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
         ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        ${calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP')).map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Deducciones Ley</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
+        <tr class="total-row"><td>Total Deducciones Ley</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
 
       <div class="section-title">Bonificaciones e Ingresos</div>
@@ -615,7 +612,7 @@ export default function PayrollPage() {
       <div class="section-title">Ajustes y Bonificaciones</div>
       <table>
         <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP')).map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
+        ${customNonStd.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
         ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
         <tr class="total-row"><td>Total Ajustes</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
       </table>
@@ -731,6 +728,7 @@ export default function PayrollPage() {
       const hoursPerDay = 8;
       const valuePerHour = emp.salary / (30 * hoursPerDay);
       const periodoPago = `${periodDates.start} al ${periodDates.end}`;
+      const customNonStd = calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP'));
 
       allHtml += `
 <div class="page">
@@ -774,9 +772,7 @@ export default function PayrollPage() {
         ${igssEnabled ? `<tr><td>IGSS Empleado (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
         ${ihssEnabled ? `<tr><td>IHSS (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
         ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        ${calc.customItems.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
+        <tr class="total-row"><td>Total Deducciones</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
     </div>
 
@@ -787,9 +783,7 @@ export default function PayrollPage() {
         ${igssEnabled ? `<tr><td>Seguro Social IGSS (${config.igssEmployee}%)</td><td class="amount currency">${formatCurrency(calc.igssEmployee)}</td></tr>` : ''}
         ${ihssEnabled ? `<tr><td>IHSS Vivienda (${config.ihss}%)</td><td class="amount currency">${formatCurrency(calc.ihss)}</td></tr>` : ''}
         ${rapEnabled ? `<tr><td>RAP (${config.rap}%)</td><td class="amount currency">${formatCurrency(calc.rap)}</td></tr>` : ''}
-        ${calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP')).map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Deducciones Ley</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
+        <tr class="total-row"><td>Total Deducciones Ley</td><td class="amount currency">${formatCurrency((igssEnabled ? calc.igssEmployee : 0) + (ihssEnabled ? calc.ihss : 0) + (rapEnabled ? calc.rap : 0))}</td></tr>
       </table>
 
       <div class="section-title">Bonificaciones e Ingresos</div>
