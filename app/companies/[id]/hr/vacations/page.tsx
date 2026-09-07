@@ -129,13 +129,8 @@ function emptyUsage(): UsageRecord {
 
 function getUsage(usedDays: UsedDays, empId: string, typeId: string): UsageRecord {
   const rec = usedDays[empId]?.[typeId];
-  const now = new Date();
-  const curMonth = now.getMonth() + 1;
-  const curYear = now.getFullYear();
-  if (!rec) return { annual: 0, monthly: 0, month: curMonth, year: curYear };
-  if (rec.year === curYear && rec.month === curMonth) return rec;
-  if (rec.year === curYear) return { annual: rec.annual, monthly: 0, month: curMonth, year: curYear };
-  return { annual: 0, monthly: 0, month: curMonth, year: curYear };
+  if (!rec) return { annual: 0, monthly: 0, month: getCurrentMonth(), year: getCurrentYear() };
+  return rec;
 }
 
 export default function PermissionsPage() {
@@ -211,7 +206,20 @@ export default function PermissionsPage() {
     return pt.annualDays;
   };
 
-  const getUsageForEmp = (empId: string, typeId: string): UsageRecord => getUsage(usedDays, empId, typeId);
+  const approvedRequests = requests.filter(r => r.status === 'approved');
+
+  const getUsageForEmp = (empId: string, typeId: string): UsageRecord => {
+    const now = new Date();
+    const curMonth = now.getMonth() + 1;
+    const curYear = now.getFullYear();
+    const empApproved = approvedRequests.filter(r => r.employeeId === empId && r.typeId === typeId);
+    const annual = empApproved.reduce((sum, r) => sum + r.days, 0);
+    const monthly = empApproved.filter(r => {
+      const d = new Date(r.resolvedAt || r.createdAt);
+      return d.getMonth() + 1 === curMonth && d.getFullYear() === curYear;
+    }).reduce((sum, r) => sum + r.days, 0);
+    return { annual, monthly, month: curMonth, year: curYear };
+  };
 
   const getAvailableDays = (emp: Employee, typeId: string): number => {
     const max = getMaxDays(emp, typeId);

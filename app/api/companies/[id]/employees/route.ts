@@ -87,6 +87,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       positions.forEach((p: any) => { posMap[p.id] = p.name; });
     }
 
+    const { data: departments } = await supabase
+      .from('departments')
+      .select('*')
+      .eq('tenant_id', tenantId);
+
+    const deptMap: Record<string, string> = {};
+    if (departments) {
+      departments.forEach((d: any) => { deptMap[d.id] = d.name; });
+    }
+
     const calcVacationDays = (hireDate: string) => {
       if (!hireDate) return 0;
       const totalYears = Math.floor((new Date().getTime() - new Date(hireDate).getTime()) / (365.25 * 24 * 60 * 60 * 1000));
@@ -105,8 +115,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       identityNumber: emp.identity_number || emp.id_number || '',
       photo: emp.photo || '',
       cv: emp.cv || '',
-      position: posMap[emp.position_id] || emp.position_id || '',
-      department: emp.department || '',
+      position: posMap[emp.position_id] || (emp.position_id && emp.position_id.length > 10 ? '' : emp.position_id || ''),
+      department: deptMap[emp.department] || emp.department || '',
       salary: parseFloat(emp.base_salary) || 0,
       startDate: emp.hire_date || '',
       status: emp.status || 'active',
@@ -114,12 +124,16 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       email: emp.email || '',
       address: emp.address || '',
       civilStatus: emp.civil_status || '',
+      gender: emp.gender || null,
+      freeDays: emp.free_days || [],
       vacationDays: calcVacationDays(emp.hire_date),
       usedVacationDays: 0,
       contractType: emp.contract_type || 'indefinido',
       supervisor: emp.supervisor || '',
       schedule: emp.schedule || 'completa',
-      scheduleHours: emp.schedule_hours || '08:00 - 17:00',
+      scheduleEntry: emp.schedule_entry || '',
+      scheduleExit: emp.schedule_exit || '',
+      scheduleHours: (emp.schedule_entry && emp.schedule_exit) ? `${emp.schedule_entry} - ${emp.schedule_exit}` : emp.schedule_hours || '08:00 - 17:00',
       modality: emp.modality || 'presencial',
       educationLevel: emp.education_level || '',
       university: emp.university || '',
@@ -216,18 +230,24 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let positionId = null;
     if (body.position) {
-      const { data: pos } = await supabase
+      let { data: pos } = await supabase
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('name', body.position)
         .single();
+      if (!pos) {
+        const { data: newPos } = await supabase
+          .from('positions')
+          .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
+          .select('id')
+          .single();
+        pos = newPos;
+      }
       positionId = pos?.id || null;
     }
 
-    const { data, error } = await supabase
-      .from('employees')
-      .insert({
+    const insertData: any = {
         tenant_id: tenantId,
         company_id: 'demo-company-id',
         employee_code: body.employeeId,
@@ -249,7 +269,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         contract_type: body.contractType,
         supervisor: body.supervisor,
         schedule: body.schedule,
-        schedule_hours: body.scheduleHours,
+        schedule_entry: body.scheduleEntry || null,
+        schedule_exit: body.scheduleExit || null,
+        schedule_hours: (body.scheduleEntry && body.scheduleExit) ? `${body.scheduleEntry} - ${body.scheduleExit}` : body.scheduleHours || '08:00 - 17:00',
         modality: body.modality,
         education_level: body.educationLevel,
         university: body.university,
@@ -284,8 +306,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         suspension_date: body.suspensionDate || null,
         suspension_reason: body.suspensionReason || null,
         suspension_requested_by: body.suspensionRequestedBy || null,
-        suspension_performed_by: body.suspensionPerformedBy || null
-      })
+        suspension_performed_by: body.suspensionPerformedBy || null,
+        gender: body.gender || null,
+        free_days: body.freeDays || [],
+      }
+
+    const { data, error } = await supabase
+      .from('employees')
+      .insert(insertData)
       .select()
       .single();
 
@@ -332,12 +360,20 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     let positionId = null;
     if (body.position) {
-      const { data: pos } = await supabase
+      let { data: pos } = await supabase
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('name', body.position)
         .single();
+      if (!pos) {
+        const { data: newPos } = await supabase
+          .from('positions')
+          .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
+          .select('id')
+          .single();
+        pos = newPos;
+      }
       positionId = pos?.id || null;
     }
 
@@ -347,9 +383,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .eq('id', body.id)
       .single();
 
-    const { error } = await supabase
-      .from('employees')
-      .update({
+    const updateData: any = {
         employee_code: body.employeeId,
         first_name: body.firstName,
         last_name: body.lastName,
@@ -369,7 +403,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         contract_type: body.contractType,
         supervisor: body.supervisor,
         schedule: body.schedule,
-        schedule_hours: body.scheduleHours,
+        schedule_entry: body.scheduleEntry || null,
+        schedule_exit: body.scheduleExit || null,
+        schedule_hours: (body.scheduleEntry && body.scheduleExit) ? `${body.scheduleEntry} - ${body.scheduleExit}` : body.scheduleHours || '08:00 - 17:00',
         modality: body.modality,
         education_level: body.educationLevel,
         university: body.university,
@@ -405,8 +441,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         suspension_reason: body.suspensionReason || null,
         suspension_requested_by: body.suspensionRequestedBy || null,
         suspension_performed_by: body.suspensionPerformedBy || null,
+        gender: body.gender || null,
+        free_days: body.freeDays || [],
         updated_at: new Date().toISOString()
-      })
+      }
+
+    const { error } = await supabase
+      .from('employees')
+      .update(updateData)
       .eq('id', body.id)
       .eq('tenant_id', tenantId);
 

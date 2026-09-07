@@ -17,7 +17,8 @@ import {
   Briefcase,
   CheckCircle,
   AlertCircle,
-  Building2
+  Building2,
+  Network
 } from 'lucide-react';
 
 interface Employee {
@@ -110,7 +111,7 @@ export default function HRDashboardPage() {
     },
     {
       title: 'Departamentos y Puestos',
-      description: 'Crear y gestionar departamentos y puestos de la empresa',
+      description: 'Crear y gestionar departamentos, puestos y jerarquía de la empresa',
       icon: Building2,
       color: 'text-indigo-600',
       bgColor: 'bg-indigo-50',

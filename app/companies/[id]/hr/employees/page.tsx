@@ -20,8 +20,19 @@ import {
   Save,
   Plus,
   FileText,
-  Eye
+  Eye,
+  FileSpreadsheet,
+  MoreHorizontal,
+  Clock,
+  CalendarOff
 } from 'lucide-react';
+import { exportToExcel } from '@/lib/services/excel';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 
 interface Employee {
   id: string;
@@ -40,6 +51,8 @@ interface Employee {
   email: string;
   address: string;
   civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'unión libre';
+  gender: 'M' | 'F' | '';
+  freeDays: number[];
   vacationDays: number;
   usedVacationDays: number;
   // Contrato y trabajo
@@ -47,6 +60,8 @@ interface Employee {
   supervisor: string;
   schedule: 'completa' | 'media' | 'personalizada';
   scheduleHours: string;
+  scheduleEntry: string;
+  scheduleExit: string;
   modality: 'presencial' | 'remoto' | 'híbrido';
   // Académico
   educationLevel: 'basico' | 'medio' | 'universitario' | 'tecnico' | 'maestria' | 'doctorado';
@@ -149,7 +164,7 @@ interface Position {
   maxSalary: number;
 }
 
-function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void }) {
+function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[] }) {
   const [activeTab, setActiveTab] = useState('personal');
   const tabs = [
     { id: 'personal', label: 'Personal' },
@@ -218,6 +233,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
               <>
                 <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="unión libre">Unión Libre</option></select></div>
+                <div><label className="text-gray-500">Género:</label><select value={emp.gender || ''} onChange={(e) => updateField('gender', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No especificado</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
                 <div><label className="text-gray-500">Teléfono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div className="col-span-2"><label className="text-gray-500">Dirección:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
@@ -229,6 +245,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
               <>
                 <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
                 <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
+                <div><span className="text-gray-500">Género:</span><p className="font-medium">{emp.gender === 'M' ? 'Masculino' : emp.gender === 'F' ? 'Femenino' : '-'}</p></div>
                 <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
                 <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
                 <div className="col-span-2"><span className="text-gray-500">Dirección:</span><p className="font-medium">{emp.address || '-'}</p></div>
@@ -246,27 +263,98 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage }: { emp: an
             <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
             {isEditing ? (
               <>
+                <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => updateField('department', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
+                <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => !emp.department || p.department === emp.department).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
                 <div><label className="text-gray-500">Jefe Directo:</label><input type="text" value={emp.supervisor || ''} onChange={(e) => updateField('supervisor', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
-                <div><label className="text-gray-500">Horario:</label><input type="text" value={emp.scheduleHours || ''} onChange={(e) => updateField('scheduleHours', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Hora Entrada:</label><input type="time" value={emp.scheduleEntry || ''} onChange={(e) => updateField('scheduleEntry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Hora Salida:</label><input type="time" value={emp.scheduleExit || ''} onChange={(e) => updateField('scheduleExit', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="híbrido">Híbrido</option></select></div>
                 <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option></select></div>
                 <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2 md:col-span-3">
+                  <label className="text-gray-500">Días Libres:</label>
+                  <div className="flex gap-1 mt-1">
+                    {[
+                      { value: 0, label: 'Dom' },
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'Mié' },
+                      { value: 4, label: 'Jue' },
+                      { value: 5, label: 'Vie' },
+                      { value: 6, label: 'Sáb' },
+                    ].map(day => {
+                      const freeDays = emp.freeDays || [];
+                      const isSelected = freeDays.includes(day.value);
+                      return (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => {
+                            const newFreeDays = isSelected
+                              ? freeDays.filter((d: number) => d !== day.value)
+                              : [...freeDays, day.value];
+                            updateField('freeDays', newFreeDays);
+                          }}
+                          className={`w-12 h-8 rounded text-xs font-bold border transition-colors ${
+                            isSelected
+                              ? 'bg-teal-100 text-teal-700 border-teal-300'
+                              : 'bg-white border-gray-200 hover:border-gray-400 text-gray-600'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             ) : (
               <>
+                <div><span className="text-gray-500">Departamento:</span><p className="font-medium">{emp.department || '-'}</p></div>
+                <div><span className="text-gray-500">Cargo:</span><p className="font-medium">{emp.position || '-'}</p></div>
                 <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
                 <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.supervisor || '-'}</p></div>
                 <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
                 <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
                 <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
-                <div><span className="text-gray-500">Horario:</span><p className="font-medium">{emp.scheduleHours || '-'}</p></div>
+                <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
+                <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
                 <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
                 <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium">{emp.workPermitStatus || 'No aplica'}</p></div>
                 <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-500">Días Libres:</span>
+                  <div className="flex gap-1 mt-1">
+                    {[
+                      { value: 0, label: 'Dom' },
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'Mié' },
+                      { value: 4, label: 'Jue' },
+                      { value: 5, label: 'Vie' },
+                      { value: 6, label: 'Sáb' },
+                    ].map(day => {
+                      const freeDays = emp.freeDays || [];
+                      const isSelected = freeDays.includes(day.value);
+                      return (
+                        <span
+                          key={day.value}
+                          className={`w-12 h-8 rounded text-xs font-bold border flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-teal-100 text-teal-700 border-teal-300'
+                              : 'bg-gray-50 border-gray-200 text-gray-400'
+                          }`}
+                        >
+                          {day.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
               </>
             )}
             <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
@@ -712,6 +800,8 @@ export default function EmployeesPage() {
     supervisor: '',
     schedule: 'completa' as const,
     scheduleHours: '08:00 - 17:00',
+    scheduleEntry: '08:00',
+    scheduleExit: '17:00',
     modality: 'presencial' as const,
     educationLevel: 'universitario' as const,
     university: '',
@@ -756,12 +846,22 @@ export default function EmployeesPage() {
   }, [companyId]);
 
   const loadData = async () => {
-    const deptKey = `departments_${companyId}`;
-    const posKey = `positions_${companyId}`;
-    const savedDept = localStorage.getItem(deptKey);
-    const savedPos = localStorage.getItem(posKey);
-    if (savedDept) setDepartments(JSON.parse(savedDept));
-    if (savedPos) setPositions(JSON.parse(savedPos));
+    try {
+      const [deptRes, posRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/hr/departments`),
+        fetch(`/api/companies/${companyId}/hr/positions`)
+      ]);
+      if (deptRes.ok) {
+        const depts = await deptRes.json();
+        setDepartments(depts.map((d: any) => ({ id: d.id, name: d.name, description: d.description, manager: d.manager, createdAt: d.created_at, parentId: d.parent_id })));
+      }
+      if (posRes.ok) {
+        const pos = await posRes.json();
+        setPositions(pos.map((p: any) => ({ id: p.id, name: p.name, department: p.department, description: p.description, minSalary: p.min_salary, maxSalary: p.max_salary, parentId: p.parent_id })));
+      }
+    } catch (err) {
+      console.error('Error loading departments/positions:', err);
+    }
 
     try {
       const res = await fetch(`/api/companies/${companyId}/employees`);
@@ -910,6 +1010,11 @@ export default function EmployeesPage() {
   };
 
   const addEmployee = async () => {
+    const posTaken = employees.find(e => e.position === newEmployee.position && e.department === newEmployee.department && e.status === 'active');
+    if (posTaken) {
+      alert(`El puesto "${newEmployee.position}" ya está ocupado por ${posTaken.firstName} ${posTaken.lastName}.`);
+      return;
+    }
     const emp: Employee = {
       id: `emp-${Date.now()}`,
       employeeId: generateEmployeeId(),
@@ -919,7 +1024,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     await saveEmployeeToAPI(emp);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa', scheduleHours: '08:00 - 17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
     setShowAddEmployee(false);
   };
 
@@ -931,6 +1036,11 @@ export default function EmployeesPage() {
 
   const updateEmployee = async () => {
     if (!editingEmployee) return;
+    const posTaken = employees.find(e => e.position === editingEmployee.position && e.department === editingEmployee.department && e.status === 'active' && e.id !== editingEmployee.id);
+    if (posTaken) {
+      alert(`El puesto "${editingEmployee.position}" ya está ocupado por ${posTaken.firstName} ${posTaken.lastName}.`);
+      return;
+    }
     await updateEmployeeToAPI(editingEmployee);
     setSelectedEmployee(editingEmployee);
     setEditingEmployee(null);
@@ -1136,6 +1246,35 @@ export default function EmployeesPage() {
     window.URL.revokeObjectURL(url);
   };
 
+  const exportEmployees = () => {
+    const data = filteredEmployees.map(emp => ({
+      'Código': emp.employeeId,
+      'Nombre': `${emp.firstName} ${emp.lastName}`,
+      'Identidad': emp.identityNumber,
+      'Estado': emp.status,
+      'Cargo': emp.position,
+      'Departamento': emp.department,
+      'Salario': emp.salary,
+      'Fecha Ingreso': emp.startDate,
+      'Teléfono': emp.phone,
+      'Email': emp.email,
+      'Dirección': emp.address,
+      'Estado Civil': emp.civilStatus,
+      'Tipo Contrato': emp.contractType,
+      'Supervisor': emp.supervisor,
+      'Horario': emp.schedule,
+      'Modalidad': emp.modality,
+      'Nivel Educación': emp.educationLevel,
+      'Universidad': emp.university,
+      'Carrera': emp.degree,
+      'IGSS': emp.socialSecurityNumber,
+      'AFP': emp.pensionFund,
+      'Aseguradora Riesgo': emp.laborRiskInsurer,
+      'No. Empleado': emp.identityNumber,
+    }));
+    exportToExcel(data, `empleados_${new Date().toISOString().slice(0, 10)}`);
+  };
+
   return (
     <div className="container mx-auto p-6 space-y-6">
       {/* Upload Notification */}
@@ -1168,14 +1307,28 @@ export default function EmployeesPage() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
           </Button>
-          <Button variant="outline" onClick={downloadTemplate}>
-            <Download className="h-4 w-4 mr-2" />
-            Descargar Template
-          </Button>
-          <Button variant="outline" onClick={() => setShowUpload(true)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Subir Archivo
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <MoreHorizontal className="h-4 w-4 mr-2" />
+                Acciones
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Descargar Template
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportEmployees}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowUpload(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Subir Archivo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => setShowAddEmployee(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
             Agregar Empleado
@@ -1500,11 +1653,15 @@ export default function EmployeesPage() {
                   <option value="">Seleccionar puesto...</option>
                   {positions
                     .filter(p => !newEmployee.department || p.department === newEmployee.department)
-                    .map((pos) => (
-                      <option key={pos.id} value={pos.name}>
-                        {pos.name} {pos.minSalary > 0 || pos.maxSalary > 0 ? `(${pos.minSalary > 0 ? formatCurrency(pos.minSalary) : '?'} - ${pos.maxSalary > 0 ? formatCurrency(pos.maxSalary) : '?'})` : ''}
-                      </option>
-                    ))}
+                    .map((pos) => {
+                      const takenBy = employees.find(e => e.position === pos.name && e.status === 'active' && e.department === pos.department);
+                      const isTaken = !!takenBy;
+                      return (
+                        <option key={pos.id} value={pos.name} disabled={isTaken}>
+                          {pos.name} {isTaken ? `(Ocupado - ${takenBy.firstName} ${takenBy.lastName})` : pos.minSalary > 0 || pos.maxSalary > 0 ? `(${pos.minSalary > 0 ? formatCurrency(pos.minSalary) : '?'} - ${pos.maxSalary > 0 ? formatCurrency(pos.maxSalary) : '?'})` : ''}
+                        </option>
+                      );
+                    })}
                 </select>
                 {newEmployee.department && positions.filter(p => p.department === newEmployee.department).length === 0 && (
                   <p className="text-xs text-orange-500 mt-1">No hay puestos para este departamento</p>
@@ -1607,13 +1764,21 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Horario</label>
+                  <label className="text-sm font-medium">Hora Entrada</label>
                   <input
-                    type="text"
-                    value={newEmployee.scheduleHours}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleHours: e.target.value })}
+                    type="time"
+                    value={newEmployee.scheduleEntry || '08:00'}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleEntry: e.target.value, scheduleHours: `${e.target.value} - ${newEmployee.scheduleExit || '17:00'}` })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
-                    placeholder="08:00 - 17:00"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Hora Salida</label>
+                  <input
+                    type="time"
+                    value={newEmployee.scheduleExit || '17:00'}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleExit: e.target.value, scheduleHours: `${newEmployee.scheduleEntry || '08:00'} - ${e.target.value}` })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
                   />
                 </div>
                 <div>
@@ -2126,6 +2291,18 @@ export default function EmployeesPage() {
                         {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
                         <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
                         <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
+                        {(emp.scheduleEntry || emp.scheduleExit) && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-blue-500" />
+                            {emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}
+                          </span>
+                        )}
+                        {emp.freeDays && emp.freeDays.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <CalendarOff className="h-3 w-3 text-teal-500" />
+                            {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2512,6 +2689,14 @@ export default function EmployeesPage() {
                 <div>
                   <h2 className="text-lg font-bold">{emp.firstName} {emp.lastName}</h2>
                   <p className="text-sm text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    {(emp.scheduleEntry || emp.scheduleExit) && (
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}</span>
+                    )}
+                    {emp.freeDays && emp.freeDays.length > 0 && (
+                      <span className="flex items-center gap-1"><CalendarOff className="h-3 w-3" />Libre: {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}</span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex gap-2">
@@ -2534,7 +2719,7 @@ export default function EmployeesPage() {
             </div>
 
             {/* Tabs */}
-            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} />
+            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} departments={departments} positions={positions} />
           </div>
         </div>
         );
