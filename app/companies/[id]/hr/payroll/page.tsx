@@ -608,21 +608,10 @@ export default function PayrollPage() {
   </div>
 
   <div class="net-summary">
-    <div class="net-left">
-      <div class="section-title">Ajustes y Bonificaciones</div>
-      <table>
-        <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${customNonStd.map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Ajustes</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
-      </table>
-    </div>
-    <div class="net-right">
-      <div class="section-title">Resumen de Pago Neto</div>
-      <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
-      <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
-      <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
-    </div>
+    <div class="section-title">Resumen de Pago Neto</div>
+    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+    <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
+    <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
   </div>
 
   <div class="bottom-section">
@@ -796,21 +785,10 @@ export default function PayrollPage() {
   </div>
 
   <div class="net-summary">
-    <div class="net-left">
-      <div class="section-title">Ajustes y Bonificaciones</div>
-      <table>
-        <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${calc.customItems.filter(d => !d.name.includes('IGSS') && !d.name.includes('IHSS') && !d.name.includes('RAP')).map(d => `<tr><td>${d.name}</td><td class="amount currency">${formatCurrency(d.amount)}</td></tr>`).join('\n        ')}
-        ${attdDeds.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
-        <tr class="total-row"><td>Total Ajustes</td><td class="amount currency">${formatCurrency(calc.totalDeductions)}</td></tr>
-      </table>
-    </div>
-    <div class="net-right">
-      <div class="section-title">Resumen de Pago Neto</div>
-      <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
-      <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
-      <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
-    </div>
+    <div class="section-title">Resumen de Pago Neto</div>
+    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+    <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
+    <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
   </div>
 
   <div class="bottom-section">
