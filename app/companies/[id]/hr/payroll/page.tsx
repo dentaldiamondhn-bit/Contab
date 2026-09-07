@@ -531,10 +531,10 @@ export default function PayrollPage() {
   .total-row { font-weight: bold; border-top: 1px solid #333; background: #f9f9f9; }
   .total-row td { padding: 5px 6px; border-bottom: 2px solid #333; }
   .net-summary { padding: 12px 16px; border-top: 2px solid #333; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-  .net-left { border-right: 1px solid #ddd; padding-right: 12px; }
-  .net-right { padding-left: 12px; }
+  .net-left { padding-right: 12px; }
+  .net-right { padding-left: 12px; text-align: right; }
   .net-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
-  .net-row.bold { font-weight: bold; font-size: 13px; border-top: 2px solid #333; padding-top: 6px; margin-top: 4px; }
+  .net-row.bold { font-weight: bold; font-size: 13px; border-top: 2px solid #333; padding-top: 6px; margin-top: 8px; }
   .bottom-section { padding: 12px 16px; border-top: 2px solid #333; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
   .obs { font-size: 10px; color: #555; padding: 8px; border: 1px dashed #ccc; min-height: 30px; margin-top: 6px; }
   .signatures { display: flex; justify-content: space-around; padding: 20px 16px; border-top: 1px solid #ddd; }
@@ -608,10 +608,14 @@ export default function PayrollPage() {
   </div>
 
   <div class="net-summary">
-    <div class="section-title">Resumen de Pago Neto</div>
-    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
-    <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
-    <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
+    <div class="net-left">
+      <div class="section-title">Resumen de Pago Neto</div>
+      <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
+    </div>
+    <div class="net-right">
+      <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+      <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
+    </div>
   </div>
 
   <div class="bottom-section">
@@ -692,10 +696,10 @@ export default function PayrollPage() {
   .total-row { font-weight: bold; border-top: 1px solid #333; background: #f9f9f9; }
   .total-row td { padding: 5px 6px; border-bottom: 2px solid #333; }
   .net-summary { padding: 12px 16px; border-top: 2px solid #333; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
-  .net-left { border-right: 1px solid #ddd; padding-right: 12px; }
-  .net-right { padding-left: 12px; }
+  .net-left { padding-right: 12px; }
+  .net-right { padding-left: 12px; text-align: right; }
   .net-row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
-  .net-row.bold { font-weight: bold; font-size: 13px; border-top: 2px solid #333; padding-top: 6px; margin-top: 4px; }
+  .net-row.bold { font-weight: bold; font-size: 13px; border-top: 2px solid #333; padding-top: 6px; margin-top: 8px; }
   .bottom-section { padding: 12px 16px; border-top: 2px solid #333; display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
   .obs { font-size: 10px; color: #555; padding: 8px; border: 1px dashed #ccc; min-height: 30px; margin-top: 6px; }
   .signatures { display: flex; justify-content: space-around; padding: 20px 16px; border-top: 1px solid #ddd; }
@@ -785,10 +789,14 @@ export default function PayrollPage() {
   </div>
 
   <div class="net-summary">
-    <div class="section-title">Resumen de Pago Neto</div>
-    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
-    <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
-    <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
+    <div class="net-left">
+      <div class="section-title">Resumen de Pago Neto</div>
+      <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
+    </div>
+    <div class="net-right">
+      <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+      <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
+    </div>
   </div>
 
   <div class="bottom-section">
