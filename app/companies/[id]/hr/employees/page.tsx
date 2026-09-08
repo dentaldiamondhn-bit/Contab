@@ -774,7 +774,6 @@ export default function EmployeesPage() {
   const [searchPositions, setSearchPositions] = useState<string[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  const [sortBy, setSortBy] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
