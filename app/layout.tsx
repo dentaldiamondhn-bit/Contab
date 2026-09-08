@@ -56,6 +56,7 @@ export default function RootLayout({
               </TenantProvider>
             </UserProvider>
           </ClerkErrorBoundary>
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>
