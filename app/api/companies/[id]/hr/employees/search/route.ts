@@ -28,9 +28,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .select('*', { count: 'exact' })
       .eq('tenant_id', companyId);
 
-    // Text search across multiple fields
+    // Text search - use like on individual fields with or()
     if (q) {
-      query = query.or(`first_name.ilike.%${q}%,last_name.ilike.%${q}%,id_number.ilike.%${q}%,employee_id.ilike.%${q}%,position.ilike.%${q}%,department.ilike.%${q}%,email.ilike.%${q}%,phone.ilike.%${q}%`);
+      const pattern = `%${q}%`;
+      query = query.or(`first_name.like.${pattern},last_name.like.${pattern},id_number.like.${pattern},employee_id.like.${pattern},position.like.${pattern},department.like.${pattern},email.like.${pattern},phone.like.${pattern}`);
     }
 
     // Exact filters
