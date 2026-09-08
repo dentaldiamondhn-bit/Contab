@@ -34,8 +34,12 @@
 - **HR: Plantilla CSV unificada** — Una sola plantilla con columna `tipo` (departamento/puesto) para importar ambos tipos en un solo archivo.
 - **HR: Pestaña de Puestos** — Página `/hr/departments` ahora tiene pestañas Departamentos/Puestos con vista de tabla agrupada por departamento y edición inline.
 - **HR: Filtros de dropdowns en empleados** — Cargo y Jefe Directo ahora se filtran por departamento seleccionado.
+- **HR: Tipos TypeScript** — `types/hr.ts` con 30+ interfaces para todas las entidades HR.
+- **HR: Hooks dedicados** — `hooks/use-hr.ts` con useEmployees, useDepartments, usePositions (CRUD completo).
+- **HR: Integración con contabilidad** — Al cerrar nómina se generan automáticamente asientos contables: gasto salarios (5101), cargas sociales patronales (5102), y pago de nómina (2102→1101). API bridge `hr/accounting/route.ts`.
 
 #### Infraestructura y Despliegue
+- **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `clerk_id`. Elimina el error 500 en `UserContext`.
 - **Vercel SpeedInsights + Analytics** — `<SpeedInsights />` y `<Analytics />` integrados en `app/layout.tsx` para monitoreo de rendimiento.
 - **@clerk/clerk-sdk-node eliminado** — Paquete deprecado reemplazado por `lib/clerk-api.ts` (helper REST API directo). 7 scripts y 6 API routes migrados. 0 vulnerabilidades restantes.
 - **Supabase lazy init** — `lib/supabase.ts` y `lib/supabase-db.ts` migrados a inicialización lazy (Proxy) para evitar errores de build en Vercel donde `NEXT_PUBLIC_SUPABASE_URL` no está disponible.
@@ -109,7 +113,7 @@ PROMEDIO                      ████████████████�
 | 7 | **Sin multi-almacén funcional** | Inventario | Sin logística | Alta |
 | 8 | **Sin generación de PDF** real | Múltiples | Sin impresión profesional | Alta |
 | 9 | **RLS no confirmado** en todas las tablas | Seguridad | Riesgo cross-tenant | Alta |
-| 10 | **HR sin tipos TypeScript** | Recursos Humanos | Difícil mantenimiento | Alta |
+| 10 | ~~HR sin tipos TypeScript~~ | ~~Recursos Humanos~~ | ~~Difícil mantenimiento~~ | ✅ Resuelta |
 
 ---
 

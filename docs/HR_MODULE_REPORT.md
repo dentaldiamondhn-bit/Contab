@@ -1,6 +1,6 @@
 # Reporte de Estado y Plan de Ejecución: Módulo de Recursos Humanos
 
-> **Fecha de actualización:** 7 de Septiembre de 2026
+> **Fecha de actualización:** 8 de Septiembre de 2026
 
 ## 1. Estado Actual del Código
 
@@ -8,7 +8,7 @@
 
 | Área Funcional | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Personal** | Completo | 4 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
+| **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
 | **Control de Asistencia** | Completo | 2 páginas | 5 rutas | 4 tablas | Supabase + API |
 | **Vacaciones y Permisos** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
 | **Cálculo de Planilla (Nómina)** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
@@ -23,8 +23,8 @@
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
 | Estabilidad y Validaciones | ~70% | Validaciones en UI + Supabase RLS + unique constraints |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
-| Integración entre Módulos | ~40% | Asistencia alimenta planilla; no hay integración con contabilidad |
-| Documentación y Tipado | ~25% | Sin tipos TypeScript dedicados para HR; sin documentación de API |
+| Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina) |
+| Documentación y Tipado | ~60% | `types/hr.ts` con 30+ interfaces; `hooks/use-hr.ts` con 3 hooks CRUD |
 
 ---
 
@@ -39,12 +39,14 @@
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/employees/page.tsx` | UI completa de gestión de empleados: CRUD, pestañas (Personal, Trabajo, Académico, Habilidades, Ficha Médica, Documentos, Doc. RRHH, Historial), modales de desactivar/suspender/reactivar, importación CSV, **búsqueda server-side con debounce (300ms)**, upload de fotos/docs vía API con URLs |
-| `app/companies/[id]/hr/departments/page.tsx` | Gestión de departamentos y cargos con vista jerárquica en árbol, CRUD, rangos salariales |
+| `app/companies/[id]/hr/departments/page.tsx` | Gestión de departamentos y cargos con vista jerárquica en árbol, CRUD, rangos salariales, **pestañas Departamentos/Puestos**, **importación CSV unificada de departamentos y puestos con plantilla descargable y vista previa**, **cambio de departamento al editar puestos** |
 | `app/companies/[id]/hr/hierarchy/page.tsx` | Visor de jerarquía organizacional con asignación de padres-cargos |
+| `app/companies/[id]/hr/org-chart/page.tsx` | **Organigrama interactivo**: vista de árbol y lista, expandir/contraer, búsqueda en tiempo real, filtro por departamento, asignar/cambiar/quitar jefe directo, subir foto del empleado (Supabase Storage), importación CSV de jerarquía con plantilla descargable |
 | `app/companies/[id]/hr/page.tsx` | Dashboard de RRHH con tarjetas resumen (empleados activos, planilla mensual, deducciones, solicitudes pendientes) |
 | `app/api/companies/[id]/employees/route.ts` | API CRUD completa (GET/POST/PUT/DELETE) para empleados vía Supabase |
 | `app/api/companies/[id]/hr/departments/route.ts` | API CRUD para departamentos (Supabase) |
 | `app/api/companies/[id]/hr/positions/route.ts` | API CRUD para cargos (Supabase) |
+| `app/api/companies/[id]/hr/accounting/route.ts` | **Bridge planilla → contabilidad**: genera asientos contables al cerrar nómina (gasto salarios, cargas sociales patronales, pago de nómina) |
 | `app/api/companies/[id]/hr/storage/route.ts` | API de upload/delete para fotos y documentos en Supabase Storage |
 | `app/api/companies/[id]/hr/employees/search/route.ts` | **API de búsqueda server-side** con filtrado en JS por 8 campos (first_name, last_name, id_number, employee_id, position, department, email, phone), filtros exactos (department, position, status, contractType, gender), ordenamiento y paginación |
 
@@ -65,6 +67,10 @@
 
 - CRUD de empleados con perfil completo (personal, trabajo, académico, habilidades, médico, documentos, historial)
 - Gestión de departamentos y cargos con jerarquía
+- **Importación CSV unificada de departamentos y puestos** con plantilla descargable (columna `tipo`: departamento/puesto) y vista previa antes de importar
+- **Pestaña de Puestos** en la página de departamentos: tabla agrupada por departamento con edición inline (nombre, descripción, departamento, rango salarial, reporta a, asignado a)
+- Puestos sin departamento editables con dropdown para asignar departamento
+- **Cambio de departamento en puestos** al editar (árbol y pestaña de puestos)
 - Estados de empleado: activo, inactivo, terminado, suspendido
 - Flujo de terminación/suspensión/reactivación con campos de workflow
 - Importación CSV/Excel de empleados
@@ -72,7 +78,10 @@
 - Creación automática de cargo al agregar empleado
 - Registro de historial de cambios (audit trail)
 - Cálculo de vacaciones por antigüedad (ley hondureña: <1yr=0, 1=10, 2=12, 3=14, 4+=20)
+- **Organigrama interactivo** con vista de árbol y lista, búsqueda, filtro por departamento, asignación de jefes directos, subir foto, importación CSV de jerarquía
 - **Upload de fotos y documentos vía API** con URLs persistentes en Supabase Storage (reemplaza base64)
+- **Dropdown de Cargo filtrado por departamento** (case-insensitive)
+- **Dropdown de Jefe Directo filtrado por departamento**
 - Búsqueda server-side con debounce (300ms) que filtra en 8 campos
 - Filtros exactos por departamento, cargo, estado, tipo de contrato, género
 - Aislamiento multi-tenant vía Supabase RLS
@@ -81,7 +90,8 @@
 
 - Sin modelos en Prisma para entidades HR (todo manejado directamente vía SQL en Supabase)
 - Sin archivo de tipos TypeScript para entidades HR
-- Sin hooks dedicados para datos de empleados
+- **Tipos TypeScript HR completos** en `types/hr.ts`: Employee, Department, Position, Attendance, Payroll, Permissions (30+ interfaces)
+- **Hooks dedicados** en `hooks/use-hr.ts`: useEmployees, useDepartments, usePositions con CRUD, loading, error, refetch automático
 
 ---
 
@@ -328,6 +338,7 @@
 | `ADD_SCHEDULE_ENTRY_EXIT.sql` | Agrega schedule_entry, schedule_exit, schedule_hours a employees |
 | `HR_MIGRATE_LOCALSTORAGE.sql` | **10 tablas** desplegadas en Supabase: attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used + RLS |
 | `HR_STORAGE.sql` | **2 buckets** de Supabase Storage (employee-photos, employee-documents) + 10 RLS policies |
+| `HR_HIERARCHY.sql` | **Columna reports_to** en employees (UUID FK) + índice para consultas de jerarquía |
 
 ### Prisma Schema
 
@@ -337,11 +348,11 @@
 
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
 2. **16 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 3 de planilla (config, closed, deductions) + 3 de permisos (types, requests, used).
-3. **9 UI pages para HR**: employees, departments, hierarchy, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
-4. **15 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado.
+3. **10 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
+4. **16 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
-6. **Sin hooks ni servicios HR dedicados**: No hay hooks en `hooks/` ni servicios en `lib/services/` para funcionalidad HR. Lógica de cálculo está inline en los componentes.
-7. **Sin tipos TypeScript HR**: El directorio `types/` solo contiene `env.d.ts` y `file.ts`.
+6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 30+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD.
+7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 30+ interfaces.
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
 
 ---
@@ -350,7 +361,7 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Sin tipos TypeScript para entidades HR | Errores en tiempo de ejecución; difícil mantenimiento | Alta |
+| 1 | ~~Sin tipos TypeScript para entidades HR~~ | ~~Errores en tiempo de ejecución; difícil mantenimiento~~ | ✅ Resuelta |
 | 2 | Sin integración contable de planilla | No se generan asientos contables automáticos | Alta |
 | 3 | PIP no tiene implementación alguna | Requisito del cliente sin cubrir | Media |
 | 4 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
@@ -476,7 +487,7 @@ Etapa 1 (Supabase + API) ✅
 | Etapa 3: Vacaciones + PIP | 10 tareas | Alta | Pendiente |
 | Etapa 4: Planilla | 9 tareas | Alta | Pendiente |
 | Etapa 5: Cierre + QA | 8 tareas | Media | Pendiente |
-| **Total restante** | **33 tareas** | — | **10-14 semanas** |
+| **Total restante** | **32 tareas** | — | **10-14 semanas** |
 
 ---
 
@@ -490,3 +501,15 @@ Etapa 1 (Supabase + API) ✅
 | html2canvas / jspdf | Generación de PDFs | ❌ No instalado (necesario para Etapa 4.8) |
 | @tanstack/react-table | Tablas avanzadas para reportes | ❌ Verificar si ya está en package.json |
 | xlsx | Exportación Excel | ✅ Verificar disponibilidad |
+
+---
+
+## Actualizaciones de Infraestructura (8 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
+| Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
+| Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
+| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |

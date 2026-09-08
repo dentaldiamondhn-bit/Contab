@@ -217,3 +217,15 @@ Etapa 1 (Consolidación + PDF)
 | Etapa 4: Integración | 3 tareas | Alta | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
 | **Total** | **15 tareas** | — | **9-13 semanas** |
+
+---
+
+## Actualizaciones de Infraestructura (8 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
+| Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
+| Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
+| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |

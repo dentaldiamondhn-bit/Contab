@@ -220,3 +220,15 @@ Etapa 1 (Conexión API)
 | Etapa 4: Validación | 3 tareas | Media | 1-2 semanas |
 | Etapa 5: QA | 3 tareas | Media | 1-2 semanas |
 | **Total** | **15 tareas** | — | **6-11 semanas** |
+
+---
+
+## Actualizaciones de Infraestructura (8 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
+| Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
+| Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
+| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
