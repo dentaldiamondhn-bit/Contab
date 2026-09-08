@@ -8,6 +8,7 @@ import { UserProvider } from "@/contexts/UserContext";
 import { Toaster } from "sonner";
 import LayoutWrapper from "./components/LayoutWrapper";
 import ClerkErrorBoundary from "./components/ClerkErrorBoundary";
+import { SpeedInsights } from "@vercel/speed-insights/next";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -54,6 +55,7 @@ export default function RootLayout({
               </TenantProvider>
             </UserProvider>
           </ClerkErrorBoundary>
+          <SpeedInsights />
         </body>
       </html>
     </ClerkProvider>
