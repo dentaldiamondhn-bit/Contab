@@ -235,20 +235,46 @@ export default function AttendancePage() {
   }, [viewMode, selectedDate]);
 
   const loadData = async () => {
-    const attKey = `attendance_${companyId}`;
-    const configKey = `attendance_deduction_config_${companyId}`;
-    const holidaysKey = `attendance_holidays_${companyId}`;
-    const schedulesKey = `attendance_schedules_${companyId}`;
-    const savedAtt = localStorage.getItem(attKey);
-    const savedConfig = localStorage.getItem(configKey);
-    const savedHolidays = localStorage.getItem(holidaysKey);
-    const savedSchedules = localStorage.getItem(schedulesKey);
-    if (savedAtt) setAttendance(JSON.parse(savedAtt));
-    if (savedConfig) setDeductionConfig({ ...DEFAULT_DEDUCTION_CONFIG, ...JSON.parse(savedConfig) });
-    if (savedHolidays) setHolidays(JSON.parse(savedHolidays));
-    if (savedSchedules) setSchedules(JSON.parse(savedSchedules));
     try {
-      const empRes = await fetch(`/api/companies/${companyId}/employees`);
+      const [attRes, configRes, holidaysRes, schedulesRes, empRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/hr/attendance`),
+        fetch(`/api/companies/${companyId}/hr/attendance/config`),
+        fetch(`/api/companies/${companyId}/hr/attendance/holidays`),
+        fetch(`/api/companies/${companyId}/hr/attendance/schedules`),
+        fetch(`/api/companies/${companyId}/employees`),
+      ]);
+      if (attRes.ok) {
+        const data = await attRes.json();
+        setAttendance(data.map((r: any) => ({
+          id: r.id,
+          employeeId: r.employee_id || r.employeeId,
+          date: r.date,
+          checkIn: r.check_in || r.checkIn || '',
+          checkOut: r.check_out || r.checkOut || '',
+          status: r.status,
+          amount: r.amount || 0,
+          hours: r.hours || 0,
+          overtimeHours: r.overtime_hours || r.overtimeHours || 0,
+          overtimeAmount: r.overtime_amount || r.overtimeAmount || 0,
+          overtimeRate: r.overtime_rate || r.overtimeRate,
+          holidayType: r.holiday_type || r.holidayType,
+          notes: r.notes || '',
+        })));
+      }
+      if (configRes.ok) {
+        const data = await configRes.json();
+        setDeductionConfig({ ...DEFAULT_DEDUCTION_CONFIG, ...data });
+      }
+      if (holidaysRes.ok) {
+        const data = await holidaysRes.json();
+        if (data.length > 0) setHolidays(data.map((h: any) => ({ date: h.date, name: h.name, type: h.type })));
+      }
+      let currentSchedules: WorkSchedule[] = [];
+      if (schedulesRes.ok) {
+        const data = await schedulesRes.json();
+        currentSchedules = data.map((s: any) => ({ employeeId: s.employee_id || s.employeeId, freeDays: s.free_days || s.freeDays || [] }));
+        setSchedules(currentSchedules);
+      }
       if (empRes.ok) {
         const data = await empRes.json();
         const emps = data.map((e: any) => ({
@@ -265,42 +291,97 @@ export default function AttendancePage() {
           scheduleExit: e.scheduleExit || '',
         }));
         setEmployees(emps);
-        const savedSchedulesRaw = localStorage.getItem(`attendance_schedules_${companyId}`);
-        const savedSchedules: WorkSchedule[] = savedSchedulesRaw ? JSON.parse(savedSchedulesRaw) : [];
         let schedulesChanged = false;
         emps.forEach(emp => {
           if (emp.freeDays && emp.freeDays.length > 0) {
-            const existing = savedSchedules.find(s => s.employeeId === emp.id);
+            const existing = currentSchedules.find(s => s.employeeId === emp.id);
             if (!existing || JSON.stringify(existing.freeDays) !== JSON.stringify(emp.freeDays)) {
-              const idx = savedSchedules.findIndex(s => s.employeeId === emp.id);
-              if (idx >= 0) savedSchedules[idx] = { employeeId: emp.id, freeDays: emp.freeDays };
-              else savedSchedules.push({ employeeId: emp.id, freeDays: emp.freeDays });
+              const idx = currentSchedules.findIndex(s => s.employeeId === emp.id);
+              if (idx >= 0) currentSchedules[idx] = { employeeId: emp.id, freeDays: emp.freeDays };
+              else currentSchedules.push({ employeeId: emp.id, freeDays: emp.freeDays });
               schedulesChanged = true;
             }
           }
         });
         if (schedulesChanged) {
-          localStorage.setItem(`attendance_schedules_${companyId}`, JSON.stringify(savedSchedules));
-          setSchedules(savedSchedules);
+          for (const schedule of currentSchedules) {
+            await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
+            });
+          }
+          setSchedules(currentSchedules);
         }
       }
     } catch (err) {
-      console.error('Error loading employees:', err);
+      console.error('Error loading data:', err);
     }
   };
 
-  const saveConfig = () => {
-    localStorage.setItem(`attendance_deduction_config_${companyId}`, JSON.stringify(deductionConfig));
+  const saveAttendanceRecords = async (records: Attendance[]) => {
+    try {
+      for (const record of records) {
+        await fetch(`/api/companies/${companyId}/hr/attendance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_id: record.employeeId,
+            date: record.date,
+            status: record.status,
+            amount: record.amount,
+            overtime_amount: record.overtimeAmount,
+            overtime_hours: record.overtimeHours,
+            holiday_type: record.holidayType,
+            notes: record.notes,
+          }),
+        });
+      }
+    } catch (err) {
+      console.error('Error saving attendance:', err);
+    }
+  };
+
+  const saveConfig = async () => {
+    try {
+      await fetch(`/api/companies/${companyId}/hr/attendance/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(deductionConfig),
+      });
+    } catch (err) {
+      console.error('Error saving config:', err);
+    }
     setShowConfig(false);
   };
 
-  const saveHolidays = () => {
-    localStorage.setItem(`attendance_holidays_${companyId}`, JSON.stringify(holidays));
+  const saveHolidays = async () => {
+    try {
+      for (const holiday of holidays) {
+        await fetch(`/api/companies/${companyId}/hr/attendance/holidays`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ date: holiday.date, name: holiday.name, type: holiday.type }),
+        });
+      }
+    } catch (err) {
+      console.error('Error saving holidays:', err);
+    }
     setShowHolidaysConfig(false);
   };
 
-  const saveSchedules = () => {
-    localStorage.setItem(`attendance_schedules_${companyId}`, JSON.stringify(schedules));
+  const saveSchedules = async () => {
+    try {
+      for (const schedule of schedules) {
+        await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
+        });
+      }
+    } catch (err) {
+      console.error('Error saving schedules:', err);
+    }
     setShowScheduleConfig(false);
   };
 
@@ -314,18 +395,32 @@ export default function AttendancePage() {
       const updated = existing
         ? prev.map(s => s.employeeId === empId ? { ...s, freeDays } : s)
         : [...prev, { employeeId: empId, freeDays }];
-      localStorage.setItem(`attendance_schedules_${companyId}`, JSON.stringify(updated));
+      fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employee_id: empId, free_days: freeDays }),
+      }).catch(err => console.error('Error saving schedule:', err));
       return updated;
     });
   };
 
-  const applyScheduleToAll = (freeDays: number[]) => {
+  const applyScheduleToAll = async (freeDays: number[]) => {
     const updated = activeEmployees.map(emp => ({
       employeeId: emp.id,
       freeDays,
     }));
     setSchedules(updated);
-    localStorage.setItem(`attendance_schedules_${companyId}`, JSON.stringify(updated));
+    try {
+      for (const schedule of updated) {
+        await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
+        });
+      }
+    } catch (err) {
+      console.error('Error saving schedules:', err);
+    }
   };
 
   const autoMarkFreeDays = () => {
@@ -362,7 +457,7 @@ export default function AttendancePage() {
     });
     if (changed) {
       pushUndo();
-      localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+      saveAttendanceRecords(updated);
       setAttendance(updated);
     }
   };
@@ -396,7 +491,7 @@ export default function AttendancePage() {
     if (undoHistory.length === 0) return;
     const last = undoHistory[undoHistory.length - 1];
     setUndoHistory(prev => prev.slice(0, -1));
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(last));
+    saveAttendanceRecords(last);
     setAttendance(last);
   };
 
@@ -442,7 +537,7 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -481,7 +576,7 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
     setDisabilityPrompt(null);
   };
@@ -494,7 +589,7 @@ export default function AttendancePage() {
       return a;
     });
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
     setEditingAmount(null);
   };
@@ -552,7 +647,7 @@ export default function AttendancePage() {
     if (!confirm('¿Limpiar todo el registro de asistencia para esta fecha?')) return;
     const updated = attendance.filter(a => a.date !== selectedDate);
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -576,7 +671,7 @@ export default function AttendancePage() {
   const clearEmployeeAttendance = (employeeId: string) => {
     const updated = attendance.filter(a => !(a.employeeId === employeeId && a.date === selectedDate));
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -584,7 +679,7 @@ export default function AttendancePage() {
     if (!confirm('¿Limpiar toda la quincena?')) return;
     const updated = attendance.filter(a => !quincenaDates.includes(a.date));
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -593,7 +688,7 @@ export default function AttendancePage() {
     if (!confirm(`¿Limpiar asistencia de ${emp?.name || 'este empleado'} en la quincena?`)) return;
     const updated = attendance.filter(a => !(a.employeeId === employeeId && quincenaDates.includes(a.date)));
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -624,7 +719,7 @@ export default function AttendancePage() {
       });
     });
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -657,7 +752,7 @@ export default function AttendancePage() {
       });
     });
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
   };
 
@@ -740,7 +835,7 @@ export default function AttendancePage() {
     });
     if (changed) {
       pushUndo();
-      localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+      saveAttendanceRecords(updated);
       setAttendance(updated);
     }
   };
@@ -863,7 +958,7 @@ export default function AttendancePage() {
       }
     });
     pushUndo();
-    localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+    saveAttendanceRecords(updated);
     setAttendance(updated);
     setShowUpload(false);
     setUploadPreview([]);
@@ -1408,7 +1503,7 @@ export default function AttendancePage() {
                   ? attendance.map(a => a.id === existing.id ? record : a)
                   : [...attendance, record];
                 pushUndo();
-                localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+                saveAttendanceRecords(updated);
                 setAttendance(updated);
                 setLatePrompt(null);
               }} className="w-full">
@@ -1498,7 +1593,7 @@ export default function AttendancePage() {
                   ? attendance.map(a => a.id === existing.id ? record : a)
                   : [...attendance, record];
                 pushUndo();
-                localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+                saveAttendanceRecords(updated);
                 setAttendance(updated);
                 setOvertimePrompt(null);
               }} className="w-full">
@@ -1650,7 +1745,7 @@ export default function AttendancePage() {
                         ? attendance.map(a => a.id === existing.id ? record : a)
                         : [...attendance, record];
                       pushUndo();
-                      localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+                      saveAttendanceRecords(updated);
                       setAttendance(updated);
                       setHolidayPrompt(null);
                     }}
@@ -1681,7 +1776,7 @@ export default function AttendancePage() {
                         ? attendance.map(a => a.id === existing.id ? record : a)
                         : [...attendance, record];
                       pushUndo();
-                      localStorage.setItem(`attendance_${companyId}`, JSON.stringify(updated));
+                      saveAttendanceRecords(updated);
                       setAttendance(updated);
                       setHolidayPrompt(null);
                     }}
