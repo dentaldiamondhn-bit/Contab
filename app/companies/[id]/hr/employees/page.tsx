@@ -166,6 +166,23 @@ interface Position {
 
 function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[] }) {
   const [activeTab, setActiveTab] = useState('personal');
+
+  const uploadToStorage = async (file: File, type: string, empId: string): Promise<{ url: string; path: string } | null> => {
+    try {
+      const cid = window.location.pathname.split('/companies/')[1]?.split('/')[0] || '';
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', cid);
+      formData.append('employeeId', empId);
+      formData.append('type', type);
+      const res = await fetch(`/api/companies/${cid}/hr/storage`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      return await res.json();
+    } catch (e) {
+      console.error('Upload error:', e);
+      return null;
+    }
+  };
   const tabs = [
     { id: 'personal', label: 'Personal' },
     { id: 'trabajo', label: 'Trabajo' },
@@ -622,18 +639,18 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                             <input
                               type="file"
                               accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-                              onChange={(e) => {
+                              onChange={async (e) => {
                                 const file = e.target.files?.[0];
                                 if (file) {
                                   const fileName = file.name.replace(/\.[^/.]+$/, '');
-                                  const reader = new FileReader();
-                                  reader.onloadend = () => {
+                                  const empId = emp.employeeId || emp.id || 'unknown';
+                                  const result = await uploadToStorage(file, 'hr-document', empId);
+                                  if (result) {
                                     const updated = [...emp.hrDocuments];
-                                    updated[index] = { ...updated[index], name: fileName, file: reader.result as string };
+                                    updated[index] = { ...updated[index], name: fileName, file: result.url };
                                     updateField('hrDocuments', updated);
                                     showUploadMessage(`"${file.name}" subido correctamente`);
-                                  };
-                                  reader.readAsDataURL(file);
+                                  }
                                 }
                               }}
                               className="hidden"
@@ -928,33 +945,41 @@ export default function EmployeesPage() {
     }
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      if (file.size > 500000) {
-        alert('La foto no debe superar 500KB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewEmployee({ ...newEmployee, photo: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+  const uploadFileToStorage = async (file: File, type: string, empId: string): Promise<{ url: string; path: string } | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', companyId);
+      formData.append('employeeId', empId);
+      formData.append('type', type);
+      const res = await fetch(`/api/companies/${companyId}/hr/storage`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      return await res.json();
+    } catch (e) {
+      console.error('Upload error:', e);
+      return null;
     }
   };
 
-  const handleCVUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2000000) {
-        alert('El CV no debe superar 2MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewEmployee({ ...newEmployee, cv: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      if (file.size > 5000000) { alert('La foto no debe superar 5MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee({ ...newEmployee, photo: URL.createObjectURL(file) });
+      const result = await uploadFileToStorage(file, 'photo', tempId);
+      if (result) setNewEmployee(prev => ({ ...prev, photo: result.url }));
+    }
+  };
+
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2000000) { alert('El CV no debe superar 2MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee({ ...newEmployee, cv: URL.createObjectURL(file) });
+      const result = await uploadFileToStorage(file, 'document', tempId);
+      if (result) setNewEmployee(prev => ({ ...prev, cv: result.url }));
     }
   };
 
@@ -963,19 +988,18 @@ export default function EmployeesPage() {
     setTimeout(() => setUploadMessage(''), 3000);
   };
 
-  const handleDocUpload = (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 5000000) {
-        alert('El archivo no debe superar 5MB');
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setNewEmployee({ ...newEmployee, [field]: reader.result as string });
+      if (file.size > 5000000) { alert('El archivo no debe superar 5MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee(prev => ({ ...prev, [field]: URL.createObjectURL(file) }));
+      showUploadMessage(`"${file.name}" subiendo...`);
+      const result = await uploadFileToStorage(file, 'document', tempId);
+      if (result) {
+        setNewEmployee(prev => ({ ...prev, [field]: result.url }));
         showUploadMessage(`"${file.name}" subido correctamente`);
-      };
-      reader.readAsDataURL(file);
+      }
     }
   };
 
