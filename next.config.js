@@ -4,9 +4,6 @@ const nextConfig = {
     ignoreBuildErrors: true,
   },
   output: 'standalone',
-  turbopack: {
-    root: __dirname,
-  },
   experimental: {
     serverActions: {
       bodySizeLimit: '10mb',
