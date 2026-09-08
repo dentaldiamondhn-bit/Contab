@@ -21,7 +21,7 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~78% | Parcial | Alta |
+| 12 | Recursos Humanos | ~82% | Parcial | Alta |
 
 **Promedio General del Sistema: ~60%**
 
@@ -43,7 +43,7 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ████████████████████░░░░░░░░░░  78%  Parcial
+12. Recursos Humanos          █████████████████████░░░░░░░░░  82%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
 PROMEDIO                      █████████████████░░░░░░░░░░░░░  60%
 ```
@@ -113,7 +113,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
 | Integración Fiscal | 5 | 8 | 63% |
-| Recursos Humanos | 8 | 10 | 80% |
+| Recursos Humanos | 9 | 10 | 90% |
 
 ### 5.2 API Routes
 
@@ -130,7 +130,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
 | Integración Fiscal | 14 | 18 | 78% |
-| Recursos Humanos | 15 | 16 | 94% |
+| Recursos Humanos | 16 | 16 | 100% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
 
@@ -147,7 +147,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions + 2 Storage buckets | Sólido (15 tablas + 2 buckets) |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions + 2 Storage buckets | **Sólido (15 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 
@@ -168,25 +168,28 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 5 | 14 | 10-15 semanas |
 | Otras Características | 5 | 15 | 9-13 semanas |
 | Integración Fiscal | 5 | 14 | 11-16 semanas |
-| Recursos Humanos | 5 | 35 | 11-15 semanas |
-| **TOTAL** | **60** | **215** | **110-155 semanas** |
+| Recursos Humanos | 5 | 33 | 10-14 semanas |
+| **TOTAL** | **60** | **213** | **110-155 semanas** |
 
 ### 6.2 Por Etapa (Agregado)
 
 | Etapa | Tareas Agregadas | Estimación |
 |---|---|---|
-| Etapa 1: Consolidación de Datos / Conexión API | ~40 tareas | 8-12 semanas |
+| Etapa 1: Consolidación de Datos / Conexión API | ~44 tareas | 8-12 semanas |
 | Etapa 2: Funcionalidad Core / Workflows | ~45 tareas | 12-18 semanas |
 | Etapa 3: Integraciones / Automatización | ~45 tareas | 12-18 semanas |
 | Etapa 4: Exportación / Reporting / Extras | ~40 tareas | 10-15 semanas |
 | Etapa 5: QA / Documentación / Seguridad | ~35 tareas | 8-12 semanas |
-| **TOTAL** | **~205 tareas** | **50-75 semanas (con paralelismo)** |
+| **TOTAL** | **~209 tareas** | **50-75 semanas (con paralelismo)** |
 
 ### 6.3 Ruta Crítica (Secuencia Obligatoria)
 
 ```
 Prioridad 1 (Semanas 1-8):
 ├── ~~Migrar HR de localStorage a Supabase~~ ✅
+├── ~~HR: Crear API de búsqueda de empleados~~ ✅
+├── ~~HR: Migrar fotos/docs a Supabase Storage~~ ✅
+├── ~~HR: Dashboard de reportes de asistencia~~ ✅
 ├── Migrar Compras de JSON a Supabase
 ├── Conectar JournalEntryForm a API real
 ├── Conectar FinancialStatements a datos reales
@@ -277,9 +280,11 @@ Prioridad 3 (Semanas 12-24):
 
 ### Fase 1: Estabilidad de Datos (Semanas 1-6)
 1. ~~Migrar HR de localStorage a Supabase~~ ✅ Completada
-2. Migrar Compras de JSON a Supabase
-3. Consolidar dual schemas (Facturación, Inventario)
-4. Conectar JournalEntryForm y FinancialStatements a API real
+2. ~~HR: Crear API de búsqueda y dashboard de reportes~~ ✅ Completada
+3. ~~HR: Migrar fotos/docs a Supabase Storage~~ ✅ Completada
+4. Migrar Compras de JSON a Supabase
+5. Consolidar dual schemas (Facturación, Inventario)
+6. Conectar JournalEntryForm y FinancialStatements a API real
 
 ### Fase 2: Cumplimiento Fiscal (Semanas 4-12)
 5. Implementar DIAT
@@ -311,7 +316,7 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~58% | 95% |
+| Completitud Funcional | ~60% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
 | Persistencia de Datos | ~75% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~40% | 80% |
