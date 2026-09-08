@@ -18,7 +18,11 @@ import {
   Check,
   Briefcase,
   Mail,
-  Phone
+  Phone,
+  Upload,
+  Camera,
+  FileSpreadsheet,
+  Download
 } from 'lucide-react';
 
 interface Employee {
@@ -54,6 +58,11 @@ export default function OrgChartPage() {
   const [editingManager, setEditingManager] = useState<string | null>(null);
   const [selectedManager, setSelectedManager] = useState<string>('');
   const [view, setView] = useState<'tree' | 'list'>('tree');
+  const [uploadingPhoto, setUploadingPhoto] = useState<string | null>(null);
+  const [showImportCSV, setShowImportCSV] = useState(false);
+  const [csvData, setCsvData] = useState('');
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{success: number; errors: string[]} | null>(null);
 
   useEffect(() => {
     loadEmployees();
@@ -256,6 +265,198 @@ export default function OrgChartPage() {
     return `${(firstName || '')[0] || ''}${(lastName || '')[0] || ''}`.toUpperCase();
   };
 
+  const uploadPhoto = async (employeeId: string, file: File) => {
+    try {
+      setUploadingPhoto(employeeId);
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('folder', `${companyId}/photos`);
+      formData.append('bucket', 'employee-photos');
+
+      const res = await fetch(`/api/companies/${companyId}/hr/storage`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (res.ok) {
+        const { url } = await res.json();
+        const emp = employees.find(e => e.id === employeeId);
+        if (emp) {
+          await fetch(`/api/companies/${companyId}/employees`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: employeeId,
+              firstName: emp.firstName,
+              lastName: emp.lastName,
+              identityNumber: '',
+              position: emp.position,
+              department: emp.department,
+              salary: emp.salary,
+              startDate: '',
+              status: emp.status,
+              phone: emp.phone,
+              email: emp.email,
+              address: '',
+              civilStatus: '',
+              contractType: 'indefinido',
+              supervisor: '',
+              reportsTo: emp.reportsTo,
+              schedule: 'completa',
+              modality: 'presencial',
+              educationLevel: '',
+              university: '',
+              degree: '',
+              languages: '',
+              certifications: '',
+              otherSkills: '',
+              photo: url,
+              cv: '',
+              hrDocuments: [],
+            })
+          });
+          setEmployees(prev => prev.map(e =>
+            e.id === employeeId ? { ...e, photo: url } : e
+          ));
+        }
+      }
+    } catch (err) {
+      console.error('Error uploading photo:', err);
+    } finally {
+      setUploadingPhoto(null);
+    }
+  };
+
+  const handlePhotoClick = (employeeId: string) => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/jpeg,image/png,image/webp,image/gif';
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        if (file.size > 5 * 1024 * 1024) {
+          alert('La imagen no debe superar 5MB');
+          return;
+        }
+        uploadPhoto(employeeId, file);
+      }
+    };
+    input.click();
+  };
+
+  const importHierarchyCSV = async () => {
+    if (!csvData.trim()) return;
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const lines = csvData.trim().split('\n');
+      const headers = lines[0].toLowerCase().split(',').map(h => h.trim());
+      
+      const empNameIdx = headers.findIndex(h => h.includes('empleado') || h.includes('employee') || h.includes('nombre'));
+      const mgrNameIdx = headers.findIndex(h => h.includes('jefe') || h.includes('manager') || h.includes('supervisor') || h.includes('reporta'));
+      
+      if (empNameIdx === -1 || mgrNameIdx === -1) {
+        setImportResult({ success: 0, errors: ['CSV debe tener columnas: empleado, jefe (o employee, manager)'] });
+        return;
+      }
+
+      let success = 0;
+      const errors: string[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const cols = lines[i].split(',').map(c => c.trim());
+        const empName = cols[empNameIdx]?.toLowerCase();
+        const mgrName = cols[mgrNameIdx]?.toLowerCase();
+
+        if (!empName) continue;
+
+        const emp = employees.find(e =>
+          `${e.firstName} ${e.lastName}`.toLowerCase().includes(empName)
+        );
+
+        if (!emp) {
+          errors.push(`Línea ${i + 1}: Empleado "${cols[empNameIdx]}" no encontrado`);
+          continue;
+        }
+
+        let mgrId: string | null = null;
+        if (mgrName && mgrName !== '' && mgrName !== 'null' && mgrName !== 'ninguno') {
+          const mgr = employees.find(e =>
+            `${e.firstName} ${e.lastName}`.toLowerCase().includes(mgrName)
+          );
+          if (!mgr) {
+            errors.push(`Línea ${i + 1}: Jefe "${cols[mgrNameIdx]}" no encontrado`);
+            continue;
+          }
+          if (mgr.id === emp.id) {
+            errors.push(`Línea ${i + 1}: "${cols[empNameIdx]}" no puede reportarse a sí mismo`);
+            continue;
+          }
+          mgrId = mgr.id;
+        }
+
+        try {
+          const res = await fetch(`/api/companies/${companyId}/employees`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: emp.id,
+              firstName: emp.firstName,
+              lastName: emp.lastName,
+              identityNumber: '',
+              position: emp.position,
+              department: emp.department,
+              salary: emp.salary,
+              startDate: '',
+              status: emp.status,
+              phone: emp.phone,
+              email: emp.email,
+              address: '',
+              civilStatus: '',
+              contractType: 'indefinido',
+              supervisor: '',
+              reportsTo: mgrId,
+              schedule: 'completa',
+              modality: 'presencial',
+              educationLevel: '',
+              university: '',
+              degree: '',
+              languages: '',
+              certifications: '',
+              otherSkills: '',
+              photo: emp.photo,
+              cv: '',
+              hrDocuments: [],
+            })
+          });
+          if (res.ok) success++;
+          else errors.push(`Línea ${i + 1}: Error al guardar`);
+        } catch {
+          errors.push(`Línea ${i + 1}: Error de conexión`);
+        }
+      }
+
+      setImportResult({ success, errors });
+      if (success > 0) await loadEmployees();
+    } catch (err) {
+      setImportResult({ success: 0, errors: ['Error al procesar CSV'] });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const downloadCSVTemplate = () => {
+    const csv = 'empleado,jefe\nJuan Pérez,María García\nCarlos López,Juan Pérez\nAna Martínez,María García';
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_jerarquia.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const getLevelColor = (depth: number) => {
     const colors = [
       'border-l-blue-500 bg-blue-50',
@@ -293,11 +494,38 @@ export default function OrgChartPage() {
             )}
             
             {node.employee.photo ? (
-              <img src={node.employee.photo} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow" />
-            ) : (
-              <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow">
-                {getInitials(node.employee.firstName, node.employee.lastName)}
+              <div className="relative group">
+                <img src={node.employee.photo} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow" />
+                <button
+                  onClick={() => handlePhotoClick(node.employee.id)}
+                  className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                  title="Cambiar foto"
+                >
+                  <Camera className="h-4 w-4 text-white" />
+                </button>
+                {uploadingPhoto === node.employee.id && (
+                  <div className="absolute inset-0 bg-blue-500/50 rounded-full flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                  </div>
+                )}
               </div>
+            ) : (
+              <button
+                onClick={() => handlePhotoClick(node.employee.id)}
+                className="relative group w-10 h-10 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white font-bold text-sm shadow hover:from-blue-500 hover:to-blue-700 transition-all"
+                title="Subir foto"
+              >
+                {uploadingPhoto === node.employee.id ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent"></div>
+                ) : (
+                  <>
+                    {getInitials(node.employee.firstName, node.employee.lastName)}
+                    <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Upload className="h-2.5 w-2.5 text-blue-600" />
+                    </div>
+                  </>
+                )}
+              </button>
             )}
 
             <div>
@@ -441,11 +669,38 @@ export default function OrgChartPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-2">
                         {emp.photo ? (
-                          <img src={emp.photo} alt="" className="w-8 h-8 rounded-full object-cover" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold">
-                            {getInitials(emp.firstName, emp.lastName)}
+                          <div className="relative group">
+                            <img src={emp.photo} alt="" className="w-8 h-8 rounded-full object-cover" />
+                            <button
+                              onClick={() => handlePhotoClick(emp.id)}
+                              className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                              title="Cambiar foto"
+                            >
+                              <Camera className="h-3 w-3 text-white" />
+                            </button>
+                            {uploadingPhoto === emp.id && (
+                              <div className="absolute inset-0 bg-blue-500/50 rounded-full flex items-center justify-center">
+                                <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                              </div>
+                            )}
                           </div>
+                        ) : (
+                          <button
+                            onClick={() => handlePhotoClick(emp.id)}
+                            className="relative group w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center text-white text-xs font-bold hover:from-blue-500 hover:to-blue-700 transition-all"
+                            title="Subir foto"
+                          >
+                            {uploadingPhoto === emp.id ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-2 border-white border-t-transparent"></div>
+                            ) : (
+                              <>
+                                {getInitials(emp.firstName, emp.lastName)}
+                                <div className="absolute -bottom-0.5 -right-0.5 bg-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <Upload className="h-2 w-2 text-blue-600" />
+                                </div>
+                              </>
+                            )}
+                          </button>
                         )}
                         <div>
                           <div className="font-medium text-sm">{emp.firstName} {emp.lastName}</div>
@@ -603,6 +858,11 @@ export default function OrgChartPage() {
             <Button variant="outline" size="sm" onClick={collapseAll}>Colapsar Todo</Button>
           </>
         )}
+
+        <Button variant="outline" size="sm" onClick={() => setShowImportCSV(true)}>
+          <FileSpreadsheet className="h-4 w-4 mr-1" />
+          Importar CSV
+        </Button>
       </div>
 
       {/* Content */}
@@ -667,6 +927,80 @@ export default function OrgChartPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Import CSV Modal */}
+      {showImportCSV && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-lg mx-4">
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <FileSpreadsheet className="h-5 w-5" />
+                  Importar Jerarquía desde CSV
+                </CardTitle>
+                <Button variant="ghost" size="sm" onClick={() => { setShowImportCSV(false); setCsvData(''); setImportResult(null); }}>
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm text-blue-800">
+                <strong>Formato del CSV:</strong> Debe tener dos columnas: <code>empleado</code> y <code>jefe</code>.
+                Los nombres deben coincidir parcialmente con los nombres en el sistema.
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={downloadCSVTemplate}>
+                  <Download className="h-4 w-4 mr-1" />
+                  Descargar Plantilla
+                </Button>
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Pegar contenido CSV:</label>
+                <textarea
+                  value={csvData}
+                  onChange={(e) => setCsvData(e.target.value)}
+                  placeholder="empleado,jefe&#10;Juan Pérez,María García&#10;Carlos López,Juan Pérez"
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm font-mono h-32"
+                />
+              </div>
+
+              {importResult && (
+                <div className={`p-3 rounded-lg text-sm ${importResult.errors.length === 0 ? 'bg-green-50 text-green-800 border border-green-200' : 'bg-yellow-50 text-yellow-800 border border-yellow-200'}`}>
+                  <p className="font-medium">{importResult.success} empleados actualizados</p>
+                  {importResult.errors.length > 0 && (
+                    <div className="mt-2">
+                      {importResult.errors.map((err, i) => (
+                        <p key={i} className="text-xs text-red-600">{err}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => { setShowImportCSV(false); setCsvData(''); setImportResult(null); }}>
+                  Cancelar
+                </Button>
+                <Button onClick={importHierarchyCSV} disabled={!csvData.trim() || importing}>
+                  {importing ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent mr-2"></div>
+                      Importando...
+                    </>
+                  ) : (
+                    <>
+                      <Upload className="h-4 w-4 mr-2" />
+                      Importar
+                    </>
+                  )}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }
