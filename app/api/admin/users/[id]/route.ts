@@ -1,12 +1,8 @@
 ﻿import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { supabase } from '@/lib/supabase-db';
 import { getUserRoleFromAuth } from '@/lib/auth-server';
-
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUser, clerkUpdateUser, clerkDeleteUser } from '@/lib/clerk-api';
 
 const SUPER_ADMIN_EMAIL = 'sucachi.123@gmail.com';
 
@@ -42,7 +38,7 @@ export async function DELETE(
 
     if (currentUser.authid) {
       try {
-        await clerk.users.deleteUser(currentUser.authid);
+        await clerkDeleteUser(currentUser.authid);
       } catch (error) {
         console.error('Error eliminando usuario de Clerk:', error);
       }
@@ -131,9 +127,9 @@ export async function PATCH(
             if (tenant) clerkMetadata.tenantCode = tenant.tenant_code;
           }
         }
-        await clerk.users.updateUser(existingUser.authid, {
-          publicMetadata: clerkMetadata,
-          unsafeMetadata: { role: role || existingUser.role }
+        await clerkUpdateUser(existingUser.authid, {
+          public_metadata: clerkMetadata,
+          unsafe_metadata: { role: role || existingUser.role }
         });
       } catch (clerkError) {
         console.error('Error updating in Clerk:', clerkError);

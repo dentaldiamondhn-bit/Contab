@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { db } from '@/lib/db';
-
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUserList, clerkUpdateUser } from '@/lib/clerk-api';
 
 export async function POST(req: NextRequest) {
   try {
@@ -33,8 +29,8 @@ export async function POST(req: NextRequest) {
     console.log('Syncing metadata for email:', email);
 
     // Buscar usuario en Clerk
-    const users = await clerk.users.getUserList({
-      emailAddress: [email],
+    const users = await clerkGetUserList({
+      email_address: [email],
       limit: 1
     });
 
@@ -77,8 +73,8 @@ export async function POST(req: NextRequest) {
         newRole: localUser.role
       });
 
-      await clerk.users.updateUser(clerkUser.id, {
-        publicMetadata: {
+      await clerkUpdateUser(clerkUser.id, {
+        public_metadata: {
           role: localUser.role,
           tenantId: localUser.tenantId,
           tenantCode: localUser.tenantId ? (await db.tenant.findUnique({

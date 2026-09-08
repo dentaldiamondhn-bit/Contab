@@ -1,7 +1,4 @@
-import { createClerkClient } from '@clerk/clerk-sdk-node';
-
-// Script para actualizar roles de usuarios existentes en Clerk
-// Ejecutar con: npx ts-node scripts/update-user-roles.ts
+import { clerkGetUserList, clerkUpdateUser } from '../lib/clerk-api';
 
 interface UserUpdate {
   userId: string;
@@ -9,16 +6,10 @@ interface UserUpdate {
   tenantId?: string;
 }
 
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
-
-// Lista de usuarios a actualizar (modificar según necesidad)
 const usersToUpdate: UserUpdate[] = [
   // Ejemplos - reemplaza con IDs reales de usuarios
   // { userId: 'user_123456789', role: 'SUPER_ADMIN' },
   // { userId: 'user_987654321', role: 'ADMIN', tenantId: 'tenant-123' },
-  // { userId: 'user_456789123', role: 'MANAGER', tenantId: 'tenant-123' },
 ];
 
 async function updateUserRole(update: UserUpdate) {
@@ -27,16 +18,13 @@ async function updateUserRole(update: UserUpdate) {
       role: update.role,
     };
 
-    // Solo agregar tenantId si no es SUPER_ADMIN
     if (update.role !== 'SUPER_ADMIN' && update.tenantId) {
       metadata.tenantId = update.tenantId;
     } else if (update.role === 'SUPER_ADMIN') {
       metadata.tenantId = null;
     }
 
-    await clerk.users.updateUser(update.userId, {
-      publicMetadata: metadata,
-    });
+    await clerkUpdateUser(update.userId, { publicMetadata: metadata });
 
     console.log(`Usuario ${update.userId} actualizado a rol: ${update.role}`);
     return true;
@@ -48,19 +36,15 @@ async function updateUserRole(update: UserUpdate) {
 
 async function listAllUsers() {
   try {
-    const users = await clerk.users.getUserList({
-      limit: 100,
-    });
+    const users = await clerkGetUserList({ limit: 100 });
 
     console.log('Usuarios actuales:');
     users.forEach(user => {
-      const primaryEmail = user.emailAddresses?.find(
-        (email: { id: string }) => email.id === user.primaryEmailAddressId
-      );
+      const primaryEmail = user.email_addresses.find(e => e.id === user.primary_email_address_id);
       console.log(`ID: ${user.id}`);
-      console.log(`Email: ${primaryEmail?.emailAddress || 'N/A'}`);
-      console.log(`Rol actual: ${(user.publicMetadata as any)?.role || 'USER'}`);
-      console.log(`Tenant: ${(user.publicMetadata as any)?.tenantId || 'N/A'}`);
+      console.log(`Email: ${primaryEmail?.email_address || 'N/A'}`);
+      console.log(`Rol actual: ${user.public_metadata?.role || 'USER'}`);
+      console.log(`Tenant: ${user.public_metadata?.tenantId || 'N/A'}`);
       console.log('---');
     });
 
@@ -74,7 +58,6 @@ async function listAllUsers() {
 async function main() {
   console.log('=== Actualización de Roles de Usuarios en Clerk ===\n');
 
-  // Mostrar usuarios actuales
   console.log('1. Listando usuarios actuales...');
   await listAllUsers();
 
@@ -83,18 +66,14 @@ async function main() {
     return;
   }
 
-  // Actualizar usuarios
   console.log('\n2. Actualizando usuarios...');
   let successCount = 0;
   let failCount = 0;
 
   for (const update of usersToUpdate) {
     const success = await updateUserRole(update);
-    if (success) {
-      successCount++;
-    } else {
-      failCount++;
-    }
+    if (success) successCount++;
+    else failCount++;
   }
 
   console.log(`\n=== Resumen ===`);
@@ -107,7 +86,6 @@ async function main() {
   }
 }
 
-// Ejecutar script
 if (require.main === module) {
   main().catch(console.error);
 }

@@ -1,18 +1,12 @@
-// Script para verificar y asignar rol de super admin
-const { Clerk } = require('@clerk/clerk-sdk-node');
-
-const clerk = new Clerk({
-  secretKey: 'sk_test_UwGrJ3a12Pz71qmNBHchT02OWV6yc8HLV0Gb9Qg44L'
-});
+import { clerkGetUserList, clerkUpdateUser, clerkGetUser } from '../lib/clerk-api';
 
 async function checkAndAssignSuperAdminRole() {
   try {
     console.log('🔍 Verificando rol del super admin...');
     
-    // Buscar el usuario admin por email
-    const userList = await clerk.users.getUserList();
+    const userList = await clerkGetUserList({ limit: 100 });
     const adminUser = userList.find(user => 
-      user.emailAddresses[0]?.emailAddress === 'sucachi.123@gmail.com'
+      user.email_addresses.some(e => e.email_address === 'sucachi.123@gmail.com')
     );
     
     if (!adminUser) {
@@ -20,19 +14,19 @@ async function checkAndAssignSuperAdminRole() {
       return;
     }
     
+    const primaryEmail = adminUser.email_addresses.find(e => e.id === adminUser.primary_email_address_id);
     console.log('👤 Usuario super admin encontrado:');
     console.log(`  ID: ${adminUser.id}`);
-    console.log(`  Email: ${adminUser.emailAddresses[0]?.emailAddress}`);
-    console.log(`  Rol actual: ${adminUser.publicMetadata?.role || 'No asignado'}`);
-    console.log(`  Todos los metadatos:`, adminUser.publicMetadata);
+    console.log(`  Email: ${primaryEmail?.email_address}`);
+    console.log(`  Rol actual: ${adminUser.public_metadata?.role || 'No asignado'}`);
+    console.log(`  Todos los metadatos:`, adminUser.public_metadata);
     
-    // Si no tiene rol SUPER_ADMIN, asignarlo
-    if (adminUser.publicMetadata?.role !== 'SUPER_ADMIN') {
+    if (adminUser.public_metadata?.role !== 'SUPER_ADMIN') {
       console.log('🔧 Asignando rol SUPER_ADMIN...');
       
-      await clerk.users.updateUser(adminUser.id, {
+      await clerkUpdateUser(adminUser.id, {
         publicMetadata: {
-          ...adminUser.publicMetadata,
+          ...adminUser.public_metadata,
           role: 'SUPER_ADMIN',
           tenantId: 'tenant_001',
           tenantCode: 'DEMO001'
@@ -41,12 +35,11 @@ async function checkAndAssignSuperAdminRole() {
       
       console.log('✅ Rol SUPER_ADMIN asignado exitosamente');
       
-      // Verificar la actualización
-      const updatedUser = await clerk.users.getUser(adminUser.id);
+      const updatedUser = await clerkGetUser(adminUser.id);
       console.log('🔍 Verificación:');
-      console.log(`  Nuevo rol: ${updatedUser.publicMetadata?.role}`);
-      console.log(`  Tenant ID: ${updatedUser.publicMetadata?.tenantId}`);
-      console.log(`  Tenant Code: ${updatedUser.publicMetadata?.tenantCode}`);
+      console.log(`  Nuevo rol: ${updatedUser.public_metadata?.role}`);
+      console.log(`  Tenant ID: ${updatedUser.public_metadata?.tenantId}`);
+      console.log(`  Tenant Code: ${updatedUser.public_metadata?.tenantCode}`);
     } else {
       console.log('✅ El usuario ya tiene rol SUPER_ADMIN');
     }

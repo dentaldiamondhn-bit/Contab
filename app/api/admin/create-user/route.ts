@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
-
-// Inicializar Clerk con la secret key del servidor
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUserList, clerkCreateUser, clerkDeleteUser } from '@/lib/clerk-api';
 
 interface CreateUserRequest {
   email: string;
@@ -80,8 +75,8 @@ export async function POST(req: NextRequest) {
 
     // Verificar que el email no exista ya en Clerk
     try {
-      const existingUsers = await clerk.users.getUserList({
-        emailAddress: [email],
+      const existingUsers = await clerkGetUserList({
+        email_address: [email],
         limit: 1
       });
 
@@ -130,13 +125,13 @@ export async function POST(req: NextRequest) {
     // Crear usuario en Clerk
     let clerkUser: any;
     try {
-      clerkUser = await clerk.users.createUser({
-        emailAddress: [email],
-        firstName,
-        lastName,
+      clerkUser = await clerkCreateUser({
+        email_address: [email],
+        first_name: firstName,
+        last_name: lastName,
         password,
         username: username || `${firstName.toLowerCase()}_${lastName.toLowerCase()}`,
-        publicMetadata: {
+        public_metadata: {
           role: publicMetadata.role,
           tenantId: publicMetadata.tenantId,
           tenantCode: publicMetadata.tenantCode,
@@ -172,7 +167,7 @@ export async function POST(req: NextRequest) {
       // Intentar rollback en Clerk
       if (clerkUser?.id) {
         try {
-          await clerk.users.deleteUser(clerkUser.id);
+          await clerkDeleteUser(clerkUser.id);
         } catch (rollbackError) {
           console.error('Error en rollback de Clerk:', rollbackError);
         }

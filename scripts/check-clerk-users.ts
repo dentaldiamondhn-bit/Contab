@@ -1,27 +1,23 @@
-// Script para verificar usuarios en Clerk
-const { Clerk } = require('@clerk/clerk-sdk-node');
-
-const clerk = new Clerk({
-  secretKey: 'sk_test_UwGrJ3a12Pz71qmNBHchT02OWV6yc8HLV0Gb9Qg44L'
-});
+import { clerkGetUserList } from '../lib/clerk-api';
 
 async function checkAllUsers() {
   try {
     console.log('🔍 Obteniendo todos los usuarios de Clerk...');
     
-    const allUsers = await clerk.users.getUserList();
+    const allUsers = await clerkGetUserList({ limit: 100 });
     console.log(`📊 Total de usuarios en Clerk: ${allUsers.length}`);
     
     allUsers.forEach((user, index) => {
-      const metadata = user.publicMetadata || {};
+      const metadata = user.public_metadata || {};
+      const primaryEmail = user.email_addresses.find(e => e.id === user.primary_email_address_id);
       console.log(`\n👤 Usuario ${index + 1}:`);
       console.log(`  ID: ${user.id}`);
-      console.log(`  Email: ${user.emailAddresses[0]?.emailAddress}`);
-      console.log(`  Nombre: ${user.firstName} ${user.lastName}`);
+      console.log(`  Email: ${primaryEmail?.email_address}`);
+      console.log(`  Nombre: ${user.first_name} ${user.last_name}`);
       console.log(`  Tenant ID: ${metadata.tenantId || 'No asignado'}`);
       console.log(`  Tenant Code: ${metadata.tenantCode || 'No asignado'}`);
       console.log(`  Role: ${metadata.role || 'No asignado'}`);
-      console.log(`  Created: ${user.createdAt}`);
+      console.log(`  Created: ${new Date(user.created_at).toISOString()}`);
     });
     
   } catch (error) {

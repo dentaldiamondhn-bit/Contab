@@ -1,12 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { supabase, getAllTenants } from '@/lib/supabase-db';
 import { randomBytes } from 'crypto';
-
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUser } from '@/lib/clerk-api';
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,11 +14,11 @@ export async function GET(req: NextRequest) {
     
     let userRole: string | undefined;
     try {
-      const clerkUser = await clerk.users.getUser(userId);
+      const clerkUser = await clerkGetUser(userId);
       userRole = 
-        clerkUser.publicMetadata?.role || 
-        clerkUser.unsafeMetadata?.role ||
-        (clerkUser.privateMetadata as any)?.role;
+        clerkUser.public_metadata?.role || 
+        clerkUser.unsafe_metadata?.role ||
+        (clerkUser.private_metadata as any)?.role;
     } catch (error) {
       console.error('Error getting user from Clerk:', error);
     }
@@ -223,12 +219,12 @@ export async function POST(req: NextRequest) {
     let userRole: string | undefined;
     let email = '';
     try {
-      const clerkUser = await clerk.users.getUser(userId);
-      email = clerkUser.emailAddresses[0]?.emailAddress || '';
+      const clerkUser = await clerkGetUser(userId);
+      email = clerkUser.email_addresses[0]?.email_address || '';
       userRole = 
-        clerkUser.publicMetadata?.role || 
-        clerkUser.unsafeMetadata?.role ||
-        (clerkUser.privateMetadata as any)?.role;
+        clerkUser.public_metadata?.role || 
+        clerkUser.unsafe_metadata?.role ||
+        (clerkUser.private_metadata as any)?.role;
     } catch (error) {
       console.error('Error getting user from Clerk:', error);
     }

@@ -1,9 +1,4 @@
-import { createClerkClient } from '@clerk/clerk-sdk-node';
-
-// Inicializar cliente de Clerk
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUserList, clerkUpdateUser } from '../lib/clerk-api';
 
 async function updateClerkMetadata() {
   try {
@@ -12,11 +7,7 @@ async function updateClerkMetadata() {
     console.log('🔧 Actualizando metadatos en Clerk para el usuario...');
     console.log('Email:', email);
     
-    // Buscar usuario en Clerk
-    const users = await clerk.users.getUserList({
-      emailAddress: [email],
-      limit: 1
-    });
+    const users = await clerkGetUserList({ email_address: [email] });
 
     if (users.length === 0) {
       console.log('❌ Usuario no encontrado en Clerk');
@@ -26,11 +17,9 @@ async function updateClerkMetadata() {
     const clerkUser = users[0];
     console.log('✅ Usuario encontrado en Clerk:');
     console.log('ID:', clerkUser.id);
-    console.log('Email:', clerkUser.emailAddresses[0]?.emailAddress);
-    console.log('Metadatos actuales:', clerkUser.publicMetadata);
+    console.log('Metadatos actuales:', clerkUser.public_metadata);
 
-    // Actualizar metadatos
-    const updatedUser = await clerk.users.updateUser(clerkUser.id, {
+    const updatedUser = await clerkUpdateUser(clerkUser.id, {
       publicMetadata: {
         role: 'SUPER_ADMIN',
         tenantId: 'tenant_001',
@@ -52,15 +41,11 @@ async function updateClerkMetadata() {
     });
 
     console.log('✅ Metadatos actualizados exitosamente:');
-    console.log('Nuevos metadatos:', updatedUser.publicMetadata);
+    console.log('Nuevos metadatos:', updatedUser.public_metadata);
 
   } catch (error: any) {
     console.error('❌ Error al actualizar metadatos:', error.message);
-    if (error.response?.data) {
-      console.error('Detalles del error:', error.response.data);
-    }
   }
 }
 
-// Ejecutar la función
 updateClerkMetadata();

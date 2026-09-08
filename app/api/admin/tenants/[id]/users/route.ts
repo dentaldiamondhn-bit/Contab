@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, clerkClient } from '@clerk/nextjs/server';
-import { createClerkClient } from '@clerk/clerk-sdk-node';
 import { RealDB } from '@/lib/real-db';
-
-// Inicializar Clerk con la secret key del servidor
-const clerk = createClerkClient({
-  secretKey: process.env.CLERK_SECRET_KEY,
-});
+import { clerkGetUserList, clerkCreateUser, clerkDeleteUser } from '@/lib/clerk-api';
 
 export async function POST(
   req: NextRequest,
@@ -63,8 +58,8 @@ export async function POST(
     }
 
     // Verificar que el email no exista ya en Clerk
-    const existingUsers = await clerk.users.getUserList({
-      emailAddress: [userEmail],
+    const existingUsers = await clerkGetUserList({
+      email_address: [userEmail],
       limit: 1
     });
 
@@ -88,13 +83,13 @@ export async function POST(
       tenantCode: tenant.tenantCode
     });
 
-    const clerkUser = await clerk.users.createUser({
-      emailAddress: [userEmail],
-      firstName,
-      lastName,
+    const clerkUser = await clerkCreateUser({
+      email_address: [userEmail],
+      first_name: firstName,
+      last_name: lastName,
       password,
       username: username || `${firstName.toLowerCase()}_${lastName.toLowerCase()}`,
-      publicMetadata: {
+      public_metadata: {
         role,
         tenantId: tenant.id,
         tenantCode: tenant.tenantCode,
