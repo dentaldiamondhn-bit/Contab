@@ -178,6 +178,15 @@ export default function HRDashboardPage() {
       bgColor: 'bg-cyan-50',
       count: 'Ver reportes',
       path: '/hr/reports'
+    },
+    {
+      title: 'Organigrama',
+      description: 'Árbol jerárquico de empleados: gerentes, supervisores y equipo',
+      icon: Network,
+      color: 'text-indigo-600',
+      bgColor: 'bg-indigo-50',
+      count: `${activeEmployees.length} empleados`,
+      path: '/hr/org-chart'
     }
   ];
 

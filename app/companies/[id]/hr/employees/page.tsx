@@ -58,6 +58,7 @@ interface Employee {
   // Contrato y trabajo
   contractType: 'indefinido' | 'determinado' | 'por obra' | 'prueba' | 'temporada';
   supervisor: string;
+  reportsTo: string | null;
   schedule: 'completa' | 'media' | 'personalizada';
   scheduleHours: string;
   scheduleEntry: string;
@@ -283,7 +284,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => updateField('department', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => !emp.department || p.department === emp.department).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
-                <div><label className="text-gray-500">Jefe Directo:</label><input type="text" value={emp.supervisor || ''} onChange={(e) => updateField('supervisor', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.position || 'Sin puesto'}</option>))}</select></div>
                 <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
@@ -334,7 +335,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><span className="text-gray-500">Departamento:</span><p className="font-medium">{emp.department || '-'}</p></div>
                 <div><span className="text-gray-500">Cargo:</span><p className="font-medium">{emp.position || '-'}</p></div>
                 <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
-                <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.supervisor || '-'}</p></div>
+                <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.reportsTo ? (employees.find(e => e.id === emp.reportsTo) ? `${employees.find(e => e.id === emp.reportsTo)!.firstName} ${employees.find(e => e.id === emp.reportsTo)!.lastName}` : emp.supervisor || '-') : (emp.supervisor || '-')}</p></div>
                 <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
                 <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
                 <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
@@ -820,6 +821,7 @@ export default function EmployeesPage() {
     vacationDays: 15,
     contractType: 'indefinido' as const,
     supervisor: '',
+    reportsTo: null,
     schedule: 'completa' as const,
     scheduleHours: '08:00 - 17:00',
     scheduleEntry: '08:00',
@@ -900,7 +902,7 @@ export default function EmployeesPage() {
           salary: parseFloat(e.base_salary) || 0, startDate: e.hire_date, status: e.status,
           phone: e.phone, email: e.email, address: e.address, photo: e.photo || '',
           cv: e.cv || '', civilStatus: e.civil_status, contractType: e.contract_type,
-          supervisor: e.supervisor, schedule: e.schedule, modality: e.modality,
+          supervisor: e.supervisor, reportsTo: e.reportsTo || null, schedule: e.schedule, modality: e.modality,
           educationLevel: e.education_level, university: e.university, degree: e.degree,
           graduationYear: e.graduation_year, languages: e.languages, certifications: e.certifications,
           driverLicense: e.driver_license, otherSkills: e.other_skills,
@@ -1095,7 +1097,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     await saveEmployeeToAPI(emp);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', reportsTo: null, schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
     setShowAddEmployee(false);
   };
 
@@ -1817,13 +1819,21 @@ export default function EmployeesPage() {
                 </div>
                 <div>
                   <label className="text-sm font-medium">Jefe Directo</label>
-                  <input
-                    type="text"
-                    value={newEmployee.supervisor}
-                    onChange={(e) => setNewEmployee({ ...newEmployee, supervisor: e.target.value })}
+                  <select
+                    value={newEmployee.reportsTo || ''}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, reportsTo: e.target.value || null })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
-                    placeholder="Se asigna según departamento"
-                  />
+                  >
+                    <option value="">Sin jefe directo (raíz)</option>
+                    {employees
+                      .filter(e => e.status === 'active' && e.id !== editingEmployee?.id)
+                      .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+                      .map(e => (
+                        <option key={e.id} value={e.id}>
+                          {e.firstName} {e.lastName} — {e.position || 'Sin puesto'}{e.department ? ` (${e.department})` : ''}
+                        </option>
+                      ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-sm font-medium">Jornada *</label>
