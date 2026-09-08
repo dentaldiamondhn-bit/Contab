@@ -975,11 +975,12 @@ export default function EmployeesPage() {
         body: JSON.stringify(emp)
       });
       if (res.ok) {
-        await loadData();
-        showUploadMessage('Empleado guardado correctamente');
+        return true;
       }
+      return false;
     } catch (error) {
       console.error('Error saving employee:', error);
+      return false;
     }
   };
 
@@ -1292,31 +1293,94 @@ export default function EmployeesPage() {
   const confirmUpload = () => {
     const newEmployees = uploadPreview.map(row => ({
       id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: row.name || row.nombre || '',
+      employeeId: row.employeeid || row.codigo || row.code || '',
+      firstName: row.firstname || row.nombre || row.name || '',
+      lastName: row.lastname || row.apellido || row.apellidos || '',
+      identityNumber: row.identitynumber || row.identidad || row.dni || row.id_number || '',
       position: row.position || row.cargo || row.puesto || '',
-      department: row.department || row.departamento || '',
+      department: row.department || row.departamento || row.depto || '',
       salary: parseFloat(row.salary || row.salario || '0') || 0,
-      startDate: row.startdate || row.fecha_ingreso || row.fecha || '',
+      startDate: row.startdate || row.fecha_ingreso || row.fecha || row.hire_date || '',
       status: 'active' as const,
-      phone: row.phone || row.telefono || '',
+      phone: row.phone || row.telefono || row.tel || '',
       email: row.email || row.correo || '',
-      vacationDays: parseInt(row.vacationdays || row.dias_vacaciones || '15') || 15,
-      usedVacationDays: 0
-    })).filter(emp => emp.name);
+      address: row.address || row.direccion || '',
+      civilStatus: row.civilstatus || row.estado_civil || 'soltero',
+      gender: (row.gender || row.sexo || '') as 'M' | 'F' | '',
+      contractType: (row.contracttype || row.tipo_contrato || 'indefinido') as any,
+      supervisor: row.supervisor || row.jefe_texto || '',
+      reportsTo: null as string | null,
+      schedule: (row.schedule || row.jornada || 'completa') as any,
+      scheduleEntry: row.scheduleentry || row.hora_entrada || '08:00',
+      scheduleExit: row.scheduleexit || row.hora_salida || '17:00',
+      scheduleHours: '',
+      modality: (row.modality || row.modalidad || 'presencial') as any,
+      educationLevel: (row.educationlevel || row.nivel_educacion || 'universitario') as any,
+      university: row.university || row.universidad || '',
+      degree: row.degree || row.carrera || row.titulo || '',
+      graduationYear: row.graduationyear || row.anio_graduacion || '',
+      languages: row.languages || row.idiomas || '',
+      certifications: row.certifications || row.certificaciones || '',
+      driverLicense: row.driverlicense?.toLowerCase() === 'si' || row.licencia?.toLowerCase() === 'si' || false,
+      otherSkills: row.otherskills || row.otras_habilidades || '',
+      socialSecurityNumber: row.socialsecuritynumber || row.no_igss || row.igss || '',
+      pensionFund: row.pensionfund || row.afp || row.fondo_pension || '',
+      laborRiskInsurer: row.laborriskinsurer || row.aseguradora || '',
+      photo: '',
+      cv: '',
+      hrDocuments: [],
+      vacationDays: calculateVacationDays(row.startdate || row.fecha_ingreso || row.fecha || ''),
+      usedVacationDays: 0,
+      freeDays: [],
+    })).filter(emp => emp.firstName && emp.lastName);
 
-    saveEmployees([...employees, ...newEmployees]);
-    setUploadPreview([]);
-    setShowUpload(false);
-    alert(`${newEmployees.length} empleados importados correctamente`);
+    if (newEmployees.length === 0) {
+      alert('No se encontraron empleados válidos. Verifica que las columnas "nombre" y "apellido" existan.');
+      return;
+    }
+
+    (async () => {
+      let created = 0;
+      for (const emp of newEmployees) {
+        try {
+          const res = await saveEmployeeToAPI(emp);
+          if (res) created++;
+        } catch {}
+      }
+      setUploadPreview([]);
+      setShowUpload(false);
+      await loadData();
+      alert(`${created} de ${newEmployees.length} empleados importados correctamente`);
+    })();
   };
 
   const downloadTemplate = () => {
-    const csv = 'name,position,department,salary,startDate,phone,email,vacationDays\nJuan Pérez,Doctor,Medicina,15000,2024-01-15,9999-8888,juan@email.com,15\nMaría López,Enfermera,Enfermería,12000,2024-02-01,8888-7777,maria@email.com,15';
-    const blob = new Blob([csv], { type: 'text/csv' });
+    const headers = [
+      'employeeid', 'nombre', 'apellido', 'identidad', 'sexo',
+      'departamento', 'cargo', 'salario', 'fecha_ingreso', 'tipo_contrato',
+      'telefono', 'email', 'direccion', 'estado_civil',
+      'jornada', 'hora_entrada', 'hora_salida', 'modalidad',
+      'nivel_educacion', 'universidad', 'carrera', 'anio_graduacion',
+      'idiomas', 'certificaciones', 'otras_habilidades', 'licencia',
+      'no_igss', 'afp', 'aseguradora',
+      'supervisor'
+    ];
+    const example = [
+      'EMP001', 'Juan', 'Pérez', '0801-1990-12345', 'M',
+      'Ventas', 'Vendedor', '8000', '2024-01-15', 'indefinido',
+      '9999-8888', 'juan@email.com', 'Col. Palmira, Tegucigalpa', 'soltero',
+      'completa', '08:00', '17:00', 'presencial',
+      'universitario', 'UNAH', 'Administración de Empresas', '2018',
+      'Español, Inglés', 'Scrum Master', 'Microsoft Office', 'si',
+      '123456789', 'Confía', 'Seguros Atlántida',
+      'María García'
+    ];
+    const csv = headers.join(',') + '\n' + example.join(',');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'template_empleados.csv';
+    a.download = 'template_empleados_completo.csv';
     a.click();
     window.URL.revokeObjectURL(url);
   };
@@ -1418,18 +1482,40 @@ export default function EmployeesPage() {
             <CardTitle>Importar Empleados desde Archivo CSV</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium text-blue-800 mb-2">Formato del archivo CSV:</h4>
-              <ul className="text-sm text-blue-700 space-y-1">
-                <li>• <strong>name</strong> o <strong>nombre</strong>: Nombre completo del empleado</li>
-                <li>• <strong>position</strong> o <strong>cargo</strong>: Cargo o puesto</li>
-                <li>• <strong>department</strong> o <strong>departamento</strong>: Departamento</li>
-                <li>• <strong>salary</strong> o <strong>salario</strong>: Salario mensual</li>
-                <li>• <strong>startDate</strong> o <strong>fecha</strong>: Fecha de ingreso</li>
-                <li>• <strong>phone</strong> o <strong>telefono</strong>: Teléfono</li>
-                <li>• <strong>email</strong> o <strong>correo</strong>: Correo electrónico</li>
-                <li>• <strong>vacationDays</strong> o <strong>dias_vacaciones</strong>: Días de vacaciones</li>
-              </ul>
+            <div className="bg-blue-50 p-4 rounded-lg max-h-64 overflow-y-auto">
+              <h4 className="font-medium text-blue-800 mb-2">Columnas del CSV (todas opcionales excepto nombre y apellido):</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-blue-700">
+                <div><strong>employeeid</strong>: Código</div>
+                <div><strong>nombre</strong>: Nombre *</div>
+                <div><strong>apellido</strong>: Apellido *</div>
+                <div><strong>identidad</strong>: No. Identidad</div>
+                <div><strong>sexo</strong>: M o F</div>
+                <div><strong>departamento</strong>: Departamento</div>
+                <div><strong>cargo</strong>: Puesto</div>
+                <div><strong>salario</strong>: Salario mensual</div>
+                <div><strong>fecha_ingreso</strong>: YYYY-MM-DD</div>
+                <div><strong>tipo_contrato</strong>: indefinido/determinado/prueba</div>
+                <div><strong>telefono</strong>: Teléfono</div>
+                <div><strong>email</strong>: Correo</div>
+                <div><strong>direccion</strong>: Dirección</div>
+                <div><strong>estado_civil</strong>: soltero/casado/divorciado/viudo</div>
+                <div><strong>jornada</strong>: completa/media/personalizada</div>
+                <div><strong>hora_entrada</strong>: 08:00</div>
+                <div><strong>hora_salida</strong>: 17:00</div>
+                <div><strong>modalidad</strong>: presencial/remoto/híbrido</div>
+                <div><strong>nivel_educacion</strong>: basico/medio/universitario/tecnico</div>
+                <div><strong>universidad</strong>: Universidad</div>
+                <div><strong>carrera</strong>: Título/Carrera</div>
+                <div><strong>anio_graduacion</strong>: Año</div>
+                <div><strong>idiomas</strong>: Idiomas</div>
+                <div><strong>certificaciones</strong>: Certificaciones</div>
+                <div><strong>otras_habilidades</strong>: Skills</div>
+                <div><strong>licencia</strong>: si/no</div>
+                <div><strong>no_igss</strong>: No. IGSS</div>
+                <div><strong>afp</strong>: Fondo pensión</div>
+                <div><strong>aseguradora</strong>: Aseg. riesgo</div>
+                <div><strong>supervisor</strong>: Nombre jefe directo</div>
+              </div>
             </div>
             
             <div className="flex gap-2">
@@ -1447,29 +1533,35 @@ export default function EmployeesPage() {
             {uploadPreview.length > 0 && (
               <div>
                 <h4 className="font-medium mb-2">Vista previa ({uploadPreview.length} empleados):</h4>
-                <div className="overflow-x-auto border rounded-lg">
+                <div className="overflow-x-auto border rounded-lg max-h-64 overflow-y-auto">
                   <table className="w-full text-sm">
-                    <thead>
-                      <tr className="bg-gray-50">
-                        <th className="text-left py-2 px-3">Nombre</th>
-                        <th className="text-left py-2 px-3">Cargo</th>
-                        <th className="text-left py-2 px-3">Departamento</th>
-                        <th className="text-right py-2 px-3">Salario</th>
-                        <th className="text-left py-2 px-3">Fecha</th>
-                        <th className="text-left py-2 px-3">Teléfono</th>
-                        <th className="text-left py-2 px-3">Email</th>
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr>
+                        <th className="text-left py-2 px-2">Nombre</th>
+                        <th className="text-left py-2 px-2">Apellido</th>
+                        <th className="text-left py-2 px-2">Identidad</th>
+                        <th className="text-left py-2 px-2">Depto</th>
+                        <th className="text-left py-2 px-2">Cargo</th>
+                        <th className="text-right py-2 px-2">Salario</th>
+                        <th className="text-left py-2 px-2">Ingreso</th>
+                        <th className="text-left py-2 px-2">Teléfono</th>
+                        <th className="text-left py-2 px-2">Email</th>
+                        <th className="text-left py-2 px-2">Contrato</th>
                       </tr>
                     </thead>
                     <tbody>
                       {uploadPreview.map((row, index) => (
-                        <tr key={index} className="border-t">
-                          <td className="py-2 px-3">{row.name || row.nombre}</td>
-                          <td className="py-2 px-3">{row.position || row.cargo || row.puesto}</td>
-                          <td className="py-2 px-3">{row.department || row.departamento}</td>
-                          <td className="py-2 px-3 text-right">{row.salary || row.salario}</td>
-                          <td className="py-2 px-3">{row.startdate || row.fecha_ingreso || row.fecha}</td>
-                          <td className="py-2 px-3">{row.phone || row.telefono}</td>
-                          <td className="py-2 px-3">{row.email || row.correo}</td>
+                        <tr key={index} className="border-t hover:bg-gray-50">
+                          <td className="py-1 px-2">{row.firstname || row.nombre || row.name || '—'}</td>
+                          <td className="py-1 px-2">{row.lastname || row.apellido || row.apellidos || '—'}</td>
+                          <td className="py-1 px-2 text-xs">{row.identitynumber || row.identidad || row.dni || '—'}</td>
+                          <td className="py-1 px-2">{row.department || row.departamento || '—'}</td>
+                          <td className="py-1 px-2">{row.position || row.cargo || '—'}</td>
+                          <td className="py-1 px-2 text-right">{row.salary || row.salario || '0'}</td>
+                          <td className="py-1 px-2">{row.startdate || row.fecha_ingreso || '—'}</td>
+                          <td className="py-1 px-2">{row.phone || row.telefono || '—'}</td>
+                          <td className="py-1 px-2">{row.email || row.correo || '—'}</td>
+                          <td className="py-1 px-2">{row.contracttype || row.tipo_contrato || 'indefinido'}</td>
                         </tr>
                       ))}
                     </tbody>
