@@ -1,8 +1,8 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 7 de Septiembre de 2026
+> **Fecha:** 8 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
-> **Versión del Análisis:** 1.0
+> **Versión del Análisis:** 1.1
 
 ---
 
@@ -24,6 +24,23 @@
 | 12 | Recursos Humanos | ~82% | Parcial | Alta |
 
 **Promedio General del Sistema: ~60%**
+
+### Notas de Actualización (8 Sept 2026)
+
+#### HR Module
+- **HR: Organigrama completo** — Página `/hr/org-chart` con vista de árbol y lista, búsqueda, filtro por departamento, asignación de jefes directos, subir foto, importación CSV. Columna `reports_to` desplegada en Supabase.
+- **HR: Importación CSV corregida** — Ahora procesa todas las filas del archivo (antes limitaba a 10 filas).
+- **HR: Importación CSV de departamentos y puestos** — Página `/hr/departments` ahora permite importar departamentos y puestos desde archivos CSV con plantilla descargable y vista previa.
+- **HR: Plantilla CSV unificada** — Una sola plantilla con columna `tipo` (departamento/puesto) para importar ambos tipos en un solo archivo.
+- **HR: Pestaña de Puestos** — Página `/hr/departments` ahora tiene pestañas Departamentos/Puestos con vista de tabla agrupada por departamento y edición inline.
+- **HR: Filtros de dropdowns en empleados** — Cargo y Jefe Directo ahora se filtran por departamento seleccionado.
+
+#### Infraestructura y Despliegue
+- **Vercel SpeedInsights + Analytics** — `<SpeedInsights />` y `<Analytics />` integrados en `app/layout.tsx` para monitoreo de rendimiento.
+- **@clerk/clerk-sdk-node eliminado** — Paquete deprecado reemplazado por `lib/clerk-api.ts` (helper REST API directo). 7 scripts y 6 API routes migrados. 0 vulnerabilidades restantes.
+- **Supabase lazy init** — `lib/supabase.ts` y `lib/supabase-db.ts` migrados a inicialización lazy (Proxy) para evitar errores de build en Vercel donde `NEXT_PUBLIC_SUPABASE_URL` no está disponible.
+- **Next.js downgrade a 15.5.25** — Next.js 16 usa Turbopack por defecto para builds, que no genera `.nft.json` en el entorno Linux de Vercel, causando error `ENOENT` en `onBuildComplete`. Next.js 15 usa webpack y genera el archivo correctamente.
+- **next.config.js simplificado** — Removido `turbopack: { root }` (dev-only) y restaurado `output: 'standalone'` para serverless en Vercel.
 
 ---
 
@@ -113,7 +130,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
 | Integración Fiscal | 5 | 8 | 63% |
-| Recursos Humanos | 9 | 10 | 90% |
+| Recursos Humanos | 10 | 11 | 91% |
 
 ### 5.2 API Routes
 
@@ -282,6 +299,7 @@ Prioridad 3 (Semanas 12-24):
 1. ~~Migrar HR de localStorage a Supabase~~ ✅ Completada
 2. ~~HR: Crear API de búsqueda y dashboard de reportes~~ ✅ Completada
 3. ~~HR: Migrar fotos/docs a Supabase Storage~~ ✅ Completada
+4. ~~HR: Organigrama interactivo~~ ✅ Completada
 4. Migrar Compras de JSON a Supabase
 5. Consolidar dual schemas (Facturación, Inventario)
 6. Conectar JournalEntryForm y FinancialStatements a API real
@@ -323,6 +341,21 @@ Prioridad 3 (Semanas 12-24):
 | Exportación (PDF/Excel) | ~30% | 90% |
 | Cumplimiento Fiscal Honduras | ~50% | 95% |
 | Documentación | ~20% | 70% |
+
+### 10.1 Estado de Infraestructura (8 Sept 2026)
+
+| Componente | Estado | Notas |
+|---|---|---|
+| Next.js | 15.5.25 | Downgraded desde 16 (Turbopack bug en Vercel) |
+| React | 19.x | — |
+| Clerk Auth | @clerk/nextjs | @clerk/clerk-sdk-node eliminado (deprecado) |
+| Supabase Client | Lazy init | Proxy-based, evita errores de build |
+| Vercel SpeedInsights | @2.0.0 | ✅ Integrado |
+| Vercel Analytics | @2.0.1 | ✅ Integrado |
+| Prisma | 5.20.0 | — |
+| Build Output | standalone | Genera .nft.json correctamente |
+| Vulnerabilidades npm | **0** | Todas resueltas |
+| Build Status | ✅ Passing | Verificado localmente |
 
 ---
 
