@@ -401,6 +401,40 @@ export default function PayrollPage() {
     } catch (err) {
       console.error('Error closing payroll:', err);
     }
+
+    // Generar asientos contables
+    try {
+      const acctRes = await fetch(`/api/companies/${companyId}/hr/accounting`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          period: record.period,
+          month: config.closingMonth,
+          year: config.closingYear,
+          frequency: config.frequency,
+          totalPeriodBase: record.totalPeriodBase,
+          totalIgssEmployer: record.totalIgssEmployer,
+          totalIgssEmployee: activeEmployees.reduce((s, e) => s + calculatePayroll(e.salary, e.id).igssEmployee, 0),
+          totalIhss: activeEmployees.reduce((s, e) => s + calculatePayroll(e.salary, e.id).ihss, 0),
+          totalRap: activeEmployees.reduce((s, e) => s + calculatePayroll(e.salary, e.id).rap, 0),
+          totalCustomDeductions: activeEmployees.reduce((s, e) => s + calculatePayroll(e.salary, e.id).customDeductions, 0),
+          totalAttendanceDeductions: record.totalAttendanceDeductions,
+          totalAttendanceIncomes: record.totalAttendanceIncomes,
+          totalDeductions: record.totalDeductions,
+          totalNetPay: record.totalNetPay,
+          employees: record.employees,
+        }),
+      });
+      if (acctRes.ok) {
+        const acctData = await acctRes.json();
+        console.log(`Asientos contables generados: ${acctData.transactionsCreated}`);
+      } else {
+        console.error('Error generando asientos contables:', await acctRes.text());
+      }
+    } catch (err) {
+      console.error('Error llamando API de contabilidad:', err);
+    }
+
     setClosedPayrolls(updated);
     alert(`Nómina de ${record.period} cerrada exitosamente.`);
   };

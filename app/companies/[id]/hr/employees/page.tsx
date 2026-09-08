@@ -165,7 +165,7 @@ interface Position {
   maxSalary: number;
 }
 
-function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[] }) {
+function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions, employees }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[]; employees: any[] }) {
   const [activeTab, setActiveTab] = useState('personal');
 
   const uploadToStorage = async (file: File, type: string, empId: string): Promise<{ url: string; path: string } | null> => {
@@ -281,10 +281,10 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
             <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
             {isEditing ? (
               <>
-                <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => updateField('department', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
-                <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => !emp.department || p.department === emp.department).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
+                <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => { updateField('department', e.target.value); updateField('position', ''); }} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
+                <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => { if (!emp.department) return true; const deptNorm = emp.department.trim().toLowerCase(); const posDept = (p.department || '').trim().toLowerCase(); return deptNorm === posDept; }).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
-                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.position || 'Sin puesto'}</option>))}</select></div>
+                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id && (!emp.department || e.department === emp.department)).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.position || 'Sin puesto'}</option>))}</select></div>
                 <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
@@ -782,6 +782,7 @@ export default function EmployeesPage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadMessage, setUploadMessage] = useState('');
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const [uploadTotalRows, setUploadTotalRows] = useState(0);
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
   const [deactivatingEmployee, setDeactivatingEmployee] = useState<Employee | null>(null);
   const [deactivateForm, setDeactivateForm] = useState({
@@ -1274,18 +1275,21 @@ export default function EmployeesPage() {
       }
 
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      const preview: any[] = [];
+      const allRows: any[] = [];
 
-      for (let i = 1; i < Math.min(lines.length, 11); i++) {
+      for (let i = 1; i < lines.length; i++) {
         const values = lines[i].split(',').map(v => v.trim());
         const row: any = {};
         headers.forEach((header, index) => {
           row[header] = values[index] || '';
         });
-        preview.push(row);
+        if (row.nombre || row.firstname || row.name || row.apellido || row.lastname) {
+          allRows.push(row);
+        }
       }
 
-      setUploadPreview(preview);
+      setUploadTotalRows(allRows.length);
+      setUploadPreview(allRows);
     };
     reader.readAsText(file);
   };
@@ -1532,7 +1536,9 @@ export default function EmployeesPage() {
 
             {uploadPreview.length > 0 && (
               <div>
-                <h4 className="font-medium mb-2">Vista previa ({uploadPreview.length} empleados):</h4>
+                <h4 className="font-medium mb-2">
+                  Vista previa ({uploadTotalRows} empleados en total{uploadTotalRows > 10 ? `, mostrando primeros 10` : ''}):
+                </h4>
                 <div className="overflow-x-auto border rounded-lg max-h-64 overflow-y-auto">
                   <table className="w-full text-sm">
                     <thead className="sticky top-0 bg-gray-50">
@@ -1550,7 +1556,7 @@ export default function EmployeesPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {uploadPreview.map((row, index) => (
+                      {uploadPreview.slice(0, 10).map((row, index) => (
                         <tr key={index} className="border-t hover:bg-gray-50">
                           <td className="py-1 px-2">{row.firstname || row.nombre || row.name || '—'}</td>
                           <td className="py-1 px-2">{row.lastname || row.apellido || row.apellidos || '—'}</td>
@@ -2895,7 +2901,7 @@ export default function EmployeesPage() {
             </div>
 
             {/* Tabs */}
-            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} departments={departments} positions={positions} />
+            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} departments={departments} positions={positions} employees={employees} />
           </div>
         </div>
         );
