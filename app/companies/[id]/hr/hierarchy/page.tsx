@@ -48,12 +48,26 @@ export default function HierarchyPage() {
   const [selectedParent, setSelectedParent] = useState<string>('');
 
   useEffect(() => {
-    const posKey = `positions_${companyId}`;
-    const savedPos = localStorage.getItem(posKey);
-    if (savedPos) {
-      const parsed = JSON.parse(savedPos);
-      setPositions(parsed.map((p: any) => ({ ...p, parentId: p.parentId || '' })));
-    }
+    const loadPositions = async () => {
+      try {
+        const res = await fetch(`/api/companies/${companyId}/hr/positions`);
+        if (res.ok) {
+          const data = await res.json();
+          setPositions(data.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            department: p.department,
+            description: p.description,
+            minSalary: p.min_salary,
+            maxSalary: p.max_salary,
+            parentId: p.parent_id || '',
+          })));
+        }
+      } catch (err) {
+        console.error('Error loading positions:', err);
+      }
+    };
+    loadPositions();
     loadEmployees();
   }, [companyId]);
 
@@ -76,9 +90,28 @@ export default function HierarchyPage() {
     }
   };
 
-  const savePositions = (data: Position[]) => {
-    localStorage.setItem(`positions_${companyId}`, JSON.stringify(data));
-    setPositions(data);
+  const savePositions = async (data: Position[]) => {
+    try {
+      // Save each position's parentId change to the API
+      for (const pos of data) {
+        await fetch(`/api/companies/${companyId}/hr/positions`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: pos.id,
+            name: pos.name,
+            department: pos.department,
+            description: pos.description,
+            minSalary: pos.minSalary,
+            maxSalary: pos.maxSalary,
+            parentId: pos.parentId || null,
+          })
+        });
+      }
+      setPositions(data);
+    } catch (err) {
+      console.error('Error saving positions:', err);
+    }
   };
 
   const getEmployeeCountForPosition = (posName: string) => {

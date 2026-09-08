@@ -231,35 +231,82 @@ export default function PayrollPage() {
     }
   };
 
-  const loadConfig = () => {
-    const saved = localStorage.getItem(`payroll_config_${companyId}`);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setConfig({ ...DEFAULT_CONFIG, ...parsed });
-      setEditConfig({ ...DEFAULT_CONFIG, ...parsed });
+  const loadConfig = async () => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/payroll/config`);
+      if (res.ok) {
+        const parsed = await res.json();
+        setConfig({ ...DEFAULT_CONFIG, ...parsed });
+        setEditConfig({ ...DEFAULT_CONFIG, ...parsed });
+      }
+    } catch (err) {
+      console.error('Error loading payroll config:', err);
     }
   };
 
-  const saveConfig = () => {
-    localStorage.setItem(`payroll_config_${companyId}`, JSON.stringify(editConfig));
+  const saveConfig = async () => {
+    try {
+      await fetch(`/api/companies/${companyId}/hr/payroll/config`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editConfig),
+      });
+    } catch (err) {
+      console.error('Error saving payroll config:', err);
+    }
     setConfig(editConfig);
     setShowConfig(false);
   };
 
-  const loadClosedPayrolls = () => {
-    const saved = localStorage.getItem(`payrolls_closed_${companyId}`);
-    if (saved) setClosedPayrolls(JSON.parse(saved));
+  const loadClosedPayrolls = async () => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/payroll/closed`);
+      if (res.ok) {
+        const data = await res.json();
+        setClosedPayrolls(data);
+      }
+    } catch (err) {
+      console.error('Error loading closed payrolls:', err);
+    }
   };
 
-  const loadEmployeeDeductions = () => {
-    const saved = localStorage.getItem(`payroll_deductions_${companyId}`);
-    if (saved) setEmployeeDeductions(JSON.parse(saved));
+  const loadEmployeeDeductions = async () => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/payroll/deductions`);
+      if (res.ok) {
+        const data = await res.json();
+        const grouped: Record<string, EmployeeDeduction[]> = {};
+        data.forEach((d: any) => {
+          if (!grouped[d.employeeId]) grouped[d.employeeId] = [];
+          grouped[d.employeeId].push({
+            id: d.id,
+            name: d.name,
+            type: d.type,
+            value: d.value,
+            enabled: d.enabled,
+            isStandard: d.isStandard,
+            paymentFrequency: d.paymentFrequency,
+            totalPayments: d.totalPayments,
+            quincena: d.quincena,
+          });
+        });
+        setEmployeeDeductions(grouped);
+      }
+    } catch (err) {
+      console.error('Error loading employee deductions:', err);
+    }
   };
 
-  const loadAttendanceDeductions = () => {
-    const saved = localStorage.getItem(`attendance_${companyId}`);
-    if (!saved) return;
-    const records: { employeeId: string; status: string; amount?: number; overtimeAmount?: number; overtimeHours?: number; date: string; holidayType?: string }[] = JSON.parse(saved);
+  const loadAttendanceDeductions = async () => {
+    let records: { employeeId: string; status: string; amount?: number; overtimeAmount?: number; overtimeHours?: number; date: string; holidayType?: string }[];
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/attendance`);
+      if (!res.ok) return;
+      records = await res.json();
+    } catch (err) {
+      console.error('Error loading attendance:', err);
+      return;
+    }
     const now = new Date();
     const closingMonth = config.closingMonth - 1;
     const closingYear = config.closingYear;
@@ -290,19 +337,24 @@ export default function PayrollPage() {
     setAttendanceDeductions(grouped);
   };
 
-  const saveEmployeeDeductions = (empId: string, deductions: EmployeeDeduction[]) => {
-    setEmployeeDeductions(prev => {
-      const updated = { ...prev, [empId]: deductions };
-      localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify(updated));
-      return updated;
-    });
+  const saveEmployeeDeductions = async (empId: string, deductions: EmployeeDeduction[]) => {
+    setEmployeeDeductions(prev => ({ ...prev, [empId]: deductions }));
+    try {
+      await fetch(`/api/companies/${companyId}/hr/payroll/deductions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ employeeId: empId, deductions }),
+      });
+    } catch (err) {
+      console.error('Error saving employee deductions:', err);
+    }
   };
 
   const getDeductionsForEmp = (empId: string): EmployeeDeduction[] => {
     return employeeDeductions[empId] || [];
   };
 
-  const closePayroll = () => {
+  const closePayroll = async () => {
     const now = new Date();
     const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
     const record: PayrollRecord = {
@@ -340,7 +392,15 @@ export default function PayrollPage() {
       }),
     };
     const updated = [record, ...closedPayrolls];
-    localStorage.setItem(`payrolls_closed_${companyId}`, JSON.stringify(updated));
+    try {
+      await fetch(`/api/companies/${companyId}/hr/payroll/closed`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(record),
+      });
+    } catch (err) {
+      console.error('Error closing payroll:', err);
+    }
     setClosedPayrolls(updated);
     alert(`Nómina de ${record.period} cerrada exitosamente.`);
   };
@@ -363,10 +423,14 @@ export default function PayrollPage() {
     window.URL.revokeObjectURL(url);
   };
 
-  const deleteClosedPayroll = (id: string) => {
+  const deleteClosedPayroll = async (id: string) => {
     if (!confirm('¿Eliminar este registro de nómina cerrada?')) return;
+    try {
+      await fetch(`/api/companies/${companyId}/hr/payroll/closed/${id}`, { method: 'DELETE' });
+    } catch (err) {
+      console.error('Error deleting closed payroll:', err);
+    }
     const updated = closedPayrolls.filter(p => p.id !== id);
-    localStorage.setItem(`payrolls_closed_${companyId}`, JSON.stringify(updated));
     setClosedPayrolls(updated);
   };
 
@@ -910,7 +974,7 @@ export default function PayrollPage() {
             } else {
               updated = [...current, { id, name, type: isPercentage ? 'percentage' : 'fixed', value: defaultVal, enabled: true, isStandard: true, paymentFrequency: 'quincenal', totalPayments: 1, quincena: 'ambas' }];
             }
-            localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+            fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
             return { ...prev, [emp.id]: updated };
           });
         };
@@ -944,7 +1008,7 @@ export default function PayrollPage() {
               };
               updated = [...current, ded];
             }
-            localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+            fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
             return { ...prev, [emp.id]: updated };
           });
           setNewDeduction({ name: '', type: 'fixed', value: 0, paymentFrequency: 'mensual', totalPayments: 1, quincena: 'ambas' });
@@ -955,7 +1019,7 @@ export default function PayrollPage() {
           setEmployeeDeductions(prev => {
             const current = prev[emp.id] || [];
             const updated = current.filter(d => d.id !== id);
-            localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+            fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
             return { ...prev, [emp.id]: updated };
           });
         };
@@ -1010,7 +1074,7 @@ export default function PayrollPage() {
                                     setEmployeeDeductions(prev => {
                                       const current = prev[emp.id] || [];
                                       const updated = current.map(d => d.id === 'igss' ? { ...d, value: newVal } : d);
-                                      localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                      fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                       return { ...prev, [emp.id]: updated };
                                     });
                                   }} className="w-20 px-2 py-1 border rounded text-xs" />
@@ -1021,7 +1085,7 @@ export default function PayrollPage() {
                                   setEmployeeDeductions(prev => {
                                     const current = prev[emp.id] || [];
                                     const updated = current.map(d => d.id === 'igss' ? { ...d, quincena: newQuincena } : d);
-                                    localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                    fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                     return { ...prev, [emp.id]: updated };
                                   });
                                 }} className="px-2 py-1 border rounded text-xs">
@@ -1052,7 +1116,7 @@ export default function PayrollPage() {
                                     setEmployeeDeductions(prev => {
                                       const current = prev[emp.id] || [];
                                       const updated = current.map(d => d.id === 'ihss' ? { ...d, value: newVal } : d);
-                                      localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                      fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                       return { ...prev, [emp.id]: updated };
                                     });
                                   }} className="w-20 px-2 py-1 border rounded text-xs" />
@@ -1063,7 +1127,7 @@ export default function PayrollPage() {
                                   setEmployeeDeductions(prev => {
                                     const current = prev[emp.id] || [];
                                     const updated = current.map(d => d.id === 'ihss' ? { ...d, quincena: newQuincena } : d);
-                                    localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                    fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                     return { ...prev, [emp.id]: updated };
                                   });
                                 }} className="px-2 py-1 border rounded text-xs">
@@ -1094,7 +1158,7 @@ export default function PayrollPage() {
                                     setEmployeeDeductions(prev => {
                                       const current = prev[emp.id] || [];
                                       const updated = current.map(d => d.id === 'rap' ? { ...d, value: newVal } : d);
-                                      localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                      fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                       return { ...prev, [emp.id]: updated };
                                     });
                                   }} className="w-20 px-2 py-1 border rounded text-xs" />
@@ -1105,7 +1169,7 @@ export default function PayrollPage() {
                                   setEmployeeDeductions(prev => {
                                     const current = prev[emp.id] || [];
                                     const updated = current.map(d => d.id === 'rap' ? { ...d, quincena: newQuincena } : d);
-                                    localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                    fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                     return { ...prev, [emp.id]: updated };
                                   });
                                 }} className="px-2 py-1 border rounded text-xs">
@@ -1140,7 +1204,7 @@ export default function PayrollPage() {
                                 setEmployeeDeductions(prev => {
                                   const current = prev[emp.id] || [];
                                   const updated = current.map(x => x.id === d.id ? { ...x, enabled: !x.enabled } : x);
-                                  localStorage.setItem(`payroll_deductions_${companyId}`, JSON.stringify({ ...prev, [emp.id]: updated }));
+                                  fetch(`/api/companies/${companyId}/hr/payroll/deductions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ employeeId: emp.id, deductions: updated }) }).catch(err => console.error('Error saving deductions:', err));
                                   return { ...prev, [emp.id]: updated };
                                 });
                               }} className="h-4 w-4" />

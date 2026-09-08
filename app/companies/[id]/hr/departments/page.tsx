@@ -207,13 +207,7 @@ export default function DepartmentsPage() {
   };
 
   const getEmployeeCount = (deptName: string) => {
-    const empKey = `employees_${companyId}`;
-    const saved = localStorage.getItem(empKey);
-    if (saved) {
-      const employees = JSON.parse(saved);
-      return employees.filter((e: any) => e.department === deptName && e.status === 'active').length;
-    }
-    return 0;
+    return activeEmployees.filter(e => e.department === deptName).length;
   };
 
   const formatCurrency = (amount: number) => {

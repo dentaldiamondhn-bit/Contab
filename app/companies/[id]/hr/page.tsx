@@ -60,15 +60,40 @@ export default function HRDashboardPage() {
   const [positions, setPositions] = useState<Position[]>([]);
 
   useEffect(() => {
-    const empKey = `employees_${companyId}`;
-    const deptKey = `departments_${companyId}`;
-    const posKey = `positions_${companyId}`;
-    const savedEmp = localStorage.getItem(empKey);
-    const savedDept = localStorage.getItem(deptKey);
-    const savedPos = localStorage.getItem(posKey);
-    if (savedEmp) setEmployees(JSON.parse(savedEmp));
-    if (savedDept) setDepartments(JSON.parse(savedDept));
-    if (savedPos) setPositions(JSON.parse(savedPos));
+    const loadData = async () => {
+      try {
+        const [empRes, deptRes, posRes] = await Promise.all([
+          fetch(`/api/companies/${companyId}/employees`),
+          fetch(`/api/companies/${companyId}/hr/departments`),
+          fetch(`/api/companies/${companyId}/hr/positions`)
+        ]);
+        if (empRes.ok) {
+          const emps = await empRes.json();
+          setEmployees(emps.map((e: any) => ({
+            id: e.id,
+            name: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+            position: e.position || '',
+            department: e.department || '',
+            salary: e.salary || 0,
+            startDate: e.startDate || '',
+            status: e.status || 'active',
+            vacationDays: e.vacationDays || 0,
+            usedVacationDays: e.usedVacationDays || 0,
+          })));
+        }
+        if (deptRes.ok) {
+          const depts = await deptRes.json();
+          setDepartments(depts.map((d: any) => ({ id: d.id, name: d.name, description: d.description, manager: d.manager, createdAt: d.created_at })));
+        }
+        if (posRes.ok) {
+          const pos = await posRes.json();
+          setPositions(pos.map((p: any) => ({ id: p.id, name: p.name, department: p.department, description: p.description, minSalary: p.min_salary, maxSalary: p.max_salary })));
+        }
+      } catch (err) {
+        console.error('Error loading HR data:', err);
+      }
+    };
+    loadData();
   }, [companyId]);
 
   const activeEmployees = employees.filter(e => e.status === 'active');

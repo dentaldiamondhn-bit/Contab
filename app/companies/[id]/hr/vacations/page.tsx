@@ -157,17 +157,73 @@ export default function PermissionsPage() {
 
   useEffect(() => {
     fetchEmployees();
-    const savedTypes = localStorage.getItem(`permission_types_${companyId}`);
-    if (savedTypes) setPermTypes(JSON.parse(savedTypes));
-    const savedUsed = localStorage.getItem(`permissions_used_${companyId}`);
-    if (savedUsed) setUsedDays(JSON.parse(savedUsed));
-    const savedReqs = localStorage.getItem(`permissions_requests_${companyId}`);
-    if (savedReqs) setRequests(JSON.parse(savedReqs));
+    loadPermissionsData();
   }, [companyId]);
 
-  const saveTypes = (types: PermissionTypeDef[]) => {
+  const loadPermissionsData = async () => {
+    try {
+      const [typesRes, usedRes, reqsRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/hr/permissions/types`),
+        fetch(`/api/companies/${companyId}/hr/permissions/used`),
+        fetch(`/api/companies/${companyId}/hr/permissions/requests`)
+      ]);
+      if (typesRes.ok) {
+        const types = await typesRes.json();
+        if (Array.isArray(types)) setPermTypes(types);
+      }
+      if (usedRes.ok) {
+        const usedData = await usedRes.json();
+        const transformed: UsedDays = {};
+        if (Array.isArray(usedData)) {
+          usedData.forEach((rec: any) => {
+            if (!transformed[rec.employeeId]) transformed[rec.employeeId] = {};
+            transformed[rec.employeeId][rec.typeId] = {
+              annual: rec.annual || 0,
+              monthly: rec.monthly || 0,
+              month: rec.month || getCurrentMonth(),
+              year: rec.year || getCurrentYear()
+            };
+          });
+        } else if (typeof usedData === 'object' && usedData !== null) {
+          Object.assign(transformed, usedData);
+        }
+        setUsedDays(transformed);
+      }
+      if (reqsRes.ok) {
+        const reqs = await reqsRes.json();
+        if (Array.isArray(reqs)) setRequests(reqs);
+      }
+    } catch (err) {
+      console.error('Error loading permissions data:', err);
+    }
+  };
+
+  const saveTypes = async (types: PermissionTypeDef[]) => {
     setPermTypes(types);
-    localStorage.setItem(`permission_types_${companyId}`, JSON.stringify(types));
+    const currentIds = new Set(permTypes.map(t => t.id));
+    const newIds = new Set(types.map(t => t.id));
+
+    for (const t of permTypes) {
+      if (!newIds.has(t.id)) {
+        fetch(`/api/companies/${companyId}/hr/permissions/types/${t.id}`, { method: 'DELETE' });
+      }
+    }
+
+    for (const t of types) {
+      if (currentIds.has(t.id)) {
+        fetch(`/api/companies/${companyId}/hr/permissions/types/${t.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      } else {
+        fetch(`/api/companies/${companyId}/hr/permissions/types`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(t)
+        });
+      }
+    }
   };
 
   const fetchEmployees = async () => {
@@ -274,12 +330,16 @@ export default function PermissionsPage() {
 
     const updated = [newRequest, ...requests];
     setRequests(updated);
-    localStorage.setItem(`permissions_requests_${companyId}`, JSON.stringify(updated));
+    fetch(`/api/companies/${companyId}/hr/permissions/requests`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(newRequest)
+    });
     setShowRequestModal(false);
     setSelectedEmployee(null);
   };
 
-  const resolveRequest = (reqId: string, status: 'approved' | 'rejected') => {
+  const resolveRequest = async (reqId: string, status: 'approved' | 'rejected') => {
     const approver = prompt(`Nombre de quien ${status === 'approved' ? 'aprueba' : 'rechaza'}:`);
     if (!approver || !approver.trim()) return;
 
@@ -288,7 +348,11 @@ export default function PermissionsPage() {
       return r;
     });
     setRequests(updated);
-    localStorage.setItem(`permissions_requests_${companyId}`, JSON.stringify(updated));
+    fetch(`/api/companies/${companyId}/hr/permissions/requests/${reqId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, resolvedAt: new Date().toISOString(), resolvedBy: approver.trim() })
+    });
 
     if (status === 'approved') {
       const req = requests.find(r => r.id === reqId);
@@ -303,18 +367,29 @@ export default function PermissionsPage() {
         };
         const updatedUsed = { ...usedDays, [req.employeeId]: { ...empUsed, [req.typeId]: updatedRec } };
         setUsedDays(updatedUsed);
-        localStorage.setItem(`permissions_used_${companyId}`, JSON.stringify(updatedUsed));
+        fetch(`/api/companies/${companyId}/hr/permissions/used`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employeeId: req.employeeId,
+            typeId: req.typeId,
+            annual: updatedRec.annual,
+            monthly: updatedRec.monthly,
+            month: updatedRec.month,
+            year: updatedRec.year
+          })
+        });
       }
     }
   };
 
-  const deleteRequest = (reqId: string) => {
+  const deleteRequest = async (reqId: string) => {
     const updated = requests.filter(r => r.id !== reqId);
     setRequests(updated);
-    localStorage.setItem(`permissions_requests_${companyId}`, JSON.stringify(updated));
+    fetch(`/api/companies/${companyId}/hr/permissions/requests/${reqId}`, { method: 'DELETE' });
   };
 
-  const useManual = (empId: string, typeId: string, days: number) => {
+  const useManual = async (empId: string, typeId: string, days: number) => {
     const empUsed = usedDays[empId] || {};
     const current = getUsage(usedDays, empId, typeId);
     const emp = employees.find(e => e.id === empId);
@@ -325,7 +400,18 @@ export default function PermissionsPage() {
     const updatedRec: UsageRecord = { annual: newAnnual, monthly: newMonthly, month: getCurrentMonth(), year: getCurrentYear() };
     const updated = { ...usedDays, [empId]: { ...empUsed, [typeId]: updatedRec } };
     setUsedDays(updated);
-    localStorage.setItem(`permissions_used_${companyId}`, JSON.stringify(updated));
+    fetch(`/api/companies/${companyId}/hr/permissions/used`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        employeeId: empId,
+        typeId,
+        annual: newAnnual,
+        monthly: newMonthly,
+        month: updatedRec.month,
+        year: updatedRec.year
+      })
+    });
   };
 
   const openAddType = () => {
