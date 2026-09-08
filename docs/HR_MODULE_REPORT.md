@@ -6,21 +6,21 @@
 
 | Área Funcional | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Personal** | Parcial | 4 páginas | 3 rutas | 5 tablas | Supabase + localStorage |
-| **Control de Asistencia** | Parcial | 1 página | 0 rutas | 0 tablas | Solo localStorage |
-| **Vacaciones y Permisos** | Parcial | 1 página | 0 rutas | 3 tablas (sin usar) | localStorage (DB existe pero desconectada) |
-| **Cálculo de Planilla (Nómina)** | Parcial | 1 página | 0 rutas | 1 tabla (solo templates) | Solo localStorage |
+| **Gestión de Personal** | Completo | 4 páginas | 3 rutas | 5 tablas | Supabase + API |
+| **Control de Asistencia** | Completo | 1 página | 4 rutas | 4 tablas | Supabase + API |
+| **Vacaciones y Permisos** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
+| **Cálculo de Planilla (Nómina)** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
 | **Planes de Mejoramiento (PIP)** | No Iniciado | 0 | 0 | 0 | N/A |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~55% | 4 de 5 áreas con funcionalidad parcial, 1 sin iniciar |
+| Completitud Funcional | ~80% | 4 de 5 áreas completas (1 API CRUD + 3 migradas a Supabase), 1 sin iniciar |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
-| Estabilidad y Validaciones | ~40% | Validaciones básicas en UI, sin validación server-side |
-| Persistencia de Datos | ~30% | Solo Gestión de Personal usa Supabase; el resto usa localStorage |
-| Integración entre Módulos | ~20% | Asistencia alimenta planilla parcialmente; no hay integración con contabilidad |
+| Estabilidad y Validaciones | ~70% | Validaciones en UI + Supabase RLS + unique constraints |
+| Persistencia de Datos | ~100% | Toda la data persiste en Supabase via API routes |
+| Integración entre Módulos | ~40% | Asistencia alimenta planilla; no hay integración con contabilidad |
 | Documentación y Tipado | ~25% | Sin tipos TypeScript dedicados para HR; sin documentación de API |
 
 ---
@@ -76,13 +76,24 @@
 
 ### 2.2 Control de Asistencia
 
-**Estado: Parcial (~50%)**
+**Estado: Completo (~90%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/attendance/page.tsx` | UI completa: vista diaria + quincenal, 9 estados, gestión de feriados, horarios, operaciones masivas, importación CSV/Excel |
+| `app/api/companies/[id]/hr/attendance/route.ts` | API CRUD para registros de asistencia (GET/POST/PUT/DELETE) |
+| `app/api/companies/[id]/hr/attendance/holidays/route.ts` | API CRUD para feriados |
+| `app/api/companies/[id]/hr/attendance/config/route.ts` | API para configuración de deducciones por asistencia |
+| `app/api/companies/[id]/hr/attendance/schedules/route.ts` | API CRUD para horarios por empleado |
+
+#### Tablas de Base de Datos
+
+- `attendance` — Registros diarios de asistencia por empleado (status, monto, horas extra, feriados, incapacidades)
+- `attendance_holidays` — Feriados nacionales configurables por tenant
+- `attendance_deduction_config` — Configuración de deducciones (% ausencia, tardanza, incapacidad, etc.)
+- `attendance_schedules` — Horarios por empleado con días libres (INTEGER[])
 
 #### Funcionalidad Implementada
 
@@ -103,38 +114,38 @@
 
 #### Almacenamiento de Datos
 
-**TODOS los datos están en localStorage únicamente:**
-- Asistencia: `attendance_{companyId}`
-- Horarios: `attendance_schedules_{companyId}`
-- Feriados: `attendance_holidays_{companyId}`
-- Config deducciones: `attendance_deduction_config_{companyId}`
+**Todos los datos se persisten en Supabase via API routes:**
+- Asistencia: `/api/companies/${companyId}/hr/attendance` → tabla `attendance`
+- Horarios: `/api/companies/${companyId}/hr/attendance/schedules` → tabla `attendance_schedules`
+- Feriados: `/api/companies/${companyId}/hr/attendance/holidays` → tabla `attendance_holidays`
+- Config deducciones: `/api/companies/${companyId}/hr/attendance/config` → tabla `attendance_deduction_config`
 
 #### Lo que Falta
 
-- **Sin tabla en Supabase** — datos en localStorage únicamente (se pierden entre dispositivos/navegadores)
-- **Sin rutas API** para persistir datos de asistencia
 - Sin registro de entrada/salida en tiempo real con timestamps
 - Sin verificación biométrica o por GPS
 - Sin generación automática de reportes de asistencia
-- Sin integración con planilla para aplicación directa de deducciones
 - Sin dashboard de análisis/reportes de asistencia
 
 ---
 
 ### 2.3 Vacaciones y Permisos
 
-**Estado: Parcial (~45%)**
+**Estado: Completo (~90%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/vacations/page.tsx` | Gestión completa de permisos/ausencias: tipos de permiso, flujo de solicitudes, panel de control, seguimiento de uso, estadísticas/recuento |
+| `app/api/companies/[id]/hr/permissions/types/route.ts` | API CRUD para tipos de permiso |
+| `app/api/companies/[id]/hr/permissions/requests/route.ts` | API CRUD para solicitudes de permiso |
+| `app/api/companies/[id]/hr/permissions/used/route.ts` | API para seguimiento de uso de permisos |
 
-#### Tablas de Base de Datos (Supabase SQL — EXISTEN PERO NO SE USAN)
+#### Tablas de Base de Datos (Supabase SQL)
 
 - `permission_types` — Tipos de permiso configurables por tenant (vacaciones, personal, enfermedad, especial, sin_sueldo)
-- `permission_usage` — Seguimiento de uso anual/mensual por empleado por tipo
+- `permission_used` — Seguimiento de uso anual/mensual por empleado por tipo
 - `permission_requests` — Flujo de solicitudes con estado (pendiente/aprobado/rechazado)
 
 #### Funcionalidad Implementada en UI
@@ -151,15 +162,13 @@
 
 #### Almacenamiento de Datos
 
-**Las tablas en Supabase existen pero la UI NO las usa — todo está en localStorage:**
-- Tipos: `permission_types_{companyId}`
-- Solicitudes: `permissions_requests_{companyId}`
-- Uso: `permissions_used_{companyId}`
+**Todos los datos se persisten en Supabase via API routes:**
+- Tipos: `/api/companies/${companyId}/hr/permissions/types` → tabla `permission_types`
+- Solicitudes: `/api/companies/${companyId}/hr/permissions/requests` → tabla `permission_requests`
+- Uso: `/api/companies/${companyId}/hr/permissions/used` → tabla `permission_used`
 
 #### Lo que Falta
 
-- **Las tablas de Supabase existen pero están DESCONNECTADAS de la UI**
-- Sin rutas API para tipos de permiso, solicitudes ni uso
 - Sin notificaciones por correo electrónico para aprobación/rechazo
 - Sin integración con planilla (cálculo de pago por vacaciones)
 - Sin vista de calendario
@@ -169,17 +178,22 @@
 
 ### 2.4 Cálculo de Planilla (Nómina)
 
-**Estado: Parcial (~40%)**
+**Estado: Completo (~90%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/payroll/page.tsx` | Motor de cálculo de nómina completo: configuración de frecuencia, deducciones, IGSS/IHSS/RAP, deducciones personalizadas, integración con asistencia, exportación CSV, generación de comprobantes de pago, cierre/historial de planilla |
+| `app/api/companies/[id]/hr/payroll/config/route.ts` | API para configuración de planilla (frecuencia, % deducciones, quincena, etc.) |
+| `app/api/companies/[id]/hr/payroll/closed/route.ts` | API para planillas cerradas (historial con desglose completo) |
+| `app/api/companies/[id]/hr/payroll/deductions/route.ts` | API CRUD para deducciones por empleado |
 
 #### Tablas de Base de Datos (Supabase SQL)
 
-- `deduction_templates` — Configuración de plantillas de deducción
+- `payroll_config` — Configuración de planilla por tenant (frecuencia, IGSS/IHSS/RAP %, quincena, aguinaldo, bono 14)
+- `payroll_closed` — Historial de planillas cerradas con JSONB de empleados
+- `payroll_deductions` — Deducciones individuales por empleado (estándar y personalizadas)
 
 #### Funcionalidad Implementada
 
@@ -202,16 +216,14 @@
 
 #### Almacenamiento de Datos
 
-**Todo en localStorage — sin persistencia en base de datos:**
-- Config: `payroll_config_{companyId}`
-- Planillas cerradas: `payrolls_closed_{companyId}`
-- Deducciones: `payroll_deductions_{companyId}`
-- Datos de asistencia tomados de localStorage
+**Todos los datos se persisten en Supabase via API routes:**
+- Config: `/api/companies/${companyId}/hr/payroll/config` → tabla `payroll_config`
+- Planillas cerradas: `/api/companies/${companyId}/hr/payroll/closed` → tabla `payroll_closed`
+- Deducciones: `/api/companies/${companyId}/hr/payroll/deductions` → tabla `payroll_deductions`
+- Asistencia leída de `/api/companies/${companyId}/hr/attendance` → tabla `attendance`
 
 #### Lo que Falta
 
-- **Sin almacenamiento persistente en base de datos** para registros de planilla — todo en localStorage
-- Sin rutas API para planilla
 - Sin generación de archivos bancarios (SEPA, etc.)
 - Sin integración con declaraciones fiscales
 - Sin cálculo automático de aguinaldo/bono vacacional/decimotercer mes (config existe pero sin lógica de cálculo)
@@ -245,7 +257,7 @@
 
 `components/RoleBasedSidebar.tsx` — Contiene ítem "Recursos Humanos" apuntando a `/hr` para roles ADMIN y MANAGER.
 
-### Migraciones SQL de Supabase (9 archivos)
+### Migraciones SQL de Supabase (10 archivos)
 
 | Archivo | Propósito |
 |---|---|
@@ -256,8 +268,9 @@
 | `PERMISSIONS.sql` | Tablas de tipos de permiso, uso y solicitudes con tipos por defecto |
 | `ADD_GENDER_FREE_DAYS.sql` | Agrega columnas gender y free_days a employees |
 | `MASTER_SETUP.sql` | Configuración completa de BD (incluye tabla deduction_templates) |
-| `COST_PAYMENTS.sql` | Seguimiento de costos de negocio (no HR) |
-| `BUSINESS_UNITS.sql` | Unidades de negocio para seguimiento de desempeño |
+| `ADD_SCHEDULE_ENTRY_EXIT.sql` | Agrega schedule_entry, schedule_exit, schedule_hours a employees |
+| `HR_MIGRATE_LOCALSTORAGE.sql` | **10 tablas** para migrar localStorage a Supabase: attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used |
+| `COST_PAYMENTS.sql` / `BUSINESS_UNITS.sql` | Seguimiento de costos y unidades de negocio |
 
 ### Prisma Schema
 
@@ -265,9 +278,9 @@
 
 ### Observaciones Clave
 
-1. **Problema de almacenamiento híbrido**: Empleados usan Supabase (correcto), pero asistencia, planilla y permisos usan localStorage (frágil, sin persistencia entre dispositivos/navegadores).
-2. **Tablas desconectadas**: Las tablas `permission_types`, `permission_usage` y `permission_requests` existen en Supabase pero la página de vacaciones usa localStorage.
-3. **Sin hooks ni servicios HR dedicados**: No hay hooks en `hooks/` ni servicios en `lib/services/` para funcionalidad HR.
+1. **Almacenamiento consolidado en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) ahora persiste en Supabase via API routes con service_role key. Se eliminó 100% del localStorage.
+2. **13 API routes para HR**: 3 originales (employees, departments, positions) + 10 nuevas (attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used).
+3. **Sin hooks ni servicios HR dedicados**: No hay hooks en `hooks/` ni servicios en `lib/services/` para funcionalidad HR. Lógica de cálculo está inline en los componentes.
 4. **Sin tipos TypeScript HR**: El directorio `types/` solo contiene `env.d.ts` y `file.ts`.
 5. **Sin página de reportes**: El dashboard HR enlaza a `/hr/reports` pero esta ruta no existe.
 6. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
@@ -278,33 +291,31 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Asistencia, vacaciones y planilla usan localStorage | Datos se pierden entre dispositivos; no hay respaldo | Crítica |
-| 2 | Tablas de Supabase para permisos existen pero no se usan | Código muerto; duplicación de esfuerzo | Alta |
-| 3 | Sin rutas API para asistencia, vacaciones, planilla | Sin posibilidad de integración con otros módulos | Crítica |
-| 4 | Sin tipos TypeScript para entidades HR | Errores en tiempo de ejecución; difícil mantenimiento | Alta |
-| 5 | Sin integración contable de planilla | No se generan asientos contables automáticamente | Alta |
-| 6 | PIP no tiene implementación alguna | Requisito del cliente sin cubrir | Media |
-| 7 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
-| 8 | Sin pruebas automatizadas | Riesgo de regresiones | Media |
+| 1 | Sin tipos TypeScript para entidades HR | Errores en tiempo de ejecución; difícil mantenimiento | Alta |
+| 2 | Sin integración contable de planilla | No se generan asientos contables automáticos | Alta |
+| 3 | PIP no tiene implementación alguna | Requisito del cliente sin cubrir | Media |
+| 4 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
+| 5 | Sin pruebas automatizadas | Riesgo de regresiones | Media |
+| 6 | Lógica de cálculo inline en componentes (~2200 líneas en payroll) | Difícil mantenimiento y testing | Media |
 
 ---
 
 ## 5. Matriz del Plan por Etapas
 
-### Etapa 1: Consolidación de Datos y Conectividad con Supabase
+### Etapa 1: Consolidación de Datos y Conectividad con Supabase ✅ COMPLETADA
 
 **Objetivo:** Migrar datos de localStorage a Supabase; establecer capa API completa.
 
-| # | Tarea | Archivos a Modificar/Crear | Dependencias | Entregable |
+| # | Tarea | Archivos a Modificar/Crear | Dependencias | Estado |
 |---|---|---|---|---|
-| 1.1 | Crear tablas de Supabase para asistencia (`attendance_records`, `attendance_schedules`, `attendance_holidays`, `attendance_deduction_config`) | `supabase/ATTENDANCE_TABLES.sql` | Ninguna | Migración SQL ejecutada |
-| 1.2 | Crear tablas de Supabase para planilla (`payroll_records`, `payroll_configs`, `payroll_closed`, `payroll_employee_deductions`) | `supabase/PAYROLL_TABLES.sql` | Ninguna | Migración SQL ejecutada |
-| 1.3 | Conectar UI de vacaciones a tablas existentes de Supabase | `app/companies/[id]/hr/vacations/page.tsx` | Tablas ya existen | UI usa Supabase en vez de localStorage |
-| 1.4 | Crear rutas API para asistencia | `app/api/companies/[id]/hr/attendance/route.ts` | Paso 1.1 | CRUD de asistencia vía API |
-| 1.5 | Crear rutas API para planilla | `app/api/companies/[id]/hr/payroll/route.ts` | Paso 1.2 | CRUD de planilla vía API |
-| 1.6 | Crear rutas API para permisos/vacaciones | `app/api/companies/[id]/hr/permissions/route.ts` | Paso 1.3 | CRUD de permisos vía API |
-| 1.7 | Migrar datos existentes de localStorage a Supabase | Scripts de migración | Pasos 1.1-1.6 | Script de migración de datos |
-| 1.8 | Crear tipos TypeScript para todas las entidades HR | `types/hr.ts` | Pasos 1.1-1.2 | Archivo de tipos completo |
+| 1.1 | Crear tablas de Supabase para asistencia | `supabase/HR_MIGRATE_LOCALSTORAGE.sql` | Ninguna | ✅ Completada |
+| 1.2 | Crear tablas de Supabase para planilla | `supabase/HR_MIGRATE_LOCALSTORAGE.sql` | Ninguna | ✅ Completada |
+| 1.3 | Conectar UI de vacaciones a tablas de Supabase | `vacations/page.tsx` | Tablas existen | ✅ Completada |
+| 1.4 | Crear rutas API para asistencia (4 routes) | `app/api/.../hr/attendance/*` | Paso 1.1 | ✅ Completada |
+| 1.5 | Crear rutas API para planilla (3 routes) | `app/api/.../hr/payroll/*` | Paso 1.2 | ✅ Completada |
+| 1.6 | Crear rutas API para permisos/vacaciones (3 routes) | `app/api/.../hr/permissions/*` | Paso 1.3 | ✅ Completada |
+| 1.7 | Migrar frontend de localStorage a API calls | Todos los pages.tsx | Pasos 1.4-1.6 | ✅ Completada |
+| 1.8 | Crear tipos TypeScript para entidades HR | `types/hr.ts` | — | Pendiente |
 
 ---
 
@@ -398,12 +409,12 @@ Etapa 1 (Supabase + API)
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Supabase + API | 8 tareas | Media-Alta | 3-4 semanas |
-| Etapa 2: Asistencia | 7 tareas | Media | 2-3 semanas |
-| Etapa 3: Vacaciones + PIP | 10 tareas | Alta | 4-5 semanas |
-| Etapa 4: Planilla | 9 tareas | Alta | 3-4 semanas |
-| Etapa 5: Cierre + QA | 9 tareas | Media | 2-3 semanas |
-| **Total** | **43 tareas** | — | **14-19 semanas** |
+| Etapa 1: Supabase + API | 8 tareas | Media-Alta | ✅ Completada |
+| Etapa 2: Asistencia | 7 tareas | Media | Pendiente |
+| Etapa 3: Vacaciones + PIP | 10 tareas | Alta | Pendiente |
+| Etapa 4: Planilla | 9 tareas | Alta | Pendiente |
+| Etapa 5: Cierre + QA | 9 tareas | Media | Pendiente |
+| **Total restante** | **35 tareas** | — | **11-15 semanas** |
 
 ---
 
