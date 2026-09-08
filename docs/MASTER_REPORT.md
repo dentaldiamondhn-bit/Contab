@@ -21,9 +21,9 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~70% | Parcial | Alta |
+| 12 | Recursos Humanos | ~75% | Parcial | Alta |
 
-**Promedio General del Sistema: ~59%**
+**Promedio General del Sistema: ~60%**
 
 ---
 
@@ -43,9 +43,9 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ████████████████████░░░░░░░░░░  70%  Parcial
+12. Recursos Humanos          ████████████████████░░░░░░░░░░  75%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ████████████████░░░░░░░░░░░░░░  59%
+PROMEDIO                      ████████████████░░░░░░░░░░░░░░  60%
 ```
 
 ---
@@ -113,7 +113,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
 | Integración Fiscal | 5 | 8 | 63% |
-| Recursos Humanos | 7 | 10 | 70% |
+| Recursos Humanos | 8 | 10 | 80% |
 
 ### 5.2 API Routes
 
@@ -130,7 +130,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
 | Integración Fiscal | 14 | 18 | 78% |
-| Recursos Humanos | 13 | 15 | 87% |
+| Recursos Humanos | 14 | 15 | 93% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
 
@@ -147,7 +147,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions | Sólido (15 tablas) |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions + 2 Storage buckets | Sólido (15 tablas + 2 buckets) |
 
 ---
 

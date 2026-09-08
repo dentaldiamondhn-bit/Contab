@@ -29,7 +29,7 @@
 
 ### 2.1 Gestión de Personal (Empleados)
 
-**Estado: Parcial (~70%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -42,6 +42,7 @@
 | `app/api/companies/[id]/employees/route.ts` | API CRUD completa (GET/POST/PUT/DELETE) para empleados vía Supabase |
 | `app/api/companies/[id]/hr/departments/route.ts` | API CRUD para departamentos (Supabase) |
 | `app/api/companies/[id]/hr/positions/route.ts` | API CRUD para cargos (Supabase) |
+| `app/api/companies/[id]/hr/storage/route.ts` | API de upload/delete para fotos y documentos en Supabase Storage |
 
 #### Tablas de Base de Datos (Supabase SQL)
 
@@ -50,6 +51,11 @@
 - `employee_hr_documents` — Almacenamiento de documentos RRHH por empleado
 - `departments` — Departamentos jerárquicos con parent_id
 - `positions` — Cargos jerárquicos con rangos salariales y parent_id
+
+#### Supabase Storage (Buckets)
+
+- `employee-photos` — Público, max 5MB, formatos: JPG/PNG/WebP/GIF. Fotos de perfil de empleados
+- `employee-documents` — Privado, max 10MB, formatos: PDF/DOC/DOCX/JPG/PNG. Documentos de identidad, contratos, CVs, documentos RRHH
 
 #### Funcionalidad Implementada
 
@@ -62,6 +68,8 @@
 - Creación automática de cargo al agregar empleado
 - Registro de historial de cambios (audit trail)
 - Cálculo de vacaciones por antigüedad (ley hondureña: <1yr=0, 1=10, 2=12, 3=14, 4+=20)
+- Almacenamiento de fotos y documentos en Supabase Storage (reemplaza base64)
+- Upload de archivos vía API con URLs persistentes
 - Aislamiento multi-tenant vía Supabase RLS
 
 #### Lo que Falta
@@ -69,7 +77,6 @@
 - Sin endpoint de búsqueda/filtrado dedicado para empleados
 - Sin modelos en Prisma para entidades HR (todo manejado directamente vía SQL en Supabase)
 - Sin archivo de tipos TypeScript para entidades HR
-- Fotos y documentos usan base64 (sin almacenamiento real en Supabase Storage)
 - Sin hooks dedicados para datos de empleados
 
 ---
@@ -270,6 +277,7 @@
 | `MASTER_SETUP.sql` | Configuración completa de BD (incluye tabla deduction_templates) |
 | `ADD_SCHEDULE_ENTRY_EXIT.sql` | Agrega schedule_entry, schedule_exit, schedule_hours a employees |
 | `HR_MIGRATE_LOCALSTORAGE.sql` | **10 tablas** para migrar localStorage a Supabase: attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used |
+| `HR_STORAGE.sql` | **2 buckets** de Supabase Storage (employee-photos, employee-documents) + 10 RLS policies |
 | `COST_PAYMENTS.sql` / `BUSINESS_UNITS.sql` | Seguimiento de costos y unidades de negocio |
 
 ### Prisma Schema
@@ -279,7 +287,7 @@
 ### Observaciones Clave
 
 1. **Almacenamiento consolidado en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) ahora persiste en Supabase via API routes con service_role key. Se eliminó 100% del localStorage.
-2. **13 API routes para HR**: 3 originales (employees, departments, positions) + 10 nuevas (attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used).
+2. **14 API routes para HR**: 3 originales (employees, departments, positions) + 10 nuevas (attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used) + 1 storage (upload/delete fotos/documentos).
 3. **Sin hooks ni servicios HR dedicados**: No hay hooks en `hooks/` ni servicios en `lib/services/` para funcionalidad HR. Lógica de cálculo está inline en los componentes.
 4. **Sin tipos TypeScript HR**: El directorio `types/` solo contiene `env.d.ts` y `file.ts`.
 5. **Sin página de reportes**: El dashboard HR enlaza a `/hr/reports` pero esta ruta no existe.
