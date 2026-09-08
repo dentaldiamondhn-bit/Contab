@@ -767,6 +767,12 @@ export default function EmployeesPage() {
   const [filterPosition, setFilterPosition] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterContract, setFilterContract] = useState('');
+  const [sortBy, setSortBy] = useState('');
+  const [searchResults, setSearchResults] = useState<Employee[] | null>(null);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchDepartments, setSearchDepartments] = useState<string[]>([]);
+  const [searchPositions, setSearchPositions] = useState<string[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
@@ -861,6 +867,71 @@ export default function EmployeesPage() {
   useEffect(() => {
     loadData();
   }, [companyId]);
+
+  // Server-side search when filters change
+  useEffect(() => {
+    const hasFilters = searchTerm || filterDepartment || filterPosition || filterStatus || filterContract;
+    if (!hasFilters) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(() => searchEmployees(), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, filterDepartment, filterPosition, filterStatus, filterContract, companyId]);
+
+  const searchEmployees = async () => {
+    setSearchLoading(true);
+    try {
+      const p = new URLSearchParams();
+      if (searchTerm) p.set('q', searchTerm);
+      if (filterDepartment) p.set('department', filterDepartment);
+      if (filterPosition) p.set('position', filterPosition);
+      if (filterStatus) p.set('status', filterStatus);
+      if (filterContract) p.set('contractType', filterContract);
+      p.set('sortBy', sortBy === 'az' ? 'last_name' : sortBy === 'za' ? 'last_name' : sortBy === 'asc' || sortBy === 'desc' ? 'base_salary' : sortBy === 'newest' || sortBy === 'oldest' ? 'hire_date' : 'last_name');
+      p.set('sortDir', (sortBy === 'za' || sortBy === 'desc' || sortBy === 'oldest') ? 'desc' : 'asc');
+      p.set('limit', '200');
+
+      const res = await fetch(`/api/companies/${companyId}/hr/employees/search?${p.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.employees.map((e: any) => ({
+          id: e.id, employeeId: e.employee_id, firstName: e.first_name, lastName: e.last_name,
+          identityNumber: e.id_number, position: e.position, department: e.department,
+          salary: parseFloat(e.base_salary) || 0, startDate: e.hire_date, status: e.status,
+          phone: e.phone, email: e.email, address: e.address, photo: e.photo || '',
+          cv: e.cv || '', civilStatus: e.civil_status, contractType: e.contract_type,
+          supervisor: e.supervisor, schedule: e.schedule, modality: e.modality,
+          educationLevel: e.education_level, university: e.university, degree: e.degree,
+          graduationYear: e.graduation_year, languages: e.languages, certifications: e.certifications,
+          driverLicense: e.driver_license, otherSkills: e.other_skills,
+          socialSecurityNumber: e.social_security_number, pensionFund: e.pension_fund,
+          laborRiskInsurer: e.labor_risk_insurer, workPermitStatus: e.work_permit_status,
+          visaExpiry: e.visa_expiry, scheduleEntry: e.schedule_entry, scheduleExit: e.schedule_exit,
+          scheduleHours: e.schedule_hours, freeDays: e.free_days || [],
+          gender: e.gender, vacationDays: e.vacation_days || 0,
+          docIdentity: e.doc_identity || '', docAddressProof: e.doc_address_proof || '',
+          docContract: e.doc_contract || '', docNDA: e.doc_nda || '',
+          docEducationCerts: e.doc_education_certs || '', docPreviousJobs: e.doc_previous_jobs || '',
+          docMedicalCert: e.doc_medical_cert || '',
+          hrDocuments: e.hr_documents || [], medicalRecord: e.medical_record || {},
+          usedVacationDays: e.used_vacation_days || 0,
+          terminationDate: e.termination_date, terminationReason: e.termination_reason,
+          terminationRequestedBy: e.termination_requested_by, terminationPerformedBy: e.termination_performed_by,
+          rehireable: e.rehireable, history: e.history || [],
+        }));
+        setSearchResults(mapped);
+        setSearchTotal(data.total);
+        if (data.filters) {
+          setSearchDepartments(data.filters.departments || []);
+          setSearchPositions(data.filters.positions || []);
+        }
+      }
+    } catch (e) {
+      console.error('Search error:', e);
+    }
+    setSearchLoading(false);
+  };
 
   const loadData = async () => {
     try {
@@ -1141,7 +1212,9 @@ export default function EmployeesPage() {
     return Math.min(20, 14 + (totalYears - 3));
   };
 
-  const filteredEmployees = employees.filter(emp => {
+  // Use server-side search results when filters are active, otherwise client-side filter
+  const baseEmployees = searchResults !== null ? searchResults : employees;
+  const filteredEmployees = searchResults !== null ? baseEmployees : employees.filter(emp => {
     const matchesSearch = searchTerm === '' || 
       (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
       (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1419,7 +1492,7 @@ export default function EmployeesPage() {
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div className="flex gap-4">
-            <div className="relative flex-1">
+              <div className="relative flex-1">
               <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
               <input
                 type="text"
@@ -1428,6 +1501,7 @@ export default function EmployeesPage() {
                 onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                 className="w-full pl-10 pr-4 py-2 border rounded-md"
               />
+              {searchLoading && <div className="absolute right-3 top-3 animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />}
             </div>
             <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
               <Filter className="h-4 w-4 mr-2" />
