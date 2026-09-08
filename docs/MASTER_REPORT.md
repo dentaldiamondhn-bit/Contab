@@ -21,7 +21,7 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~75% | Parcial | Alta |
+| 12 | Recursos Humanos | ~78% | Parcial | Alta |
 
 **Promedio General del Sistema: ~60%**
 
@@ -43,9 +43,9 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ████████████████████░░░░░░░░░░  75%  Parcial
+12. Recursos Humanos          ████████████████████░░░░░░░░░░  78%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ████████████████░░░░░░░░░░░░░░  60%
+PROMEDIO                      █████████████████░░░░░░░░░░░░░  60%
 ```
 
 ---
@@ -130,7 +130,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
 | Integración Fiscal | 14 | 18 | 78% |
-| Recursos Humanos | 14 | 15 | 93% |
+| Recursos Humanos | 15 | 16 | 94% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
 

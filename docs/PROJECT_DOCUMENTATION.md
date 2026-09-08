@@ -27,7 +27,8 @@
 13. [Integraciones Externas](#13-integraciones-externas)
 14. [Variables de Entorno](#14-variables-de-entorno)
 15. [Deploy y Configuración](#15-deploy-y-configuración)
-16. [Estado del Proyecto](#16-estado-del-proyecto)
+16. [Estado Actual del Código](#16-estado-actual-del-código)
+17. [Matriz del Plan de Implementación](#17-matriz-del-plan-de-implementación-por-etapas)
 
 ---
 
@@ -892,49 +893,392 @@ RESEND_API_KEY=re_...
 
 ---
 
-## 16. Estado del Proyecto
+## 16. Estado Actual del Código
 
-### Resumen de Madurez
+### 16.1 Resumen Ejecutivo por Módulo
 
-| Métrica | Valor | Objetivo |
-|---|---|---|
-| Completitud Funcional | ~58% | 95% |
-| Cobertura de Pruebas | 0% | 70% |
-| Persistencia de Datos | ~65% | 100% |
-| Integración entre Módulos | ~40% | 80% |
-| Exportación (PDF/Excel) | ~30% | 90% |
-| Cumplimiento Fiscal | ~50% | 95% |
-| Documentación | ~20% | 70% |
+| # | Módulo | Completitud | UI Pages | API Routes | DB Tables | Almacenamiento | Estado |
+|---|---|---|---|---|---|---|---|
+| 1 | Registros Contables | ~70% | 4 | 10 | 2 tablas + 5 vistas | Supabase + Prisma | Parcial |
+| 2 | Estados Financieros | ~60% | 4 | 11 | 5 vistas | Supabase | Parcial |
+| 3 | Libros Legales | ~65% | 5 | 10 | 4 tablas + 4 vistas | Supabase + Prisma | Parcial |
+| 4 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
+| 5 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |
+| 6 | Compras y Proveedores | ~35% | 2 | 6 | 4 tablas | **JSON files** | **Básico** |
+| 7 | Control Financiero | ~35% | 1 | 3 | 1 tabla | Supabase + Prisma | Parcial |
+| 8 | Reportes y Análisis | ~75% | 9 | 11 | 15 vistas | Supabase | Completo |
+| 9 | Seguridad y Control | ~80% | 1 | 2 | 4 tablas | Supabase + Prisma | Completo |
+| 10 | Otras Características | ~35% | 1 | 2 | 6 tablas (Prisma) | Supabase Storage | Básico |
+| 11 | Integración Fiscal | ~55% | 5 | 14 | 4 tablas + 2 vistas | Supabase + Prisma | Parcial |
+| 12 | Recursos Humanos | ~55% | 7 | 3 | 8 tablas | Supabase + **localStorage** | Parcial |
 
-### Fortalezas
+### 16.2 Métricas de Madurez
 
-- Autenticación y RBAC sólidos
-- Catálogo de cuentas completo con 3 plantillas
-- Centro de reportes robusto (18 reportes)
-- Gestión CAI con alertas automáticas
-- Retenciones con recibo PDF legal
-- Importación bancaria para 9 bancos hondureños
-- Proyección de flujo de caja avanzada
-- Cálculos fiscales para legislación hondureña
+| Métrica | Valor Actual | Objetivo | Brecha |
+|---|---|---|---|
+| Completitud Funcional | ~58% | 95% | -37% |
+| Cobertura de Pruebas | 0% | 70% | -70% |
+| Persistencia de Datos | ~65% | 100% | -35% |
+| Integración entre Módulos | ~40% | 80% | -40% |
+| Exportación (PDF/Excel) | ~30% | 90% | -60% |
+| Cumplimiento Fiscal Honduras | ~50% | 95% | -45% |
+| Documentación y Tipado | ~20% | 70% | -50% |
 
-### Debilidades Críticas
+### 16.3 Visualización de Progreso
 
-- Compras usan archivos JSON (no persistente)
-- HR usa localStorage (no persistente)
-- Dual schemas en Facturación e Inventario
-- Componentes con mockData (Contabilidad, Estados Financieros)
-- 0% cobertura de pruebas
-- Sin DIAT (incumplimiento SAR)
-- Sin generación PDF real
-- Sin exportación Excel
+```
+MÓDULO                        PROGRESO                              ESTADO
+─────────────────────────────────────────────────────────────────────────────
+1.  Registros Contables       ████████████████████░░░░░░░░░░  70%  Parcial
+2.  Estados Financieros       ████████████████░░░░░░░░░░░░░░  60%  Parcial
+3.  Libros Legales            █████████████████░░░░░░░░░░░░░  65%  Parcial
+4.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+5.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+6.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+7.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
+8.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
+9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
+10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+12. Recursos Humanos          ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+─────────────────────────────────────────────────────────────────────────────
+PROMEDIO                      ███████████████░░░░░░░░░░░░░░░  58%
+```
 
-### Roadmap de Prioridades
+### 16.4 Estado de Almacenamiento de Datos
 
-**Fase 1 (Semanas 1-6):** Migrar datos a BD, consolidar schemas, conectar componentes
-**Fase 2 (Semanas 4-12):** DIAT, notas de crédito/débito, PDF profesional
-**Fase 3 (Semanas 8-20):** Presupuestos, multi-almacén, workflow compras, Excel
-**Fase 4 (Semanas 16-28):** Correo real, notificaciones, reportes programados
-**Fase 5 (Semanas 24-36):** Pruebas, documentación, backup/restore
+| Módulo | Supabase | Prisma | localStorage | JSON Files | Estado |
+|---|---|---|---|---|---|
+| Registros Contables | ✅ | ✅ | — | — | ✅ Correcto |
+| Estados Financieros | ✅ | — | — | — | ✅ Correcto |
+| Libros Legales | ✅ | ✅ | — | — | ✅ Correcto |
+| Facturación y Ventas | ✅ | ✅ | — | — | ⚠️ Dual schema |
+| Inventario | ✅ | — | — | — | ⚠️ Dual schema |
+| Compras y Proveedores | Parcial | — | — | **⚠️ JSON** | ❌ Crítico |
+| Control Financiero | ✅ | ✅ | — | — | ✅ Correcto |
+| Reportes y Análisis | ✅ | — | — | — | ✅ Correcto |
+| Seguridad y Control | ✅ | ✅ | — | — | ✅ Correcto |
+| Otras Características | ✅ | ✅ | — | — | ✅ Correcto |
+| Integración Fiscal | ✅ | ✅ | — | — | ✅ Correcto |
+| Recursos Humanos | Parcial | — | **⚠️ localStorage** | — | ❌ Crítico |
+
+### 16.5 Problemas Críticos Consolidados (Top 10)
+
+| # | Problema | Módulos | Impacto | Prioridad |
+|---|---|---|---|---|
+| 1 | Compras y pagos almacenan en archivos JSON | Compras | Datos no persistentes | **Crítica** |
+| 2 | Asistencia, vacaciones y planilla usan localStorage | RRHH | Datos no persistentes | **Crítica** |
+| 3 | Sin DIAT (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
+| 4 | Sin notas de crédito/débito con UI | Facturación | Incumplimiento fiscal | **Crítica** |
+| 5 | JournalEntryForm usa mockData y no guarda | Contabilidad | Función principal rota | **Crítica** |
+| 6 | FinancialStatements usa mockData | Estados Financieros | Componente inutilizable | **Crítica** |
+| 7 | Sin presupuestos ni centros de costo | Control Financiero | Sin control presupuestario | Alta |
+| 8 | Sin multi-almacén funcional | Inventario | Sin logística | Alta |
+| 9 | Sin generación de PDF profesional | Múltiples | Sin impresión | Alta |
+| 10 | RLS no confirmado en todas las tablas | Seguridad | Riesgo cross-tenant | Alta |
+
+### 16.6 Fortalezas del Sistema
+
+| Fortaleza | Módulo |
+|---|---|
+| Autenticación Clerk + RBAC 7 roles + 30+ permisos | Seguridad |
+| Catálogo de cuentas jerárquico con 3 plantillas | Contabilidad |
+| Centro de reportes con 18 reportes y 11 APIs | Reportes |
+| Gestión CAI con alertas de rango y vencimiento | Fiscal/Facturación |
+| Retenciones con recibo PDF A4 legal | Fiscal |
+| Importación bancaria para 9 bancos hondureños | Otras |
+| Proyección de flujo de caja 30 días ponderada | Control Financiero |
+| Cálculos ISV 15%/18%, ISR progresivo, retenciones | Fiscal |
+
+---
+
+## 17. Matriz del Plan de Implementación por Etapas
+
+### 17.1 Diagrama de Dependencias
+
+```
+                    ┌─────────────────────┐
+                    │   9. SEGURIDAD       │
+                    │   (Base transversal) │
+                    └──────────┬──────────┘
+                               │
+              ┌────────────────┼────────────────┐
+              │                │                │
+    ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
+    │ 1. REGISTROS       │ │ 4. FACTU-  │ │ 12. RECURSOS      │
+    │    CONTABLES       │ │ RACIÓN     │ │    HUMANOS        │
+    └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
+              │               │                │
+    ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
+    │ 2. ESTADOS         │ │ 5. INVEN-  │ │ 11. INTEGRACIÓN   │
+    │    FINANCIEROS     │ │ TARIO      │ │    FISCAL         │
+    └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
+              │               │                │
+    ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
+    │ 3. LIBROS          │ │ 6. COMPRAS │ │ 7. CONTROL        │
+    │    LEGALES         │ │            │ │    FINANCIERO     │
+    └───────────────────┘ └───┬────────┘ └───────────────────┘
+                              │
+                    ┌─────────▼─────────┐
+                    │ 8. REPORTES Y      │
+                    │    ANÁLISIS        │
+                    │ (Consolida todo)   │
+                    └───────────────────┘
+```
+
+### 17.2 Etapa 1: Consolidación de Datos y Conectividad (Semanas 1-6)
+
+**Objetivo:** Eliminar localStorage/JSON, consolidar dual schemas, conectar componentes a API real.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 1.1 | Crear tablas Supabase para asistencia HR | RRHH | `supabase/ATTENDANCE_TABLES.sql` | Ninguna | Tablas SQL |
+| 1.2 | Crear tablas Supabase para planilla HR | RRHH | `supabase/PAYROLL_TABLES.sql` | Ninguna | Tablas SQL |
+| 1.3 | Conectar UI vacaciones a Supabase | RRHH | `vacations/page.tsx` | Tablas existen | UI con BD |
+| 1.4 | Crear APIs para asistencia HR | RRHH | `api/.../hr/attendance/route.ts` | 1.1 | API funcional |
+| 1.5 | Crear APIs para planilla HR | RRHH | `api/.../hr/payroll/route.ts` | 1.2 | API funcional |
+| 1.6 | Crear APIs para permisos HR | RRHH | `api/.../hr/permissions/route.ts` | 1.3 | API funcional |
+| 1.7 | Migrar proveedores de JSON a Supabase | Compras | `api/suppliers/route.ts` | Ninguna | API con BD |
+| 1.8 | Migrar compras de JSON a Supabase | Compras | `api/purchases/route.ts` | Ninguna | API con BD |
+| 1.9 | Migrar pagos de JSON a Supabase | Compras | `api/supplier-payments/route.ts` | Ninguna | API con BD |
+| 1.10 | Script de migración de datos JSON | Compras | `scripts/migrate-json-to-supabase.ts` | 1.7-1.9 | Migración |
+| 1.11 | Consolidar schema de factura (lowercase vs PascalCase) | Facturación | Migraciones SQL | Ninguna | Schema único |
+| 1.12 | Consolidar schema de producto (lowercase vs PascalCase) | Inventario | Migraciones SQL | Ninguna | Schema único |
+| 1.13 | Conectar JournalEntryForm a API real | Contabilidad | `JournalEntryForm.tsx`, `use-accounts.ts` | Ninguna | Formulario funcional |
+| 1.14 | Implementar guardado real en handleSubmit | Contabilidad | `JournalEntryForm.tsx` | 1.13 | Asientos guardados |
+| 1.15 | Conectar FinancialStatements a datos reales | Estados Financieros | `FinancialStatements.tsx` | Ninguna | Componente funcional |
+| 1.16 | Crear tipos TypeScript para entidades HR | RRHH | `types/hr.ts` | 1.1-1.2 | Tipos definidos |
+| 1.17 | Crear tipos TypeScript para entidades contables | Contabilidad | `types/accounting.ts` | Ninguna | Tipos definidos |
+
+**Entregable Etapa 1:** Todos los datos persistidos en Supabase; componentes conectados a API real.
+
+### 17.3 Etapa 2: Funcionalidad Core y Cumplimiento Fiscal (Semanas 4-12)
+
+**Objetivo:** Implementar DIAT, notas de crédito/débito, plantillas de asientos, validaciones.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 2.1 | Implementar servicio de detección de atrasos | RRHH | `lib/services/attendance-service.ts` | Etapa 1 | Servicio |
+| 2.2 | Implementar detección de horas extra y faltas | RRHH | `lib/services/attendance-service.ts` | 2.1 | Servicio |
+| 2.3 | Implementar reglas de validación de asistencia | RRHH | `lib/services/attendance-service.ts` | 2.2 | Validaciones |
+| 2.4 | Crear endpoint de consolidación diaria | RRHH | `api/.../daily-consolidation/route.ts` | 2.1-2.3 | Endpoint |
+| 2.5 | Crear generador de DIAT | Fiscal | `lib/services/diat-generator.ts` | Etapa 1 | Generador |
+| 2.6 | UI de DIAT | Fiscal | `app/diat/page.tsx` | 2.5 | Página |
+| 2.7 | Crear notas de crédito | Facturación | `components/sales/CreditNoteForm.tsx` | Etapa 1 | Formulario |
+| 2.8 | Crear notas de débito | Facturación | `components/sales/DebitNoteForm.tsx` | Etapa 1 | Formulario |
+| 2.9 | API de notas de crédito/débito | Facturación | `api/billing/notes/route.ts` | 2.7-2.8 | API CRUD |
+| 2.10 | Integrar notas con facturas y contabilidad | Facturación | `lib/services/notes-service.ts` | 2.9 | Integración |
+| 2.11 | Crear sistema de plantillas de asientos | Contabilidad | `lib/services/journal-templates.ts` | Etapa 1 | Plantillas |
+| 2.12 | Implementar importación masiva de asientos | Contabilidad | `lib/services/excel-import.ts` | Etapa 1 | Importación |
+| 2.13 | Implementar asientos de reversión | Contabilidad | `lib/services/journal-reversal.ts` | Etapa 1 | Reversión |
+| 2.14 | Asiento contable automático por retención | Fiscal | `lib/services/withholding-accounting.ts` | Etapa 1 | Asiento |
+| 2.15 | Asiento contable automático por ISV | Fiscal | `lib/services/isv-accounting.ts` | Etapa 1 | Asiento |
+| 2.16 | Motor de acumulación de vacaciones | RRHH | `lib/services/vacation-service.ts` | Etapa 1 | Servicio |
+| 2.17 | Flujos de aprobación de permisos | RRHH | `lib/services/permission-service.ts` | 1.6 | Flujos |
+| 2.18 | Crear tablas para PIP en Supabase | RRHH | `supabase/PIP_TABLES.sql` | Ninguna | Tablas SQL |
+| 2.19 | Crear API para PIP | RRHH | `api/.../hr/pip/route.ts` | 2.18 | API CRUD |
+| 2.20 | Crear UI de PIP | RRHH | `app/.../hr/pip/page.tsx` | 2.19 | Página |
+
+**Entregable Etapa 2:** DIAT funcional, notas de crédito/débito, asientos contables automáticos, PIP básico.
+
+### 17.4 Etapa 3: Exportación y Reporting (Semanas 8-16)
+
+**Objetivo:** Exportación Excel, PDF profesional, comparativos de período, reportes avanzados.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 3.1 | Servicio de exportación Excel | Reportes | `lib/services/excel-export.ts` | Ninguna | Servicio |
+| 3.2 | Agregar botón Excel a cada reporte | Reportes | Múltiples componentes | 3.1 | Exportación |
+| 3.3 | Generación PDF server-side | Reportes | `lib/services/pdf-export.ts` | Ninguna | PDF funcional |
+| 3.4 | Plantillas de impresión por reporte | Reportes | `templates/reports/` | 3.3 | Plantillas |
+| 3.5 | PDF de factura de venta | Facturación | `lib/services/invoice-pdf.ts` | 3.3 | PDF factura |
+| 3.6 | Plantilla HTML de factura | Facturación | `templates/invoice.html` | Ninguna | Plantilla |
+| 3.7 | Comparativos de período | Estados Financieros | `components/financials/` | 1.15 | Comparativos |
+| 3.8 | Servicio de cálculo de ratios financieros | Estados Financieros | `lib/services/financial-ratios.ts` | 1.15 | 15+ ratios |
+| 3.9 | Dashboard de ratios financieros | Estados Financieros | `app/reports/ratios/page.tsx` | 3.8 | Dashboard |
+| 3.10 | Corregir clasificación de Flujo de Efectivo | Estados Financieros | `CashFlowStatement.tsx` | 1.15 | Clasificación precisa |
+| 3.11 | Reportes consolidados de asistencia | RRHH | `app/.../hr/attendance/reports/page.tsx` | 2.4 | Reporte |
+| 3.12 | Generar asiento contable automático por factura | Facturación | `lib/services/invoice-accounting.ts` | Etapa 1 | Asiento |
+| 3.13 | Aging de cuentas por cobrar | Facturación | `app/reports/aging/page.tsx` | Etapa 1 | Reporte |
+| 3.14 | Integración planilla con asistencia y permisos | RRHH | `lib/services/payroll-service.ts` | 2.1-2.3, 2.17 | Integración |
+
+**Entregable Etapa 3:** Exportación Excel/PDF completa, ratios financieros, comparativos, aging.
+
+### 17.5 Etapa 4: Funcionalidad Avanzada (Semanas 12-24)
+
+**Objetivo:** Presupuestos, multi-almacén, workflow de compras, cotizaciones, correo real.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 4.1 | Modelo de datos de presupuestos | Control Financiero | `supabase/BUDGET_TABLES.sql` | Ninguna | Tablas SQL |
+| 4.2 | CRUD de presupuestos | Control Financiero | `lib/services/budget-service.ts` + API | 4.1 | Servicio + API |
+| 4.3 | UI de gestión de presupuestos | Control Financiero | `app/financial/budgets/page.tsx` | 4.2 | Página |
+| 4.4 | Reporte presupuesto vs real | Control Financiero | `app/reports/budget-vs-actual/page.tsx` | 4.2 | Reporte |
+| 4.5 | Modelo de centros de costo | Control Financiero | `supabase/COST_CENTERS.sql` | Ninguna | Tablas SQL |
+| 4.6 | Asignación de transacciones a centros | Control Financiero | `lib/services/cost-center-service.ts` | 4.5 | Servicio |
+| 4.7 | UI de centros de costo | Control Financiero | `app/financial/cost-centers/page.tsx` | 4.6 | Página |
+| 4.8 | UI de gestión de almacenes | Inventario | `app/inventory/warehouses/page.tsx` | Ninguna | Página |
+| 4.9 | Transferencias entre almacenes | Inventario | `components/inventory/TransferForm.tsx` | 4.8 | Formulario |
+| 4.10 | Stock por almacén | Inventario | `lib/services/warehouse-stock.ts` | 4.8 | Consulta |
+| 4.11 | Formulario de órdenes de compra | Compras | `components/purchasing/PurchaseOrderForm.tsx` | 1.7-1.9 | Formulario |
+| 4.12 | Workflow de aprobación de compras | Compras | `lib/services/po-approval.ts` | 4.11 | Aprobación |
+| 4.13 | Recepción de mercancía | Compras | `components/purchasing/ReceivingForm.tsx` | 4.12 | Recepción |
+| 4.14 | Cotizaciones/Proformas | Facturación | `components/sales/QuoteForm.tsx` | Etapa 1 | Formulario |
+| 4.15 | Órdenes de venta | Facturación | `components/sales/SalesOrderForm.tsx` | Etapa 1 | Formulario |
+| 4.16 | Conversión cotización → factura | Facturación | `lib/services/quote-conversion.ts` | 4.14 | Conversión |
+| 4.17 | Configurar Resend o SendGrid | Otras | `lib/mail.ts` | Ninguna | Proveedor activo |
+| 4.18 | Correo de envío de facturas | Otras | `lib/services/invoice-email.ts` | 4.17 | Envío |
+| 4.19 | Recordatorios de pago | Otras | `lib/services/payment-reminders.ts` | 4.17 | Automatización |
+| 4.20 | Valoración FIFO de inventario | Inventario | `lib/services/inventory-valuation.ts` | Etapa 1 | Cálculo FIFO |
+| 4.21 | Valoración promedio ponderado | Inventario | `lib/services/inventory-valuation.ts` | Etapa 1 | Cálculo promedio |
+| 4.22 | Devoluciones a proveedores | Compras | `components/purchases/PurchaseReturnForm.tsx` | 1.7-1.9 | Formulario |
+| 4.23 | Matching 3 vías | Compras | `lib/services/three-way-matching.ts` | 4.11-4.13 | Control |
+
+**Entregable Etapa 4:** Presupuestos, multi-almacén, workflow de compras, cotizaciones, correo real.
+
+### 17.6 Etapa 5: Automatización y Funcionalidades Adicionales (Semanas 18-28)
+
+**Objetivo:** Notificaciones in-app, reportes programados, conciliación bancaria, cierre mensual.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 5.1 | Centro de notificaciones | Otras | `components/notifications/NotificationCenter.tsx` | Ninguna | UI |
+| 5.2 | Tabla de notificaciones | Otras | `supabase/NOTIFICATIONS.sql` | Ninguna | Tabla |
+| 5.3 | Preferencias de notificación | Otras | `lib/services/notification-preferences.ts` | 5.2 | Configuración |
+| 5.4 | Sistema de reportes programados | Reportes | `lib/services/scheduled-reports.ts` | Ninguna | Configuración |
+| 5.5 | Generación automática de reportes por correo | Reportes | `lib/services/email-reports.ts` | 5.4, 4.17 | Automatización |
+| 5.6 | UI de programación de reportes | Reportes | `app/reports/scheduled/page.tsx` | 5.4 | Config UI |
+| 5.7 | Conciliación bancaria inteligente | Control Financiero | `lib/services/reconciliation.ts` | 1.15 | Matching mejorado |
+| 5.8 | Cierre mensual automatizado | Contabilidad | `lib/services/monthly-closing.ts` | Etapa 1 | Cierre automático |
+| 5.9 | Balance de apertura automático | Contabilidad | `lib/services/opening-balance.ts` | 5.8 | Balance |
+| 5.10 | Servicio de KPIs centralizado | Reportes | `lib/services/kpi-service.ts` | Ninguna | Cálculo |
+| 5.11 | Tabla de histórico de KPIs | Reportes | `supabase/KPI_HISTORY.sql` | Ninguna | Almacenamiento |
+| 5.12 | Dashboard de KPIs con tendencias | Reportes | `app/reports/kpis/page.tsx` | 5.10-5.11 | Dashboard |
+| 5.13 | Caja chica | Control Financiero | `components/financial/PettyCash.tsx` | Ninguna | UI |
+| 5.14 | Conteo de inventario físico | Inventario | `components/inventory/PhysicalCount.tsx` | Ninguna | Formulario |
+| 5.15 | Tracking por lote/serie | Inventario | `lib/services/batch-tracking.ts` | Ninguna | Trazabilidad |
+| 5.16 | Cálculo automático aguinaldo/bono vacacional | RRHH | `lib/services/payroll-service.ts` | 2.1-2.3 | Cálculos |
+| 5.17 | Generación de PDF de nómina | RRHH | `lib/services/payslip-generator.ts` | 5.16 | PDF nómina |
+| 5.18 | Dashboard de cumplimiento fiscal | Fiscal | `app/fiscal-compliance/page.tsx` | Etapa 2 | Dashboard |
+
+**Entregable Etapa 5:** Notificaciones, reportes programados, KPIs, cierre mensual, caja chica.
+
+### 17.7 Etapa 6: Seguridad y Calidad (Semanas 24-36)
+
+**Objetivo:** Refuerzo de seguridad, pruebas, documentación, backup/restore.
+
+| # | Tarea | Módulo | Archivos | Dependencias | Entregable |
+|---|---|---|---|---|---|
+| 6.1 | Auditar RLS en todas las tablas | Seguridad | `supabase/AUDIT_RLS.sql` | Ninguna | Informe |
+| 6.2 | Habilitar RLS en tablas sin protección | Seguridad | Migraciones SQL | 6.1 | RLS activo |
+| 6.3 | Middleware server-side de validación tenant | Seguridad | `lib/middleware/tenant-validation.ts` | Ninguna | Validación |
+| 6.4 | Migrar rate limiting a Redis/Supabase | Seguridad | `lib/login-security.ts` | Ninguna | Persistencia |
+| 6.5 | Implementar 2FA | Seguridad | `lib/services/two-factor.ts` + UI | Ninguna | 2FA funcional |
+| 6.6 | Exportación de logs de auditoría | Seguridad | `lib/services/audit-export.ts` | Ninguna | CSV/Excel |
+| 6.7 | Pruebas unitarias para servicios críticos | QA | `__tests__/services/` | Todas | Suite pruebas |
+| 6.8 | Pruebas E2E para flujos principales | QA | `__tests__/e2e/` | Todas | Pruebas E2E |
+| 6.9 | Pruebas de cálculos fiscales | QA | `__tests__/fiscal/` | Todas | Pruebas |
+| 6.10 | Pruebas de RLS | QA | `__tests__/rls/` | Todas | Pruebas |
+| 6.11 | Sistema de backup automático | Otras | `lib/services/backup-service.ts` | Ninguna | Backup |
+| 6.12 | Restore de datos | Otras | `lib/services/restore-service.ts` | 6.11 | Restore |
+| 6.13 | Documentación de API contable | Docs | `docs/ACCOUNTING_API.md` | Todas | Documentación |
+| 6.14 | Documentación de API de facturación | Docs | `docs/BILLING_API.md` | Todas | Documentación |
+| 6.15 | Guía de usuario | Docs | `docs/USER_GUIDE.md` | Todas | Guía |
+| 6.16 | Validación de integridad del catálogo | Contabilidad | `lib/services/account-validation.ts` | Etapa 1 | Validaciones |
+| 6.17 | Alertas de seguridad para acciones críticas | Seguridad | `lib/services/security-alerts.ts` | 6.6 | Notificaciones |
+| 6.18 | Dashboard de seguridad | Seguridad | `app/security/dashboard/page.tsx` | 6.6 | Dashboard |
+
+**Entregable Etapa 6:** Seguridad reforzada, pruebas automatizadas, documentación completa, backup.
+
+### 17.8 Resumen de Esfuerzo por Etapa
+
+| Etapa | Tareas | Complejidad | Estimación | Semanas |
+|---|---|---|---|---|
+| **Etapa 1:** Consolidación de Datos | 17 tareas | Alta | 4-6 semanas | 1-6 |
+| **Etapa 2:** Funcionalidad Core | 20 tareas | Alta | 6-8 semanas | 4-12 |
+| **Etapa 3:** Exportación y Reporting | 14 tareas | Media | 4-6 semanas | 8-16 |
+| **Etapa 4:** Funcionalidad Avanzada | 23 tareas | Alta | 8-10 semanas | 12-24 |
+| **Etapa 5:** Automatización | 18 tareas | Media | 6-8 semanas | 18-28 |
+| **Etapa 6:** Seguridad y Calidad | 18 tareas | Media | 6-8 semanas | 24-36 |
+| **TOTAL** | **110 tareas** | — | **34-46 semanas** | **36 semanas** |
+
+### 17.9 Ruta Crítica
+
+```
+SEMANA  1─────────6─────────12─────────18─────────24─────────36
+        │         │         │         │         │         │
+ETAPA 1 ████████████         │         │         │         │
+  Migrar datos a BD          │         │         │         │
+  Consolidar schemas         │         │         │         │
+  Conectar componentes       │         │         │         │
+        │         │         │         │         │         │
+ETAPA 2     ████████████████████      │         │         │
+  DIAT                          │         │         │         │
+  Notas crédito/débito          │         │         │         │
+  Asientos automáticos          │         │         │         │
+  PIP RRHH                      │         │         │         │
+        │         │         │         │         │         │
+ETAPA 3             ████████████████████      │         │
+  Excel export                      │         │         │
+  PDF profesional                   │         │         │
+  Ratios financieros                │         │         │
+        │         │         │         │         │         │
+ETAPA 4                 ████████████████████████████      │
+  Presupuestos                          │         │         │
+  Multi-almacén                         │         │         │
+  Workflow compras                      │         │         │
+  Cotizaciones                          │         │         │
+        │         │         │         │         │         │
+ETAPA 5                         ████████████████████████
+  Notificaciones                        │         │
+  Reportes programados                  │         │
+  KPIs                                  │         │
+        │         │         │         │         │         │
+ETAPA 6                                 ████████████████████
+  Seguridad reforzada                           │         │
+  Pruebas                                        │         │
+  Documentación                                  │         │
+```
+
+### 17.10 Estimación de Costo Total
+
+| Concepto | Estimación |
+|---|---|
+| Total tareas | 110 |
+| Complejidad promedio | Alta |
+| Duración secuencial | 34-46 semanas |
+| Duración con paralelismo (2-3 devs) | 16-24 semanas |
+| Fases simultáneas posibles | Etapas 1+2+3 en paralelo; 4+5 después; 6 al final |
+
+### 17.11 Priorización por Impacto
+
+**PRIORIDAD 1 — Estabilidad de Datos (Semanas 1-6):**
+- Migrar Compras de JSON a Supabase
+- Migrar HR de localStorage a Supabase
+- Consolidar dual schemas (Facturación, Inventario)
+- Conectar JournalEntryForm y FinancialStatements a API real
+
+**PRIORIDAD 2 — Cumplimiento Fiscal (Semanas 4-12):**
+- Implementar DIAT
+- Crear notas de crédito/débito
+- Integrar retenciones con asientos contables
+
+**PRIORIDAD 3 — Funcionalidad Core (Semanas 8-20):**
+- Presupuestos y centros de costo
+- Multi-almacén para inventario
+- Workflow de órdenes de compra
+- Exportación Excel para reportes
+
+**PRIORIDAD 4 — Automatización (Semanas 16-28):**
+- Correo electrónico real
+- Notificaciones in-app
+- Reportes programados
+- 2FA y seguridad avanzada
+
+**PRIORIDAD 5 — Calidad (Semanas 24-36):**
+- Pruebas unitarias y E2E
+- Documentación de API
+- Backup/restore automatizado
 
 ---
 

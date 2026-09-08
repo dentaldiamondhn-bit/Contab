@@ -83,7 +83,7 @@
 
 ### 2.2 Control de Asistencia
 
-**Estado: Completo (~90%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -94,6 +94,8 @@
 | `app/api/companies/[id]/hr/attendance/holidays/route.ts` | API CRUD para feriados |
 | `app/api/companies/[id]/hr/attendance/config/route.ts` | API para configuración de deducciones por asistencia |
 | `app/api/companies/[id]/hr/attendance/schedules/route.ts` | API CRUD para horarios por empleado |
+| `app/api/companies/[id]/hr/attendance/reports/route.ts` | API de datos agregados para reportes (summary, tendencia diaria, ranking empleados, incapacidades, feriados) |
+| `app/companies/[id]/hr/attendance/reports/page.tsx` | Dashboard de análisis con gráficos Recharts (tendencia, distribución, horas extra, ranking, incapacidades) |
 
 #### Tablas de Base de Datos
 
@@ -118,6 +120,8 @@
 - Seguimiento de horas extras y montos
 - Configuración de deducciones por empleado
 - Totales quincenales (deducciones/ingresos)
+- Dashboard de análisis con gráficos (tendencia diaria, distribución por estado, horas extra, ranking de empleados)
+- Exportación CSV de reportes de asistencia
 
 #### Almacenamiento de Datos
 
@@ -131,8 +135,6 @@
 
 - Sin registro de entrada/salida en tiempo real con timestamps
 - Sin verificación biométrica o por GPS
-- Sin generación automática de reportes de asistencia
-- Sin dashboard de análisis/reportes de asistencia
 
 ---
 
@@ -287,7 +289,7 @@
 ### Observaciones Clave
 
 1. **Almacenamiento consolidado en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) ahora persiste en Supabase via API routes con service_role key. Se eliminó 100% del localStorage.
-2. **14 API routes para HR**: 3 originales (employees, departments, positions) + 10 nuevas (attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used) + 1 storage (upload/delete fotos/documentos).
+2. **15 API routes para HR**: 3 originales (employees, departments, positions) + 11 nuevas (attendance, holidays, config, schedules, reports, payroll config/closed/deductions, permissions types/requests/used) + 1 storage (upload/delete fotos/documentos).
 3. **Sin hooks ni servicios HR dedicados**: No hay hooks en `hooks/` ni servicios en `lib/services/` para funcionalidad HR. Lógica de cálculo está inline en los componentes.
 4. **Sin tipos TypeScript HR**: El directorio `types/` solo contiene `env.d.ts` y `file.ts`.
 5. **Sin página de reportes**: El dashboard HR enlaza a `/hr/reports` pero esta ruta no existe.
