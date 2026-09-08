@@ -280,8 +280,8 @@ export default function PayrollPage() {
         if (otAmount > 0) grouped[r.employeeId].push({ amount: otAmount, type: 'income', label: `Horas Extra${r.overtimeHours ? ` (${r.overtimeHours}h)` : ''}` });
       } else if (r.status === 'holiday') {
         if (amt > 0) {
-          const typeLabel = r.holidayType === 'doble' ? ' (Doble)' : r.holidayType === 'triple' ? ' (Triple)' : ' (Normal)';
-          grouped[r.employeeId].push({ amount: amt, type: 'income', label: `Día Feriado${typeLabel}` });
+          const typeLabel = r.holidayType === 'doble' ? ' (Doble)' : r.holidayType === 'triple' ? ' (Triple)' : '';
+          grouped[r.employeeId].push({ amount: amt, type: 'income', label: r.holidayType ? `Día Feriado${typeLabel}` : 'Día Asueto' });
         }
       } else if (r.status === 'vacation') {
         if (amt > 0) grouped[r.employeeId].push({ amount: amt, type: 'income', label: 'Vacaciones' });
