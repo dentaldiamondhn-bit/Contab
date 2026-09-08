@@ -10,7 +10,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: companyId } = await params;
   const { searchParams } = new URL(request.url);
 
-  const q = searchParams.get('q') || '';
+  const q = (searchParams.get('q') || '').toLowerCase();
   const department = searchParams.get('department') || '';
   const position = searchParams.get('position') || '';
   const status = searchParams.get('status') || '';
@@ -23,63 +23,81 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const offset = (page - 1) * limit;
 
   try {
-    let query = supabase
+    // Fetch all employees for tenant, filter in JS
+    const { data: allEmployees, error } = await supabase
       .from('employees')
-      .select('*', { count: 'exact' })
+      .select('*')
       .eq('tenant_id', companyId);
-
-    // Text search - use like on individual fields with or()
-    if (q) {
-      const pattern = `%${q}%`;
-      query = query.or(`first_name.like.${pattern},last_name.like.${pattern},id_number.like.${pattern},employee_id.like.${pattern},position.like.${pattern},department.like.${pattern},email.like.${pattern},phone.like.${pattern}`);
-    }
-
-    // Exact filters
-    if (department) query = query.eq('department', department);
-    if (position) query = query.eq('position', position);
-    if (status) query = query.eq('status', status);
-    if (contractType) query = query.eq('contract_type', contractType);
-    if (gender) query = query.eq('gender', gender);
-
-    // Sort
-    const ascending = sortDir === 'asc';
-    if (sortBy === 'name') {
-      query = query.order('last_name', { ascending }).order('first_name', { ascending });
-    } else if (sortBy === 'salary') {
-      query = query.order('base_salary', { ascending });
-    } else if (sortBy === 'hire_date') {
-      query = query.order('hire_date', { ascending });
-    } else if (sortBy === 'department') {
-      query = query.order('department', { ascending }).order('last_name', { ascending });
-    } else {
-      query = query.order(sortBy, { ascending });
-    }
-
-    // Pagination
-    query = query.range(offset, offset + limit - 1);
-
-    const { data, error, count } = await query;
 
     if (error) {
       console.error('Employee search error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Get distinct departments and positions for filter dropdowns
-    const [deptRes, posRes] = await Promise.all([
-      supabase.from('employees').select('department').eq('tenant_id', companyId).not('department', 'is', null),
-      supabase.from('employees').select('position').eq('tenant_id', companyId).not('position', 'is', null),
-    ]);
+    let filtered = allEmployees || [];
 
-    const departments = [...new Set((deptRes.data || []).map(d => d.department).filter(Boolean))].sort();
-    const positions = [...new Set((posRes.data || []).map(p => p.position).filter(Boolean))].sort();
+    // Text search
+    if (q) {
+      filtered = filtered.filter(e =>
+        (e.first_name || '').toLowerCase().includes(q) ||
+        (e.last_name || '').toLowerCase().includes(q) ||
+        (e.id_number || '').toLowerCase().includes(q) ||
+        (e.employee_id || '').toLowerCase().includes(q) ||
+        (e.position || '').toLowerCase().includes(q) ||
+        (e.department || '').toLowerCase().includes(q) ||
+        (e.email || '').toLowerCase().includes(q) ||
+        (e.phone || '').toLowerCase().includes(q)
+      );
+    }
+
+    // Exact filters
+    if (department) filtered = filtered.filter(e => e.department === department);
+    if (position) filtered = filtered.filter(e => e.position === position);
+    if (status) filtered = filtered.filter(e => e.status === status);
+    if (contractType) filtered = filtered.filter(e => e.contract_type === contractType);
+    if (gender) filtered = filtered.filter(e => e.gender === gender);
+
+    // Sort
+    filtered.sort((a, b) => {
+      let va: string, vb: string;
+      switch (sortBy) {
+        case 'name':
+          va = `${a.last_name || ''} ${a.first_name || ''}`;
+          vb = `${b.last_name || ''} ${b.first_name || ''}`;
+          break;
+        case 'salary':
+          va = String(a.base_salary || 0);
+          vb = String(b.base_salary || 0);
+          break;
+        case 'hire_date':
+          va = a.hire_date || '';
+          vb = b.hire_date || '';
+          break;
+        case 'department':
+          va = a.department || '';
+          vb = b.department || '';
+          break;
+        default:
+          va = a[sortBy] || '';
+          vb = b[sortBy] || '';
+      }
+      const cmp = String(va).localeCompare(String(vb));
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+
+    const total = filtered.length;
+    const paginated = filtered.slice(offset, offset + limit);
+
+    // Get distinct departments and positions
+    const departments = [...new Set(filtered.map(e => e.department).filter(Boolean))].sort();
+    const positions = [...new Set(filtered.map(e => e.position).filter(Boolean))].sort();
 
     return NextResponse.json({
-      employees: data || [],
-      total: count || 0,
+      employees: paginated,
+      total,
       page,
       limit,
-      totalPages: Math.ceil((count || 0) / limit),
+      totalPages: Math.ceil(total / limit),
       filters: { departments, positions },
     });
   } catch (error: any) {
