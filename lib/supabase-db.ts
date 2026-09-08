@@ -1,26 +1,40 @@
-import { createClient } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
 
-// Configuración de Supabase
-const supabaseUrl = process.env.SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+let _supabaseDb: SupabaseClient | null = null;
 
-// Cliente de Supabase para operaciones del servidor
-export const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-  auth: {
-    autoRefreshToken: false,
-    persistSession: false
+function getSupabaseDb(): SupabaseClient {
+  if (!_supabaseDb) {
+    const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+    if (!supabaseUrl) throw new Error('SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL is required');
+    if (!supabaseServiceKey) throw new Error('SUPABASE_SERVICE_ROLE_KEY is required');
+
+    _supabaseDb = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
+  }
+  return _supabaseDb;
+}
+
+// Legacy export for backward compatibility
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    return (getSupabaseDb() as any)[prop]
   }
 });
 
 // Función para configurar el contexto de tenant
 export async function setTenantContext(tenantId: string) {
   try {
-    // Configurar el tenant_id en el contexto de la sesión
-    await supabase.rpc('set_config', {
+    const client = getSupabaseDb();
+    await client.rpc('set_config', {
       key: 'app.current_tenant_id',
       value: tenantId
     });
-    
     console.log(`✅ Tenant context set to: ${tenantId}`);
   } catch (error) {
     console.error('❌ Error setting tenant context:', error);
@@ -31,12 +45,10 @@ export async function setTenantContext(tenantId: string) {
 export async function getTenantUsers(tenantId: string) {
   try {
     console.log('🔍 Getting users for tenant:', tenantId);
-    
-    // Configurar contexto
     await setTenantContext(tenantId);
-    
-    // Obtener usuarios - RLS filtrará automáticamente por tenant
-    const { data, error } = await supabase
+    const client = getSupabaseDb();
+
+    const { data, error } = await client
       .from('User')
       .select('*')
       .eq('tenantid', tenantId);
@@ -49,7 +61,6 @@ export async function getTenantUsers(tenantId: string) {
     console.log('✅ Users fetched from DB:', data);
     console.log('📊 User count:', data?.length || 0);
     
-    // Transformar datos para que coincidan con el frontend
     const transformedUsers = (data || []).map(user => ({
       id: user.id,
       email: user.email,
@@ -72,7 +83,8 @@ export async function getTenantUsers(tenantId: string) {
 // Función para obtener tenants (solo para super admins)
 export async function getAllTenants() {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseDb();
+    const { data, error } = await client
       .from('Tenant')
       .select('*');
     
@@ -91,10 +103,10 @@ export async function getAllTenants() {
 // Función para crear usuario
 export async function createTenantUser(userData: any) {
   try {
-    // Configurar contexto
     await setTenantContext(userData.tenantId);
-    
-    const { data, error } = await supabase
+    const client = getSupabaseDb();
+
+    const { data, error } = await client
       .from('User')
       .insert([{
         tenantid: userData.tenantId,
@@ -125,7 +137,8 @@ export async function createTenantUser(userData: any) {
 // Función para actualizar usuario
 export async function updateTenantUser(userId: string, userData: any) {
   try {
-    const { data, error } = await supabase
+    const client = getSupabaseDb();
+    const { data, error } = await client
       .from('User')
       .update({
         firstname: userData.firstName,
@@ -153,7 +166,8 @@ export async function updateTenantUser(userId: string, userData: any) {
 // Función para eliminar usuario
 export async function deleteTenantUser(userId: string) {
   try {
-    const { error } = await supabase
+    const client = getSupabaseDb();
+    const { error } = await client
       .from('User')
       .delete()
       .eq('id', userId);
