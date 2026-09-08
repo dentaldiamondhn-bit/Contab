@@ -35,7 +35,8 @@ import {
   RotateCcw,
   Star,
   Plus,
-  CalendarOff
+  CalendarOff,
+  BarChart3
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -1035,6 +1036,10 @@ export default function AttendancePage() {
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => setShowScheduleConfig(true)}>
                 <CalendarOff className="h-4 w-4 mr-2" /> Horarios / Dias Libres
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/hr/attendance/reports`)}>
+                <BarChart3 className="h-4 w-4 mr-2" /> Reportes / Análisis
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
