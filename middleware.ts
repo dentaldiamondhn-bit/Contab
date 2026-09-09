@@ -2,17 +2,16 @@ import { clerkMiddleware, createRouteMatcher, clerkClient } from "@clerk/nextjs/
 import { NextResponse } from "next/server";
 import { createClient } from '@supabase/supabase-js';
 
-// Crear cliente Supabase para middleware
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false
-    }
+let _supabase: ReturnType<typeof createClient> | null = null;
+function getSupabase() {
+  if (!_supabase) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    if (!url || !key) throw new Error('Supabase env vars required for middleware');
+    _supabase = createClient(url, key, { auth: { autoRefreshToken: false, persistSession: false } });
   }
-);
+  return _supabase;
+}
 
 // Definimos qué rutas son públicas (no requieren login)
 const isPublicRoute = createRouteMatcher([
@@ -72,7 +71,7 @@ export default clerkMiddleware(async (auth, req) => {
   if (userId) {
     try {
       const currentUserEmail = userEmail.toLowerCase();
-      const { data: userProfile } = await supabase
+      const { data: userProfile } = await getSupabase()
         .from('users')
         .select('role,email')
         .eq('email', currentUserEmail)
