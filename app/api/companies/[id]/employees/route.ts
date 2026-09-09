@@ -252,7 +252,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const insertData: any = {
         tenant_id: tenantId,
         company_id: 'demo-company-id',
-        employee_code: body.employeeId,
+        employee_code: body.employeeId || `EMP-${Date.now().toString(36).toUpperCase()}`,
         first_name: body.firstName,
         last_name: body.lastName,
         id_number: body.identityNumber,
@@ -387,7 +387,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .single();
 
     const updateData: any = {
-        employee_code: body.employeeId,
+        employee_code: body.employeeId || oldEmp?.employee_code || `EMP-${Date.now().toString(36).toUpperCase()}`,
         first_name: body.firstName,
         last_name: body.lastName,
         id_number: body.identityNumber,
