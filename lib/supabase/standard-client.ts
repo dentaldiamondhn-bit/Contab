@@ -5,7 +5,15 @@ function getClient(): SupabaseClient {
   if (!_client) {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (!url || !key) throw new Error('Supabase env vars not defined');
+    if (!url || !key) {
+      if (typeof window === 'undefined') {
+        // Server-side during build – return a no-op stub so pre-rendering doesn't crash
+        return new Proxy({} as SupabaseClient, {
+          get: () => () => new Proxy({} as any, { get: () => () => ({ data: null, error: null }) }),
+        });
+      }
+      throw new Error('Supabase env vars not defined');
+    }
     _client = createBrowserClient(url, key);
   }
   return _client;
