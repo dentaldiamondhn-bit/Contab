@@ -241,8 +241,8 @@ export default function DepartmentsPage() {
     return positions.filter(p => p.parentId === parentId);
   };
 
-  const getPositionHolder = (posName: string, deptName: string) => {
-    return activeEmployees.find(e => e.position === posName && e.department === deptName);
+  const getPositionHolders = (posName: string, deptName: string) => {
+    return activeEmployees.filter(e => e.position === posName && e.department === deptName);
   };
 
   // CSV Import functions
@@ -398,9 +398,13 @@ export default function DepartmentsPage() {
               <div>
                 <div className="font-medium text-sm">{pos.name}</div>
                 {(() => {
-                  const holder = getPositionHolder(pos.name, pos.department);
-                  return holder ? (
-                    <div className="text-xs text-green-600 font-medium">Ocupado por: {holder.name}</div>
+                  const holders = getPositionHolders(pos.name, pos.department);
+                  return holders.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {holders.map(h => (
+                        <span key={h.id} className="text-xs text-green-600 font-medium">{h.name}</span>
+                      ))}
+                    </div>
                   ) : (
                     <div className="text-xs text-gray-400 italic">Sin asignar</div>
                   );
@@ -821,7 +825,7 @@ export default function DepartmentsPage() {
                       </thead>
                       <tbody>
                         {deptPositions.map(pos => {
-                          const holder = getPositionHolder(pos.name, pos.department);
+                          const holders = getPositionHolders(pos.name, pos.department);
                           const parentName = getParentName(pos.parentId);
                           const isEditing = editingPositionId === pos.id;
                           return (
@@ -865,8 +869,12 @@ export default function DepartmentsPage() {
                                 )}
                               </td>
                               <td className="p-3">
-                                {holder ? (
-                                  <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">{holder.name}</Badge>
+                                {holders.length > 0 ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {holders.map(h => (
+                                      <Badge key={h.id} variant="outline" className="bg-green-50 text-green-700 border-green-200">{h.name}</Badge>
+                                    ))}
+                                  </div>
                                 ) : (
                                   <Badge variant="outline" className="text-gray-400">Sin asignar</Badge>
                                 )}

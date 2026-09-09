@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // GET - Obtener productos con datos de inventario
 export async function GET(request: NextRequest) {
@@ -9,10 +9,7 @@ export async function GET(request: NextRequest) {
     const productType = searchParams.get("productType");
     const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id") || "1";
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     let query = supabase
       .from("product")
@@ -88,10 +85,7 @@ export async function PATCH(request: NextRequest) {
       );
     }
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     // Map camelCase to snake_case for database
     const updateData: any = {
@@ -167,10 +161,7 @@ export async function POST(request: NextRequest) {
     } = body;
     const tenantId = body.tenantId || body.tenant_id || new URL(request.url).searchParams.get("tenantId") || new URL(request.url).searchParams.get("companyId") || "1";
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     // Auto-generar código si no se proporciona
     if (!code) {

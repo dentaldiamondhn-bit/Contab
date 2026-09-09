@@ -1,13 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // GET - Obtener ajustes de inventario
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     let query = supabase
       .from("inventory_adjustment")
@@ -61,10 +58,7 @@ export async function POST(request: NextRequest) {
       items, // Array de { productId, physicalCount, systemStock, notes }
     } = body;
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     // Generar número de ajuste
     const { data: lastAdjustment } = await (supabase as any)

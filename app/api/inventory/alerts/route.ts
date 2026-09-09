@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // GET - Obtener alertas de inventario (stock bajo, vencimientos)
 export async function GET(request: NextRequest) {
@@ -8,10 +8,7 @@ export async function GET(request: NextRequest) {
     const alertType = searchParams.get("type"); // 'low_stock', 'expiring', 'all'
     const tenantId = searchParams.get("tenantId") || "1";
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     // Consultar productos activos
     const { data: products, error } = await supabase

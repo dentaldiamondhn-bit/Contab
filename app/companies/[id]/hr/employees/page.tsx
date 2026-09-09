@@ -1085,11 +1085,6 @@ export default function EmployeesPage() {
   };
 
   const addEmployee = async () => {
-    const posTaken = employees.find(e => e.position === newEmployee.position && e.department === newEmployee.department && e.status === 'active');
-    if (posTaken) {
-      alert(`El puesto "${newEmployee.position}" ya está ocupado por ${posTaken.firstName} ${posTaken.lastName}.`);
-      return;
-    }
     const emp: Employee = {
       id: `emp-${Date.now()}`,
       employeeId: generateEmployeeId(),
@@ -1111,11 +1106,6 @@ export default function EmployeesPage() {
 
   const updateEmployee = async () => {
     if (!editingEmployee) return;
-    const posTaken = employees.find(e => e.position === editingEmployee.position && e.department === editingEmployee.department && e.status === 'active' && e.id !== editingEmployee.id);
-    if (posTaken) {
-      alert(`El puesto "${editingEmployee.position}" ya está ocupado por ${posTaken.firstName} ${posTaken.lastName}.`);
-      return;
-    }
     await updateEmployeeToAPI(editingEmployee);
     setSelectedEmployee(editingEmployee);
     setEditingEmployee(null);

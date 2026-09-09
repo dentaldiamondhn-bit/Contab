@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 // GET - List purchases
 export async function GET(request: Request) {
@@ -144,14 +144,14 @@ export async function POST(request: Request) {
         for (const item of items) {
           if (item.product_id) {
             // Increase stock
-            await supabase.rpc('increase_product_stock', {
+            await getSupabaseServer().rpc('increase_product_stock', {
               p_product_id: item.product_id,
               p_quantity: item.quantity,
               p_tenant_id: tenantId,
             });
 
             // Create inventory movement
-            await supabase.from('InventoryMovement').insert({
+            await getSupabaseServer().from('InventoryMovement').insert({
               product_id: item.product_id,
               movement_type: 'IN_PURCHASE',
               quantity: item.quantity,
@@ -233,10 +233,10 @@ export async function DELETE(request: Request) {
     }
 
     // First delete purchase items
-    await supabase.from('PurchaseItem').delete().eq('purchase_id', id);
+    await getSupabaseServer().from('PurchaseItem').delete().eq('purchase_id', id);
 
     // Then delete the purchase
-    const { error } = await supabase.from('Purchase').delete().eq('id', id);
+    const { error } = await getSupabaseServer().from('Purchase').delete().eq('id', id);
 
     if (error) {
       console.error('Supabase error:', error);

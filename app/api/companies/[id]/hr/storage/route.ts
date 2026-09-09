@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,7 +19,7 @@ export async function POST(request: NextRequest) {
     const timestamp = Date.now();
     const filePath = `${tenantId}/${employeeId}/${type}_${timestamp}.${ext}`;
 
-    const { data: uploadData, error: uploadError } = await supabase.storage
+    const { data: uploadData, error: uploadError } = await getSupabaseServer().storage
       .from(bucket)
       .upload(filePath, file, {
         contentType: file.type,
@@ -35,7 +31,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: uploadError.message }, { status: 500 });
     }
 
-    const { data: urlData } = supabase.storage
+    const { data: urlData } = getSupabaseServer().storage
       .from(bucket)
       .getPublicUrl(filePath);
 
@@ -62,7 +58,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing path' }, { status: 400 });
     }
 
-    const { error } = await supabase.storage
+    const { error } = await getSupabaseServer().storage
       .from(bucket)
       .remove([path]);
 

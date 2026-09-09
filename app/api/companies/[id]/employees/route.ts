@@ -1,10 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 function fieldLabel(key: string): string {
   const labels: Record<string, string> = {
@@ -55,7 +51,7 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
 
 async function logHistory(employeeId: string, tenantId: string, action: string, description: string, changes: string[], performedBy?: string) {
   try {
-    await supabase.from('employee_history').insert({
+    await getSupabaseServer().from('employee_history').insert({
       employee_id: employeeId,
       tenant_id: tenantId,
       action,
@@ -341,7 +337,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         uploaded_at: doc.uploadedAt
       }));
 
-      const { error: hrError } = await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      const { error: hrError } = await getSupabaseServer().from('employee_hr_documents').insert(hrDocsInsert);
       if (hrError) {
         console.error('HR documents insert error (POST):', JSON.stringify(hrError));
       }
@@ -509,7 +505,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         uploaded_at: doc.uploadedAt
       }));
 
-      const { error: hrError } = await supabase.from('employee_hr_documents').insert(hrDocsInsert);
+      const { error: hrError } = await getSupabaseServer().from('employee_hr_documents').insert(hrDocsInsert);
       if (hrError) {
         console.error('HR documents insert error:', JSON.stringify(hrError));
       }

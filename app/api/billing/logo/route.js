@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-);
+
 
 export async function GET(request) {
   try {
@@ -24,7 +21,7 @@ export async function GET(request) {
     try {
       console.log('Buscando logo en Supabase Storage para tenant:', tenantId);
       
-      const { data, error } = await supabase.storage
+      const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
         .list('*', {
           search: `tenantId=eq.${tenantId}`,
@@ -44,7 +41,7 @@ export async function GET(request) {
       if (data && data.length > 0) {
         const logoFile = data[0];
         
-        const { data: publicUrlData } = supabase.storage
+        const { data: publicUrlData } = getSupabaseServer().storage
           .from('company-logos')
           .getPublicUrl(logoFile.name);
 
@@ -128,7 +125,7 @@ export async function POST(request) {
       const fileExt = file.name.split('.').pop();
       const uniqueFileName = `${tenantId}-logo-${Date.now()}.${fileExt}`;
 
-      const { data, error } = await supabase.storage
+      const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
         .upload(uniqueFileName, file, {
           cacheControl: '3600',
@@ -149,7 +146,7 @@ export async function POST(request) {
         });
       }
 
-      const { data: publicUrlData } = supabase.storage
+      const { data: publicUrlData } = getSupabaseServer().storage
         .from('company-logos')
         .getPublicUrl(uniqueFileName);
 

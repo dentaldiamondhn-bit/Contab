@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { storage } from './storage';
 
 // Configuración de Supabase
@@ -26,7 +26,7 @@ export async function GET(
       return NextResponse.json(data);
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
     
     // Llamar al procedimiento almacenado
     const { data: revisiones, error } = await supabase
@@ -109,7 +109,7 @@ export async function POST(
       });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    
     
     // Llamar al procedimiento almacenado para guardar
     const { data: revisionId, error } = await supabase

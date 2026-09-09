@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 export async function GET() {
   try {
@@ -23,7 +23,7 @@ export async function GET() {
       return NextResponse.json({ error: 'Supabase not configured', detail: 'Missing env vars' }, { status: 500 });
     }
 
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    
 
     const { data, error } = await supabase
       .from('users')

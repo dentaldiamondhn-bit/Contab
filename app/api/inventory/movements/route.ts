@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // GET - Obtener movimientos de inventario (Kardex)
 export async function GET(request: NextRequest) {
@@ -13,10 +13,7 @@ export async function GET(request: NextRequest) {
     const tenantId = searchParams.get("tenantId") || "1";
     const limit = parseInt(searchParams.get("limit") || "100");
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     let query = supabase
       .from("inventory_movement")
@@ -80,10 +77,7 @@ export async function POST(request: NextRequest) {
       notes,
     } = body;
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
 
     // Obtener stock actual del producto
     const { data: product, error: productError } = await supabase

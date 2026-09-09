@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // POST - Generar asiento contable para compra de inventario
 export async function POST(request: NextRequest) {
@@ -7,10 +7,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { type, data } = body; // type: 'purchase', 'sale', 'adjustment'
 
-    const supabase = createClient(
-      process.env.SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    );
+    
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
 
     if (type === 'purchase') {

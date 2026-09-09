@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // GET - Obtener todos los impuestos personalizados del tenant
 export async function GET(request: NextRequest) {
@@ -30,10 +30,7 @@ export async function GET(request: NextRequest) {
     let tenantId = 'DENTALWD'; // Valor por defecto
     
     try {
-      const supabase = createClient(
-        process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-      );
+      
       const { data: user, error: userError } = await supabase
         .from('User')
         .select('tenantId')
@@ -52,10 +49,7 @@ export async function GET(request: NextRequest) {
     // Obtener impuestos personalizados del tenant con manejo robusto
     try {
       // 1. Intentar obtener datos de la tabla CustomTaxes
-      const supabase = createClient(
-        process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-      );
+      
       const { data: taxes, error: taxesError } = await supabase
         .from('CustomTaxes')
         .select('*')
@@ -166,10 +160,7 @@ export async function POST(request: NextRequest) {
     const tenantId = 'DENTALWD'; // Valor por defecto para evitar errores de autenticación
 
     // Crear cliente Supabase con service role key para bypass RLS
-    const supabase = createClient(
-      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    
 
     // Crear nuevo impuesto personalizado
     const newTax = {
@@ -253,10 +244,7 @@ export async function PUT(request: NextRequest) {
     if (description !== undefined) updateData.description = description?.trim() || null;
 
     // Crear cliente Supabase con service role key para bypass RLS
-    const supabase = createClient(
-      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    
 
     // Actualizar impuesto personalizado
     const { data: tax, error: taxError } = await supabase
@@ -322,10 +310,7 @@ export async function DELETE(request: NextRequest) {
     const tenantId = 'DENTALWD';
     
     // Eliminar impuesto personalizado
-    const supabase = createClient(
-      process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-    );
+    
     const { error: taxError } = await supabase
       .from('CustomTaxes')
       .delete()

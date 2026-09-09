@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { cookies } from 'next/headers';
 
 // Configuración de Supabase
@@ -9,12 +9,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 export async function GET(request: NextRequest) {
   try {
     const cookieStore = cookies();
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: { Cookie: cookieStore.toString() },
-      },
-    });
-
+    
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
     const anioFiscal = searchParams.get('anioFiscal');

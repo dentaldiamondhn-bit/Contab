@@ -1,9 +1,9 @@
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { NextResponse } from 'next/server';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 // GET - List purchase orders
 export async function GET(request: Request) {
@@ -160,10 +160,10 @@ export async function DELETE(request: Request) {
     }
 
     // First delete order items
-    await supabase.from('PurchaseOrderItem').delete().eq('purchase_order_id', id);
+    await getSupabaseServer().from('PurchaseOrderItem').delete().eq('purchase_order_id', id);
 
     // Then delete the order
-    const { error } = await supabase.from('PurchaseOrder').delete().eq('id', id);
+    const { error } = await getSupabaseServer().from('PurchaseOrder').delete().eq('id', id);
 
     if (error) {
       console.error('Supabase error:', error);

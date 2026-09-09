@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 // Crear cliente Supabase directamente
-const supabaseUrl = 'https://your-project.supabase.co'; // Reemplaza con tu URL real
+const supabaseUrl = 'https://your-project.getSupabaseServer().co'; // Reemplaza con tu URL real
 const supabaseKey = 'your-anon-key'; // Reemplaza con tu key real
 
-const supabase = createClient(supabaseUrl, supabaseKey);
+
 
 export async function POST() {
   try {
