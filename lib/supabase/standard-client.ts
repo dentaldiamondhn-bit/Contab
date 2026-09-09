@@ -1,19 +1,27 @@
-﻿import { createBrowserClient } from '@supabase/ssr';
+﻿import { createBrowserClient, SupabaseClient } from '@supabase/ssr';
 
-const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-if (!url || !key) {
-  throw new Error(
-    'Supabase env vars (NEXT_PUBLIC_SUPABASE_URL / NEXT_PUBLIC_SUPABASE_ANON_KEY) are not defined.'
-  );
+let _client: SupabaseClient | null = null;
+function getClient(): SupabaseClient {
+  if (!_client) {
+    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (!url || !key) throw new Error('Supabase env vars not defined');
+    _client = createBrowserClient(url, key);
+  }
+  return _client;
 }
 
 /**
- * Supabase client singleton.
- * Used by server-helper.ts (server-side) and multiple app pages (client-side).
+ * Lazy singleton – Proxy delegates to the real client on first use.
+ * Works as `supabase.from(...)` without module-level env var access.
  */
-export const supabase = createBrowserClient(url, key);
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    const client = getClient();
+    const val = (client as any)[prop];
+    return typeof val === 'function' ? val.bind(client) : val;
+  },
+});
 
 /**
  * Reads the tenant id from localStorage - Client Component / Browser.
