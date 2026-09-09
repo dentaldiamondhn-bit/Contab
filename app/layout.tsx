@@ -9,7 +9,7 @@ import { Toaster } from "sonner";
 import LayoutWrapper from "./components/LayoutWrapper";
 import ClerkErrorBoundary from "./components/ClerkErrorBoundary";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { Analytics } from "@vercel/analytics/react";
+import { Analytics } from "@vercel/analytics/next";
 
 const inter = Inter({ subsets: ["latin"] });
 
