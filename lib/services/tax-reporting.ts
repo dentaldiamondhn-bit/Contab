@@ -1,7 +1,11 @@
 import { PrismaClient } from '@prisma/client';
 import { TaxConfigService, TaxConfigWithAccount } from '@/lib/services/tax-config';
 
-const prisma = new PrismaClient();
+let _prisma: PrismaClient | null = null;
+function getPrisma(): PrismaClient {
+  if (!_prisma) _prisma = new PrismaClient();
+  return _prisma;
+}
 
 export interface MonthlyTaxReport {
   period: string; // "YYYY-MM"
@@ -98,7 +102,7 @@ export class TaxReportingService {
     endDate: Date,
     taxAccounts: any[]
   ): Promise<TaxReportDetail[]> {
-    const revenueAccounts = await prisma.account.findMany({
+    const revenueAccounts = await getPrisma().account.findMany({
       where: {
         type: 'REVENUE'
       }
@@ -159,7 +163,7 @@ export class TaxReportingService {
     endDate: Date,
     taxAccounts: any[]
   ): Promise<TaxReportDetail[]> {
-    const expenseAccounts = await prisma.account.findMany({
+    const expenseAccounts = await getPrisma().account.findMany({
       where: {
         type: 'EXPENSE'
       }
@@ -217,7 +221,7 @@ export class TaxReportingService {
    */
   private static async findRelatedTaxEntries(transactionIds: string[]) {
     // Get tax payable accounts
-    const taxPayableAccounts = await prisma.account.findMany({
+    const taxPayableAccounts = await getPrisma().account.findMany({
       where: {
         type: 'LIABILITY',
         name: {
@@ -228,7 +232,7 @@ export class TaxReportingService {
 
     const taxAccountIds = taxPayableAccounts.map(account => account.id);
 
-    return await prisma.journalEntry.findMany({
+    return await getPrisma().journalEntry.findMany({
       where: {
         accountId: {
           in: taxAccountIds
@@ -244,7 +248,7 @@ export class TaxReportingService {
    * Get tax-related accounts for reporting
    */
   private static async getTaxRelatedAccounts() {
-    return await prisma.account.findMany({
+    return await getPrisma().account.findMany({
       where: {
         OR: [
           { type: 'REVENUE' },
@@ -271,7 +275,7 @@ export class TaxReportingService {
    */
   static async getAvailablePeriods(): Promise<string[]> {
     // Get the earliest transaction date
-    const earliestTransaction = await prisma.transaction.findFirst({
+    const earliestTransaction = await getPrisma().transaction.findFirst({
       orderBy: {
         date: 'asc'
       },

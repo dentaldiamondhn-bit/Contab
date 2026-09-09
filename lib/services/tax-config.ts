@@ -1,6 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 
-const prisma = new PrismaClient();
+let _prisma: PrismaClient | null = null;
+function getPrisma(): PrismaClient {
+  if (!_prisma) _prisma = new PrismaClient();
+  return _prisma;
+}
 
 export interface TaxConfigData {
   name: string;
@@ -83,7 +87,7 @@ export class TaxConfigService {
 
   static async createTaxConfig(data: TaxConfigData): Promise<TaxConfigWithAccount> {
     // Verify the account exists and is a liability account
-    const account = await prisma.account.findUnique({
+    const account = await getPrisma().account.findUnique({
       where: { id: data.accountId }
     });
 
@@ -118,7 +122,7 @@ export class TaxConfigService {
   static async updateTaxConfig(id: string, data: Partial<TaxConfigData>): Promise<TaxConfigWithAccount> {
     // If accountId is being updated, verify the new account
     if (data.accountId) {
-      const account = await prisma.account.findUnique({
+      const account = await getPrisma().account.findUnique({
         where: { id: data.accountId }
       });
 
@@ -161,7 +165,7 @@ export class TaxConfigService {
   }
 
   static async getLiabilityAccounts() {
-    return await prisma.account.findMany({
+    return await getPrisma().account.findMany({
       where: {
         type: 'LIABILITY'
       },

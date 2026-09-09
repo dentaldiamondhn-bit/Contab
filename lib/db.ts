@@ -4,8 +4,19 @@ const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined
 };
 
-export const db = globalForPrisma.prisma ?? new PrismaClient({
-  datasources: { db: { url: process.env.DATABASE_URL } },
-});
+function createPrismaClient(): PrismaClient {
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error('DATABASE_URL is required');
+  return new PrismaClient({
+    datasources: { db: { url } },
+  });
+}
 
-if (process.env.NODE_ENV !== 'production') globalForPrisma.prisma = db;
+export const db = new Proxy({} as PrismaClient, {
+  get(_, prop) {
+    if (!globalForPrisma.prisma) {
+      globalForPrisma.prisma = createPrismaClient();
+    }
+    return (globalForPrisma.prisma as any)[prop];
+  }
+});
