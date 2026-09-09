@@ -4,7 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('departments')
     .select('*')
     .eq('tenant_id', companyId)
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('departments')
     .insert({ tenant_id: companyId, name: body.name, description: body.description || '', manager: body.manager || '', parent_id: body.parentId || null })
     .select()
@@ -30,7 +30,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   const body = await request.json();
   const { id, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  const { error } = await supabase
+  const { error } = await getSupabaseServer()
     .from('departments')
     .update({ name: updates.name, description: updates.description, manager: updates.manager, parent_id: updates.parentId || null })
     .eq('id', id)
@@ -44,7 +44,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { searchParams } = new URL(request.url);
   const deptId = searchParams.get('id');
   if (!deptId) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  const { error } = await supabase
+  const { error } = await getSupabaseServer()
     .from('departments')
     .delete()
     .eq('id', deptId)

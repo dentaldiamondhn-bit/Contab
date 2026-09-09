@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
     
 
     // Consultar productos activos
-    const { data: products, error } = await supabase
+    const { data: products, error } = await getSupabaseServer()
       .from("product")
       .select("*")
       .eq("tenant_id", tenantId)

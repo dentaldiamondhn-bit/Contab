@@ -9,7 +9,7 @@ export async function GET() {
     console.log('Supabase Key exists:', !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 
     // Verificar si la tabla users existe
-    const { data: tables, error: tableError } = await supabase
+    const { data: tables, error: tableError } = await getSupabaseServer()
       .from('users')
       .select('count')
       .limit(1);
@@ -24,7 +24,7 @@ export async function GET() {
     }
 
     // Obtener usuario de ejemplo
-    const { data: user, error } = await supabase
+    const { data: user, error } = await getSupabaseServer()
       .from('users')
       .select('*')
       .eq('id', '550e8400-e29b-41d4-a716-446655440001')

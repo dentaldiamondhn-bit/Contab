@@ -12,7 +12,7 @@ export async function GET(request: Request) {
     const companyId = searchParams.get('companyId');
     const tenantId = '1';
 
-    let query = supabase
+    let query = getSupabaseServer()
       .from('PurchaseOrder')
       .select(`
         *,
@@ -60,7 +60,7 @@ export async function POST(request: Request) {
     const tenantId = '1';
 
     // Create purchase order
-    const { data: order, error: orderError } = await supabase
+    const { data: order, error: orderError } = await getSupabaseServer()
       .from('PurchaseOrder')
       .insert({
         order_number,
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
         created_at: new Date().toISOString(),
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await getSupabaseServer()
         .from('PurchaseOrderItem')
         .insert(orderItems);
 
@@ -127,7 +127,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .from('PurchaseOrder')
       .update({
         ...updates,

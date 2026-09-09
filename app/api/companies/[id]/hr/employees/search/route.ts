@@ -20,7 +20,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     // Fetch all employees for tenant, filter in JS
-    const { data: allEmployees, error } = await supabase
+    const { data: allEmployees, error } = await getSupabaseServer()
       .from('employees')
       .select('*')
       .eq('tenant_id', companyId);

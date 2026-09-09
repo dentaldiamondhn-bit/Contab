@@ -29,7 +29,7 @@ export async function GET(
     
     
     // Llamar al procedimiento almacenado
-    const { data: revisiones, error } = await supabase
+    const { data: revisiones, error } = await getSupabaseServer()
       .rpc('obtener_revisiones_legales', {
         p_company_id: companyId,
         p_anio_fiscal: parseInt(anio),
@@ -112,7 +112,7 @@ export async function POST(
     
     
     // Llamar al procedimiento almacenado para guardar
-    const { data: revisionId, error } = await supabase
+    const { data: revisionId, error } = await getSupabaseServer()
       .rpc('guardar_revision_legal', {
         p_company_id: companyId,
         p_categoria: body.categoria,

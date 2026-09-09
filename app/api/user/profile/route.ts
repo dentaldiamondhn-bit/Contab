@@ -25,7 +25,7 @@ export async function GET() {
 
     
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .from('users')
       .select('*')
       .eq('auth_id', userId)

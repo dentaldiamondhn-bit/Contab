@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
 
     
 
-    const { data: warehouses, error } = await supabase
+    const { data: warehouses, error } = await getSupabaseServer()
       .from("warehouse")
       .select("*")
       .eq("tenant_id", tenantId)
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
 
     
 
-    const { data: warehouse, error } = await (supabase as any)
+    const { data: warehouse, error } = await (getSupabaseServer() as any)
       .from("warehouse")
       .insert({
         tenant_id: "1",

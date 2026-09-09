@@ -23,7 +23,7 @@ export async function POST() {
       console.log(`📝 Actualizando ${email} a rol: ${role}`);
       
       // Actualizar en Supabase
-      const { data, error } = await supabase
+      const { data, error } = await getSupabaseServer()
         .from('User')
         .update({ 
           role: role,

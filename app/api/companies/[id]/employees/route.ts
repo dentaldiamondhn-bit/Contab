@@ -66,7 +66,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id: tenantId } = await params;
     
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .from('employees')
       .select('*')
       .eq('tenant_id', tenantId)
@@ -74,7 +74,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     if (error) throw error;
 
-    const { data: positions } = await supabase
+    const { data: positions } = await getSupabaseServer()
       .from('positions')
       .select('*')
       .eq('tenant_id', tenantId);
@@ -84,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       positions.forEach((p: any) => { posMap[p.id] = p.name; });
     }
 
-    const { data: departments } = await supabase
+    const { data: departments } = await getSupabaseServer()
       .from('departments')
       .select('*')
       .eq('tenant_id', tenantId);
@@ -173,7 +173,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
     for (let emp of employees) {
       try {
-        const { data: hrDocs } = await supabase
+        const { data: hrDocs } = await getSupabaseServer()
           .from('employee_hr_documents')
           .select('*')
           .eq('tenant_id', tenantId)
@@ -194,7 +194,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       } catch {}
 
       try {
-        const { data: history } = await supabase
+        const { data: history } = await getSupabaseServer()
           .from('employee_history')
           .select('*')
           .eq('tenant_id', tenantId)
@@ -228,14 +228,14 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     let positionId = null;
     if (body.position) {
-      let { data: pos } = await supabase
+      let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('name', body.position)
         .single();
       if (!pos) {
-        const { data: newPos } = await supabase
+        const { data: newPos } = await getSupabaseServer()
           .from('positions')
           .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
           .select('id')
@@ -310,7 +310,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         free_days: body.freeDays || [],
       }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .from('employees')
       .insert(insertData)
       .select()
@@ -359,14 +359,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     let positionId = null;
     if (body.position) {
-      let { data: pos } = await supabase
+      let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
         .eq('name', body.position)
         .single();
       if (!pos) {
-        const { data: newPos } = await supabase
+        const { data: newPos } = await getSupabaseServer()
           .from('positions')
           .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
           .select('id')
@@ -376,7 +376,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       positionId = pos?.id || null;
     }
 
-    const { data: oldEmp } = await supabase
+    const { data: oldEmp } = await getSupabaseServer()
       .from('employees')
       .select('*')
       .eq('id', body.id)
@@ -446,7 +446,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         updated_at: new Date().toISOString()
       }
 
-    const { error } = await supabase
+    const { error } = await getSupabaseServer()
       .from('employees')
       .update(updateData)
       .eq('id', body.id)
@@ -485,7 +485,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       }
     }
 
-    await supabase
+    await getSupabaseServer()
       .from('employee_hr_documents')
       .delete()
       .eq('employee_id', body.id)
@@ -528,19 +528,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       return NextResponse.json({ error: 'Employee ID required' }, { status: 400 });
     }
 
-    await supabase
+    await getSupabaseServer()
       .from('employee_history')
       .delete()
       .eq('employee_id', employeeId)
       .eq('tenant_id', tenantId);
 
-    await supabase
+    await getSupabaseServer()
       .from('employee_hr_documents')
       .delete()
       .eq('employee_id', employeeId)
       .eq('tenant_id', tenantId);
 
-    const { error } = await supabase
+    const { error } = await getSupabaseServer()
       .from('employees')
       .delete()
       .eq('id', employeeId)

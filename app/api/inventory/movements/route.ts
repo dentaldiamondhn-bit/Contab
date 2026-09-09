@@ -15,7 +15,7 @@ export async function GET(request: NextRequest) {
 
     
 
-    let query = supabase
+    let query = getSupabaseServer()
       .from("inventory_movement")
       .select('*')
       .eq("tenant_id", tenantId)
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
     
 
     // Obtener stock actual del producto
-    const { data: product, error: productError } = await supabase
+    const { data: product, error: productError } = await getSupabaseServer()
       .from("product")
       .select("current_stock, current_cost, product_type")
       .eq("id", productId)
@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
     const totalCost = unitCost * quantity;
 
     // Crear el movimiento
-    const { data: movement, error: movementError } = await (supabase as any)
+    const { data: movement, error: movementError } = await (getSupabaseServer() as any)
       .from("inventory_movement")
       .insert({
         tenant_id: "1",
@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Actualizar stock del producto
-    const { error: updateError } = await (supabase as any)
+    const { error: updateError } = await (getSupabaseServer() as any)
       .from("product")
       .update({
         current_stock: stockAfter,
@@ -161,7 +161,7 @@ export async function POST(request: NextRequest) {
     // Si es entrada por compra, actualizar costo promedio
     if (movementType === "IN" && movementReason === "purchase") {
       const newCost = ((stockBefore * ((product as any).current_cost || 0)) + (quantity * unitCost)) / (stockBefore + quantity);
-      await (supabase as any)
+      await (getSupabaseServer() as any)
         .from("product")
         .update({ current_cost: newCost })
         .eq("id", productId);

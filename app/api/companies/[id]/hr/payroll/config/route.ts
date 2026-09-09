@@ -21,13 +21,13 @@ const DEFAULT_CONFIG = {
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
-  let { data, error } = await supabase
+  let { data, error } = await getSupabaseServer()
     .from('payroll_config')
     .select('*')
     .eq('tenant_id', companyId)
     .single();
   if (error || !data) {
-    const insertResult = await supabase
+    const insertResult = await getSupabaseServer()
       .from('payroll_config')
       .upsert({ tenant_id: companyId, ...DEFAULT_CONFIG }, { onConflict: 'tenant_id' })
       .select()
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('payroll_config')
     .upsert(
       {
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('payroll_config')
     .upsert(
       {

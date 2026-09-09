@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Ejecutar procedimiento almacenado para obtener revisiones próximas a vencer
-    const { data: alertas, error } = await supabase
+    const { data: alertas, error } = await getSupabaseServer()
       .rpc('obtener_revisiones_proximas_vencer', {
         p_company_id: companyId,
         p_dias: parseInt(dias),

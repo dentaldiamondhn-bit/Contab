@@ -6,7 +6,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { id: companyId } = await params;
   const { searchParams } = new URL(request.url);
   const employeeId = searchParams.get('employee_id');
-  let query = supabase
+  let query = getSupabaseServer()
     .from('payroll_deductions')
     .select('*')
     .eq('tenant_id', companyId);
@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('payroll_deductions')
     .upsert(
       {
@@ -56,7 +56,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     return NextResponse.json({ error: 'Missing id or employee_id+deduction_id' }, { status: 400 });
   }
 
-  let query = supabase
+  let query = getSupabaseServer()
     .from('payroll_deductions')
     .delete()
     .eq('tenant_id', companyId);

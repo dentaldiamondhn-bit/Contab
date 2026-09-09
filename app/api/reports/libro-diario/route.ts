@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   if (!tenantId) return NextResponse.json({ error: "tenantId required" }, { status: 400 });
 
   
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from("libro_diario")
     .select("*")
     .eq("tenant_id", tenantId)

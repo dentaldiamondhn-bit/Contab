@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Ejecutar procedimiento almacenado para obtener métricas del dashboard
-    const { data: metricas, error } = await supabase
+    const { data: metricas, error } = await getSupabaseServer()
       .rpc('obtener_metricas_dashboard', {
         p_company_id: companyId,
         p_anio_fiscal: anioFiscal ? parseInt(anioFiscal) : null,

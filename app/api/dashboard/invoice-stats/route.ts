@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     }
 
     // Get invoices from Supabase
-    const { data: invoices, error } = await supabase
+    const { data: invoices, error } = await getSupabaseServer()
       .from('Invoice')
       .select('*')
       .eq('tenantid', tenantId);

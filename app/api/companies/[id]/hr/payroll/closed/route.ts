@@ -4,7 +4,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('payroll_closed')
     .select('*')
     .eq('tenant_id', companyId)
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { data, error } = await supabase
+  const { data, error } = await getSupabaseServer()
     .from('payroll_closed')
     .insert({
       tenant_id: companyId,
@@ -46,7 +46,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const { searchParams } = new URL(request.url);
   const closedId = searchParams.get('id');
   if (!closedId) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
-  const { error } = await supabase
+  const { error } = await getSupabaseServer()
     .from('payroll_closed')
     .delete()
     .eq('id', closedId)

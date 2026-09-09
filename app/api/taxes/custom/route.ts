@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     
     try {
       
-      const { data: user, error: userError } = await supabase
+      const { data: user, error: userError } = await getSupabaseServer()
         .from('User')
         .select('tenantId')
         .eq('authId', userId)
@@ -50,7 +50,7 @@ export async function GET(request: NextRequest) {
     try {
       // 1. Intentar obtener datos de la tabla CustomTaxes
       
-      const { data: taxes, error: taxesError } = await supabase
+      const { data: taxes, error: taxesError } = await getSupabaseServer()
         .from('CustomTaxes')
         .select('*')
         .eq('tenantId', tenantId)
@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       description: description?.trim() || null
     };
 
-    const { data: tax, error: taxError } = await supabase
+    const { data: tax, error: taxError } = await getSupabaseServer()
       .from('CustomTaxes')
       .insert(newTax)
       .select()
@@ -247,7 +247,7 @@ export async function PUT(request: NextRequest) {
     
 
     // Actualizar impuesto personalizado
-    const { data: tax, error: taxError } = await supabase
+    const { data: tax, error: taxError } = await getSupabaseServer()
       .from('CustomTaxes')
       .update(updateData)
       .eq('id', id)
@@ -311,7 +311,7 @@ export async function DELETE(request: NextRequest) {
     
     // Eliminar impuesto personalizado
     
-    const { error: taxError } = await supabase
+    const { error: taxError } = await getSupabaseServer()
       .from('CustomTaxes')
       .delete()
       .eq('id', id)

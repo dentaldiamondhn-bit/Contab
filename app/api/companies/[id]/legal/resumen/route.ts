@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Ejecutar procedimiento almacenado para obtener resumen por categoría
-    const { data: resumen, error } = await supabase
+    const { data: resumen, error } = await getSupabaseServer()
       .rpc('obtener_resumen_categoria', {
         p_company_id: companyId,
         p_anio_fiscal: anioFiscal ? parseInt(anioFiscal) : null,

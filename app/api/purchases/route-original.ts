@@ -13,7 +13,7 @@ export async function GET(request: Request) {
     const supplierId = searchParams.get('supplierId');
     const tenantId = '1';
 
-    let query = supabase
+    let query = getSupabaseServer()
       .from('Purchase')
       .select(`
         *,
@@ -78,7 +78,7 @@ export async function POST(request: Request) {
     }
 
     // Start transaction
-    const { data: purchase, error: purchaseError } = await supabase
+    const { data: purchase, error: purchaseError } = await getSupabaseServer()
       .from('Purchase')
       .insert({
         supplier_id,
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
         created_at: new Date().toISOString(),
       }));
 
-      const { error: itemsError } = await supabase
+      const { error: itemsError } = await getSupabaseServer()
         .from('PurchaseItem')
         .insert(purchaseItems);
 
@@ -177,7 +177,7 @@ export async function POST(request: Request) {
 
     if (journalEntryResult) {
       // Update purchase with journal entry reference
-      await supabase
+      await getSupabaseServer()
         .from('Purchase')
         .update({ journal_entry_id: journalEntryResult.id })
         .eq('id', purchase.id);
@@ -200,7 +200,7 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Purchase ID is required' }, { status: 400 });
     }
 
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .from('Purchase')
       .update({
         ...updates,
@@ -263,7 +263,7 @@ async function createPurchaseJournalEntry(
     
     if (purchase.purchase_type === 'merchandise') {
       // Inventory/Stock account
-      const { data: invAccount } = await supabase
+      const { data: invAccount } = await getSupabaseServer()
         .from('Account')
         .select('id')
         .eq('code', '1105') // Inventory account code
@@ -272,7 +272,7 @@ async function createPurchaseJournalEntry(
       debitAccountId = invAccount?.id;
     } else if (purchase.expense_category === 'administrative') {
       // Administrative expenses
-      const { data: expAccount } = await supabase
+      const { data: expAccount } = await getSupabaseServer()
         .from('Account')
         .select('id')
         .eq('code', '4101') // Admin expenses
@@ -281,7 +281,7 @@ async function createPurchaseJournalEntry(
       debitAccountId = expAccount?.id;
     } else {
       // General expenses
-      const { data: expAccount } = await supabase
+      const { data: expAccount } = await getSupabaseServer()
         .from('Account')
         .select('id')
         .eq('code', '4100') // General expenses
@@ -291,7 +291,7 @@ async function createPurchaseJournalEntry(
     }
 
     // Credit Fiscal account (ISV)
-    const { data: isvAccount } = await supabase
+    const { data: isvAccount } = await getSupabaseServer()
       .from('Account')
       .select('id')
       .eq('code', '1110') // ISV Credito Fiscal
@@ -301,7 +301,7 @@ async function createPurchaseJournalEntry(
     // Accounts Payable or Bank account
     let creditAccountId: string;
     if (purchase.is_credit) {
-      const { data: apAccount } = await supabase
+      const { data: apAccount } = await getSupabaseServer()
         .from('Account')
         .select('id')
         .eq('code', '2101') // Cuentas por Pagar
@@ -309,7 +309,7 @@ async function createPurchaseJournalEntry(
         .single();
       creditAccountId = apAccount?.id;
     } else {
-      const { data: bankAccount } = await supabase
+      const { data: bankAccount } = await getSupabaseServer()
         .from('Account')
         .select('id')
         .eq('code', '1101') // Bancos
@@ -324,7 +324,7 @@ async function createPurchaseJournalEntry(
     }
 
     // Create journal entry
-    const { data: journalEntry, error: jeError } = await supabase
+    const { data: journalEntry, error: jeError } = await getSupabaseServer()
       .from('JournalEntry')
       .insert({
         date: purchase.invoice_date,
@@ -380,7 +380,7 @@ async function createPurchaseJournalEntry(
       tenant_id: tenantId,
     });
 
-    const { error: linesError } = await supabase
+    const { error: linesError } = await getSupabaseServer()
       .from('JournalEntryLine')
       .insert(lines);
 

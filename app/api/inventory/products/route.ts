@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     
 
-    let query = supabase
+    let query = getSupabaseServer()
       .from("product")
       .select('*')
       .eq("tenant_id", tenantId)
@@ -105,7 +105,7 @@ export async function PATCH(request: NextRequest) {
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 
-    const { data: product, error } = await (supabase as any)
+    const { data: product, error } = await (getSupabaseServer() as any)
       .from("product")
       .update(updateData)
       .eq("id", id)
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
     // Auto-generar código si no se proporciona
     if (!code) {
       // Obtener el último código de producto
-      const { data: lastProduct } = await supabase
+      const { data: lastProduct } = await getSupabaseServer()
         .from("product")
         .select("code")
         .eq("tenant_id", tenantId)
@@ -186,7 +186,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar si el código ya existe
-    const { data: existing } = await (supabase as any)
+    const { data: existing } = await (getSupabaseServer() as any)
       .from("product")
       .select("id")
       .eq("code", code)
@@ -200,7 +200,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { data: product, error } = await (supabase as any)
+    const { data: product, error } = await (getSupabaseServer() as any)
       .from("product")
       .insert({
         tenant_id: tenantId,
@@ -234,7 +234,7 @@ export async function POST(request: NextRequest) {
 
     // Si tiene stock inicial, crear movimiento de entrada
     if (currentStock > 0 && currentCost) {
-      await (supabase as any).from("inventory_movement").insert({
+      await (getSupabaseServer() as any).from("inventory_movement").insert({
         tenant_id: tenantId,
         product_id: (product as any).id,
         warehouse_id: warehouseId,

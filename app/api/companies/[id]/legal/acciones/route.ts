@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Ejecutar procedimiento almacenado para completar acción
-    const { data, error } = await supabase
+    const { data, error } = await getSupabaseServer()
       .rpc('completar_accion_revision', {
         p_accion_id: accionId,
         p_usuario_id: null, // TODO: Obtener del contexto de autenticación

@@ -89,7 +89,7 @@ export async function POST(request: Request) {
         const unitPrice = Math.round(Number(item.unit_price) || 0);
 
         // Check if product already exists for this tenant (lowercase table)
-        const { data: existing } = await supabase
+        const { data: existing } = await getSupabaseServer()
           .from('product')
           .select('id, current_stock')
           .eq('tenant_id', tenantId)
@@ -99,7 +99,7 @@ export async function POST(request: Request) {
         if (existing) {
           // Update stock and price
           const newStock = (Number(existing.current_stock) || 0) + quantity;
-          await supabase
+          await getSupabaseServer()
             .from('product')
             .update({
               current_stock: newStock,
@@ -111,7 +111,7 @@ export async function POST(request: Request) {
         } else {
           // Create new product
           const productCode = 'PRD-' + Date.now().toString(36).toUpperCase().slice(-4);
-          await supabase
+          await getSupabaseServer()
             .from('product')
             .insert({
               tenant_id: tenantId,
