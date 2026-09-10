@@ -21,6 +21,7 @@ interface PipGoal {
   unit: string
   dueDate: string
   status: string
+  commitments?: string
 }
 
 interface PipEvaluation {
@@ -112,6 +113,7 @@ export default function PipPage() {
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
   const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
   const [areaObservations, setAreaObservations] = useState('')
+  const [areaCommitments, setAreaCommitments] = useState('')
 
   const [form, setForm] = useState({
     employeeId: '',
@@ -419,8 +421,15 @@ export default function PipPage() {
                         value={areaObservations}
                         onChange={e => setAreaObservations(e.target.value)} />
                     </div>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Compromisos del Empleado</label>
+                      <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={2}
+                        placeholder="Ej: Me comprometo a puntualidad, asistiré puntualmente cada día..."
+                        value={areaCommitments}
+                        onChange={e => setAreaCommitments(e.target.value)} />
+                    </div>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedArea(null); setAreaObservations('') }}>
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedArea(null); setAreaObservations(''); setAreaCommitments('') }}>
                         Cancelar
                       </Button>
                       <Button size="sm" onClick={() => {
@@ -435,10 +444,12 @@ export default function PipPage() {
                             unit: selectedArea.unit,
                             dueDate: prev.endDate,
                             status: 'pending',
+                            commitments: areaCommitments,
                           }],
                         }))
                         setSelectedArea(null)
                         setAreaObservations('')
+                        setAreaCommitments('')
                       }}>
                         <CheckCircle className="h-3 w-3 mr-1" /> Agregar
                       </Button>
@@ -694,6 +705,12 @@ export default function PipPage() {
                           <Badge className={`${goalStatus.bg} ${goalStatus.color}`}>{goalStatus.label}</Badge>
                         </div>
                         {g.description && <p className="text-sm text-gray-600 mb-2">{g.description}</p>}
+                        {g.commitments && (
+                          <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
+                            <span className="text-xs font-medium text-blue-700">Compromisos del empleado:</span>
+                            <p className="text-sm text-blue-800">{g.commitments}</p>
+                          </div>
+                        )}
                         <div className="flex items-center gap-4 text-sm">
                           <span>Progreso: {g.current_value} / {g.target_value} {g.unit}</span>
                           <div className="flex-1 bg-gray-200 rounded-full h-2">

@@ -84,6 +84,7 @@ export async function POST(request: NextRequest) {
         unit: g.unit || 'porcentaje',
         due_date: g.dueDate || body.endDate,
         status: g.status || 'pending',
+        commitments: g.commitments || '',
       }));
 
       const { error: goalsError } = await supabase.from('pip_goals').insert(goals);
@@ -139,6 +140,7 @@ export async function PUT(request: NextRequest) {
               unit: g.unit,
               due_date: g.dueDate,
               status: g.status,
+              commitments: g.commitments || '',
               updated_at: new Date().toISOString(),
             })
             .eq('id', g.id);

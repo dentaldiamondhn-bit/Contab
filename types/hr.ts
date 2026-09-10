@@ -695,6 +695,7 @@ export interface PipGoal {
   unit: 'porcentaje' | 'dias' | 'horas' | 'unidades' | 'calificacion';
   dueDate: string;
   status: PipGoalStatus;
+  commitments?: string;
   createdAt?: string;
   updatedAt?: string;
 }

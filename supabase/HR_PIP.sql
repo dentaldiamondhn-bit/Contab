@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS pip_goals (
   unit TEXT NOT NULL DEFAULT 'porcentaje',
   due_date DATE NOT NULL,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'in_progress', 'met', 'not_met', 'exceeded')),
+  commitments TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
