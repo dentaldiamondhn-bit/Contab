@@ -960,7 +960,18 @@ export default function PipPage() {
                         <Button variant="ghost" size="sm" onClick={() => { setExpandedPlan(isExpanded ? null : plan.id!) }}>
                           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
                         </Button>
-                        <Button size="sm" onClick={() => { setSelectedPlan(plan); setViewMode('detail') }}>
+                        <Button size="sm" onClick={async () => {
+                          try {
+                            const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`, { headers: { 'x-tenant-id': companyId } })
+                            if (res.ok) {
+                              const fullPlan = await res.json()
+                              setSelectedPlan(fullPlan)
+                            } else {
+                              setSelectedPlan(plan)
+                            }
+                          } catch { setSelectedPlan(plan) }
+                          setViewMode('detail')
+                        }}>
                           <Eye className="h-3 w-3 mr-1" /> Ver
                         </Button>
                       </div>
