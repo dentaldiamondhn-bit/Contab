@@ -110,6 +110,8 @@ export default function PipPage() {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate'>('list')
   const [showCustomArea, setShowCustomArea] = useState(false)
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
+  const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
+  const [areaObservations, setAreaObservations] = useState('')
 
   const [form, setForm] = useState({
     employeeId: '',
@@ -385,21 +387,7 @@ export default function PipPage() {
                     return (
                       <button key={area.id} type="button"
                         disabled={alreadyAdded}
-                        onClick={() => {
-                          setForm(prev => ({
-                            ...prev,
-                            goals: [...prev.goals, {
-                              title: area.title,
-                              description: area.description,
-                              metric: area.metric,
-                              targetValue: 100,
-                              currentValue: 0,
-                              unit: area.unit,
-                              dueDate: prev.endDate,
-                              status: 'pending',
-                            }],
-                          }))
-                        }}
+                        onClick={() => { setSelectedArea(area); setAreaObservations('') }}
                         className={`text-left border rounded-md p-2 text-sm transition-colors ${
                           alreadyAdded
                             ? 'bg-green-50 border-green-200 text-green-700 cursor-default'
@@ -414,6 +402,49 @@ export default function PipPage() {
                     )
                   })}
                 </div>
+
+                {selectedArea && (
+                  <div className="bg-cyan-50 border border-cyan-200 rounded-md p-4 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-medium text-cyan-800">{selectedArea.title}</h4>
+                      <button onClick={() => { setSelectedArea(null); setAreaObservations('') }} className="text-gray-400 hover:text-gray-600">
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-3">{selectedArea.description}</p>
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
+                      <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={2}
+                        placeholder="Ej: Empleado ha tenido recurrentes ausencias los lunes..."
+                        value={areaObservations}
+                        onChange={e => setAreaObservations(e.target.value)} />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedArea(null); setAreaObservations('') }}>
+                        Cancelar
+                      </Button>
+                      <Button size="sm" onClick={() => {
+                        setForm(prev => ({
+                          ...prev,
+                          goals: [...prev.goals, {
+                            title: selectedArea.title,
+                            description: areaObservations || selectedArea.description,
+                            metric: selectedArea.metric,
+                            targetValue: 100,
+                            currentValue: 0,
+                            unit: selectedArea.unit,
+                            dueDate: prev.endDate,
+                            status: 'pending',
+                          }],
+                        }))
+                        setSelectedArea(null)
+                        setAreaObservations('')
+                      }}>
+                        <CheckCircle className="h-3 w-3 mr-1" /> Agregar
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
                 {showCustomArea ? (
                   <div className="bg-gray-50 border rounded-md p-3 mb-2">
