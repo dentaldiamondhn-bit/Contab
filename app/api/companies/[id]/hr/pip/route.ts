@@ -1,6 +1,43 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
+function mapPlan(p: any) {
+  if (!p) return p;
+  return {
+    ...p,
+    employeeId: p.employee_id,
+    startDate: p.start_date,
+    endDate: p.end_date,
+    createdBy: p.created_by,
+    reviewedBy: p.reviewed_by,
+    originalEndDate: p.original_end_date,
+    tenantId: p.tenant_id,
+    createdAt: p.created_at,
+    updatedAt: p.updated_at,
+    pip_goals: p.pip_goals?.map((g: any) => ({
+      ...g,
+      pipPlanId: g.pip_plan_id,
+      targetValue: g.target_value,
+      currentValue: g.current_value,
+      dueDate: g.due_date,
+      createdAt: g.created_at,
+      updatedAt: g.updated_at,
+    })),
+    pip_evaluations: p.pip_evaluations?.map((e: any) => ({
+      ...e,
+      pipPlanId: e.pip_plan_id,
+      goalId: e.goal_id,
+      evaluationDate: e.evaluation_date,
+      score: e.score,
+      progressPct: e.progress_pct,
+      comments: e.comments,
+      evaluator: e.evaluator,
+      attendanceSummary: e.attendance_summary,
+      createdAt: e.created_at,
+    })),
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -23,12 +60,12 @@ export async function GET(request: NextRequest) {
         .single();
 
       if (error) throw error;
-      return NextResponse.json(plan);
+      return NextResponse.json(mapPlan(plan));
     }
 
     let query = supabase
       .from('pip_plans')
-      .select('*, pip_goals(id, title, status, target_value, current_value, due_date), pip_evaluations(id, evaluation_date, score, progress_pct)')
+      .select('*, pip_goals(*), pip_evaluations(*)')
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
 
@@ -39,7 +76,7 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json(data || []);
+    return NextResponse.json((data || []).map(mapPlan));
   } catch (error: any) {
     console.error('Error in GET /api/hr/pip:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -93,7 +130,7 @@ export async function POST(request: NextRequest) {
       if (goalsError) throw goalsError;
     }
 
-    return NextResponse.json({ success: true, plan });
+    return NextResponse.json({ success: true, plan: mapPlan(plan) });
   } catch (error: any) {
     console.error('Error in POST /api/hr/pip:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -117,6 +154,8 @@ export async function PUT(request: NextRequest) {
     if (body.startDate) updateData.start_date = body.startDate;
     if (body.endDate) updateData.end_date = body.endDate;
     if (body.reviewedBy) updateData.reviewed_by = body.reviewedBy;
+    if (body.observations !== undefined) updateData.observations = body.observations;
+    if (body.commitments !== undefined) updateData.commitments = body.commitments;
 
     const { data, error } = await supabase
       .from('pip_plans')
@@ -157,12 +196,13 @@ export async function PUT(request: NextRequest) {
             unit: g.unit || 'porcentaje',
             due_date: g.dueDate || body.endDate,
             status: g.status || 'pending',
+            commitments: g.commitments || '',
           });
         }
       }
     }
 
-    return NextResponse.json({ success: true, plan: data });
+    return NextResponse.json({ success: true, plan: mapPlan(data) });
   } catch (error: any) {
     console.error('Error in PUT /api/hr/pip:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });

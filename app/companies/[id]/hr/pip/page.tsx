@@ -289,8 +289,8 @@ export default function PipPage() {
 
   function getOverallProgress(plan: PipPlan) {
     if (!plan.pip_goals?.length) return 0
-    const total = plan.pip_goals.reduce((sum, g) => sum + (g.target_value || 1), 0)
-    const current = plan.pip_goals.reduce((sum, g) => sum + (g.current_value || 0), 0)
+    const total = plan.pip_goals.reduce((sum, g: any) => sum + (g.targetValue || g.target_value || 1), 0)
+    const current = plan.pip_goals.reduce((sum, g: any) => sum + (g.currentValue || g.current_value || 0), 0)
     return total > 0 ? Math.round((current / total) * 100) : 0
   }
 
@@ -719,7 +719,10 @@ export default function PipPage() {
                 <div className="space-y-3">
                   {goals.map((g: any) => {
                     const goalStatus = GOAL_STATUS[g.status] || GOAL_STATUS.pending
-                    const pct = g.target_value > 0 ? Math.round((g.current_value / g.target_value) * 100) : 0
+                    const targetVal = g.targetValue || g.target_value || 1
+                    const currentVal = g.currentValue || g.current_value || 0
+                    const pct = targetVal > 0 ? Math.round((currentVal / targetVal) * 100) : 0
+                    const dueDate = g.dueDate || g.due_date
                     return (
                       <div key={g.id} className="border rounded-md p-4">
                         <div className="flex items-center justify-between mb-2">
@@ -737,14 +740,14 @@ export default function PipPage() {
                           </div>
                         )}
                         <div className="flex items-center gap-4 text-sm">
-                          <span>Progreso: {g.current_value} / {g.target_value} {g.unit}</span>
+                          <span>Progreso: {currentVal} / {targetVal} {g.unit}</span>
                           <div className="flex-1 bg-gray-200 rounded-full h-2">
                             <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
                           </div>
                           <span className="font-medium">{pct}%</span>
                         </div>
                         <div className="text-xs text-gray-500 mt-1">
-                          Vence: {new Date(g.due_date).toLocaleDateString('es-HN')}
+                          Vence: {dueDate ? new Date(dueDate).toLocaleDateString('es-HN') : 'Sin fecha'}
                         </div>
                       </div>
                     )
@@ -836,12 +839,12 @@ export default function PipPage() {
                               {ev.pip_goals?.title || 'Evaluación General'}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {new Date(ev.evaluation_date).toLocaleDateString('es-HN')} • {ev.evaluator}
+                              {new Date(ev.evaluationDate || ev.evaluation_date).toLocaleDateString('es-HN')} • {ev.evaluator}
                             </div>
                           </div>
                         </div>
                         <div className="text-right">
-                          <div className="text-sm">Progreso: <strong>{ev.progress_pct}%</strong></div>
+                          <div className="text-sm">Progreso: <strong>{ev.progressPct || ev.progress_pct}%</strong></div>
                           {ev.comments && <div className="text-xs text-gray-500 max-w-xs truncate">{ev.comments}</div>}
                         </div>
                       </div>
