@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS pip_plans (
   start_date DATE NOT NULL,
   end_date DATE NOT NULL,
   original_end_date DATE,
+  observations TEXT,
+  commitments TEXT,
   created_by TEXT NOT NULL,
   reviewed_by TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),

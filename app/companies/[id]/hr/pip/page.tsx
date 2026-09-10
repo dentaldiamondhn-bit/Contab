@@ -121,6 +121,8 @@ export default function PipPage() {
     description: '',
     startDate: '',
     endDate: '',
+    observations: '',
+    commitments: '',
     goals: [] as PipGoal[],
   })
 
@@ -180,6 +182,8 @@ export default function PipPage() {
           description: form.description,
           startDate: form.startDate,
           endDate: form.endDate,
+          observations: form.observations,
+          commitments: form.commitments,
           goals: form.goals.map(g => ({
             title: g.title,
             description: g.description,
@@ -188,6 +192,7 @@ export default function PipPage() {
             currentValue: g.currentValue,
             unit: g.unit,
             dueDate: g.dueDate,
+            commitments: g.commitments,
           })),
           createdBy: 'Sistema',
         }),
@@ -379,6 +384,23 @@ export default function PipPage() {
                 </div>
               </div>
 
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Observaciones Generales</label>
+                  <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
+                    placeholder="Observaciones sobre el desempeño del empleado..."
+                    value={form.observations}
+                    onChange={e => setForm(prev => ({ ...prev, observations: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Compromisos del Empleado</label>
+                  <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
+                    placeholder="Compromisos que asume el empleado..."
+                    value={form.commitments}
+                    onChange={e => setForm(prev => ({ ...prev, commitments: e.target.value }))} />
+                </div>
+              </div>
+
               <div className="border-t pt-4">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
                   <AlertTriangle className="h-4 w-4" /> Áreas a Mejorar (clic para agregar como meta)
@@ -389,7 +411,7 @@ export default function PipPage() {
                     return (
                       <button key={area.id} type="button"
                         disabled={alreadyAdded}
-                        onClick={() => { setSelectedArea(area); setAreaObservations('') }}
+                        onClick={() => { setSelectedArea(area) }}
                         className={`text-left border rounded-md p-2 text-sm transition-colors ${
                           alreadyAdded
                             ? 'bg-green-50 border-green-200 text-green-700 cursor-default'
@@ -415,41 +437,32 @@ export default function PipPage() {
                     </div>
                     <p className="text-sm text-gray-600 mb-3">{selectedArea.description}</p>
                     <div className="mb-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Observaciones</label>
-                      <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={2}
-                        placeholder="Ej: Empleado ha tenido recurrentes ausencias los lunes..."
-                        value={areaObservations}
-                        onChange={e => setAreaObservations(e.target.value)} />
+                      <label className="block text-xs font-medium text-gray-600 mb-1">Descripción del área</label>
+                      <p className="text-sm text-gray-700">{selectedArea.description}</p>
                     </div>
-                    <div className="mb-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Compromisos del Empleado</label>
-                      <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={2}
-                        placeholder="Ej: Me comprometo a puntualidad, asistiré puntualmente cada día..."
-                        value={areaCommitments}
-                        onChange={e => setAreaCommitments(e.target.value)} />
-                    </div>
+                    <p className="text-xs text-gray-500 mb-3">Las observaciones y compromisos se toman de los campos principales del formulario.</p>
                     <div className="flex justify-end gap-2">
-                      <Button size="sm" variant="outline" onClick={() => { setSelectedArea(null); setAreaObservations(''); setAreaCommitments('') }}>
+                      <Button size="sm" variant="outline" onClick={() => { setSelectedArea(null) }}>
                         Cancelar
                       </Button>
                       <Button size="sm" onClick={() => {
+                        const descParts = [form.observations || selectedArea.description]
+                        if (form.commitments) descParts.push(`Compromisos: ${form.commitments}`)
                         setForm(prev => ({
                           ...prev,
                           goals: [...prev.goals, {
                             title: selectedArea.title,
-                            description: areaObservations || selectedArea.description,
+                            description: descParts.join('. '),
                             metric: selectedArea.metric,
                             targetValue: 100,
                             currentValue: 0,
                             unit: selectedArea.unit,
                             dueDate: prev.endDate,
                             status: 'pending',
-                            commitments: areaCommitments,
+                            commitments: form.commitments,
                           }],
                         }))
                         setSelectedArea(null)
-                        setAreaObservations('')
-                        setAreaCommitments('')
                       }}>
                         <CheckCircle className="h-3 w-3 mr-1" /> Agregar
                       </Button>
@@ -678,6 +691,18 @@ export default function PipPage() {
                 <span>Fin: {new Date(selectedPlan.endDate).toLocaleDateString('es-HN')}</span>
                 <span>Creado por: {selectedPlan.createdBy}</span>
               </div>
+              {(selectedPlan as any).observations && (
+                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded">
+                  <span className="text-xs font-medium text-yellow-700">Observaciones:</span>
+                  <p className="text-sm text-yellow-800">{(selectedPlan as any).observations}</p>
+                </div>
+              )}
+              {(selectedPlan as any).commitments && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded">
+                  <span className="text-xs font-medium text-blue-700">Compromisos del Empleado:</span>
+                  <p className="text-sm text-blue-800">{(selectedPlan as any).commitments}</p>
+                </div>
+              )}
             </CardContent>
           </Card>
 

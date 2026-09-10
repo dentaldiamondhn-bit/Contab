@@ -66,6 +66,8 @@ export async function POST(request: NextRequest) {
         status: body.status || 'draft',
         start_date: body.startDate,
         end_date: body.endDate,
+        observations: body.observations || '',
+        commitments: body.commitments || '',
         created_by: body.createdBy || 'Sistema',
       })
       .select()
