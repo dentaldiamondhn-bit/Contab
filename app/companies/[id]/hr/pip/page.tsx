@@ -303,7 +303,7 @@ export default function PipPage() {
                     onChange={e => setForm(prev => ({ ...prev, employeeId: e.target.value }))}>
                     <option value="">Seleccionar empleado...</option>
                     {employees.filter(e => e.status === 'activo').map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name} ({emp.employee_code})</option>
+                      <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name} — {emp.department || 'Sin depto'} ({emp.employee_code})</option>
                     ))}
                   </select>
                 </div>
