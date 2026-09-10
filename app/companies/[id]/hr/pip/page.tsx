@@ -125,7 +125,15 @@ export default function PipPage() {
       }
       if (empRes.ok) {
         const empData = await empRes.json()
-        setEmployees(Array.isArray(empData) ? empData : [])
+        setEmployees(Array.isArray(empData) ? empData.map((e: any) => ({
+          id: e.id,
+          first_name: e.first_name || e.firstName || '',
+          last_name: e.last_name || e.lastName || '',
+          employee_code: e.employee_code || e.employeeId || '',
+          department: e.department || '',
+          position: e.position || '',
+          status: e.status || 'active',
+        })) : [])
       }
     } catch (e) {
       console.error('Error fetching PIP data:', e)
