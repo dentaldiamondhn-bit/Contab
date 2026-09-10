@@ -1,7 +1,8 @@
 // HR Module TypeScript Types
 // Diamond Accounting - Recursos Humanos
+// Aligned with actual implementation across all HR pages
 
-// ==================== EMPLOYEES ====================
+// ==================== SHARED TYPES ====================
 
 export type EmployeeStatus = 'active' | 'inactive' | 'terminated' | 'suspended';
 
@@ -11,7 +12,23 @@ export type ScheduleType = 'completa' | 'media' | 'personalizada';
 
 export type Modality = 'presencial' | 'remoto' | 'híbrido';
 
-export type WorkPermitStatus = 'nacional' | 'residencia_permanente' | 'residencia_temporal' | 'permiso_trabajo' | '';
+export type PayrollFrequency = 'semanal' | 'quincenal' | 'mensual' | 'cada_2_semanas';
+
+export type PaymentMethod = 'transferencia' | 'efectivo' | 'cheque' | 'deposito';
+
+export type Currency = 'HNL' | 'USD';
+
+export type QuincenaSelection = 'ambas' | '1ra' | '2da';
+
+export type BonusPaymentType = 'proporcional' | 'unico';
+
+export type PermissionStatus = 'pending' | 'approved' | 'rejected';
+
+export type Gender = 'M' | 'F' | '';
+
+export type CivilStatus = 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'unión libre';
+
+// ==================== EMPLOYEES ====================
 
 export interface Employee {
   id: string;
@@ -29,8 +46,8 @@ export interface Employee {
   phone: string;
   email: string;
   address: string;
-  civilStatus: string;
-  gender: string | null;
+  civilStatus: CivilStatus;
+  gender: Gender;
   freeDays: number[];
   vacationDays: number;
   usedVacationDays: number;
@@ -53,7 +70,7 @@ export interface Employee {
   socialSecurityNumber: string;
   pensionFund: string;
   laborRiskInsurer: string;
-  workPermitStatus: WorkPermitStatus;
+  workPermitStatus: string;
   visaExpiry: string;
   docIdentity: string;
   docAddressProof: string;
@@ -76,18 +93,112 @@ export interface Employee {
   suspensionReason: string;
   suspensionRequestedBy: string;
   suspensionPerformedBy: string;
-  hrDocuments: HrDocument[];
-  history: EmployeeHistory[];
+  hrDocuments: HRDocument[];
+  history: HistoryEntry[];
 }
 
 export interface MedicalRecord {
-  bloodType?: string;
-  allergies?: string;
-  conditions?: string;
-  medications?: string;
-  emergencyContact?: string;
-  emergencyPhone?: string;
-  notes?: string;
+  bloodType: string;
+  allergies: string;
+  chronicDiseases: string;
+  currentMedications: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  insuranceProvider: string;
+  insuranceNumber: string;
+  lastCheckup: string;
+  disabilities: string;
+  height: string;
+  weight: string;
+  notes: string;
+}
+
+export interface HRDocument {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  file: string;
+  observations: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+export interface HistoryEntry {
+  id: string;
+  action: string;
+  description: string;
+  changes: string[];
+  performedBy: string;
+  date: string;
+}
+
+// ==================== EMPLOYEE FORMS ====================
+
+export interface NewEmployeeForm {
+  firstName: string;
+  lastName: string;
+  identityNumber: string;
+  photo: string;
+  cv: string;
+  position: string;
+  department: string;
+  salary: number;
+  startDate: string;
+  phone: string;
+  email: string;
+  address: string;
+  civilStatus: CivilStatus;
+  vacationDays: number;
+  contractType: ContractType;
+  supervisor: string;
+  reportsTo: string | null;
+  schedule: ScheduleType;
+  scheduleHours: string;
+  scheduleEntry: string;
+  scheduleExit: string;
+  modality: Modality;
+  educationLevel: string;
+  university: string;
+  degree: string;
+  graduationYear: string;
+  languages: string;
+  certifications: string;
+  driverLicense: boolean;
+  otherSkills: string;
+  socialSecurityNumber: string;
+  pensionFund: string;
+  laborRiskInsurer: string;
+  workPermitStatus: string;
+  visaExpiry: string;
+  docIdentity: string;
+  docAddressProof: string;
+  docContract: string;
+  docNDA: string;
+  docEducationCerts: string;
+  docPreviousJobs: string;
+  docMedicalCert: string;
+  hrDocuments: HRDocument[];
+  medicalRecord: MedicalRecord;
+}
+
+export interface DeactivateForm {
+  reason: string;
+  requestedBy: string;
+  performedBy: string;
+  rehireable: boolean;
+}
+
+export interface SuspendForm {
+  reason: string;
+  requestedBy: string;
+  performedBy: string;
+}
+
+export interface ReactivateForm {
+  reason: string;
+  requestedBy: string;
+  performedBy: string;
 }
 
 // ==================== DEPARTMENTS ====================
@@ -116,32 +227,54 @@ export interface Position {
 // ==================== ATTENDANCE ====================
 
 export type AttendanceStatus =
-  | 'presente'
-  | 'ausente'
-  | 'tardanza'
-  | 'vacaciones'
-  | 'horas_extra'
-  | 'permiso_sin_sueldo'
-  | 'incapacidad'
-  | 'feriado'
-  | 'dia_libre';
+  | 'present'
+  | 'absent'
+  | 'late'
+  | 'vacation'
+  | 'overtime'
+  | 'unpaid_leave'
+  | 'disability'
+  | 'holiday'
+  | 'free_day';
 
-export type IncapacityType = '100_patrono' | 'ihss' | 'sin_pago' | 'maternidad';
-
-export interface AttendanceRecord {
+export interface Attendance {
   id: string;
   employeeId: string;
-  employeeName: string;
   date: string;
+  checkIn: string;
+  checkOut: string;
   status: AttendanceStatus;
-  amount: number;
-  hoursExtra: number;
-  holidayPayType: 'doble' | 'triple' | null;
-  incapacityType: IncapacityType | null;
-  notes: string;
+  amount?: number;
+  hours?: number;
+  overtimeHours?: number;
+  overtimeAmount?: number;
+  overtimeRate?: number;
+  holidayType?: 'doble' | 'triple';
+  notes?: string;
 }
 
-export interface AttendanceHoliday {
+export interface Holiday {
+  date: string;
+  name: string;
+  type: 'doble' | 'triple';
+}
+
+export interface WorkSchedule {
+  employeeId: string;
+  freeDays: number[];
+}
+
+export type DisabilityPaymentType = 'full' | 'ihss' | 'none' | 'maternity';
+
+export interface DisabilityType {
+  value: DisabilityPaymentType;
+  label: string;
+  percentage: number;
+  description: string;
+  isFemaleOnly?: boolean;
+}
+
+export interface AttendanceHolidayExtended {
   id: string;
   name: string;
   date: string;
@@ -156,7 +289,16 @@ export interface AttendanceConfig {
   hoursExtraMultiplier: number;
 }
 
-export interface AttendanceSchedule {
+export interface DeductionConfig {
+  absent: { type: 'fixed' | 'daily'; value: number };
+  late: { type: 'fixed' | 'hourly'; value: number };
+  vacation: { type: 'none' | 'paid'; value: number };
+  unpaid_leave: { type: 'fixed' | 'daily'; value: number };
+  disability: { type: 'none' | 'paid'; value: number };
+  overtime: { type: 'hourly'; value: number };
+}
+
+export interface AttendanceScheduleRecord {
   id: string;
   employeeId: string;
   employeeName: string;
@@ -166,167 +308,21 @@ export interface AttendanceSchedule {
   scheduleHours: string;
 }
 
-// ==================== PAYROLL ====================
+// ==================== ATTENDANCE QUINCENA ====================
 
-export type PayrollFrequency = 'semanal' | 'quincenal' | 'mensual' | 'cada_2_semanas';
-
-export type PaymentMethod = 'transferencia' | 'efectivo' | 'cheque' | 'deposito';
-
-export interface PayrollConfig {
-  id: string;
-  frequency: PayrollFrequency;
-  igssEmployeePercent: number;
-  igssEmployerPercent: number;
-  ihssPercent: number;
-  rapPercent: number;
-  currentQuincena: '1ra' | '2da' | 'ambas';
-  aguinaldo: boolean;
-  bono14: boolean;
-  paymentMethod: PaymentMethod;
-  deadlineDocuments: string;
-  deadlineAttendance: string;
-  deadlineHoursExtra: string;
-  deadlineBonus: string;
-}
-
-export interface PayrollDeduction {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  igssOverride: number | null;
-  ihssOverride: number | null;
-  rapOverride: number | null;
-  igssEnabled: boolean;
-  ihssEnabled: boolean;
-  rapEnabled: boolean;
-  customDeductions: CustomDeduction[];
-}
-
-export interface CustomDeduction {
-  name: string;
-  amount: number;
-  isPercent: boolean;
-  frequency: PayrollFrequency;
-  quincena: '1ra' | '2da' | 'ambas';
-}
-
-export interface PayrollClosed {
-  id: string;
-  period: string;
-  frequency: PayrollFrequency;
-  closedAt: string;
-  totalGross: number;
-  totalDeductions: number;
-  totalNet: number;
-  employees: PayrollClosedEmployee[];
-}
-
-export interface PayrollClosedEmployee {
+export interface AttendanceQuincenaRow {
   employeeId: string;
   employeeName: string;
   department: string;
   position: string;
   baseSalary: number;
-  periodSalary: number;
-  grossSalary: number;
-  igss: number;
-  ihss: number;
-  rap: number;
-  deductions: number;
-  customItems: CustomDeductionItem[];
-  netSalary: number;
-}
-
-export interface CustomDeductionItem {
-  name: string;
-  amount: number;
-}
-
-// ==================== PERMISSIONS / VACATIONS ====================
-
-export type PermissionStatus = 'pendiente' | 'aprobado' | 'rechazado';
-
-export type PermissionCategory = 'vacaciones' | 'personal' | 'enfermedad' | 'especial' | 'sin_sueldo';
-
-export interface PermissionType {
-  id: string;
-  name: string;
-  category: PermissionCategory;
-  icon: string;
-  color: string;
-  maxDays: number;
-  isPaid: boolean;
-}
-
-export interface PermissionRequest {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  typeId: string;
-  typeName: string;
-  startDate: string;
-  endDate: string;
-  days: number;
-  reason: string;
-  status: PermissionStatus;
-  approvedBy: string;
-  approvedAt: string;
-  notes: string;
-}
-
-export interface PermissionUsed {
-  id: string;
-  employeeId: string;
-  employeeName: string;
-  typeId: string;
-  typeName: string;
-  year: number;
-  month: number;
-  daysUsed: number;
-}
-
-// ==================== EMPLOYEE HISTORY ====================
-
-export interface EmployeeHistory {
-  id: string;
-  employeeId: string;
-  action: string;
-  description: string;
-  changes: string[];
-  performedBy: string;
-  createdAt: string;
-}
-
-// ==================== EMPLOYEE HR DOCUMENTS ====================
-
-export interface HrDocument {
-  id: string;
-  employeeId: string;
-  name: string;
-  type: string;
-  url: string;
-  uploadedAt: string;
-}
-
-// ==================== API RESPONSES ====================
-
-export interface ApiResponse<T> {
-  data?: T;
-  error?: string;
-}
-
-// ==================== CSV IMPORT ====================
-
-export interface CsvImportRow {
-  tipo: 'departamento' | 'puesto';
-  nombre: string;
-  descripcion: string;
-  departamento: string;
-  gerente: string;
-  salario_minimo: string;
-  salario_maximo: string;
-  departamento_padre: string;
-  puesto_padre: string;
+  days: (AttendanceStatus | '')[];
+  totalPresente: number;
+  totalAusente: number;
+  totalTardanza: number;
+  totalHorasExtra: number;
+  montoDeducciones: number;
+  montoIngresos: number;
 }
 
 // ==================== ATTENDANCE REPORTS ====================
@@ -359,6 +355,152 @@ export interface EmployeeAttendanceRanking {
   score: number;
 }
 
+// ==================== PAYROLL ====================
+
+export interface PayrollConfig {
+  frequency: PayrollFrequency;
+  paymentMethod: PaymentMethod;
+  currency: Currency;
+  paymentDay: number;
+  workingDaysPerPeriod: number;
+  quincenalDay1: number;
+  quincenalDay2: number;
+  biweeklyStartDay: number;
+  biweeklyStartMonth: number;
+  weeklyPayDay: number;
+  igssEmployee: number;
+  igssEmployer: number;
+  igssQuincena: QuincenaSelection;
+  ihss: number;
+  ihssQuincena: QuincenaSelection;
+  rap: number;
+  rapQuincena: QuincenaSelection;
+  applyAguinaldo: boolean;
+  aguinaldoPercent: number;
+  aguinaldoPaymentType: BonusPaymentType;
+  aguinaldoPaymentMonth: number;
+  applyVacationBonus: boolean;
+  vacationBonusPercent: number;
+  vacationBonusPaymentType: BonusPaymentType;
+  vacationBonusPaymentMonth: number;
+  applyBeneficio14: boolean;
+  beneficio14Percent: number;
+  beneficio14PaymentType: BonusPaymentType;
+  beneficio14PaymentMonth: number;
+  docsDeadlineDaysBefore: number;
+  attendanceDeadlineDaysBefore: number;
+  overtimeDeadlineDaysBefore: number;
+  bonusDeadlineDaysBefore: number;
+  closingMonth: number;
+  closingYear: number;
+}
+
+export interface PayrollEmployee {
+  id: string;
+  name: string;
+  position: string;
+  department: string;
+  salary: number;
+  startDate: string;
+  status: 'active' | 'inactive';
+}
+
+export interface EmployeeDeduction {
+  id: string;
+  name: string;
+  type: 'fixed' | 'percentage';
+  value: number;
+  enabled: boolean;
+  isStandard: boolean;
+  paymentFrequency: 'mensual' | 'quincenal' | 'dividido';
+  totalPayments: number;
+  quincena: QuincenaSelection;
+}
+
+export interface PayrollRecord {
+  id: string;
+  period: string;
+  month: number;
+  year: number;
+  closedAt: string;
+  closedBy: string;
+  totalPeriodBase: number;
+  totalBase: number;
+  totalDeductions: number;
+  totalIgssEmployer: number;
+  totalNetPay: number;
+  totalAttendanceDeductions: number;
+  totalAttendanceIncomes: number;
+  employeeCount: number;
+  frequency: string;
+  employees: PayrollRecordEmployee[];
+}
+
+export interface PayrollRecordEmployee {
+  name: string;
+  position: string;
+  department: string;
+  salary: number;
+  periodSalary: number;
+  igssEmployee: number;
+  ihss: number;
+  rap: number;
+  totalDeductions: number;
+  attendanceDeductionTotal: number;
+  attendanceIncomeTotal: number;
+  netPay: number;
+}
+
+export interface PayrollCalculation {
+  periodSalary: number;
+  igssEmployee: number;
+  ihss: number;
+  rap: number;
+  customDeductions: number;
+  customItems: { name: string; amount: number }[];
+  attendanceDeductionTotal: number;
+  attendanceIncomeTotal: number;
+  attendanceItems: { name: string; amount: number }[];
+  totalDeductions: number;
+  netPay: number;
+}
+
+// ==================== PAYROLL CLOSED ====================
+
+export interface PayrollClosed {
+  id: string;
+  period: string;
+  frequency: PayrollFrequency;
+  closedAt: string;
+  closedBy: string;
+  totalEmployees: number;
+  totalGross: number;
+  totalDeductions: number;
+  totalNet: number;
+  employeeBreakdown: PayrollClosedEmployee[];
+}
+
+export interface PayrollClosedEmployee {
+  employeeId: string;
+  employeeName: string;
+  department: string;
+  position: string;
+  baseSalary: number;
+  periodSalary: number;
+  grossSalary: number;
+  igss: number;
+  ihss: number;
+  rap: number;
+  deductions: number;
+  customItems: CustomDeductionItem[];
+  netSalary: number;
+}
+
+export interface CustomDeductionItem {
+  name: string;
+  amount: number;
+}
+
 // ==================== PAYROLL PAYSLIP ====================
 
 export interface PayrollPayslip {
@@ -387,6 +529,49 @@ export interface PayrollPayslip {
   notes: string;
 }
 
+// ==================== PERMISSIONS / VACATIONS ====================
+
+export type IconName = 'Plane' | 'Heart' | 'Stethoscope' | 'BriefcaseBusiness' | 'Ban' | 'Star' | 'Zap' | 'Gift' | 'Home' | 'BookOpen' | 'Shield' | 'Coffee';
+
+export interface PermissionTypeDef {
+  id: string;
+  label: string;
+  icon: IconName;
+  colorValue: string;
+  annualDays: number;
+  hasLimit: boolean;
+  description: string;
+  isDefault?: boolean;
+}
+
+export interface PermissionRequest {
+  id: string;
+  employeeId: string;
+  employeeName: string;
+  typeId: string;
+  startDate: string;
+  endDate: string;
+  days: number;
+  reason: string;
+  status: PermissionStatus;
+  createdAt: string;
+  resolvedAt?: string;
+  resolvedBy?: string;
+}
+
+export interface UsageRecord {
+  annual: number;
+  monthly: number;
+  month: number;
+  year: number;
+}
+
+export interface UsedDays {
+  [empId: string]: { [typeId: string]: UsageRecord };
+}
+
+export type VacationTab = 'control' | 'solicitudes' | 'recuento';
+
 // ==================== ORG CHART ====================
 
 export interface OrgChartNode {
@@ -402,7 +587,19 @@ export interface OrgChartNode {
   children: OrgChartNode[];
 }
 
-// ==================== EMPLOYEE CSV IMPORT ====================
+// ==================== CSV IMPORT ====================
+
+export interface CsvImportRow {
+  tipo: 'departamento' | 'puesto';
+  nombre: string;
+  descripcion: string;
+  departamento: string;
+  gerente: string;
+  salario_minimo: string;
+  salario_maximo: string;
+  departamento_padre: string;
+  puesto_padre: string;
+}
 
 export interface EmployeeCsvRow {
   employeeid: string;
@@ -437,51 +634,7 @@ export interface EmployeeCsvRow {
   supervisor: string;
 }
 
-// ==================== ATTENDANCE QUINCENA ====================
-
-export interface AttendanceQuincenaRow {
-  employeeId: string;
-  employeeName: string;
-  department: string;
-  position: string;
-  baseSalary: number;
-  days: (AttendanceStatus | '')[];
-  totalPresente: number;
-  totalAusente: number;
-  totalTardanza: number;
-  totalHorasExtra: number;
-  montoDeducciones: number;
-  montoIngresos: number;
-}
-
-// ==================== PAYROLL CALCULATION ====================
-
-export interface PayrollCalculation {
-  employeeId: string;
-  employeeName: string;
-  department: string;
-  position: string;
-  contractType: ContractType;
-  baseSalary: number;
-  periodSalary: number;
-  daysWorked: number;
-  hoursWorked: number;
-  overtimeHours: number;
-  grossSalary: number;
-  igss: number;
-  igssEmployer: number;
-  ihss: number;
-  rap: number;
-  isr: number;
-  absenceDeduction: number;
-  tardinessDeduction: number;
-  customItems: CustomDeductionItem[];
-  totalDeductions: number;
-  netSalary: number;
-  employerCost: number;
-}
-
-// ==================== EMPLOYEE SEARCH FILTERS ====================
+// ==================== EMPLOYEE SEARCH ====================
 
 export interface EmployeeSearchFilters {
   search: string;
@@ -519,17 +672,9 @@ export interface HrDashboardSummary {
   positionsCount: number;
 }
 
-// ==================== PAYROLL CLOSED HISTORY ====================
+// ==================== API RESPONSES ====================
 
-export interface PayrollClosedHistory {
-  id: string;
-  period: string;
-  frequency: PayrollFrequency;
-  closedAt: string;
-  closedBy: string;
-  totalEmployees: number;
-  totalGross: number;
-  totalDeductions: number;
-  totalNet: number;
-  employeeBreakdown: PayrollClosedEmployee[];
+export interface ApiResponse<T> {
+  data?: T;
+  error?: string;
 }

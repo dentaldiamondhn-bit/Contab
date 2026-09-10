@@ -19,12 +19,12 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~82% | 5 de 6 áreas completas (todas migradas a Supabase), PIP sin iniciar |
+| Completitud Funcional | ~85% | 5 de 6 áreas completas (todas migradas a Supabase), PIP sin iniciar |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
-| Estabilidad y Validaciones | ~70% | Validaciones en UI + Supabase RLS + unique constraints |
+| Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina) |
-| Documentación y Tipado | ~60% | `types/hr.ts` con 30+ interfaces; `hooks/use-hr.ts` con 3 hooks CRUD |
+| Documentación y Tipado | ~70% | `types/hr.ts` con 38 interfaces; `hooks/use-hr.ts` con 3 hooks CRUD |
 
 ---
 
@@ -38,8 +38,8 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/employees/page.tsx` | UI completa de gestión de empleados: CRUD, pestañas (Personal, Trabajo, Académico, Habilidades, Ficha Médica, Documentos, Doc. RRHH, Historial), modales de desactivar/suspender/reactivar, importación CSV, **búsqueda server-side con debounce (300ms)**, upload de fotos/docs vía API con URLs |
-| `app/companies/[id]/hr/departments/page.tsx` | Gestión de departamentos y cargos con vista jerárquica en árbol, CRUD, rangos salariales, **pestañas Departamentos/Puestos**, **importación CSV unificada de departamentos y puestos con plantilla descargable y vista previa**, **cambio de departamento al editar puestos** |
+| `app/companies/[id]/hr/employees/page.tsx` | UI completa de gestión de empleados: CRUD, pestañas (Personal, Trabajo, Académico, Habilidades, Ficha Médica, Documentos, Doc. RRHH, Historial), modales de desactivar/suspender/reactivar, importación CSV, **búsqueda server-side con debounce (300ms)**, upload de fotos/docs vía API con URLs, **puestos multi-ocupante (múltiples empleados por puesto)** |
+| `app/companies/[id]/hr/departments/page.tsx` | Gestión de departamentos y cargos con vista jerárquica en árbol, CRUD, rangos salariales, **pestañas Departamentos/Puestos**, **importación CSV unificada de departamentos y puestos con plantilla descargable y vista previa**, **cambio de departamento al editar puestos**, **múltiples ocupantes por puesto mostrados en badges** |
 | `app/companies/[id]/hr/hierarchy/page.tsx` | Visor de jerarquía organizacional con asignación de padres-cargos |
 | `app/companies/[id]/hr/org-chart/page.tsx` | **Organigrama interactivo**: vista de árbol y lista, expandir/contraer, búsqueda en tiempo real, filtro por departamento, asignar/cambiar/quitar jefe directo, subir foto del empleado (Supabase Storage), importación CSV de jerarquía con plantilla descargable |
 | `app/companies/[id]/hr/page.tsx` | Dashboard de RRHH con tarjetas resumen (empleados activos, planilla mensual, deducciones, solicitudes pendientes) |

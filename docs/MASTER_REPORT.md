@@ -25,21 +25,18 @@
 
 **Promedio General del Sistema: ~60%**
 
-### Notas de Actualización (8 Sept 2026)
+### Notas de Actualización (9 Sept 2026)
 
 #### HR Module
-- **HR: Organigrama completo** — Página `/hr/org-chart` con vista de árbol y lista, búsqueda, filtro por departamento, asignación de jefes directos, subir foto, importación CSV. Columna `reports_to` desplegada en Supabase.
-- **HR: Importación CSV corregida** — Ahora procesa todas las filas del archivo (antes limitaba a 10 filas).
-- **HR: Importación CSV de departamentos y puestos** — Página `/hr/departments` ahora permite importar departamentos y puestos desde archivos CSV con plantilla descargable y vista previa.
-- **HR: Plantilla CSV unificada** — Una sola plantilla con columna `tipo` (departamento/puesto) para importar ambos tipos en un solo archivo.
-- **HR: Pestaña de Puestos** — Página `/hr/departments` ahora tiene pestañas Departamentos/Puestos con vista de tabla agrupada por departamento y edición inline.
-- **HR: Filtros de dropdowns en empleados** — Cargo y Jefe Directo ahora se filtran por departamento seleccionado.
-- **HR: Tipos TypeScript** — `types/hr.ts` con 30+ interfaces para todas las entidades HR.
-- **HR: Hooks dedicados** — `hooks/use-hr.ts` con useEmployees, useDepartments, usePositions (CRUD completo).
+- **HR: Puestos multi-ocupante** — Múltiples empleados pueden ocupar el mismo puesto. UI muestra badges por cada empleado asignado. Eliminada restricción de puesto único.
+- **HR: employee_code auto-generado** — Si el código de empleado es null, se genera automáticamente (`EMP-{timestamp}`) al crear o actualizar.
+- **HR: Departamento cambiable al editar puestos** — Árbol de departamentos y pestaña de puestos permiten reasignar un puesto a otro departamento.
 - **HR: Integración con contabilidad** — Al cerrar nómina se generan automáticamente asientos contables: gasto salarios (5101), cargas sociales patronales (5102), y pago de nómina (2102→1101). API bridge `hr/accounting/route.ts`.
 
 #### Infraestructura y Despliegue
-- **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `clerk_id`. Elimina el error 500 en `UserContext`.
+- **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
+- **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `auth_id` (Clerk userId). Archivo duplicado `route.js` eliminado, `route.ts` creado.
+- **Vercel env vars fix** — Clerk `publishableKey` y `secret key` agregadas a Vercel para resolver `MIDDLEWARE_INVOCATION_FAILED`.
 - **Vercel SpeedInsights + Analytics** — `<SpeedInsights />` y `<Analytics />` integrados en `app/layout.tsx` para monitoreo de rendimiento.
 - **@clerk/clerk-sdk-node eliminado** — Paquete deprecado reemplazado por `lib/clerk-api.ts` (helper REST API directo). 7 scripts y 6 API routes migrados. 0 vulnerabilidades restantes.
 - **Supabase lazy init** — `lib/supabase.ts` y `lib/supabase-db.ts` migrados a inicialización lazy (Proxy) para evitar errores de build en Vercel donde `NEXT_PUBLIC_SUPABASE_URL` no está disponible.
