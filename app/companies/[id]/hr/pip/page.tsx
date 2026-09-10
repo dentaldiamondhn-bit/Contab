@@ -109,6 +109,8 @@ export default function PipPage() {
   const [showEvalForm, setShowEvalForm] = useState(false)
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
+  const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
+  const [goalComments, setGoalComments] = useState<Record<string, string>>({})
   const [showCustomArea, setShowCustomArea] = useState(false)
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
   const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
@@ -938,36 +940,74 @@ export default function PipPage() {
               ) : (
                 <div className="space-y-3">
                   {goals.map((g: any) => {
-                    const goalStatus = GOAL_STATUS[g.status] || GOAL_STATUS.pending
-                    const targetVal = g.targetValue || g.target_value || 1
-                    const currentVal = g.currentValue || g.current_value || 0
-                    const pct = targetVal > 0 ? Math.round((currentVal / targetVal) * 100) : 0
-                    const dueDate = g.dueDate || g.due_date
+                    const goalId = g.id || g.title
+                    const isChecked = checkedGoals[goalId] || g.status === 'met'
+                    const comment = goalComments[goalId] || ''
                     return (
-                      <div key={g.id} className="border rounded-md p-4">
-                        <div className="flex items-center justify-between mb-2">
-                          <div>
-                            <span className="font-medium">{g.title}</span>
-                            <span className="text-sm text-gray-500 ml-2">({g.metric})</span>
+                      <div key={g.id} className={`border rounded-md p-4 transition-colors ${isChecked ? 'bg-green-50 border-green-200' : 'bg-white'}`}>
+                        <div className="flex items-start gap-3">
+                          <input type="checkbox" className="mt-1 h-5 w-5 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                            checked={isChecked}
+                            onChange={e => setCheckedGoals(prev => ({ ...prev, [goalId]: e.target.checked }))} />
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <span className={`font-medium ${isChecked ? 'line-through text-gray-500' : ''}`}>{g.title}</span>
+                                <span className="text-xs text-gray-400">({g.metric})</span>
+                              </div>
+                              {isChecked && <Badge className="bg-green-100 text-green-700">Cumplido</Badge>}
+                              {!isChecked && <Badge className={`${GOAL_STATUS[g.status]?.bg || 'bg-gray-100'} ${GOAL_STATUS[g.status]?.color || 'text-gray-700'}`}>{GOAL_STATUS[g.status]?.label || 'Pendiente'}</Badge>}
+                            </div>
+                            {g.description && <p className="text-sm text-gray-600 mt-1">{g.description}</p>}
+                            {g.commitments && (
+                              <div className="bg-blue-50 border border-blue-200 rounded p-2 mt-2">
+                                <span className="text-xs font-medium text-blue-700">Compromisos:</span>
+                                <p className="text-sm text-blue-800">{g.commitments}</p>
+                              </div>
+                            )}
+                            {isChecked && (
+                              <div className="mt-3 bg-white border border-green-200 rounded-md p-3">
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Comentario de cierre</label>
+                                <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2}
+                                  placeholder="Escriba un comentario sobre el cumplimiento de esta meta..."
+                                  value={comment}
+                                  onChange={e => setGoalComments(prev => ({ ...prev, [goalId]: e.target.value }))} />
+                                <Button size="sm" className="mt-2" onClick={async () => {
+                                  try {
+                                    const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+                                      body: JSON.stringify({
+                                        pipPlanId: selectedPlan.id,
+                                        goalId: g.id,
+                                        evaluationDate: new Date().toISOString().split('T')[0],
+                                        score: 100,
+                                        progressPct: 100,
+                                        comments: comment || 'Meta cumplida',
+                                        evaluator: 'Sistema',
+                                      }),
+                                    })
+                                    if (res.ok) {
+                                      alert('Meta marcada como cumplida')
+                                    }
+                                  } catch (e) {
+                                    console.error('Error saving evaluation:', e)
+                                  }
+                                }}>
+                                  <Save className="h-3 w-3 mr-1" /> Guardar Comentario
+                                </Button>
+                              </div>
+                            )}
+                            {!isChecked && (
+                              <div className="flex items-center gap-4 text-sm mt-2">
+                                <span className="text-gray-500">Progreso: {g.currentValue || g.current_value || 0} / {g.targetValue || g.target_value || 1} {g.unit}</span>
+                                <div className="flex-1 bg-gray-200 rounded-full h-2">
+                                  <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(((g.currentValue || g.current_value || 0) / (g.targetValue || g.target_value || 1)) * 100, 100)}%` }} />
+                                </div>
+                                <span className="text-gray-500">Vence: {g.dueDate || g.due_date ? new Date(g.dueDate || g.due_date).toLocaleDateString('es-HN') : 'N/A'}</span>
+                              </div>
+                            )}
                           </div>
-                          <Badge className={`${goalStatus.bg} ${goalStatus.color}`}>{goalStatus.label}</Badge>
-                        </div>
-                        {g.description && <p className="text-sm text-gray-600 mb-2">{g.description}</p>}
-                        {g.commitments && (
-                          <div className="bg-blue-50 border border-blue-200 rounded p-2 mb-2">
-                            <span className="text-xs font-medium text-blue-700">Compromisos del empleado:</span>
-                            <p className="text-sm text-blue-800">{g.commitments}</p>
-                          </div>
-                        )}
-                        <div className="flex items-center gap-4 text-sm">
-                          <span>Progreso: {currentVal} / {targetVal} {g.unit}</span>
-                          <div className="flex-1 bg-gray-200 rounded-full h-2">
-                            <div className="bg-blue-500 h-2 rounded-full" style={{ width: `${Math.min(pct, 100)}%` }} />
-                          </div>
-                          <span className="font-medium">{pct}%</span>
-                        </div>
-                        <div className="text-xs text-gray-500 mt-1">
-                          Vence: {dueDate ? new Date(dueDate).toLocaleDateString('es-HN') : 'Sin fecha'}
                         </div>
                       </div>
                     )
