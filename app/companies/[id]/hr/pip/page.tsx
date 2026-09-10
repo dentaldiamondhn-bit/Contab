@@ -80,6 +80,21 @@ const GOAL_STATUS: Record<string, { label: string; color: string; bg: string }> 
   exceeded: { label: 'Superado', color: 'text-purple-700', bg: 'bg-purple-100' },
 }
 
+const IMPROVEMENT_AREAS = [
+  { id: 'puntualidad', title: 'Puntualidad y Asistencia', metric: 'asistencia', unit: 'porcentaje', description: 'Mejorar la puntualidad en las entradas y reducir ausencias injustificadas' },
+  { id: 'calidad', title: 'Calidad del Trabajo', metric: 'calidad', unit: 'calificacion', description: 'Elevar la calidad y precisión de las tareas asignadas' },
+  { id: 'comunicacion', title: 'Comunicación', metric: 'comunicacion', unit: 'calificacion', description: 'Mejorar la comunicación oral y escrita con el equipo y clientes' },
+  { id: 'equipo', title: 'Trabajo en Equipo', metric: 'colaboracion', unit: 'calificacion', description: 'Fomentar la colaboración y el trabajo coordinado con compañeros' },
+  { id: 'productividad', title: 'Productividad', metric: 'productividad', unit: 'porcentaje', description: 'Incrementar la cantidad y eficiencia de las tareas completadas' },
+  { id: 'liderazgo', title: 'Liderazgo', metric: 'liderazgo', unit: 'calificacion', description: 'Desarrollar habilidades de guía, motivación y toma de decisiones' },
+  { id: 'normas', title: 'Cumplimiento de Normas', metric: 'cumplimiento', unit: 'porcentaje', description: 'Respetar y aplicar las políticas y procedimientos de la empresa' },
+  { id: 'tecnicas', title: 'Habilidades Técnicas', metric: 'habilidades', unit: 'calificacion', description: 'Fortalecer conocimientos y destrezas técnicas del puesto' },
+  { id: 'clientes', title: 'Atención al Cliente', metric: 'servicio', unit: 'calificacion', description: 'Mejorar la experiencia y satisfacción del cliente' },
+  { id: 'iniciativa', title: 'Iniciativa y Proactividad', metric: 'iniciativa', unit: 'calificacion', description: 'Tomar acción sin esperar instrucciones, proponer mejoras' },
+  { id: 'organizacion', title: 'Organización y Orden', metric: 'organizacion', unit: 'calificacion', description: 'Mantener el área de trabajo y tareas debidamente organizadas' },
+  { id: 'adaptabilidad', title: 'Adaptabilidad al Cambio', metric: 'adaptabilidad', unit: 'calificacion', description: 'Capacidad para ajustarse a nuevas situaciones, herramientas o procesos' },
+]
+
 export default function PipPage() {
   const params = useParams()
   const router = useRouter()
@@ -355,6 +370,47 @@ export default function PipPage() {
                   <label className="block text-sm font-medium mb-1">Fecha de Fin</label>
                   <input type="date" className="w-full border rounded-md px-3 py-2" value={form.endDate}
                     onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <h3 className="font-semibold flex items-center gap-2 mb-3">
+                  <AlertTriangle className="h-4 w-4" /> Áreas a Mejorar (clic para agregar como meta)
+                </h3>
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {IMPROVEMENT_AREAS.map(area => {
+                    const alreadyAdded = form.goals.some(g => g.metric === area.metric)
+                    return (
+                      <button key={area.id} type="button"
+                        disabled={alreadyAdded}
+                        onClick={() => {
+                          setForm(prev => ({
+                            ...prev,
+                            goals: [...prev.goals, {
+                              title: area.title,
+                              description: area.description,
+                              metric: area.metric,
+                              targetValue: 100,
+                              currentValue: 0,
+                              unit: area.unit,
+                              dueDate: prev.endDate,
+                              status: 'pending',
+                            }],
+                          }))
+                        }}
+                        className={`text-left border rounded-md p-2 text-sm transition-colors ${
+                          alreadyAdded
+                            ? 'bg-green-50 border-green-200 text-green-700 cursor-default'
+                            : 'bg-white border-gray-200 hover:bg-cyan-50 hover:border-cyan-300 cursor-pointer'
+                        }`}>
+                        <div className="font-medium flex items-center gap-1">
+                          {alreadyAdded && <CheckCircle className="h-3 w-3" />}
+                          {area.title}
+                        </div>
+                        <div className="text-xs text-gray-500 truncate">{area.description}</div>
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 
