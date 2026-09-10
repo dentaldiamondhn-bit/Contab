@@ -321,7 +321,6 @@ export default function PipPage() {
                         <div className="text-gray-500">Código: {emp.employee_code}</div>
                         <div className="text-gray-500">Departamento: {emp.department || 'N/A'}</div>
                         <div className="text-gray-500">Puesto: {emp.position || 'N/A'}</div>
-                        <div className="text-gray-500">Salario: {emp.salary ? `L. ${emp.salary.toLocaleString()}` : 'N/A'}</div>
                         {emp.supervisor && (
                           <div className="text-cyan-700 font-medium">Supervisor: {emp.supervisor}</div>
                         )}
