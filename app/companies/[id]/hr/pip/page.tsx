@@ -1002,6 +1002,7 @@ export default function PipPage() {
                                         evaluator: 'Sistema',
                                       }),
                                     })
+                                    const data = await res.json()
                                     if (res.ok) {
                                       const now = new Date().toLocaleString('es-HN')
                                       setGoalCommentHistory(prev => ({
@@ -1009,6 +1010,9 @@ export default function PipPage() {
                                         [goalId]: [...(prev[goalId] || []), { text: comment, date: now }],
                                       }))
                                       setGoalComments(prev => ({ ...prev, [goalId]: '' }))
+                                    } else {
+                                      console.error('Error saving comment:', data)
+                                      alert('Error: ' + (data.error || 'No se pudo guardar'))
                                     }
                                   } catch (e) {
                                     console.error('Error saving evaluation:', e)
