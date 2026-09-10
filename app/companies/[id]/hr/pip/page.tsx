@@ -184,6 +184,7 @@ export default function PipPage() {
           endDate: form.endDate,
           observations: form.observations,
           commitments: form.commitments,
+          status: 'active',
           goals: form.goals.map(g => ({
             title: g.title,
             description: g.description,
