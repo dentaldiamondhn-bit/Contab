@@ -111,6 +111,8 @@ export default function PipPage() {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
+  const [savedComments, setSavedComments] = useState<Record<string, boolean>>({})
+  const [editingComments, setEditingComments] = useState<Record<string, boolean>>({})
   const [showCustomArea, setShowCustomArea] = useState(false)
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
   const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
@@ -968,34 +970,46 @@ export default function PipPage() {
                             {isChecked && (
                               <div className="mt-3 bg-white border border-green-200 rounded-md p-3">
                                 <label className="block text-xs font-medium text-gray-600 mb-1">Comentario de cierre</label>
-                                <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2}
-                                  placeholder="Escriba un comentario sobre el cumplimiento de esta meta..."
-                                  value={comment}
-                                  onChange={e => setGoalComments(prev => ({ ...prev, [goalId]: e.target.value }))} />
-                                <Button size="sm" className="mt-2" onClick={async () => {
-                                  try {
-                                    const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
-                                      method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
-                                      body: JSON.stringify({
-                                        pipPlanId: selectedPlan.id,
-                                        goalId: g.id,
-                                        evaluationDate: new Date().toISOString().split('T')[0],
-                                        score: 100,
-                                        progressPct: 100,
-                                        comments: comment || 'Meta cumplida',
-                                        evaluator: 'Sistema',
-                                      }),
-                                    })
-                                    if (res.ok) {
-                                      alert('Meta marcada como cumplida')
-                                    }
-                                  } catch (e) {
-                                    console.error('Error saving evaluation:', e)
-                                  }
-                                }}>
-                                  <Save className="h-3 w-3 mr-1" /> Guardar Comentario
-                                </Button>
+                                {savedComments[goalId] && !editingComments[goalId] ? (
+                                  <div>
+                                    <p className="text-sm text-gray-700 bg-gray-50 border rounded px-2 py-1">{comment || 'Sin comentario'}</p>
+                                    <Button size="sm" variant="outline" className="mt-2" onClick={() => setEditingComments(prev => ({ ...prev, [goalId]: true }))}>
+                                      <Pencil className="h-3 w-3 mr-1" /> Editar
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <div>
+                                    <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2}
+                                      placeholder="Escriba un comentario sobre el cumplimiento de esta meta..."
+                                      value={comment}
+                                      onChange={e => setGoalComments(prev => ({ ...prev, [goalId]: e.target.value }))} />
+                                    <Button size="sm" className="mt-2" onClick={async () => {
+                                      try {
+                                        const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+                                          body: JSON.stringify({
+                                            pipPlanId: selectedPlan.id,
+                                            goalId: g.id,
+                                            evaluationDate: new Date().toISOString().split('T')[0],
+                                            score: 100,
+                                            progressPct: 100,
+                                            comments: comment || 'Meta cumplida',
+                                            evaluator: 'Sistema',
+                                          }),
+                                        })
+                                        if (res.ok) {
+                                          setSavedComments(prev => ({ ...prev, [goalId]: true }))
+                                          setEditingComments(prev => ({ ...prev, [goalId]: false }))
+                                        }
+                                      } catch (e) {
+                                        console.error('Error saving evaluation:', e)
+                                      }
+                                    }}>
+                                      <Save className="h-3 w-3 mr-1" /> Guardar Comentario
+                                    </Button>
+                                  </div>
+                                )}
                               </div>
                             )}
                             {!isChecked && (
