@@ -803,6 +803,24 @@ export default function PipPage() {
     const evaluations = selectedPlan.pip_evaluations || []
     const goals = selectedPlan.pip_goals || []
 
+    // Populate comment history from evaluations if not already done
+    if (evaluations.length > 0 && Object.keys(goalCommentHistory).length === 0) {
+      const history: Record<string, { text: string; date: string }[]> = {}
+      evaluations.forEach((ev: any) => {
+        if (ev.goalId || ev.goal_id) {
+          const gid = ev.goalId || ev.goal_id
+          if (!history[gid]) history[gid] = []
+          history[gid].push({
+            text: ev.comments || ev.comment || '',
+            date: new Date(ev.evaluationDate || ev.evaluation_date).toLocaleString('es-HN'),
+          })
+        }
+      })
+      if (Object.keys(history).length > 0) {
+        setTimeout(() => setGoalCommentHistory(history), 0)
+      }
+    }
+
     return (
       <div className="min-h-screen bg-gray-50 p-6">
         <div className="max-w-4xl mx-auto">
