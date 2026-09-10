@@ -108,7 +108,7 @@ export default function PipPage() {
   const [showForm, setShowForm] = useState(false)
   const [showEvalForm, setShowEvalForm] = useState(false)
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
-  const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate'>('list')
+  const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
   const [showCustomArea, setShowCustomArea] = useState(false)
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
   const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
@@ -216,6 +216,43 @@ export default function PipPage() {
         body: JSON.stringify({ id: planId, status }),
       })
       if (res.ok) fetchData()
+    } catch (e) {
+      console.error('Error updating plan:', e)
+    }
+  }
+
+  async function handleUpdatePlan() {
+    if (!selectedPlan) return
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/pip`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        body: JSON.stringify({
+          id: selectedPlan.id,
+          title: form.title,
+          description: form.description,
+          startDate: form.startDate,
+          endDate: form.endDate,
+          observations: form.observations,
+          commitments: form.commitments,
+          goals: form.goals.map(g => ({
+            id: g.id,
+            title: g.title,
+            description: g.description,
+            metric: g.metric,
+            targetValue: g.targetValue,
+            currentValue: g.currentValue,
+            unit: g.unit,
+            dueDate: g.dueDate,
+            status: g.status,
+            commitments: g.commitments,
+          })),
+        }),
+      })
+      if (res.ok) {
+        setViewMode('detail')
+        fetchData()
+      }
     } catch (e) {
       console.error('Error updating plan:', e)
     }
@@ -601,6 +638,154 @@ export default function PipPage() {
     )
   }
 
+  if (viewMode === 'edit' && selectedPlan) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="flex items-center gap-3 mb-6">
+            <Button variant="ghost" size="sm" onClick={() => { setViewMode('detail') }}>
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <h1 className="text-2xl font-bold">Editar Plan PIP</h1>
+          </div>
+
+          <Card>
+            <CardContent className="p-6 space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Empleado</label>
+                  <input type="text" className="w-full border rounded-md px-3 py-2 bg-gray-100" disabled
+                    value={getEmployeeName(form.employeeId)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Título del Plan</label>
+                  <input type="text" className="w-full border rounded-md px-3 py-2" value={form.title}
+                    onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium mb-1">Descripción</label>
+                  <textarea className="w-full border rounded-md px-3 py-2" rows={3} value={form.description}
+                    onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fecha de Inicio</label>
+                  <input type="date" className="w-full border rounded-md px-3 py-2" value={form.startDate}
+                    onChange={e => setForm(prev => ({ ...prev, startDate: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Fecha de Fin</label>
+                  <input type="date" className="w-full border rounded-md px-3 py-2" value={form.endDate}
+                    onChange={e => setForm(prev => ({ ...prev, endDate: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">Observaciones Generales</label>
+                  <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
+                    placeholder="Observaciones sobre el desempeño del empleado..."
+                    value={form.observations}
+                    onChange={e => setForm(prev => ({ ...prev, observations: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-1">Compromisos del Empleado</label>
+                  <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
+                    placeholder="Compromisos que asume el empleado..."
+                    value={form.commitments}
+                    onChange={e => setForm(prev => ({ ...prev, commitments: e.target.value }))} />
+                </div>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-semibold flex items-center gap-2">
+                    <Target className="h-4 w-4" /> Metas / Objetivos ({form.goals.length})
+                  </h3>
+                  <Button size="sm" onClick={addGoal}>
+                    <Plus className="h-3 w-3 mr-1" /> Agregar Meta
+                  </Button>
+                </div>
+
+                {form.goals.length === 0 && (
+                  <p className="text-sm text-gray-500 text-center py-4">No hay metas definidas.</p>
+                )}
+
+                {form.goals.map((goal, idx) => (
+                  <div key={idx} className="bg-gray-50 border rounded-md p-4 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium">Meta {idx + 1}</span>
+                      <Button variant="ghost" size="sm" onClick={() => removeGoal(idx)}>
+                        <Trash2 className="h-3 w-3 text-red-500" />
+                      </Button>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Título</label>
+                        <input className="w-full border rounded px-2 py-1 text-sm" value={goal.title}
+                          onChange={e => updateGoal(idx, 'title', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Métrica</label>
+                        <input className="w-full border rounded px-2 py-1 text-sm" value={goal.metric}
+                          onChange={e => updateGoal(idx, 'metric', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Valor Objetivo</label>
+                        <input type="number" className="w-full border rounded px-2 py-1 text-sm" value={goal.targetValue}
+                          onChange={e => updateGoal(idx, 'targetValue', parseFloat(e.target.value) || 0)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Progreso Actual</label>
+                        <input type="number" className="w-full border rounded px-2 py-1 text-sm" value={goal.currentValue}
+                          onChange={e => updateGoal(idx, 'currentValue', parseFloat(e.target.value) || 0)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Unidad</label>
+                        <select className="w-full border rounded px-2 py-1 text-sm" value={goal.unit}
+                          onChange={e => updateGoal(idx, 'unit', e.target.value)}>
+                          <option value="porcentaje">Porcentaje</option>
+                          <option value="dias">Días</option>
+                          <option value="horas">Horas</option>
+                          <option value="unidades">Unidades</option>
+                          <option value="calificacion">Calificación (0-100)</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Fecha Límite</label>
+                        <input type="date" className="w-full border rounded px-2 py-1 text-sm" value={goal.dueDate}
+                          onChange={e => updateGoal(idx, 'dueDate', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Descripción</label>
+                        <input className="w-full border rounded px-2 py-1 text-sm" value={goal.description}
+                          onChange={e => updateGoal(idx, 'description', e.target.value)} />
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-600 mb-1">Compromisos</label>
+                        <input className="w-full border rounded px-2 py-1 text-sm" value={goal.commitments || ''}
+                          onChange={e => updateGoal(idx, 'commitments', e.target.value)} />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button variant="outline" onClick={() => { setViewMode('detail') }}>
+                  <X className="h-4 w-4 mr-1" /> Cancelar
+                </Button>
+                <Button onClick={handleUpdatePlan}
+                  disabled={!form.title || !form.startDate || !form.endDate}>
+                  <Save className="h-4 w-4 mr-1" /> Guardar Cambios
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    )
+  }
+
   if (viewMode === 'detail' && selectedPlan) {
     const progress = getOverallProgress(selectedPlan)
     const daysLeft = getDaysRemaining(selectedPlan.endDate)
@@ -625,6 +810,34 @@ export default function PipPage() {
             </div>
             <div className="flex items-center gap-2">
               <Badge className={`${statusInfo.bg} ${statusInfo.color}`}>{statusInfo.label}</Badge>
+              {(selectedPlan.status === 'draft' || selectedPlan.status === 'active') && (
+                <Button size="sm" variant="outline" onClick={() => {
+                  setForm({
+                    employeeId: selectedPlan.employeeId,
+                    title: selectedPlan.title,
+                    description: selectedPlan.description,
+                    startDate: selectedPlan.startDate,
+                    endDate: selectedPlan.endDate,
+                    observations: (selectedPlan as any).observations || '',
+                    commitments: (selectedPlan as any).commitments || '',
+                    goals: (selectedPlan.pip_goals || []).map((g: any) => ({
+                      id: g.id,
+                      title: g.title,
+                      description: g.description || '',
+                      metric: g.metric,
+                      targetValue: g.targetValue || g.target_value || 100,
+                      currentValue: g.currentValue || g.current_value || 0,
+                      unit: g.unit || 'porcentaje',
+                      dueDate: g.dueDate || g.due_date || '',
+                      status: g.status || 'pending',
+                      commitments: g.commitments || '',
+                    })),
+                  })
+                  setViewMode('edit')
+                }}>
+                  <Pencil className="h-3 w-3 mr-1" /> Editar
+                </Button>
+              )}
               {selectedPlan.status === 'draft' && (
                 <Button size="sm" onClick={() => handleUpdatePlanStatus(selectedPlan.id!, 'active')}>
                   <CheckCircle className="h-3 w-3 mr-1" /> Activar
@@ -977,6 +1190,39 @@ export default function PipPage() {
                         }}>
                           <Eye className="h-3 w-3 mr-1" /> Ver
                         </Button>
+                        {(plan.status === 'draft' || plan.status === 'active') && (
+                          <Button size="sm" variant="outline" onClick={async () => {
+                            try {
+                              const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`, { headers: { 'x-tenant-id': companyId } })
+                              const fullPlan = res.ok ? await res.json() : plan
+                              setSelectedPlan(fullPlan)
+                              setForm({
+                                employeeId: fullPlan.employeeId || fullPlan.employee_id,
+                                title: fullPlan.title,
+                                description: fullPlan.description,
+                                startDate: fullPlan.startDate || fullPlan.start_date,
+                                endDate: fullPlan.endDate || fullPlan.end_date,
+                                observations: fullPlan.observations || '',
+                                commitments: fullPlan.commitments || '',
+                                goals: (fullPlan.pip_goals || []).map((g: any) => ({
+                                  id: g.id,
+                                  title: g.title,
+                                  description: g.description || '',
+                                  metric: g.metric,
+                                  targetValue: g.targetValue || g.target_value || 100,
+                                  currentValue: g.currentValue || g.current_value || 0,
+                                  unit: g.unit || 'porcentaje',
+                                  dueDate: g.dueDate || g.due_date || '',
+                                  status: g.status || 'pending',
+                                  commitments: g.commitments || '',
+                                })),
+                              })
+                            } catch { setSelectedPlan(plan) }
+                            setViewMode('edit')
+                          }}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                        )}
                       </div>
                     </div>
 
