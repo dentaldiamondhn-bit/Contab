@@ -108,6 +108,8 @@ export default function PipPage() {
   const [showEvalForm, setShowEvalForm] = useState(false)
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate'>('list')
+  const [showCustomArea, setShowCustomArea] = useState(false)
+  const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
 
   const [form, setForm] = useState({
     employeeId: '',
@@ -412,6 +414,56 @@ export default function PipPage() {
                     )
                   })}
                 </div>
+
+                {showCustomArea ? (
+                  <div className="bg-gray-50 border rounded-md p-3 mb-2">
+                    <div className="grid grid-cols-3 gap-2 mb-2">
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="Nombre del área"
+                        value={customArea.title} onChange={e => setCustomArea(p => ({ ...p, title: e.target.value }))} />
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="Descripción"
+                        value={customArea.description} onChange={e => setCustomArea(p => ({ ...p, description: e.target.value }))} />
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="Métrica (ej: eficiencia)"
+                        value={customArea.metric} onChange={e => setCustomArea(p => ({ ...p, metric: e.target.value }))} />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <select className="border rounded px-2 py-1 text-sm" value={customArea.unit}
+                        onChange={e => setCustomArea(p => ({ ...p, unit: e.target.value }))}>
+                        <option value="calificacion">Calificación (0-100)</option>
+                        <option value="porcentaje">Porcentaje</option>
+                        <option value="dias">Días</option>
+                        <option value="horas">Horas</option>
+                        <option value="unidades">Unidades</option>
+                      </select>
+                      <Button size="sm" onClick={() => {
+                        if (!customArea.title || !customArea.metric) return
+                        setForm(prev => ({
+                          ...prev,
+                          goals: [...prev.goals, {
+                            title: customArea.title,
+                            description: customArea.description,
+                            metric: customArea.metric,
+                            targetValue: 100,
+                            currentValue: 0,
+                            unit: customArea.unit,
+                            dueDate: prev.endDate,
+                            status: 'pending',
+                          }],
+                        }))
+                        setCustomArea({ title: '', description: '', metric: '', unit: 'calificacion' })
+                        setShowCustomArea(false)
+                      }}>
+                        <Save className="h-3 w-3 mr-1" /> Agregar
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setShowCustomArea(false); setCustomArea({ title: '', description: '', metric: '', unit: 'calificacion' }) }}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={() => setShowCustomArea(true)}>
+                    <Plus className="h-3 w-3 mr-1" /> Agregar Área Personalizada
+                  </Button>
+                )}
               </div>
 
               <div className="border-t pt-4">
