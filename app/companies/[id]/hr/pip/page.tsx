@@ -215,7 +215,13 @@ export default function PipPage() {
         headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
         body: JSON.stringify({ id: planId, status }),
       })
-      if (res.ok) fetchData()
+      const data = await res.json()
+      if (res.ok) {
+        fetchData()
+      } else {
+        console.error('Error activating plan:', data)
+        alert('Error: ' + (data.error || 'No se pudo actualizar'))
+      }
     } catch (e) {
       console.error('Error updating plan:', e)
     }
