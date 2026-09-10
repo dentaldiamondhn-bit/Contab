@@ -678,3 +678,113 @@ export interface ApiResponse<T> {
   data?: T;
   error?: string;
 }
+
+// ==================== PIP (PLANES DE MEJORAMIENTO) ====================
+
+export type PipPlanStatus = 'draft' | 'active' | 'completed' | 'cancelled' | 'extended';
+export type PipGoalStatus = 'pending' | 'in_progress' | 'met' | 'not_met' | 'exceeded';
+
+export interface PipGoal {
+  id?: string;
+  pipPlanId: string;
+  title: string;
+  description: string;
+  metric: string;
+  targetValue: number;
+  currentValue: number;
+  unit: 'porcentaje' | 'dias' | 'horas' | 'unidades' | 'calificacion';
+  dueDate: string;
+  status: PipGoalStatus;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface PipEvaluation {
+  id?: string;
+  pipPlanId: string;
+  goalId?: string;
+  evaluationDate: string;
+  score: number;
+  progressPct: number;
+  comments: string;
+  evaluator: string;
+  attendanceSummary?: {
+    presentDays: number;
+    absentDays: number;
+    lateDays: number;
+    overtimeHours: number;
+  };
+  createdAt?: string;
+}
+
+export interface PipEvidence {
+  id?: string;
+  pipPlanId: string;
+  goalId?: string;
+  evaluationId?: string;
+  title: string;
+  fileUrl: string;
+  fileType?: string;
+  uploadedBy: string;
+  notes?: string;
+  createdAt?: string;
+}
+
+export interface PipAttendanceMetric {
+  id?: string;
+  pipPlanId: string;
+  periodStart: string;
+  periodEnd: string;
+  totalWorkDays: number;
+  presentDays: number;
+  absentDays: number;
+  lateDays: number;
+  overtimeHours: number;
+  disabilityDays: number;
+  vacationDays: number;
+  absenceRate: number;
+  tardinessRate: number;
+  attendanceScore: number;
+  createdAt?: string;
+}
+
+export interface PipPlan {
+  id?: string;
+  tenantId: string;
+  employeeId: string;
+  title: string;
+  description: string;
+  status: PipPlanStatus;
+  startDate: string;
+  endDate: string;
+  originalEndDate?: string;
+  createdBy: string;
+  reviewedBy?: string;
+  goals?: PipGoal[];
+  evaluations?: PipEvaluation[];
+  evidence?: PipEvidence[];
+  attendanceMetrics?: PipAttendanceMetric[];
+  employee?: Employee;
+  createdAt?: string;
+  updatedAt?: string;
+}
+
+export interface NewPipPlanForm {
+  employeeId: string;
+  title: string;
+  description: string;
+  startDate: string;
+  endDate: string;
+  goals: Omit<PipGoal, 'id' | 'pipPlanId' | 'createdAt' | 'updatedAt'>[];
+}
+
+export interface PipDashboardSummary {
+  totalPlans: number;
+  activePlans: number;
+  draftPlans: number;
+  completedPlans: number;
+  cancelledPlans: number;
+  expiringThisWeek: number;
+  averageProgress: number;
+  plansAtRisk: number;
+}

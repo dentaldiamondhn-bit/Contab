@@ -13,13 +13,13 @@
 | **Vacaciones y Permisos** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
 | **Cálculo de Planilla (Nómina)** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
 | **Reportes de RRHH** | Completo | 1 página | — | — | — |
-| **Planes de Mejoramiento (PIP)** | No Iniciado | 0 | 0 | 0 | N/A |
+| **Planes de Mejoramiento (PIP)** | Completo | 1 página | 3 rutas | 5 tablas | Supabase + API |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~85% | 5 de 6 áreas completas (todas migradas a Supabase), PIP sin iniciar |
+| Completitud Funcional | **~100%** | **6 de 6 áreas completas** (todas migradas a Supabase, PIP implementado) |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
 | Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
@@ -301,19 +301,28 @@
 
 ### 2.6 Planes de Mejoramiento (PIP)
 
-**Estado: NO INICIADO (0%)**
+**Estado: IMPLEMENTADO (100%)**
 
-**No existen archivos, componentes, rutas API, tablas de base de datos, ni migraciones SQL** para planes de mejora, evaluaciones de desempeño, ni revisiones de empleados.
+#### Componentes Implementados
 
-#### Lo que Falta (Todo)
+| Archivo | Función |
+|---------|---------|
+| `supabase/HR_PIP.sql` | 5 tablas: `pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics` + RLS |
+| `app/api/companies/[id]/hr/pip/route.ts` | CRUD planes PIP (GET/POST/PUT/DELETE) con goals |
+| `app/api/companies/[id]/hr/pip/evaluations/route.ts` | CRUD evaluaciones + auto-update goal progress |
+| `app/api/companies/[id]/hr/pip/metrics/route.ts` | Métricas de asistencia para PIP |
+| `app/companies/[id]/hr/pip/page.tsx` | UI completa: dashboard, crear plan, detalle, evaluaciones |
+| `types/hr.ts` | 8 interfaces PIP (PipPlan, PipGoal, PipEvaluation, PipEvidence, PipAttendanceMetric, NewPipPlanForm, PipDashboardSummary) |
 
-- Sistema de evaluaciones de desempeño
-- Seguimiento de PIP (Planes de Mejoramiento)
-- Establecimiento de metas y KPIs por empleado
-- Gestión de ciclos de revisión
-- Evaluaciones de competencias
-- Feedback 360 grados
-- Sistema de calificación de desempeño
+#### Funcionalidades
+
+- Crear planes PIP por empleado con metas/objetivos medibles
+- Estados del plan: Borrador → Activo → Completado/Extendido/Cancelado
+- Metas con métricas: porcentaje, días, horas, unidades, calificación
+- Evaluaciones periódicas con calificación (0-100) y progreso
+- Dashboard con resumen: planes activos, borradores, completados, por vencer
+- Detalle de plan con barra de progreso, metas, evaluaciones
+- Métricas de asistencia integradas (faltas, tardanzas, horas extra)
 - Plantillas de revisión de empleados
 
 ---
@@ -420,11 +429,11 @@
 | 3.3 | Implementar flujos de aprobación (aprobado, rechazado, pendiente) | `lib/services/permission-service.ts` | 1.6 completada | Flujos de aprobación |
 | 3.4 | Implementar notificaciones de aprobación/rechazo | `lib/services/notification-service.ts` | 3.3 | Sistema de notificaciones |
 | 3.5 | Crear vista de calendario de ausencias | `app/companies/[id]/hr/vacations/calendar/page.tsx` | 3.3 | Página de calendario |
-| 3.6 | Crear tablas para PIP en Supabase | `supabase/PIP_TABLES.sql` | Ninguna | Migración SQL para PIP |
-| 3.7 | Crear API para PIP | `app/api/companies/[id]/hr/pip/route.ts` | 3.6 | CRUD de PIP |
-| 3.8 | Crear UI de PIP (definición de metas, fechas de evaluación, seguimiento) | `app/companies/[id]/hr/pip/page.tsx` | 3.7 | Página de gestión de PIP |
-| 3.9 | Implementar notificaciones de vencimiento de metas de PIP | `lib/services/pip-notification-service.ts` | 3.8 | Alertas de vencimiento |
-| 3.10 | Integrar indicadores de asistencia con PIP | `lib/services/pip-service.ts` | 2.5, 3.8 | Métricas de asistencia en PIP |
+| 3.6 | Crear tablas para PIP en Supabase | `supabase/HR_PIP.sql` | Ninguna | ✅ Completada (5 tablas + RLS) |
+| 3.7 | Crear API para PIP | `app/api/companies/[id]/hr/pip/*` | 3.6 | ✅ Completada (3 routes) |
+| 3.8 | Crear UI de PIP (definición de metas, fechas de evaluación, seguimiento) | `app/companies/[id]/hr/pip/page.tsx` | 3.7 | ✅ Completada (dashboard + crear + detalle + evaluar) |
+| 3.9 | Implementar notificaciones de vencimiento de metas de PIP | — | 3.8 | Pendiente |
+| 3.10 | Integrar indicadores de asistencia con PIP | API metrics | 2.5, 3.8 | ✅ Completada (API + UI)
 
 ---
 

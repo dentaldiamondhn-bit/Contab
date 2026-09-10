@@ -18,7 +18,8 @@ import {
   CheckCircle,
   AlertCircle,
   Building2,
-  Network
+  Network,
+  Target
 } from 'lucide-react';
 
 interface Employee {
@@ -187,6 +188,15 @@ export default function HRDashboardPage() {
       bgColor: 'bg-indigo-50',
       count: `${activeEmployees.length} empleados`,
       path: '/hr/org-chart'
+    },
+    {
+      title: 'Planes de Mejoramiento (PIP)',
+      description: 'Crear y hacer seguimiento a planes de mejoramiento por empleado',
+      icon: Target,
+      color: 'text-rose-600',
+      bgColor: 'bg-rose-50',
+      count: 'Gestionar PIP',
+      path: '/hr/pip'
     }
   ];
 
