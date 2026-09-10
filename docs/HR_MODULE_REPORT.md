@@ -1,6 +1,6 @@
 # Reporte de Estado y Plan de Ejecución: Módulo de Recursos Humanos
 
-> **Fecha de actualización:** 8 de Septiembre de 2026
+> **Fecha de actualización:** 10 de Septiembre de 2026
 
 ## 1. Estado Actual del Código
 
@@ -348,6 +348,7 @@
 | `HR_MIGRATE_LOCALSTORAGE.sql` | **10 tablas** desplegadas en Supabase: attendance, holidays, config, schedules, payroll config/closed/deductions, permissions types/requests/used + RLS |
 | `HR_STORAGE.sql` | **2 buckets** de Supabase Storage (employee-photos, employee-documents) + 10 RLS policies |
 | `HR_HIERARCHY.sql` | **Columna reports_to** en employees (UUID FK) + índice para consultas de jerarquía |
+| `HR_PIP.sql` | **5 tablas PIP**: pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + RLS + índices |
 
 ### Prisma Schema
 
@@ -356,7 +357,7 @@
 ### Observaciones Clave
 
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
-2. **16 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 3 de planilla (config, closed, deductions) + 3 de permisos (types, requests, used).
+2. **19 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 3 de planilla (config, closed, deductions) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
 3. **10 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
 4. **16 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).

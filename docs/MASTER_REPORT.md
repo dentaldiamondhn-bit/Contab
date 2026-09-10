@@ -25,15 +25,10 @@
 
 **Promedio General del Sistema: ~60%**
 
-### Notas de Actualización (9 Sept 2026)
+### Notas de Actualización (10 Sept 2026)
 
 #### HR Module
-- **HR: Puestos multi-ocupante** — Múltiples empleados pueden ocupar el mismo puesto. UI muestra badges por cada empleado asignado. Eliminada restricción de puesto único.
-- **HR: employee_code auto-generado** — Si el código de empleado es null, se genera automáticamente (`EMP-{timestamp}`) al crear o actualizar.
-- **HR: Departamento cambiable al editar puestos** — Árbol de departamentos y pestaña de puestos permiten reasignar un puesto a otro departamento.
-- **HR: Integración con contabilidad** — Al cerrar nómina se generan automáticamente asientos contables: gasto salarios (5101), cargas sociales patronales (5102), y pago de nómina (2102→1101). API bridge `hr/accounting/route.ts`.
-- **HR: Tipos TypeScript reescritos** — `types/hr.ts` reescrito con **50+ interfaces** alineadas al código real (Employee, PayrollConfig, Attendance, PermissionTypeDef, etc.).
-- **HR: PIP implementado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`), 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado.
+- **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`) ejecutadas en Supabase sin errores. 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado. Tipos TypeScript actualizados.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
