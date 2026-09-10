@@ -59,6 +59,9 @@ interface Employee {
   department: string
   position: string
   status: string
+  supervisor: string
+  reportsTo: string
+  salary: number
 }
 
 const STATUS_MAP: Record<string, { label: string; color: string; bg: string }> = {
@@ -133,6 +136,9 @@ export default function PipPage() {
           department: e.department || '',
           position: e.position || '',
           status: e.status || 'active',
+          supervisor: e.supervisor || '',
+          reportsTo: e.reportsTo || '',
+          salary: e.salary || 0,
         })) : [])
       }
     } catch (e) {
@@ -306,6 +312,28 @@ export default function PipPage() {
                       <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name} — {emp.department || 'Sin depto'} ({emp.employee_code})</option>
                     ))}
                   </select>
+                  {form.employeeId && (() => {
+                    const emp = employees.find(e => e.id === form.employeeId)
+                    if (!emp) return null
+                    return (
+                      <div className="mt-2 bg-gray-50 border rounded-md p-3 text-sm space-y-1">
+                        <div className="font-medium text-gray-700">{emp.first_name} {emp.last_name}</div>
+                        <div className="text-gray-500">Código: {emp.employee_code}</div>
+                        <div className="text-gray-500">Departamento: {emp.department || 'N/A'}</div>
+                        <div className="text-gray-500">Puesto: {emp.position || 'N/A'}</div>
+                        <div className="text-gray-500">Salario: {emp.salary ? `L. ${emp.salary.toLocaleString()}` : 'N/A'}</div>
+                        {emp.supervisor && (
+                          <div className="text-cyan-700 font-medium">Supervisor: {emp.supervisor}</div>
+                        )}
+                        {!emp.supervisor && emp.reportsTo && (
+                          <div className="text-cyan-700 font-medium">Jefe Directo: {emp.reportsTo}</div>
+                        )}
+                        {!emp.supervisor && !emp.reportsTo && (
+                          <div className="text-gray-400 italic">Sin supervisor asignado</div>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-1">Título del Plan</label>
