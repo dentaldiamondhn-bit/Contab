@@ -24,7 +24,7 @@
 | Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina) |
-| Documentación y Tipado | ~70% | `types/hr.ts` con 38 interfaces; `hooks/use-hr.ts` con 3 hooks CRUD |
+| Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD |
 
 ---
 

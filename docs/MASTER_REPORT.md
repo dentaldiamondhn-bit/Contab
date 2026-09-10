@@ -32,6 +32,7 @@
 - **HR: employee_code auto-generado** — Si el código de empleado es null, se genera automáticamente (`EMP-{timestamp}`) al crear o actualizar.
 - **HR: Departamento cambiable al editar puestos** — Árbol de departamentos y pestaña de puestos permiten reasignar un puesto a otro departamento.
 - **HR: Integración con contabilidad** — Al cerrar nómina se generan automáticamente asientos contables: gasto salarios (5101), cargas sociales patronales (5102), y pago de nómina (2102→1101). API bridge `hr/accounting/route.ts`.
+- **HR: Tipos TypeScript reescritos** — `types/hr.ts` reescrito con **50+ interfaces** alineadas al código real (Employee, PayrollConfig, Attendance, PermissionTypeDef, etc.).
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
