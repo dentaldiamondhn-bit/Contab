@@ -111,8 +111,7 @@ export default function PipPage() {
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
-  const [savedComments, setSavedComments] = useState<Record<string, boolean>>({})
-  const [editingComments, setEditingComments] = useState<Record<string, boolean>>({})
+  const [goalCommentHistory, setGoalCommentHistory] = useState<Record<string, { text: string; date: string }[]>>({})
   const [showCustomArea, setShowCustomArea] = useState(false)
   const [customArea, setCustomArea] = useState({ title: '', description: '', metric: '', unit: 'calificacion' })
   const [selectedArea, setSelectedArea] = useState<{ title: string; description: string; metric: string; unit: string } | null>(null)
@@ -969,47 +968,54 @@ export default function PipPage() {
                             )}
                             {isChecked && (
                               <div className="mt-3 bg-white border border-green-200 rounded-md p-3">
-                                <label className="block text-xs font-medium text-gray-600 mb-1">Comentario de cierre</label>
-                                {savedComments[goalId] && !editingComments[goalId] ? (
-                                  <div>
-                                    <p className="text-sm text-gray-700 bg-gray-50 border rounded px-2 py-1">{comment || 'Sin comentario'}</p>
-                                    <Button size="sm" variant="outline" className="mt-2" onClick={() => setEditingComments(prev => ({ ...prev, [goalId]: true }))}>
-                                      <Pencil className="h-3 w-3 mr-1" /> Editar
-                                    </Button>
-                                  </div>
-                                ) : (
-                                  <div>
-                                    <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2}
-                                      placeholder="Escriba un comentario sobre el cumplimiento de esta meta..."
-                                      value={comment}
-                                      onChange={e => setGoalComments(prev => ({ ...prev, [goalId]: e.target.value }))} />
-                                    <Button size="sm" className="mt-2" onClick={async () => {
-                                      try {
-                                        const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
-                                          method: 'POST',
-                                          headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
-                                          body: JSON.stringify({
-                                            pipPlanId: selectedPlan.id,
-                                            goalId: g.id,
-                                            evaluationDate: new Date().toISOString().split('T')[0],
-                                            score: 100,
-                                            progressPct: 100,
-                                            comments: comment || 'Meta cumplida',
-                                            evaluator: 'Sistema',
-                                          }),
-                                        })
-                                        if (res.ok) {
-                                          setSavedComments(prev => ({ ...prev, [goalId]: true }))
-                                          setEditingComments(prev => ({ ...prev, [goalId]: false }))
-                                        }
-                                      } catch (e) {
-                                        console.error('Error saving evaluation:', e)
-                                      }
-                                    }}>
-                                      <Save className="h-3 w-3 mr-1" /> Guardar Comentario
-                                    </Button>
+                                <label className="block text-xs font-medium text-gray-600 mb-1">Comentarios de cierre</label>
+                                {goalCommentHistory[goalId]?.length > 0 && (
+                                  <div className="space-y-1 mb-2">
+                                    {goalCommentHistory[goalId].map((c, i) => (
+                                      <div key={i} className="flex items-start gap-2 text-sm bg-gray-50 border rounded px-2 py-1">
+                                        <CheckCircle className="h-3 w-3 text-green-500 mt-0.5 shrink-0" />
+                                        <div>
+                                          <span className="text-gray-700">{c.text}</span>
+                                          <span className="text-xs text-gray-400 ml-2">{c.date}</span>
+                                        </div>
+                                      </div>
+                                    ))}
                                   </div>
                                 )}
+                                <textarea className="w-full border rounded px-2 py-1 text-sm" rows={2}
+                                  placeholder="Agregar un comentario..."
+                                  value={comment}
+                                  onChange={e => setGoalComments(prev => ({ ...prev, [goalId]: e.target.value }))} />
+                                <Button size="sm" className="mt-2" onClick={async () => {
+                                  if (!comment.trim()) return
+                                  try {
+                                    const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
+                                      method: 'POST',
+                                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+                                      body: JSON.stringify({
+                                        pipPlanId: selectedPlan.id,
+                                        goalId: g.id,
+                                        evaluationDate: new Date().toISOString().split('T')[0],
+                                        score: 100,
+                                        progressPct: 100,
+                                        comments: comment,
+                                        evaluator: 'Sistema',
+                                      }),
+                                    })
+                                    if (res.ok) {
+                                      const now = new Date().toLocaleString('es-HN')
+                                      setGoalCommentHistory(prev => ({
+                                        ...prev,
+                                        [goalId]: [...(prev[goalId] || []), { text: comment, date: now }],
+                                      }))
+                                      setGoalComments(prev => ({ ...prev, [goalId]: '' }))
+                                    }
+                                  } catch (e) {
+                                    console.error('Error saving evaluation:', e)
+                                  }
+                                }}>
+                                  <Save className="h-3 w-3 mr-1" /> Agregar Comentario
+                                </Button>
                               </div>
                             )}
                             {!isChecked && (
