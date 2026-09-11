@@ -561,7 +561,7 @@ export default function VacationCalendarPage({ params }: { params: Promise<{ id:
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
-        const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
+        const HOURS = Array.from({ length: 24 }, (_, i) => i);
         return (
           <div className="border rounded-lg overflow-hidden">
             {/* Day headers */}
@@ -604,7 +604,7 @@ export default function VacationCalendarPage({ params }: { params: Promise<{ id:
               {HOURS.map((hour) => (
                 <div key={hour} className="contents">
                   <div className="h-[50px] border-r border-b border-gray-100 text-[10px] text-gray-400 text-right pr-1 pt-0 relative">
-                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                    {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                   </div>
                   {weekDays.map((day, i) => (
                     <div key={i} className={`h-[50px] border-r border-b border-gray-100 last:border-r-0 relative ${day.isToday ? 'bg-blue-50/10' : ''}`}>
@@ -633,7 +633,7 @@ export default function VacationCalendarPage({ params }: { params: Promise<{ id:
         const now = new Date();
         const currentHour = now.getHours();
         const currentMinute = now.getMinutes();
-        const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
+        const HOURS = Array.from({ length: 24 }, (_, i) => i);
         return (
           <div className="border rounded-lg overflow-hidden">
             {/* All-day events section */}
@@ -700,7 +700,7 @@ export default function VacationCalendarPage({ params }: { params: Promise<{ id:
               {HOURS.map((hour) => (
                 <div key={hour} className="grid grid-cols-[48px_1fr] relative">
                   <div className="h-[50px] border-r border-b border-gray-100 text-[10px] text-gray-400 text-right pr-1 pt-0">
-                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                    {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
                   </div>
                   <div className={`h-[50px] border-b border-gray-100 relative ${isToday && hour === currentHour ? 'bg-blue-50/10' : ''}`}>
                     {isToday && hour === currentHour && (
