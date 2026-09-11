@@ -110,7 +110,8 @@ export default function PipPage() {
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
   const [activeTab, setActiveTab] = useState<'plans' | 'stats'>('plans')
-  const [selectedAreaStats, setSelectedAreaStats] = useState<{ title: string; employees: string[]; plans: string[] } | null>(null)
+  const [selectedAreaStats, setSelectedAreaStats] = useState<{ title: string; employees: { name: string; id: string }[]; plans: string[] } | null>(null)
+  const [filterEmployeeId, setFilterEmployeeId] = useState<string | null>(null)
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
   const [goalCommentHistory, setGoalCommentHistory] = useState<Record<string, { text: string; date: string }[]>>({})
@@ -353,6 +354,8 @@ export default function PipPage() {
   const activePlans = plans.filter(p => p.status === 'active')
   const draftPlans = plans.filter(p => p.status === 'draft')
   const completedPlans = plans.filter(p => p.status === 'completed')
+  const displayedPlans = filterEmployeeId ? plans.filter(p => p.employeeId === filterEmployeeId) : plans
+  const filterEmployeeName = filterEmployeeId ? getEmployeeName(filterEmployeeId) : ''
 
   if (loading) {
     return (
@@ -1221,14 +1224,14 @@ export default function PipPage() {
         </div>
 
         {activeTab === 'stats' ? (() => {
-          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Set<string>; planIds: Set<string> }> = {}
+          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Record<string, { name: string; id: string }>; planIds: Set<string> }> = {}
           plans.forEach(plan => {
             const empName = getEmployeeName(plan.employeeId)
             ;(plan.pip_goals || []).forEach((g: any) => {
               const key = g.title || g.metric || 'Sin área'
-              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: new Set(), planIds: new Set() }
+              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: {}, planIds: new Set() }
               areaCounts[key].count++
-              areaCounts[key].employees.add(empName)
+              if (plan.employeeId) areaCounts[key].employees[plan.employeeId] = { name: empName, id: plan.employeeId }
               areaCounts[key].planIds.add(plan.id)
               if (g.status === 'met') areaCounts[key].met++
               else if (g.status === 'in_progress') areaCounts[key].inProgress++
@@ -1256,7 +1259,7 @@ export default function PipPage() {
                           <button
                             className="w-48 text-sm font-medium text-cyan-600 hover:text-cyan-800 hover:underline truncate text-left cursor-pointer"
                             title={`${area.title} — click para ver empleados`}
-                            onClick={() => setSelectedAreaStats({ title: area.title, employees: Array.from(area.employees), plans: Array.from(area.planIds) })}>
+                            onClick={() => setSelectedAreaStats({ title: area.title, employees: Object.values(area.employees), plans: Array.from(area.planIds) })}>
                             {area.title}
                           </button>
                           <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
@@ -1298,13 +1301,16 @@ export default function PipPage() {
                       {selectedAreaStats.employees.length} empleado(s) con PIP en esta área
                     </p>
                     <div className="space-y-2">
-                      {selectedAreaStats.employees.map((name, i) => (
-                        <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
-                          <div className="h-8 w-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-sm font-bold">
-                            {name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                      {selectedAreaStats.employees.map((emp, i) => (
+                        <button key={i}
+                          className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg hover:bg-cyan-50 hover:ring-1 hover:ring-cyan-200 w-full text-left transition-colors"
+                          onClick={() => { setFilterEmployeeId(emp.id); setActiveTab('plans'); setSelectedAreaStats(null) }}>
+                          <div className="h-8 w-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-sm font-bold shrink-0">
+                            {emp.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </div>
-                          <span className="text-sm font-medium">{name}</span>
-                        </div>
+                          <span className="text-sm font-medium text-gray-700">{emp.name}</span>
+                          <span className="ml-auto text-xs text-cyan-500">Ver PIP →</span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1313,20 +1319,33 @@ export default function PipPage() {
             </>
           )
         })() : (
-          plans.length === 0 ? (
+          filterEmployeeId && (
+            <div className="flex items-center gap-3 mb-4 p-3 bg-cyan-50 border border-cyan-200 rounded-lg">
+              <Users className="h-4 w-4 text-cyan-600" />
+              <span className="text-sm text-cyan-700">Mostrando planes de: <strong>{filterEmployeeName}</strong></span>
+              <Button variant="ghost" size="sm" className="ml-auto text-cyan-600" onClick={() => setFilterEmployeeId(null)}>
+                <X className="h-3 w-3 mr-1" /> Limpiar filtro
+              </Button>
+            </div>
+          ),
+          displayedPlans.length === 0 ? (
             <Card>
               <CardContent className="p-12 text-center">
                 <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                <h3 className="text-lg font-medium text-gray-700">No hay planes PIP</h3>
-                <p className="text-sm text-gray-500 mt-1">Cree un plan de mejoramiento para comenzar a hacer seguimiento.</p>
-                <Button className="mt-4" onClick={() => { setViewMode('create'); setShowForm(true) }}>
-                  <Plus className="h-4 w-4 mr-1" /> Crear Primer Plan
-                </Button>
+                <h3 className="text-lg font-medium text-gray-700">{filterEmployeeId ? 'Este empleado no tiene planes PIP' : 'No hay planes PIP'}</h3>
+                <p className="text-sm text-gray-500 mt-1">
+                  {filterEmployeeId ? 'Intente con otro empleado.' : 'Cree un plan de mejoramiento para comenzar a hacer seguimiento.'}
+                </p>
+                {!filterEmployeeId && (
+                  <Button className="mt-4" onClick={() => { setViewMode('create'); setShowForm(true) }}>
+                    <Plus className="h-4 w-4 mr-1" /> Crear Primer Plan
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ) : (
           <div className="space-y-3">
-            {plans.map(plan => {
+            {displayedPlans.map(plan => {
               const statusInfo = STATUS_MAP[plan.status] || STATUS_MAP.draft
               const progress = getOverallProgress(plan)
               const daysLeft = getDaysRemaining(plan.endDate)
