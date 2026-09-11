@@ -608,7 +608,6 @@ export default function PayrollPage() {
         matched++;
 
         const dedFields = [
-          { key: 'IGSS', label: 'IGSS' },
           { key: 'IHSS', label: 'IHSS' },
           { key: 'RAP', label: 'RAP' },
           { key: 'Incapacidad', label: 'Incapacidad' },
@@ -659,10 +658,10 @@ export default function PayrollPage() {
 
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
-    const headers = ['Nombre', 'IGSS', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'Horas Extra', 'Feriado', 'Vacaciones', 'Bono'];
+    const headers = ['Nombre', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'Horas Extra', 'Feriado', 'Vacaciones', 'Bono'];
     const exampleRows = [
-      ['Juan Perez', 50, 125, 75, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Maria Lopez', 0, 0, 0, 100, 0, 25, 0, 150, 0, 0, 0],
+      ['Juan Perez', 125, 75, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Maria Lopez', 0, 0, 100, 0, 25, 0, 150, 0, 0, 0],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
     const wb = XLSX.utils.book_new();
