@@ -35,6 +35,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   const data = (empResult.data || []).map((emp: any) => ({
     id: emp.id,
+    employeeCode: emp.employee_code || '',
     name: `${emp.first_name || ''} ${emp.last_name || ''}`.trim(),
     position: posMap[emp.position_id] || '',
     department: deptMap[emp.department] || emp.department || '',

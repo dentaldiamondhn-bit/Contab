@@ -613,8 +613,11 @@ export default function PayrollPage() {
       const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
       const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
-      const nameToEmp: Record<string, typeof activeEmployees[0]> = {};
-      activeEmployees.forEach(emp => { nameToEmp[normalize(emp.name)] = emp; });
+      const codeToEmp: Record<string, typeof activeEmployees[0]> = {};
+      activeEmployees.forEach(emp => {
+        if (emp.employeeCode) codeToEmp[emp.employeeCode.toUpperCase()] = emp;
+        codeToEmp[normalize(emp.name)] = emp;
+      });
 
       const uploaded: typeof attendanceDeductions = {};
       let matched = 0;
@@ -622,11 +625,10 @@ export default function PayrollPage() {
       const notFound: string[] = [];
 
       for (const row of rows) {
-        const rawName = (row['Nombre'] || row['Nombre completo'] || row['nombre'] || row['Name'] || '').toString().trim();
-        const name = normalize(rawName);
-        if (!name) { continue; }
-        const emp = nameToEmp[name];
-        if (!emp) { skipped++; notFound.push(rawName); continue; }
+        const rawCode = (row['Código'] || row['codigo'] || row['Code'] || row['Código '] || '').toString().trim();
+        const rawName = (row['Nombre'] || row['nombre'] || row['Name'] || '').toString().trim();
+        const emp = rawCode ? codeToEmp[rawCode.toUpperCase()] : codeToEmp[normalize(rawName)];
+        if (!emp) { skipped++; notFound.push(rawName || rawCode); continue; }
 
         if (!uploaded[emp.id]) uploaded[emp.id] = [];
         matched++;
@@ -716,20 +718,20 @@ export default function PayrollPage() {
     const empNames = activeEmployees.slice(0, 5).map(e => e.name);
 
     ws['!cols'] = [
-      { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 16 },
+      { wch: 14 }, { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 16 },
       { wch: 16 }, { wch: 16 }, { wch: 18 },
       { wch: 14 }, { wch: 14 }, { wch: 14 },
     ];
 
-    const headers = ['Nombre', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)', 'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)', 'Feriado (L)', 'Vacaciones (L)', 'Bono (L)'];
+    const headers = ['Código', 'Nombre', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)', 'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)', 'Feriado (L)', 'Vacaciones (L)', 'Bono (L)'];
 
     const exampleRows = empNames.length > 0
-      ? empNames.map((name, i) => i === 0
-        ? [name, '', '', '', '', '', '', 2, 1, 0, '', '', '']
-        : [name, '', '', '', '', '', '', '', '', '', '', '', ''])
+      ? activeEmployees.slice(0, 5).map((emp, i) => i === 0
+        ? [emp.employeeCode, emp.name, '', '', '', '', '', '', 2, 1, 0, '', '', '']
+        : [emp.employeeCode, emp.name, '', '', '', '', '', '', '', '', '', '', '', ''])
       : [
-        ['Juan Perez', '', '', '', '', '', '', 2, 1, 0, '', '', ''],
-        ['Maria Lopez', '', '', '', 100, 25, '', 0, 0, 3, '', '', ''],
+        ['EMP-001', 'Juan Perez', '', '', '', '', '', '', 2, 1, 0, '', '', ''],
+        ['EMP-002', 'Maria Lopez', '', '', '', 100, 25, '', 0, 0, 3, '', '', ''],
       ];
 
     const data = [headers, ...exampleRows];
@@ -746,7 +748,8 @@ export default function PayrollPage() {
     const instData = [
       ['INSTRUCCIONES PARA CARGA DE NÓMINA'],
       [],
-      ['1. Ingrese el nombre exacto del empleado en la columna "Nombre"'],
+      ['1. Ingrese el código del empleado en la columna "Código" (recomendado) o el nombre exacto en "Nombre"'],
+      ['2. Si hay dos empleados con el mismo nombre, use el código para evitar conflictos'],
       ['2. Las cantidades en Lempiras (L) son montos totales, no cantidades por día'],
       ['3. Las Horas Extras se ingresan en CANTIDAD DE HORAS (el monto se calcula automáticamente)'],
       ['4. IHSS y RAP solo llenar si hay ajustes manuales; de lo contrario dejar en blanco'],
