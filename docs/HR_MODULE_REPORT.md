@@ -19,7 +19,7 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | **~100%** | **6 de 6 áreas completas** (todas migradas a Supabase, PIP implementado) |
+| Completitud Funcional | **~100%** | **6 de 6 áreas completas** (todas en Supabase con RLS, PIP con estadísticas/filtros) |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
 | Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
@@ -85,10 +85,6 @@
 - Búsqueda server-side con debounce (300ms) que filtra en 8 campos
 - Filtros exactos por departamento, cargo, estado, tipo de contrato, género
 - Aislamiento multi-tenant vía Supabase RLS
-
-#### Lo que Falta
-
-- Sin modelos en Prisma para entidades HR (todo manejado directamente vía SQL en Supabase)
 
 #### Implementado ✅
 
