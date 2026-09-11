@@ -110,6 +110,7 @@ export default function PipPage() {
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
   const [activeTab, setActiveTab] = useState<'plans' | 'stats'>('plans')
+  const [selectedAreaStats, setSelectedAreaStats] = useState<{ title: string; employees: string[]; plans: string[] } | null>(null)
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
   const [goalCommentHistory, setGoalCommentHistory] = useState<Record<string, { text: string; date: string }[]>>({})
@@ -1220,12 +1221,15 @@ export default function PipPage() {
         </div>
 
         {activeTab === 'stats' ? (() => {
-          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number }> = {}
+          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Set<string>; planIds: Set<string> }> = {}
           plans.forEach(plan => {
-            (plan.pip_goals || []).forEach((g: any) => {
+            const empName = getEmployeeName(plan.employeeId)
+            ;(plan.pip_goals || []).forEach((g: any) => {
               const key = g.title || g.metric || 'Sin área'
-              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0 }
+              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: new Set(), planIds: new Set() }
               areaCounts[key].count++
+              areaCounts[key].employees.add(empName)
+              areaCounts[key].planIds.add(plan.id)
               if (g.status === 'met') areaCounts[key].met++
               else if (g.status === 'in_progress') areaCounts[key].inProgress++
               else areaCounts[key].pending++
@@ -1235,45 +1239,78 @@ export default function PipPage() {
           const maxCount = Math.max(...sorted.map(a => a.count), 1)
 
           return (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                {sorted.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">No hay metas registradas en ningún plan.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {sorted.map((area, idx) => (
-                      <div key={idx} className="flex items-center gap-4">
-                        <div className="w-48 text-sm font-medium text-gray-700 truncate" title={area.title}>
-                          {area.title}
-                        </div>
-                        <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
-                          <div className="bg-cyan-500 h-6 rounded-full flex items-center justify-end pr-2 transition-all"
-                            style={{ width: `${(area.count / maxCount) * 100}%` }}>
-                            <span className="text-xs font-bold text-white">{area.count}</span>
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {sorted.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-8">No hay metas registradas en ningún plan.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {sorted.map((area, idx) => (
+                        <div key={idx} className="flex items-center gap-4">
+                          <button
+                            className="w-48 text-sm font-medium text-cyan-600 hover:text-cyan-800 hover:underline truncate text-left cursor-pointer"
+                            title={`${area.title} — click para ver empleados`}
+                            onClick={() => setSelectedAreaStats({ title: area.title, employees: Array.from(area.employees), plans: Array.from(area.planIds) })}>
+                            {area.title}
+                          </button>
+                          <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                            <div className="bg-cyan-500 h-6 rounded-full flex items-center justify-end pr-2 transition-all"
+                              style={{ width: `${(area.count / maxCount) * 100}%` }}>
+                              <span className="text-xs font-bold text-white">{area.count}</span>
+                            </div>
+                          </div>
+                          <div className="flex gap-2 text-xs">
+                            <span className="text-green-600" title="Cumplidas">{area.met}✓</span>
+                            <span className="text-blue-600" title="En progreso">{area.inProgress}⟳</span>
+                            <span className="text-gray-400" title="Pendientes">{area.pending}○</span>
                           </div>
                         </div>
-                        <div className="flex gap-2 text-xs">
-                          <span className="text-green-600" title="Cumplidas">{area.met}✓</span>
-                          <span className="text-blue-600" title="En progreso">{area.inProgress}⟳</span>
-                          <span className="text-gray-400" title="Pendientes">{area.pending}○</span>
+                      ))}
+                      <div className="mt-4 pt-3 border-t">
+                        <div className="text-sm text-gray-500">
+                          Total de metas: <strong>{sorted.reduce((s, a) => s + a.count, 0)}</strong> en{' '}
+                          <strong>{plans.length}</strong> planes
                         </div>
                       </div>
-                    ))}
-                    <div className="mt-4 pt-3 border-t">
-                      <div className="text-sm text-gray-500">
-                        Total de metas: <strong>{sorted.reduce((s, a) => s + a.count, 0)}</strong> en{' '}
-                        <strong>{plans.length}</strong> planes
-                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {selectedAreaStats && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={() => setSelectedAreaStats(null)}>
+                  <div className="bg-white rounded-xl shadow-2xl w-full max-w-md p-6" onClick={e => e.stopPropagation()}>
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="font-bold text-lg flex items-center gap-2">
+                        <Users className="h-5 w-5" /> {selectedAreaStats.title}
+                      </h3>
+                      <button onClick={() => setSelectedAreaStats(null)} className="text-gray-400 hover:text-gray-600">
+                        <X className="h-5 w-5" />
+                      </button>
+                    </div>
+                    <p className="text-sm text-gray-500 mb-3">
+                      {selectedAreaStats.employees.length} empleado(s) con PIP en esta área
+                    </p>
+                    <div className="space-y-2">
+                      {selectedAreaStats.employees.map((name, i) => (
+                        <div key={i} className="flex items-center gap-2 p-2 bg-gray-50 rounded-lg">
+                          <div className="h-8 w-8 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600 text-sm font-bold">
+                            {name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
+                          </div>
+                          <span className="text-sm font-medium">{name}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                )}
-              </CardContent>
-            </Card>
+                </div>
+              )}
+            </>
           )
         })() : (
           plans.length === 0 ? (
