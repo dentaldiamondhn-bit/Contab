@@ -198,13 +198,17 @@ export default function PayrollPage() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const t0 = performance.now();
     Promise.all([
-      loadEmployees(),
-      loadConfig(),
-      loadClosedPayrolls(),
-      loadEmployeeDeductions(),
-      loadAttendanceDeductions(),
-    ]).finally(() => setPageLoading(false));
+      loadEmployees().then(() => console.log(`[payroll] employees: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadConfig().then(() => console.log(`[payroll] config: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadClosedPayrolls().then(() => console.log(`[payroll] closed: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadEmployeeDeductions().then(() => console.log(`[payroll] deductions: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadAttendanceDeductions().then(() => console.log(`[payroll] attendance: ${(performance.now() - t0).toFixed(0)}ms`)),
+    ]).finally(() => {
+      console.log(`[payroll] TOTAL: ${(performance.now() - t0).toFixed(0)}ms`);
+      setPageLoading(false);
+    });
   }, [companyId]);
 
   useEffect(() => {
