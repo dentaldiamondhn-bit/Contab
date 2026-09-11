@@ -657,6 +657,19 @@ export default function PayrollPage() {
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  const downloadTemplate = async () => {
+    const XLSX = await import('xlsx');
+    const headers = ['Nombre', 'IGSS', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'Horas Extra', 'Feriado', 'Vacaciones', 'Bono'];
+    const exampleRows = [
+      ['Juan Perez', 50, 125, 75, 0, 0, 0, 0, 0, 0, 0, 0],
+      ['Maria Lopez', 0, 0, 0, 100, 0, 25, 0, 150, 0, 0, 0],
+    ];
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Nómina');
+    XLSX.writeFile(wb, `formato_nomina_${new Date().toISOString().split('T')[0]}.xlsx`);
+  };
+
   const generateVoucher = (emp: typeof activeEmployees[0]) => {
     const calc = calculatePayroll(emp.salary, emp.id);
     const customDeds = getDeductionsForEmp(emp.id).filter(d => d.enabled && !d.isStandard);
@@ -1058,6 +1071,9 @@ export default function PayrollPage() {
                   </button>
                   <button onClick={() => { fileInputRef.current?.click(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
                     <Upload className="h-4 w-4" /> Subir Excel
+                  </button>
+                  <button onClick={() => { downloadTemplate(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <Download className="h-4 w-4" /> Descargar Formato
                   </button>
                   <button onClick={() => { generateAllVouchers(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
                     <FileText className="h-4 w-4" /> Vauchers
