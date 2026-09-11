@@ -203,6 +203,7 @@ export default function AttendancePage() {
   const [undoHistory, setUndoHistory] = useState<Attendance[][]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all');
   const [quincenaStartDate, setQuincenaStartDate] = useState(() => {
     const now = new Date();
     const day = now.getDate();
@@ -644,7 +645,7 @@ export default function AttendancePage() {
     free_day: attendance.filter(a => a.date === selectedDate && a.status === 'free_day').length,
   };
 
-  const activeEmployees = employees.filter(e => e.status === 'active');
+  const activeEmployees = employees.filter(e => filterStatus === 'all' ? e.status !== 'inactive' : e.status === filterStatus);
   const departments = useMemo(() => [...new Set(activeEmployees.map(e => e.department).filter(Boolean))].sort(), [activeEmployees]);
   const filteredEmployees = useMemo(() => {
     return activeEmployees.filter(emp => {
@@ -1095,13 +1096,20 @@ export default function AttendancePage() {
                 {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
               </select>
             )}
-            {(searchTerm || filterDepartment !== 'all') && (
-              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); }}
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="border rounded-lg px-3 py-2 text-sm">
+              <option value="all">Activos y suspendidos</option>
+              <option value="active">Solo activos</option>
+              <option value="suspended">Solo suspendidos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+            {(searchTerm || filterDepartment !== 'all' || filterStatus !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); setFilterStatus('all'); }}
                 className="text-sm text-blue-600 underline">
                 Limpiar filtros
               </button>
             )}
-            <span className="text-sm text-gray-500">{filteredEmployees.length} de {activeEmployees.length} empleados</span>
+            <span className="text-sm text-gray-500">{filteredEmployees.length} de {employees.filter(e => filterStatus === 'all' ? true : e.status === filterStatus).length} empleados</span>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -1246,13 +1254,20 @@ export default function AttendancePage() {
                 {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
               </select>
             )}
-            {(searchTerm || filterDepartment !== 'all') && (
-              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); }}
+            <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as any)}
+              className="border rounded-lg px-3 py-2 text-sm">
+              <option value="all">Activos y suspendidos</option>
+              <option value="active">Solo activos</option>
+              <option value="suspended">Solo suspendidos</option>
+              <option value="inactive">Inactivos</option>
+            </select>
+            {(searchTerm || filterDepartment !== 'all' || filterStatus !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); setFilterStatus('all'); }}
                 className="text-sm text-blue-600 underline">
                 Limpiar filtros
               </button>
             )}
-            <span className="text-sm text-gray-500">{filteredEmployees.length} de {activeEmployees.length} empleados</span>
+            <span className="text-sm text-gray-500">{filteredEmployees.length} de {employees.filter(e => filterStatus === 'all' ? true : e.status === filterStatus).length} empleados</span>
           </div>
 
           {/* Quincena Grid */}
