@@ -539,6 +539,10 @@ export default function PermissionsPage() {
           <p className="text-gray-500">{activeEmployees.length} empleados (activos y suspendidos) • {pendingRequests.length} solicitudes pendientes</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/hr/vacations/calendar`)}>
+            <Calendar className="h-4 w-4 mr-2" />
+            Calendario
+          </Button>
           <Button variant="outline" onClick={() => { setIsAdding(false); setEditingType(null); setShowTypesModal(true); }}>
             <Settings className="h-4 w-4 mr-2" />
             Gestionar Tipos
