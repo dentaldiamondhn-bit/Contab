@@ -112,6 +112,8 @@ export default function PipPage() {
   const [activeTab, setActiveTab] = useState<'plans' | 'stats'>('plans')
   const [selectedAreaStats, setSelectedAreaStats] = useState<{ title: string; employees: { name: string; id: string }[]; plans: string[] } | null>(null)
   const [filterEmployeeId, setFilterEmployeeId] = useState<string | null>(null)
+  const [timeFilter, setTimeFilter] = useState<'all' | 'month' | 'quarter' | 'year' | 'custom'>('all')
+  const [customDateRange, setCustomDateRange] = useState({ from: '', to: '' })
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
   const [goalCommentHistory, setGoalCommentHistory] = useState<Record<string, { text: string; date: string }[]>>({})
@@ -354,7 +356,26 @@ export default function PipPage() {
   const activePlans = plans.filter(p => p.status === 'active')
   const draftPlans = plans.filter(p => p.status === 'draft')
   const completedPlans = plans.filter(p => p.status === 'completed')
-  const displayedPlans = filterEmployeeId ? plans.filter(p => p.employeeId === filterEmployeeId) : plans
+  const displayedPlans = plans.filter(p => {
+    if (filterEmployeeId && p.employeeId !== filterEmployeeId) return false
+    if (timeFilter !== 'all') {
+      const start = new Date(p.startDate)
+      const now = new Date()
+      if (timeFilter === 'month') {
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+        if (start < monthStart) return false
+      } else if (timeFilter === 'quarter') {
+        const qStart = new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+        if (start < qStart) return false
+      } else if (timeFilter === 'year') {
+        const yStart = new Date(now.getFullYear(), 0, 1)
+        if (start < yStart) return false
+      } else if (timeFilter === 'custom' && customDateRange.from) {
+        if (start < new Date(customDateRange.from)) return false
+      }
+    }
+    return true
+  })
   const filterEmployeeName = filterEmployeeId ? getEmployeeName(filterEmployeeId) : ''
 
   if (loading) {
@@ -1224,8 +1245,26 @@ export default function PipPage() {
         </div>
 
         {activeTab === 'stats' ? (() => {
+          const filteredPlans = plans.filter(p => {
+            if (timeFilter !== 'all') {
+              const start = new Date(p.startDate)
+              const now = new Date()
+              if (timeFilter === 'month') {
+                return start >= new Date(now.getFullYear(), now.getMonth(), 1)
+              } else if (timeFilter === 'quarter') {
+                return start >= new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+              } else if (timeFilter === 'year') {
+                return start >= new Date(now.getFullYear(), 0, 1)
+              } else if (timeFilter === 'custom' && customDateRange.from) {
+                const from = new Date(customDateRange.from)
+                const to = customDateRange.to ? new Date(customDateRange.to) : new Date()
+                return start >= from && start <= to
+              }
+            }
+            return true
+          })
           const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Record<string, { name: string; id: string }>; planIds: Set<string> }> = {}
-          plans.forEach(plan => {
+          filteredPlans.forEach(plan => {
             const empName = getEmployeeName(plan.employeeId)
             ;(plan.pip_goals || []).forEach((g: any) => {
               const key = g.title || g.metric || 'Sin área'
@@ -1245,9 +1284,31 @@ export default function PipPage() {
             <>
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
-                  </CardTitle>
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
+                    </CardTitle>
+                    <div className="flex items-center gap-2">
+                      <select
+                        className="border rounded-md px-2 py-1 text-sm"
+                        value={timeFilter}
+                        onChange={e => setTimeFilter(e.target.value as typeof timeFilter)}>
+                        <option value="all">Todo el tiempo</option>
+                        <option value="month">Este mes</option>
+                        <option value="quarter">Este trimestre</option>
+                        <option value="year">Este año</option>
+                        <option value="custom">Rango personalizado</option>
+                      </select>
+                      {timeFilter === 'custom' && (
+                        <>
+                          <input type="date" className="border rounded px-2 py-1 text-sm" value={customDateRange.from}
+                            onChange={e => setCustomDateRange(prev => ({ ...prev, from: e.target.value }))} />
+                          <input type="date" className="border rounded px-2 py-1 text-sm" value={customDateRange.to}
+                            onChange={e => setCustomDateRange(prev => ({ ...prev, to: e.target.value }))} />
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   {sorted.length === 0 ? (
@@ -1278,7 +1339,7 @@ export default function PipPage() {
                       <div className="mt-4 pt-3 border-t">
                         <div className="text-sm text-gray-500">
                           Total de metas: <strong>{sorted.reduce((s, a) => s + a.count, 0)}</strong> en{' '}
-                          <strong>{plans.length}</strong> planes
+                          <strong>{filteredPlans.length}</strong> planes
                         </div>
                       </div>
                     </div>
