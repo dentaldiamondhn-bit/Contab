@@ -207,6 +207,7 @@ export default function PayrollPage() {
       loadClosedPayrolls().then(() => console.log(`[payroll] closed: ${(performance.now() - t0).toFixed(0)}ms`)),
       loadEmployeeDeductions().then(() => console.log(`[payroll] deductions: ${(performance.now() - t0).toFixed(0)}ms`)),
       loadAttendanceDeductions().then(() => console.log(`[payroll] attendance: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadSavedUploads().then(() => console.log(`[payroll] saved uploads: ${(performance.now() - t0).toFixed(0)}ms`)),
     ]).finally(() => {
       console.log(`[payroll] TOTAL: ${(performance.now() - t0).toFixed(0)}ms`);
       setPageLoading(false);
@@ -335,6 +336,25 @@ export default function PayrollPage() {
       }
     });
     setAttendanceDeductions(grouped);
+  };
+
+  const loadSavedUploads = async () => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/payroll/uploads?month=${config.closingMonth}&year=${config.closingYear}`);
+      if (!res.ok) return;
+      const records = await res.json();
+      if (!records || records.length === 0) return;
+      setAttendanceDeductions(prev => {
+        const merged = { ...prev };
+        for (const record of records) {
+          const items = typeof record.items === 'string' ? JSON.parse(record.items) : record.items;
+          merged[record.employee_id] = [...(merged[record.employee_id] || []), ...items];
+        }
+        return merged;
+      });
+    } catch (err) {
+      console.error('Error loading saved uploads:', err);
+    }
   };
 
   const saveEmployeeDeductions = async (empId: string, deductions: EmployeeDeduction[]) => {
@@ -659,6 +679,16 @@ export default function PayrollPage() {
         }
         return merged;
       });
+
+      const companyId = params.id as string;
+      const savePromises = Object.entries(uploaded).map(([empId, items]) =>
+        fetch(`/api/companies/${companyId}/hr/payroll/uploads`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ employee_id: empId, closing_month: config.closingMonth, closing_year: config.closingYear, items }),
+        })
+      );
+      await Promise.all(savePromises);
 
       alert(`Archivo cargado: ${matched} empleados procesados, ${skipped} no encontrados`);
     } catch (err: any) {

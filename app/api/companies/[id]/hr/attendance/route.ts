@@ -88,3 +88,40 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export async function PATCH(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: companyId } = await params;
+  const body = await request.json();
+  const records = body.records as Array<{
+    employee_id: string;
+    date: string;
+    status: string;
+    amount?: number;
+    overtime_amount?: number;
+    overtime_hours?: number;
+    notes?: string;
+  }>;
+
+  if (!records || !Array.isArray(records) || records.length === 0) {
+    return NextResponse.json({ error: 'Missing records array' }, { status: 400 });
+  }
+
+  const rows = records.map(r => ({
+    tenant_id: companyId,
+    employee_id: r.employee_id,
+    date: r.date,
+    status: r.status,
+    amount: r.amount || 0,
+    overtime_amount: r.overtime_amount || 0,
+    overtime_hours: r.overtime_hours || 0,
+    notes: r.notes || '',
+  }));
+
+  const { data, error } = await getSupabaseServer()
+    .from('attendance')
+    .upsert(rows, { onConflict: 'tenant_id,employee_id,date' })
+    .select();
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ saved: data?.length || 0 });
+}
