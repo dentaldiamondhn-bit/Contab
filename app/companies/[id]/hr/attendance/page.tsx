@@ -188,7 +188,7 @@ export default function AttendancePage() {
   const [showUpload, setShowUpload] = useState(false);
   const [uploadPreview, setUploadPreview] = useState<{ empName: string; empId: string; date: string; status: string; amount: number; hours: number; error?: string }[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [viewMode, setViewMode] = useState<'day' | 'quincena'>('day');
+  const [viewMode, setViewMode] = useState<'day' | 'quincena' | 'compact'>('day');
   const [latePrompt, setLatePrompt] = useState<{ empId: string; empName: string; date: string } | null>(null);
   const [lateHours, setLateHours] = useState('1');
   const [lateMinutes, setLateMinutes] = useState('0');
@@ -1064,7 +1064,7 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-3xl font-bold">Control de Asistencia</h1>
           <p className="text-gray-500">
-            {viewMode === 'day' ? 'Registro diario de asistencia' : 'Vista quincena — 2 semanas completas'}
+            {viewMode === 'day' ? 'Registro diario de asistencia' : viewMode === 'quincena' ? 'Vista quincena — 2 semanas completas' : 'Vista compacta — lista rápida'}
           </p>
         </div>
         <div className="flex gap-2">
@@ -1082,6 +1082,13 @@ export default function AttendancePage() {
             >
               <Layers className="h-4 w-4 mr-1 inline" />
               Quincena
+            </button>
+            <button
+              onClick={() => setViewMode('compact')}
+              className={`px-3 py-1.5 text-sm font-medium ${viewMode === 'compact' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+            >
+              <Filter className="h-4 w-4 mr-1 inline" />
+              Compacta
             </button>
           </div>
           {undoHistory.length > 0 && (
@@ -1541,6 +1548,52 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
         </>
+      )}
+
+      {/* ===== COMPACT VIEW ===== */}
+      {viewMode === 'compact' && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3 mb-4">
+              <input
+                type="text"
+                placeholder="Buscar empleado..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 px-3 py-2 border rounded-md text-sm"
+              />
+              <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)} className="px-3 py-2 border rounded-md text-sm">
+                <option value="all">Todos</option>
+                {[...new Set(employees.map(e => e.department).filter(Boolean))].sort().map(dept => (
+                  <option key={dept} value={dept!}>{dept}</option>
+                ))}
+              </select>
+              <span className="text-sm text-gray-500">{filteredEmployees.length} empleados</span>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+              {filteredEmployees.map((emp) => {
+                const att = getAttendance(emp.id);
+                const status = att?.status || 'sin_registro';
+                const isInactive = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
+                return (
+                  <div key={emp.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isInactive ? 'opacity-50 bg-gray-50' : 'bg-white hover:bg-gray-50'}`}>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{emp.name}</div>
+                      <div className="text-xs text-gray-400 truncate">{emp.department || '—'}</div>
+                    </div>
+                    {status === 'sin_registro' ? (
+                      <span className="text-xs text-gray-300 whitespace-nowrap">—</span>
+                    ) : (
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getStatusColor(status)}`}>
+                        {getStatusLabel(status)}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {/* Config Modal */}
