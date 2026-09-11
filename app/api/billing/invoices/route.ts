@@ -155,9 +155,9 @@ export async function POST(request: NextRequest) {
     
     // Llamar a la función RPC existente - usar URL base del request
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const transactionResponse = await fetch(`${baseUrl}/api/accounting/transaction`, {
+    const transactionResponse = await fetch(`${baseUrl}/api/accounting/transactions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantIdForInvoice || '' },
       body: JSON.stringify({
         tenant_id: tenantIdForInvoice,
         voucherType: 'INGRESO',

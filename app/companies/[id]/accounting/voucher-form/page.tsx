@@ -214,7 +214,7 @@ export default function VoucherFormPage() {
       };
 
       // Llamar al RPC existente
-      const response = await fetch('/api/accounting/transaction', {
+      const response = await fetch('/api/accounting/transactions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(voucherData)

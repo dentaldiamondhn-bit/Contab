@@ -85,9 +85,9 @@ export async function POST(request: NextRequest) {
       ];
       
       // Llamar a la función RPC existente
-      const transactionResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/accounting/transaction`, {
+      const transactionResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL}/api/accounting/transactions`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': paymentLink.tenant_id || '1' },
         body: JSON.stringify({
           tenantId: '1',
           voucherType: 'DIARIO',
