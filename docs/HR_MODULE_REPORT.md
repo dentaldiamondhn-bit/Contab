@@ -164,7 +164,7 @@
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/vacations/page.tsx` | Gestión completa de permisos/ausencias: tipos de permiso, flujo de solicitudes, panel de control, seguimiento de uso, estadísticas/recuento, **filtros avanzados** |
-| `app/companies/[id]/hr/vacations/calendar/page.tsx` | **Calendario mensual** de vacaciones y permisos: grilla con eventos codificados por color, rangos multi-día, filtros por empleado/tipo/estado, detalle por día, navegación mensual, estadísticas |
+| `app/companies/[id]/hr/vacations/calendar/page.tsx` | **Calendario** de vacaciones y permisos con **3 vistas (Día/Semana/Mes)**: grilla mensual con eventos multi-día, vista semanal en columnas, vista diaria detallada. **Edición/eliminación** de permisos desde el calendario (modal de edición, confirmación de eliminación). Aprobación/rechazo directo. Filtros por empleado/tipo/estado |
 | `app/api/companies/[id]/hr/permissions/types/route.ts` | API CRUD para tipos de permiso |
 | `app/api/companies/[id]/hr/permissions/requests/route.ts` | API CRUD para solicitudes de permiso |
 | `app/api/companies/[id]/hr/permissions/used/route.ts` | API para seguimiento de uso de permisos |
@@ -190,7 +190,7 @@
 - **Cálculo de salario por período** ajustado según frecuencia (quincenal = salario/2, semanal = salario/4)
 - **Filtros avanzados**: búsqueda por nombre/posición del empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en historial, botón "Limpiar filtros" condicional
 - **Rendimiento optimizado**: API ligera de empleados (`/hr/payroll/employees`), 4 fetches paralelos en un solo `Promise.all`, `useMemo` para datos derivados (approvedRequests, activeEmployees, pendingRequests, processedRequests, typesToShow, filteredEmployees, departments), skeleton de carga
-- **Calendario mensual**: grilla de 7×6 con eventos codificados por color de tipo de permiso, rangos multi-día, filtros por empleado/tipo/estado, detalle de día al hacer click, navegación prev/next/hoy, estadísticas del mes (días ausentes, empleados ausentes, solicitudes, pendientes), leyenda de colores responsive
+- **Calendario con 3 vistas**: **Mes** — grilla 7×6 con eventos multi-día codificados por color; **Semana** — 7 columnas con eventos expandibles, click en día para ir a vista día; **Día** — lista detallada con posición del empleado, fechas, motivo, estado. **Edición** de permisos (modal con tipo, fechas, motivo, estado), **eliminación** con confirmación, **aprobación/rechazo** directo desde el calendario. Navegación prev/next adaptativa por vista, estadísticas del mes
 
 #### Almacenamiento de Datos
 
