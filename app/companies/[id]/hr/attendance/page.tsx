@@ -63,7 +63,7 @@ interface Attendance {
   date: string;
   checkIn: string;
   checkOut: string;
-  status: 'present' | 'absent' | 'late' | 'vacation' | 'overtime' | 'unpaid_leave' | 'disability' | 'holiday' | 'free_day' | 'suspended';
+  status: 'present' | 'absent' | 'late' | 'vacation' | 'overtime' | 'unpaid_leave' | 'paid_leave' | 'disability' | 'holiday' | 'free_day' | 'suspended';
   amount?: number;
   hours?: number;
   overtimeHours?: number;
@@ -146,6 +146,7 @@ const STATUS_OPTIONS: { value: Attendance['status']; label: string; color: strin
   { value: 'vacation', label: 'V', color: 'text-blue-700', bgColor: 'bg-blue-100 hover:bg-blue-200' },
   { value: 'overtime', label: 'HE', color: 'text-orange-700', bgColor: 'bg-orange-100 hover:bg-orange-200' },
   { value: 'unpaid_leave', label: 'SP', color: 'text-gray-700', bgColor: 'bg-gray-200 hover:bg-gray-300' },
+  { value: 'paid_leave', label: 'CP', color: 'text-emerald-700', bgColor: 'bg-emerald-100 hover:bg-emerald-200' },
   { value: 'suspended', label: 'SUS', color: 'text-red-700', bgColor: 'bg-red-200 hover:bg-red-300' },
   { value: 'disability', label: 'I', color: 'text-pink-700', bgColor: 'bg-pink-100 hover:bg-pink-200' },
   { value: 'holiday', label: 'F', color: 'text-indigo-700', bgColor: 'bg-indigo-100 hover:bg-indigo-200' },
@@ -653,6 +654,7 @@ export default function AttendancePage() {
       case 'vacation': return 'bg-blue-100 text-blue-800';
       case 'overtime': return 'bg-orange-100 text-orange-800';
       case 'unpaid_leave': return 'bg-gray-200 text-gray-800';
+      case 'paid_leave': return 'bg-emerald-100 text-emerald-800';
       case 'suspended': return 'bg-red-200 text-red-800';
       case 'disability': return 'bg-pink-100 text-pink-800';
       case 'holiday': return 'bg-indigo-100 text-indigo-800';
@@ -669,6 +671,7 @@ export default function AttendancePage() {
       case 'vacation': return 'Vacaciones';
       case 'overtime': return 'Horas Extras';
       case 'unpaid_leave': return 'Permiso s/pago';
+      case 'paid_leave': return 'Permiso c/pago';
       case 'suspended': return 'Suspensión s/goce';
       case 'disability': return 'Incapacidad';
       case 'holiday': return 'Feriado';
@@ -684,6 +687,7 @@ export default function AttendancePage() {
     vacation: attendance.filter(a => a.date === selectedDate && a.status === 'vacation').length,
     overtime: attendance.filter(a => a.date === selectedDate && a.overtimeHours && a.overtimeHours > 0).length,
     unpaid_leave: attendance.filter(a => a.date === selectedDate && a.status === 'unpaid_leave').length,
+    paid_leave: attendance.filter(a => a.date === selectedDate && a.status === 'paid_leave').length,
     suspended: attendance.filter(a => a.date === selectedDate && a.status === 'suspended').length,
     disability: attendance.filter(a => a.date === selectedDate && a.status === 'disability').length,
     holiday: attendance.filter(a => a.date === selectedDate && a.status === 'holiday').length,
@@ -909,6 +913,7 @@ export default function AttendancePage() {
     'enfermedad': 'disability', 'enf': 'disability',
     'horas extras': 'overtime', 'overtime': 'overtime', 'he': 'overtime', 'hora extra': 'overtime',
     'permiso sin pago': 'unpaid_leave', 'permiso s/pago': 'unpaid_leave', 'unpaid leave': 'unpaid_leave', 'psp': 'unpaid_leave',
+    'permiso con pago': 'paid_leave', 'permiso c/pago': 'paid_leave', 'paid leave': 'paid_leave', 'pcp': 'paid_leave',
     'incapacidad': 'disability', 'disability': 'disability', 'incap': 'disability',
     'suspension': 'suspended', 'suspendido': 'suspended', 'suspended': 'suspended', 'sus': 'suspended',
   };
@@ -961,7 +966,7 @@ export default function AttendancePage() {
         const hoursRaw = hoursIdx >= 0 ? parseFloat(String(row[hoursIdx] || '0')) : 0;
         const matchedEmp = employees.find(e => e.name.toLowerCase() === empName.toLowerCase());
         const resolvedStatus = STATUS_MAP[statusRaw] || statusRaw;
-        const validStatuses = ['present', 'absent', 'late', 'vacation', 'overtime', 'unpaid_leave', 'disability', 'suspended'];
+        const validStatuses = ['present', 'absent', 'late', 'vacation', 'overtime', 'unpaid_leave', 'paid_leave', 'disability', 'suspended'];
         let dateStr = dateRaw;
         if (dateRaw.match(/^\d{1,2}\/\d{1,2}\/\d{4}$/)) {
           const [m, d, y] = dateRaw.split('/');
@@ -1199,6 +1204,10 @@ export default function AttendancePage() {
               onClick={() => setSelectedStatFilter(selectedStatFilter === 'unpaid_leave' ? null : 'unpaid_leave')}>
               <CardContent className="pt-4 text-center"><FileText className="h-6 w-6 text-gray-600 mx-auto mb-1" /><div className="text-xl font-bold text-gray-600">{todayStats.unpaid_leave}</div><div className="text-xs text-gray-500">Permiso s/pago</div></CardContent>
             </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'paid_leave' ? 'ring-2 ring-emerald-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'paid_leave' ? null : 'paid_leave')}>
+              <CardContent className="pt-4 text-center"><FileText className="h-6 w-6 text-emerald-600 mx-auto mb-1" /><div className="text-xl font-bold text-emerald-600">{todayStats.paid_leave}</div><div className="text-xs text-gray-500">Permiso c/pago</div></CardContent>
+            </Card>
             <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'suspended' ? 'ring-2 ring-red-700' : ''}`}
               onClick={() => setSelectedStatFilter(selectedStatFilter === 'suspended' ? null : 'suspended')}>
               <CardContent className="pt-4 text-center"><Ban className="h-6 w-6 text-red-700 mx-auto mb-1" /><div className="text-xl font-bold text-red-700">{todayStats.suspended}</div><div className="text-xs text-gray-500">Suspensión s/goce</div></CardContent>
@@ -1266,6 +1275,7 @@ export default function AttendancePage() {
                               <Button size="sm" variant={hasOvertime ? 'default' : 'outline'} onClick={() => { setOvertimePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); setOvertimeHours('1'); setOvertimeMinutes('0'); }} className={hasOvertime ? 'bg-orange-500 hover:bg-orange-600' : ''}><TrendingUp className="h-4 w-4" /></Button>
                               {hasOvertime && <span className="text-orange-600 font-bold text-xs whitespace-nowrap">+{formatCurrency(att?.overtimeAmount || 0)} ({formatHours(att?.overtimeHours || 0)})</span>}
                               <Button size="sm" variant={currentStatus === 'unpaid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'unpaid_leave')} className={currentStatus === 'unpaid_leave' ? 'bg-gray-500 hover:bg-gray-600' : ''}><FileText className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'paid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'paid_leave')} className={currentStatus === 'paid_leave' ? 'bg-emerald-500 hover:bg-emerald-600' : ''} title="Permiso con pago"><CheckCircle className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'disability' ? 'default' : 'outline'} onClick={() => setDisabilityPrompt({ empId: emp.id, empName: emp.name, date: selectedDate })} className={currentStatus === 'disability' ? 'bg-pink-500 hover:bg-pink-600' : ''}><DollarSign className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'holiday' ? 'default' : 'outline'} onClick={() => { setHolidayPrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); }} className={currentStatus === 'holiday' ? 'bg-indigo-500 hover:bg-indigo-600' : ''}><Star className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'free_day' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'free_day')} className={currentStatus === 'free_day' ? 'bg-teal-500 hover:bg-teal-600' : ''}><CalendarOff className="h-4 w-4" /></Button>
