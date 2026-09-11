@@ -1764,7 +1764,7 @@ export default function AttendancePage() {
                   ? attendance.map(a => a.id === existing.id ? record : a)
                   : [...attendance, record];
                 pushUndo();
-                saveAttendanceRecords(updated);
+                saveSingleRecord(record);
                 setAttendance(updated);
                 setOvertimePrompt(null);
               }} className="w-full">
