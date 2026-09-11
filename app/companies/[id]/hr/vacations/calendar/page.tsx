@@ -557,127 +557,170 @@ export default function VacationCalendarPage({ params }: { params: Promise<{ id:
       )}
 
       {/* ===== WEEK VIEW ===== */}
-      {viewMode === 'week' && (
-        <div className="border rounded-lg overflow-hidden">
-          <div className="grid grid-cols-7 bg-gray-50 border-b">
-            {weekDays.map((day, i) => (
-              <div key={i} onClick={() => { setCurrentDay(day.date.getDate()); setViewMode('day'); setSelectedDay(day.dateStr); }}
-                className={`py-2 text-center cursor-pointer hover:bg-gray-100 transition-colors ${day.isToday ? 'bg-blue-50' : ''}`}>
-                <div className="text-xs text-gray-500">{DAY_NAMES[i]}</div>
-                <div className={`text-lg font-bold ${day.isToday ? 'text-blue-600' : ''}`}>{day.date.getDate()}</div>
-              </div>
-            ))}
-          </div>
-          <div className="grid grid-cols-7 min-h-[400px]">
-            {weekDays.map((day, i) => {
-              const events = eventsByDay[day.dateStr] || [];
-              return (
-                <div key={i} className={`border-r p-1.5 ${day.isToday ? 'bg-blue-50/30' : 'bg-white'}`}>
-                  <div className="space-y-1">
-                    {events.map((ev, j) => {
-                      const c = getColor(ev.color);
-                      const pt = permTypes.find(t => t.id === ev.request.typeId);
-                      return (
-                        <div key={j} onClick={() => openEditModal(ev.request)}
-                          className={`p-1.5 rounded border text-[11px] cursor-pointer hover:shadow-sm transition-shadow ${c.border} ${c.light}`}>
-                          <div className={`font-medium truncate ${c.text}`}>{ev.request.employeeName}</div>
-                          <div className="text-gray-500 truncate">{pt?.label || ev.request.typeId}</div>
-                          {ev.request.days > 1 && (
-                            <div className="text-gray-400 text-[10px]">{ev.request.days}d</div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
+      {viewMode === 'week' && (() => {
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
+        return (
+          <div className="border rounded-lg overflow-hidden">
+            {/* Day headers */}
+            <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b bg-gray-50">
+              <div className="py-2 text-center text-[10px] text-gray-400 font-medium border-r">Hora</div>
+              {weekDays.map((day, i) => (
+                <div key={i} onClick={() => { setCurrentDay(day.date.getDate()); setViewMode('day'); setSelectedDay(day.dateStr); }}
+                  className={`py-2 text-center cursor-pointer hover:bg-gray-100 transition-colors border-r last:border-r-0 ${day.isToday ? 'bg-blue-50' : ''}`}>
+                  <div className="text-[10px] text-gray-500">{DAY_NAMES[i]}</div>
+                  <div className={`text-lg font-bold ${day.isToday ? 'text-blue-600' : ''}`}>{day.date.getDate()}</div>
                 </div>
-              );
-            })}
+              ))}
+            </div>
+            {/* All-day events row */}
+            <div className="grid grid-cols-[48px_repeat(7,1fr)] border-b bg-gray-50/50 min-h-[40px]">
+              <div className="py-1 text-[10px] text-gray-400 text-center border-r flex items-center justify-center">Todo el día</div>
+              {weekDays.map((day, i) => {
+                const events = eventsByDay[day.dateStr] || [];
+                return (
+                  <div key={i} className={`border-r last:border-r-0 p-0.5 ${day.isToday ? 'bg-blue-50/20' : ''}`}>
+                    <div className="space-y-0.5">
+                      {events.map((ev, j) => {
+                        const c = getColor(ev.color);
+                        const pt = permTypes.find(t => t.id === ev.request.typeId);
+                        return (
+                          <div key={j} onClick={() => openEditModal(ev.request)}
+                            className={`text-[10px] leading-tight px-1 py-0.5 rounded truncate cursor-pointer hover:opacity-80 ${c.bg} ${c.text} border ${c.border}`}
+                            title={`${ev.request.employeeName} — ${pt?.label} — Click para editar`}>
+                            {ev.request.employeeName.split(' ')[0]}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Time grid */}
+            <div className="grid grid-cols-[48px_repeat(7,1fr)] max-h-[600px] overflow-y-auto relative">
+              {HOURS.map((hour) => (
+                <div key={hour} className="contents">
+                  <div className="h-[50px] border-r border-b border-gray-100 text-[10px] text-gray-400 text-right pr-1 pt-0 relative">
+                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                  </div>
+                  {weekDays.map((day, i) => (
+                    <div key={i} className={`h-[50px] border-r border-b border-gray-100 last:border-r-0 relative ${day.isToday ? 'bg-blue-50/10' : ''}`}>
+                      {day.isToday && hour === currentHour && (
+                        <div className="absolute left-0 right-0 z-10" style={{ top: `${(currentMinute / 60) * 100}%` }}>
+                          <div className="flex items-center">
+                            <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                            <div className="flex-1 h-[2px] bg-red-500" />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ===== DAY VIEW ===== */}
       {viewMode === 'day' && (() => {
         const ds = dateToStr(new Date(currentYear, currentMonth, currentDay));
         const events = eventsByDay[ds] || [];
+        const isToday = ds === dateToStr(new Date());
+        const now = new Date();
+        const currentHour = now.getHours();
+        const currentMinute = now.getMinutes();
+        const HOURS = Array.from({ length: 16 }, (_, i) => i + 6);
         return (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <span>{DAY_NAMES_FULL[new Date(currentYear, currentMonth, currentDay).getDay()]} {currentDay} de {MONTH_NAMES[currentMonth]} {currentYear}</span>
-                <span className="text-sm font-normal text-gray-500">{events.length} permiso(s)</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {events.length === 0 ? (
-                <div className="text-center py-12 text-gray-500">
-                  <Calendar className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                  <p>No hay permisos registrados para este día</p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {events.map((ev, i) => {
-                    const c = getColor(ev.color);
-                    const pt = permTypes.find(t => t.id === ev.request.typeId);
-                    const emp = employees.find(e => e.id === ev.request.employeeId);
-                    return (
-                      <div key={i} className={`flex items-center justify-between p-4 rounded-lg border ${c.border} ${c.light}`}>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-xs font-medium px-2 py-0.5 rounded ${c.bg} ${c.text}`}>{pt?.label || ev.request.typeId}</span>
-                            <span className="font-medium">{ev.request.employeeName}</span>
-                            {emp?.position && <span className="text-xs text-gray-400">— {emp.position}</span>}
-                            <span className={`text-xs px-1.5 py-0.5 rounded ${
-                              ev.request.status === 'approved' ? 'bg-green-100 text-green-700' :
-                              ev.request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
-                              'bg-red-100 text-red-700'
-                            }`}>
-                              {ev.request.status === 'approved' ? 'Aprobada' : ev.request.status === 'pending' ? 'Pendiente' : 'Rechazada'}
-                            </span>
-                          </div>
-                          <div className="text-sm text-gray-500 mt-1">
-                            {formatDateLong(ev.request.startDate)} — {formatDateLong(ev.request.endDate)} • {ev.request.days} día(s)
-                          </div>
-                          {ev.request.reason && <div className="text-sm text-gray-400 mt-1">{ev.request.reason}</div>}
-                          {ev.request.resolvedBy && (
-                            <div className="text-xs text-gray-400 mt-1">
-                              {ev.request.status === 'approved' ? 'Aprobado' : 'Rechazado'} por: {ev.request.resolvedBy}
+          <div className="border rounded-lg overflow-hidden">
+            {/* All-day events section */}
+            <div className={`border-b ${isToday ? 'bg-blue-50/50' : 'bg-gray-50'}`}>
+              <div className="grid grid-cols-[48px_1fr]">
+                <div className="py-2 text-[10px] text-gray-400 text-center border-r flex items-center justify-center">Todo el día</div>
+                <div className="p-2">
+                  {events.length === 0 ? (
+                    <div className="text-xs text-gray-400 py-1">Sin permisos este día</div>
+                  ) : (
+                    <div className="space-y-1">
+                      {events.map((ev, i) => {
+                        const c = getColor(ev.color);
+                        const pt = permTypes.find(t => t.id === ev.request.typeId);
+                        const emp = employees.find(e => e.id === ev.request.employeeId);
+                        return (
+                          <div key={i} onClick={() => openEditModal(ev.request)}
+                            className={`flex items-center justify-between p-2 rounded border cursor-pointer hover:shadow-sm transition-shadow ${c.border} ${c.light}`}>
+                            <div className="flex items-center gap-2 flex-wrap min-w-0">
+                              <span className={`text-xs font-medium px-2 py-0.5 rounded shrink-0 ${c.bg} ${c.text}`}>{pt?.label || ev.request.typeId}</span>
+                              <span className="font-medium text-sm truncate">{ev.request.employeeName}</span>
+                              {emp?.position && <span className="text-xs text-gray-400 truncate hidden sm:inline">— {emp.position}</span>}
+                              <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+                                ev.request.status === 'approved' ? 'bg-green-100 text-green-700' :
+                                ev.request.status === 'pending' ? 'bg-yellow-100 text-yellow-700' :
+                                'bg-red-100 text-red-700'
+                              }`}>
+                                {ev.request.status === 'approved' ? 'Aprobada' : ev.request.status === 'pending' ? 'Pendiente' : 'Rechazada'}
+                              </span>
+                              {ev.request.days > 1 && <span className="text-[10px] text-gray-400">{ev.request.days}d</span>}
                             </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 ml-3">
-                          {ev.request.status === 'pending' && (
-                            <>
-                              <Button size="sm" variant="outline" className="h-7 text-green-600 border-green-300 hover:bg-green-50"
-                                onClick={() => resolveRequest(ev.request.id, 'approved')}>
-                                <CheckCircle className="h-3.5 w-3.5" />
+                            <div className="flex items-center gap-1 ml-2 shrink-0">
+                              {ev.request.status === 'pending' && (
+                                <>
+                                  <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-green-600 border-green-300 hover:bg-green-50"
+                                    onClick={(e) => { e.stopPropagation(); resolveRequest(ev.request.id, 'approved'); }}>
+                                    <CheckCircle className="h-3 w-3" />
+                                  </Button>
+                                  <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-red-600 border-red-300 hover:bg-red-50"
+                                    onClick={(e) => { e.stopPropagation(); resolveRequest(ev.request.id, 'rejected'); }}>
+                                    <XCircle className="h-3 w-3" />
+                                  </Button>
+                                </>
+                              )}
+                              <Button size="sm" variant="outline" className="h-6 w-6 p-0"
+                                onClick={(e) => { e.stopPropagation(); openEditModal(ev.request); }}>
+                                <Edit className="h-3 w-3" />
                               </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-red-600 border-red-300 hover:bg-red-50"
-                                onClick={() => resolveRequest(ev.request.id, 'rejected')}>
-                                <XCircle className="h-3.5 w-3.5" />
+                              <Button size="sm" variant="outline" className="h-6 w-6 p-0 text-red-500 hover:bg-red-50"
+                                onClick={(e) => { e.stopPropagation(); setShowDeleteConfirm(ev.request.id); }}>
+                                <Trash2 className="h-3 w-3" />
                               </Button>
-                            </>
-                          )}
-                          <Button size="sm" variant="outline" className="h-7" onClick={() => openEditModal(ev.request)}>
-                            <Edit className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button size="sm" variant="outline" className="h-7 text-red-500 hover:bg-red-50"
-                            onClick={() => setShowDeleteConfirm(ev.request.id)}>
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            {/* Time grid */}
+            <div className="max-h-[600px] overflow-y-auto">
+              {HOURS.map((hour) => (
+                <div key={hour} className="grid grid-cols-[48px_1fr] relative">
+                  <div className="h-[50px] border-r border-b border-gray-100 text-[10px] text-gray-400 text-right pr-1 pt-0">
+                    {hour === 12 ? '12 PM' : hour > 12 ? `${hour - 12} PM` : `${hour} AM`}
+                  </div>
+                  <div className={`h-[50px] border-b border-gray-100 relative ${isToday && hour === currentHour ? 'bg-blue-50/10' : ''}`}>
+                    {isToday && hour === currentHour && (
+                      <div className="absolute left-0 right-0 z-10" style={{ top: `${(currentMinute / 60) * 100}%` }}>
+                        <div className="flex items-center">
+                          <div className="w-2 h-2 rounded-full bg-red-500 -ml-1" />
+                          <div className="flex-1 h-[2px] bg-red-500" />
                         </div>
                       </div>
-                    );
-                  })}
+                    )}
+                  </div>
                 </div>
-              )}
-            </CardContent>
-          </Card>
+              ))}
+            </div>
+          </div>
         );
       })()}
 
-      {/* Selected Day Detail (month/week views) */}
-      {selectedDay && viewMode !== 'day' && (
+      {/* Selected Day Detail (month view) */}
+      {selectedDay && viewMode === 'month' && (
         <Card>
           <CardHeader className="py-3">
             <CardTitle className="text-sm flex items-center justify-between">
