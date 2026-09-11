@@ -176,6 +176,7 @@ export default function AttendancePage() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [attendance, setAttendance] = useState<Attendance[]>([]);
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [loading, setLoading] = useState(true);
   const [showConfig, setShowConfig] = useState(false);
   const [deductionConfig, setDeductionConfig] = useState<DeductionConfig>(DEFAULT_DEDUCTION_CONFIG);
   const [editingAmount, setEditingAmount] = useState<{ empId: string; status: string } | null>(null);
@@ -243,8 +244,11 @@ export default function AttendancePage() {
 
   const loadData = async () => {
     try {
+      setLoading(true);
+      const startOfMonth = new Date(selectedDate.substring(0, 7) + '-01').toISOString().split('T')[0];
+      const endOfMonth = new Date(new Date(selectedDate.substring(0, 7) + '-28').getFullYear(), new Date(selectedDate.substring(0, 7) + '-01').getMonth() + 1, 0).toISOString().split('T')[0];
       const [attRes, configRes, holidaysRes, schedulesRes, empRes] = await Promise.all([
-        fetch(`/api/companies/${companyId}/hr/attendance`),
+        fetch(`/api/companies/${companyId}/hr/attendance?start=${startOfMonth}&end=${endOfMonth}`),
         fetch(`/api/companies/${companyId}/hr/attendance/config`),
         fetch(`/api/companies/${companyId}/hr/attendance/holidays`),
         fetch(`/api/companies/${companyId}/hr/attendance/schedules`),
@@ -324,6 +328,8 @@ export default function AttendancePage() {
       }
     } catch (err) {
       console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -1029,6 +1035,18 @@ export default function AttendancePage() {
 
   return (
     <div className="container mx-auto p-6 space-y-6">
+      {loading ? (
+        <div className="space-y-4">
+          <div className="h-8 bg-gray-200 rounded w-64 animate-pulse"></div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded animate-pulse"></div>)}
+          </div>
+          <div className="space-y-3">
+            {[1,2,3,4,5].map(i => <div key={i} className="h-20 bg-gray-200 rounded animate-pulse"></div>)}
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Control de Asistencia</h1>
@@ -2175,6 +2193,8 @@ export default function AttendancePage() {
             </div>
           </div>
         </div>
+      )}
+      </>
       )}
     </div>
   );
