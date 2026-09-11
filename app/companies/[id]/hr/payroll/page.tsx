@@ -627,46 +627,53 @@ export default function PayrollPage() {
         if (!uploaded[emp.id]) uploaded[emp.id] = [];
         matched++;
 
+        const col = (names: string[]) => {
+          for (const n of names) {
+            if (row[n] !== undefined && row[n] !== '') return parseFloat(String(row[n])) || 0;
+          }
+          return 0;
+        };
+
         const dedFields = [
-          { key: 'IHSS', label: 'IHSS' },
-          { key: 'RAP', label: 'RAP' },
-          { key: 'Incapacidad', label: 'Incapacidad' },
-          { key: 'Inasistencia', label: 'Inasistencia' },
-          { key: 'Retardo', label: 'Retardo' },
-          { key: 'Permiso sin goce', label: 'Permiso sin goce' },
+          { keys: ['IHSS (L)', 'IHSS'], label: 'IHSS' },
+          { keys: ['RAP (L)', 'RAP'], label: 'RAP' },
+          { keys: ['Incapacidad (L)', 'Incapacidad'], label: 'Incapacidad' },
+          { keys: ['Inasistencia (L)', 'Inasistencia'], label: 'Inasistencia' },
+          { keys: ['Retardo (L)', 'Retardo'], label: 'Retardo' },
+          { keys: ['Permiso sin goce (L)', 'Permiso sin goce'], label: 'Permiso sin goce' },
         ];
         for (const f of dedFields) {
-          const val = parseFloat(row[f.key] || row[f.key.toLowerCase()] || '0');
+          const val = col(f.keys);
           if (val > 0) {
             uploaded[emp.id].push({ amount: val, type: 'deduction', label: f.label });
           }
         }
 
         const incFields = [
-          { key: 'Feriado', label: 'Día Feriado' },
-          { key: 'Vacaciones', label: 'Vacaciones' },
+          { keys: ['Feriado (L)', 'Feriado'], label: 'Día Feriado' },
+          { keys: ['Vacaciones (L)', 'Vacaciones'], label: 'Vacaciones' },
         ];
         for (const f of incFields) {
-          const val = parseFloat(row[f.key] || row[f.key.toLowerCase()] || '0');
+          const val = col(f.keys);
           if (val > 0) {
             uploaded[emp.id].push({ amount: val, type: 'income', label: f.label });
           }
         }
 
-        const heManana = parseFloat(row['HE Manana (25%)'] || row['he manana (25%)'] || row['HE Mañana'] || row['he mañana'] || '0');
+        const heManana = col(['HE Mañana 25% (horas)', 'HE Manana (25%)', 'he manana (25%)', 'HE Mañana', 'he mañana']);
         if (heManana > 0) {
           uploaded[emp.id].push({ amount: heManana * emp.salary / 30 / 8 * 1.25, type: 'income', label: `Horas Extra Mañana (${heManana}h)` });
         }
-        const heMixto = parseFloat(row['HE Mixto (50%)'] || row['he mixto (50%)'] || '0');
+        const heMixto = col(['HE Mixto 50% (horas)', 'HE Mixto (50%)', 'he mixto (50%)']);
         if (heMixto > 0) {
           uploaded[emp.id].push({ amount: heMixto * emp.salary / 30 / 8 * 1.50, type: 'income', label: `Horas Extra Mixto (${heMixto}h)` });
         }
-        const heNocturno = parseFloat(row['HE Nocturno (75%)'] || row['he nocturno (75%)'] || '0');
+        const heNocturno = col(['HE Nocturno 75% (horas)', 'HE Nocturno (75%)', 'he nocturno (75%)']);
         if (heNocturno > 0) {
           uploaded[emp.id].push({ amount: heNocturno * emp.salary / 30 / 8 * 1.75, type: 'income', label: `Horas Extra Nocturno (${heNocturno}h)` });
         }
 
-        const bono = parseFloat(row['Bono'] || row['bono'] || row['Bonificacion'] || '0');
+        const bono = col(['Bono (L)', 'Bono', 'Bonificacion']);
         if (bono > 0) {
           uploaded[emp.id].push({ amount: bono, type: 'income', label: 'Bonificación' });
         }
@@ -700,14 +707,107 @@ export default function PayrollPage() {
 
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
-    const headers = ['Nombre', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'HE Manana (25%)', 'HE Mixto (50%)', 'HE Nocturno (75%)', 'Feriado', 'Vacaciones', 'Bono'];
-    const exampleRows = [
-      ['Juan Perez', 125, 75, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0],
-      ['Maria Lopez', 0, 0, 100, 0, 25, 0, 0, 0, 3, 0, 0, 0],
+    const ws = XLSX.utils.aoa_to_sheet([]);
+
+    const empNames = activeEmployees.slice(0, 5).map(e => e.name);
+
+    ws['!cols'] = [
+      { wch: 22 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 12 }, { wch: 16 },
+      { wch: 16 }, { wch: 16 }, { wch: 18 },
+      { wch: 14 }, { wch: 14 }, { wch: 14 },
     ];
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
+
+    const catRow = [
+      'Nombre', '', '',
+      'DEDUCCIONES', '', '', '', '', '',
+      'HORAS EXTRAS', '', '',
+      'OTROS INGRESOS', '',
+    ];
+    const descRow = [
+      'Nombre completo', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)',
+      'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)',
+      'Feriado (L)', 'Vacaciones (L)', 'Bono (L)',
+    ];
+
+    const exampleRows = empNames.length > 0
+      ? empNames.map((name, i) => i === 0
+        ? [name, '', '', '', '', '', '', 2, 1, 0, '', '', '']
+        : [name, '', '', '', '', '', '', '', '', '', '', '', ''])
+      : [
+        ['Juan Perez', '', '', '', '', '', '', 2, 1, 0, '', '', ''],
+        ['Maria Lopez', '', '', '', 100, 25, '', 0, 0, 3, '', '', ''],
+      ];
+
+    const data = [
+      ['FORMATO DE CARGA DE NÓMINA - ' + (config.closingMonth ? `${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][config.closingMonth - 1]} ${config.closingYear}` : '')],
+      [],
+      catRow,
+      descRow,
+      [],
+      ...exampleRows,
+    ];
+    XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A1' });
+
+    ws['!merges'] = [
+      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
+      { s: { r: 2, c: 3 }, e: { r: 2, c: 8 } },
+      { s: { r: 2, c: 9 }, e: { r: 2, c: 11 } },
+      { s: { r: 2, c: 12 }, e: { r: 2, c: 13 } },
+    ];
+
+    const range = XLSX.utils.decode_range(ws['!ref']!);
+    for (let c = 0; c <= 13; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[cell]) ws[cell].s = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
+    }
+    for (let c = 3; c <= 8; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 2, c });
+      if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
+    }
+    for (let c = 9; c <= 11; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 2, c });
+      if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
+    }
+    for (let c = 12; c <= 13; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 2, c });
+      if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
+    }
+    for (let c = 0; c <= 13; c++) {
+      const cell = XLSX.utils.encode_cell({ r: 3, c });
+      if (ws[cell]) ws[cell].s = { font: { italic: true, color: { rgb: '666666' } } };
+    }
+
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Nómina');
+
+    const instData = [
+      ['INSTRUCCIONES PARA CARGA DE NÓMINA'],
+      [],
+      ['1. Ingrese el nombre exacto del empleado en la columna "Nombre"'],
+      ['2. Las cantidades en Lempiras (L) son montos totales, no cantidades por día'],
+      ['3. Las Horas Extras se ingresan en CANTIDAD DE HORAS (el monto se calcula automáticamente)'],
+      ['4. IHSS y RAP solo llenar si hay ajustes manuales; de lo contrario dejar en blanco'],
+      ['5. Columnas vacías o en cero se ignoran'],
+      ['6. El archivo acepta formatos .xlsx, .xls y .csv'],
+      [],
+      ['COLUMNAS:'],
+      ['IHSS (L)', 'Monto adicional de IHSS a descontar'],
+      ['RAP (L)', 'Monto adicional de RAP a descontar'],
+      ['Incapacidad (L)', 'Monto por incapacidad'],
+      ['Inasistencia (L)', 'Monto por días no asistidos'],
+      ['Retardo (L)', 'Monto por retardos'],
+      ['Permiso sin goce (L)', 'Monto por permiso sin goce de sueldo'],
+      ['HE Mañana 25% (horas)', 'Horas extras turno mañana (7am-12pm), recargo 25%'],
+      ['HE Mixto 50% (horas)', 'Horas extras turno mixto (12pm-7pm), recargo 50%'],
+      ['HE Nocturno 75% (horas)', 'Horas extras turno nocturno (7pm-7am), recargo 75%'],
+      ['Feriado (L)', 'Monto por día feriado trabajado'],
+      ['Vacaciones (L)', 'Monto por vacaciones'],
+      ['Bono (L)', 'Bono adicional'],
+    ];
+    const instWs = XLSX.utils.aoa_to_sheet(instData);
+    instWs['!cols'] = [{ wch: 28 }, { wch: 60 }];
+    XLSX.utils.book_append_sheet(wb, instWs, 'Instrucciones');
+
     XLSX.writeFile(wb, `formato_nomina_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
