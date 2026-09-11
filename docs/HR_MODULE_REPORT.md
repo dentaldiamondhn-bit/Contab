@@ -311,7 +311,7 @@
 | `app/api/companies/[id]/hr/pip/route.ts` | CRUD planes PIP (GET/POST/PUT/DELETE) con goals |
 | `app/api/companies/[id]/hr/pip/evaluations/route.ts` | CRUD evaluaciones + auto-update goal progress |
 | `app/api/companies/[id]/hr/pip/metrics/route.ts` | Métricas de asistencia para PIP |
-| `app/companies/[id]/hr/pip/page.tsx` | UI completa: dashboard, crear plan, detalle, evaluaciones |
+| `app/companies/[id]/hr/pip/page.tsx` | UI completa: dashboard, crear plan, detalle, evaluaciones, estadísticas |
 | `types/hr.ts` | 8 interfaces PIP (PipPlan, PipGoal, PipEvaluation, PipEvidence, PipAttendanceMetric, NewPipPlanForm, PipDashboardSummary) |
 
 #### Funcionalidades
@@ -321,9 +321,12 @@
 - Metas con métricas: porcentaje, días, horas, unidades, calificación
 - Evaluaciones periódicas con calificación (0-100) y progreso
 - Dashboard con resumen: planes activos, borradores, completados, por vencer
-- Detalle de plan con barra de progreso, metas, evaluaciones
+- Detalle de plan con barra de progreso, metas, evaluaciones con historial de comentarios
 - Métricas de asistencia integradas (faltas, tardanzas, horas extra)
 - Plantillas de revisión de empleados
+- **Tab de Estadísticas por Área**: barras horizontales con frecuencia de cada área de mejoramiento
+- **Filtros de tiempo**: mes, trimestre, año, rango personalizado (en ambos tabs)
+- **Click en empleados**: desde estadísticas se puede filtrar los planes por empleado específico
 
 ---
 

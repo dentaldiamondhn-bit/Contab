@@ -1,6 +1,6 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 8 de Septiembre de 2026
+> **Fecha:** 10 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
 > **Versión del Análisis:** 1.1
 
@@ -21,7 +21,7 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~82% | Parcial | Alta |
+| 12 | Recursos Humanos | ~85% | Parcial | Alta |
 
 **Promedio General del Sistema: ~60%**
 
@@ -29,6 +29,10 @@
 
 #### HR Module
 - **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`) ejecutadas en Supabase sin errores. 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado. Tipos TypeScript actualizados.
+- **HR: PIP — Tab de Estadísticas por Área** — Nuevo tab con barras horizontales que muestra frecuencia de cada área de mejoramiento, con desglose de metas cumplidas/en progreso/pendientes. Click en nombre de área abre modal con lista de empleados afectados.
+- **HR: PIP — Filtros de tiempo** — Selector de tiempo (este mes, trimestre, año, rango personalizado) aplicable en ambos tabs (Planes y Estadísticas). Filtra planes y estadísticas por fecha de inicio.
+- **HR: PIP — Drill-down a empleados** — Desde estadísticas, clic en nombre de empleado filtra la lista de planes mostrando solo los de ese empleado. Banner con opción a limpiar filtro.
+- **HR: PIP — Historial de comentarios** — Comentarios de evaluaciones ahora se cargan desde Supabase al abrir el detalle del plan (antes solo se guardaban pero no se mostraban).
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
@@ -58,7 +62,7 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          █████████████████████░░░░░░░░░  82%  Parcial
+12. Recursos Humanos          █████████████████████░░░░░░░░░  85%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
 PROMEDIO                      █████████████████░░░░░░░░░░░░░  60%
 ```
@@ -162,7 +166,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions + 2 Storage buckets | **Sólido (15 tablas + 2 buckets desplegados, RLS habilitado)** |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (20 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 
