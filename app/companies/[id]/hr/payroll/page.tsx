@@ -217,7 +217,7 @@ export default function PayrollPage() {
 
   const loadEmployees = async () => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/employees?fields=id,employee_code,first_name,last_name,position,department,salary,hire_date,status`);
+      const res = await fetch(`/api/companies/${companyId}/employees?fields=id,employee_code,first_name,last_name,position_id,department,salary,hire_date,status`);
       if (res.ok) {
         const data = await res.json();
         setEmployees(
