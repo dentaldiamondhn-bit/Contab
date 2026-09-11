@@ -47,7 +47,7 @@ interface Employee {
   position: string;
   department: string;
   salary: number;
-  status: 'active' | 'inactive' | 'suspended';
+  status: 'active' | 'inactive' | 'terminated' | 'suspended';
   contractType?: 'indefinido' | 'temporal' | 'obra';
   gender?: 'M' | 'F';
   scheduleEntry?: string;
@@ -204,7 +204,7 @@ export default function AttendancePage() {
   const [undoHistory, setUndoHistory] = useState<Attendance[][]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
-  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'suspended'>('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'terminated' | 'suspended'>('all');
   const [quincenaStartDate, setQuincenaStartDate] = useState(() => {
     const now = new Date();
     const day = now.getDate();
@@ -647,7 +647,10 @@ export default function AttendancePage() {
     free_day: attendance.filter(a => a.date === selectedDate && a.status === 'free_day').length,
   };
 
-  const activeEmployees = employees.filter(e => filterStatus === 'all' ? e.status !== 'inactive' : e.status === filterStatus);
+  const activeEmployees = employees.filter(e => {
+    if (filterStatus === 'all') return e.status === 'active' || e.status === 'suspended';
+    return e.status === filterStatus;
+  });
   const departments = useMemo(() => [...new Set(activeEmployees.map(e => e.department).filter(Boolean))].sort(), [activeEmployees]);
   const filteredEmployees = useMemo(() => {
     return activeEmployees.filter(emp => {
@@ -1104,6 +1107,7 @@ export default function AttendancePage() {
               <option value="active">Solo activos</option>
               <option value="suspended">Solo suspendidos</option>
               <option value="inactive">Inactivos</option>
+              <option value="terminated">Terminados</option>
             </select>
             {(searchTerm || filterDepartment !== 'all' || filterStatus !== 'all') && (
               <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); setFilterStatus('all'); }}
@@ -1131,7 +1135,7 @@ export default function AttendancePage() {
                 {filteredEmployees.map((emp) => {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
-                  const isInactiveOnDate = emp.status === 'inactive' && emp.terminationDate && selectedDate >= emp.terminationDate;
+                  const isInactiveOnDate = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
                   const hasDeduction = ['absent', 'late', 'unpaid_leave'].includes(currentStatus) || (currentStatus === 'disability' && (att?.amount || 0) < (emp.salary / 30));
                   const hasOvertime = att?.overtimeHours && att.overtimeHours > 0;
                   const hasIncome = ['holiday', 'vacation'].includes(currentStatus) && (att?.amount || 0) > 0;
@@ -1272,6 +1276,7 @@ export default function AttendancePage() {
               <option value="active">Solo activos</option>
               <option value="suspended">Solo suspendidos</option>
               <option value="inactive">Inactivos</option>
+              <option value="terminated">Terminados</option>
             </select>
             {(searchTerm || filterDepartment !== 'all' || filterStatus !== 'all') && (
               <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); setFilterStatus('all'); }}
@@ -1309,7 +1314,7 @@ export default function AttendancePage() {
                   {filteredEmployees.map((emp) => {
                     const totals = getQuincenaTotals(emp.id);
                     const isCollapsed = collapsedEmployees.has(emp.id);
-                    const isInactiveEmployee = emp.status === 'inactive';
+                    const isInactiveEmployee = emp.status === 'inactive' || emp.status === 'terminated';
                     if (isCollapsed) {
                       return (
                         <tr key={emp.id} className="border-b-2 border-gray-300 hover:bg-gray-100 cursor-pointer" onClick={() => toggleEmployeeCollapse(emp.id)}>
