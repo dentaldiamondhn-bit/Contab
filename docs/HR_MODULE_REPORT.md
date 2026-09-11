@@ -24,7 +24,7 @@
 | Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina) |
-| Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD |
+| Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD completos (useEmployees, useDepartments, usePositions) — loading, error, refetch, optimistic updates |
 
 ---
 
@@ -89,8 +89,10 @@
 #### Lo que Falta
 
 - Sin modelos en Prisma para entidades HR (todo manejado directamente vía SQL en Supabase)
-- Sin archivo de tipos TypeScript para entidades HR
-- **Tipos TypeScript HR completos** en `types/hr.ts`: Employee, Department, Position, Attendance, Payroll, Permissions (30+ interfaces)
+
+#### Implementado ✅
+
+- **Tipos TypeScript HR completos** en `types/hr.ts`: Employee, Department, Position, Attendance, Payroll, Permissions (50+ interfaces)
 - **Hooks dedicados** en `hooks/use-hr.ts`: useEmployees, useDepartments, usePositions con CRUD, loading, error, refetch automático
 
 ---
@@ -364,8 +366,8 @@
 3. **10 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
 4. **16 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
-6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 30+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD.
-7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 30+ interfaces.
+6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
+7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
 
 ---
@@ -403,7 +405,7 @@
 | 1.9 | Migrar fotos/docs a Supabase Storage | `hr/storage/route.ts`, employees page | Buckets creados | ✅ Completada |
 | 1.10 | Crear dashboard de reportes de asistencia | `hr/attendance/reports/page.tsx` + API | Paso 1.4 | ✅ Completada |
 | 1.11 | Crear hub de reportes de RRHH | `hr/reports/page.tsx` | Pasos 1.4-1.6 | ✅ Completada |
-| 1.12 | Crear tipos TypeScript para entidades HR | `types/hr.ts` | — | Pendiente |
+| 1.12 | Crear tipos TypeScript para entidades HR | `types/hr.ts` | — | ✅ Completada |
 
 ---
 
