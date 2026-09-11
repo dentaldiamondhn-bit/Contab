@@ -67,7 +67,8 @@ export async function GET(request: NextRequest) {
       .from('pip_plans')
       .select('*, pip_goals(*), pip_evaluations(*)')
       .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(50);
 
     if (employeeId) {
       query = query.eq('employee_id', employeeId);

@@ -151,7 +151,7 @@ export default function PipPage() {
     try {
       const [plansRes, empRes] = await Promise.all([
         fetch(`/api/companies/${companyId}/hr/pip`, { headers: { 'x-tenant-id': companyId } }),
-        fetch(`/api/companies/${companyId}/employees?fields=id,first_name,last_name,employee_code,department,position_id,status,supervisor,reports_to,base_salary`, { headers: { 'x-tenant-id': companyId } }),
+        fetch(`/api/companies/${companyId}/hr/payroll/employees`, { headers: { 'x-tenant-id': companyId } }),
       ])
       if (plansRes.ok) {
         const plansData = await plansRes.json()
@@ -161,9 +161,9 @@ export default function PipPage() {
         const empData = await empRes.json()
         setEmployees(Array.isArray(empData) ? empData.map((e: any) => ({
           id: e.id,
-          first_name: e.first_name || e.firstName || '',
-          last_name: e.last_name || e.lastName || '',
-          employee_code: e.employee_code || e.employeeId || '',
+          first_name: (e.first_name || e.name || '').split(' ')[0] || '',
+          last_name: (e.last_name || e.name || '').split(' ').slice(1).join(' ') || '',
+          employee_code: e.employee_code || e.employeeCode || '',
           department: e.department || '',
           position: e.position || '',
           status: e.status || 'active',
@@ -419,8 +419,15 @@ export default function PipPage() {
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-gray-500">Cargando planes PIP...</div>
+        <div className="max-w-6xl mx-auto space-y-6">
+          <div className="h-8 bg-gray-200 rounded w-64 animate-pulse" />
+          <div className="grid grid-cols-4 gap-4">
+            {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded animate-pulse" />)}
+          </div>
+          <div className="h-10 bg-gray-200 rounded w-96 animate-pulse" />
+          <div className="space-y-3">
+            {[1,2,3].map(i => <div key={i} className="h-32 bg-gray-200 rounded animate-pulse" />)}
+          </div>
         </div>
       </div>
     )
