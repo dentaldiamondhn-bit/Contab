@@ -138,6 +138,7 @@
 - **Dashboard de análisis con gráficos Recharts** (tendencia diaria, distribución por estado, horas extra, ranking de empleados, distribución de incapacidades, feriados)
 - Exportación CSV de reportes de asistencia
 - Link a reportes desde herramientas de asistencia ("Reportes / Análisis")
+- **Filtros avanzados**: búsqueda por nombre de empleado, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos), botón "Limpiar filtros", contador de empleados filtrados — disponibles en ambas vistas (Día y Quincena)
 
 #### Almacenamiento de Datos
 
@@ -164,7 +165,7 @@
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/vacations/page.tsx` | Gestión completa de permisos/ausencias: tipos de permiso, flujo de solicitudes, panel de control, seguimiento de uso, estadísticas/recuento, **filtros avanzados** |
-| `app/companies/[id]/hr/vacations/calendar/page.tsx` | **Calendario** de vacaciones y permisos con **3 vistas (Día/Semana/Mes)**: grilla mensual con eventos multi-día, vista semanal en columnas, vista diaria detallada. **Edición/eliminación** de permisos desde el calendario (modal de edición, confirmación de eliminación). Aprobación/rechazo directo. Filtros por empleado/tipo/estado |
+| `app/companies/[id]/hr/vacations/calendar/page.tsx` | **Calendario** de vacaciones y permisos con **3 vistas (Día/Semana/Mes)**: grilla mensual con eventos multi-día, vista semanal con fila de eventos "todo el día" + **cuadrícula de horas (12AM-11PM)**, vista diaria con sección de eventos "todo el día" + **cuadrícula de horas con línea roja de hora actual**. **Edición/eliminación** de permisos desde el calendario (modal de edición, confirmación de eliminación). Aprobación/rechazo directo. Filtros por empleado/tipo/estado |
 | `app/api/companies/[id]/hr/permissions/types/route.ts` | API CRUD para tipos de permiso |
 | `app/api/companies/[id]/hr/permissions/requests/route.ts` | API CRUD para solicitudes de permiso |
 | `app/api/companies/[id]/hr/permissions/used/route.ts` | API para seguimiento de uso de permisos |
@@ -190,7 +191,7 @@
 - **Cálculo de salario por período** ajustado según frecuencia (quincenal = salario/2, semanal = salario/4)
 - **Filtros avanzados**: búsqueda por nombre/posición del empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en historial, botón "Limpiar filtros" condicional
 - **Rendimiento optimizado**: API ligera de empleados (`/hr/payroll/employees`), 4 fetches paralelos en un solo `Promise.all`, `useMemo` para datos derivados (approvedRequests, activeEmployees, pendingRequests, processedRequests, typesToShow, filteredEmployees, departments), skeleton de carga
-- **Calendario con 3 vistas**: **Mes** — grilla 7×6 con eventos multi-día codificados por color; **Semana** — 7 columnas con eventos expandibles, click en día para ir a vista día; **Día** — lista detallada con posición del empleado, fechas, motivo, estado. **Edición** de permisos (modal con tipo, fechas, motivo, estado), **eliminación** con confirmación, **aprobación/rechazo** directo desde el calendario. Navegación prev/next adaptativa por vista, estadísticas del mes
+- **Calendario con 3 vistas**: **Mes** — grilla 7×6 con eventos multi-día codificados por color; **Semana** — fila de eventos "todo el día" + cuadrícula de horas (12AM-11PM) con línea roja de hora actual; **Día** — sección de eventos "todo el día" con acciones (aprobar/rechazar/editar/eliminar) + cuadrícula de horas con indicador de hora actual. **Edición** de permisos (modal con tipo, fechas, motivo, estado), **eliminación** con confirmación, **aprobación/rechazo** directo. Navegación prev/next adaptativa por vista, estadísticas del mes
 
 #### Almacenamiento de Datos
 
@@ -203,7 +204,7 @@
 
 - Sin notificaciones por correo electrónico para aprobación/rechazo
 - ~~Integración vacaciones→planilla~~ ✅ Implementado
-- ~~Sin vista de calendario~~ ✅ Implementada (calendario mensual con eventos multi-día, filtros, detalle por día)
+- ~~Sin vista de calendario~~ ✅ Implementada (3 vistas Día/Semana/Mes con cuadrícula de horas, edición/eliminación, aprobación/rechazo directo)
 - ~~Carry-forward de saldos entre años~~ ✅ Implementado
 - Filtros de empleados: ✅ Implementado (búsqueda por nombre, departamento, estado de solicitud)
 

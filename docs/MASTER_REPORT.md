@@ -21,9 +21,9 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~88% | Parcial | Alta |
+| 12 | Recursos Humanos | ~90% | Parcial | Alta |
 
-**Promedio General del Sistema: ~62%**
+**Promedio General del Sistema: ~63%**
 
 ### Notas de Actualización (10 Sept 2026)
 
@@ -41,7 +41,8 @@
 - **HR: Validaciones y seguridad completas** — RLS habilitado en las 21 tablas HR (employees, employee_history, employee_hr_documents, pip_plans). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
 - **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
 - **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
-- **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: columnas por día. Día: lista detallada. Edición/eliminación de permisos desde el calendario, aprobación/rechazo directo, filtros por empleado/tipo/estado, navegación adaptativa.
+- **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: fila eventos "todo el día" + cuadrícula horas 12AM-11PM. Día: eventos "todo el día" con acciones + cuadrícula horas. Línea roja de hora actual. Edición/eliminación, aprobación/rechazo directo, filtros por empleado/tipo/estado.
+- **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
@@ -71,9 +72,9 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          █████████████████████░░░░░░░░░  88%  Parcial
+12. Recursos Humanos          ██████████████████████░░░░░░░  90%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ██████████████████░░░░░░░░░░░░  62%
+PROMEDIO                      ██████████████████░░░░░░░░░░░  63%
 ```
 
 ---
@@ -349,7 +350,7 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~62% | 95% |
+| Completitud Funcional | ~63% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
 | Persistencia de Datos | ~75% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~40% | 80% |
