@@ -2152,8 +2152,7 @@ export default function PayrollPage() {
         <Card>
           <CardContent className="pt-6">
               <div className="text-center">
-                <CreditCard className="h-8 w-8 text-blue-600 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalPeriodBase)}</div>
+                <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalPeriodBase)}</div>
               <div className="text-sm text-gray-500">Salarios Brutos ({FREQ_LABELS[config.frequency]})</div>
             </div>
           </CardContent>
