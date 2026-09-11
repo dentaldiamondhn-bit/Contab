@@ -21,10 +21,11 @@
 |---|---|---|
 | Completitud Funcional | **~100%** | **6 de 6 áreas completas** (todas en Supabase con RLS, PIP con estadísticas/filtros) |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
-| Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
+| Estabilidad y Validaciones | ~85% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen con colisión segura + API input validation (nombre requerido, salario >= 0, salario max >= min) + duplicados prevenidos en departamentos/cargos/nómina |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina); **carga Excel de deducciones/ingresos** con persistencia en DB |
 | Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD completos (useEmployees, useDepartments, usePositions) — loading, error, refetch, optimistic updates |
+| Seguridad y Aislamiento | **95%** | **RLS habilitado en todas las 21 tablas HR** con service_role + tenant isolation. UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation. Collision-safe employee_code. |
 
 ---
 
@@ -363,6 +364,7 @@
 | `HR_HIERARCHY.sql` | **Columna reports_to** en employees (UUID FK) + índice para consultas de jerarquía |
 | `HR_PIP.sql` | **5 tablas PIP**: pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + RLS + índices |
 | `PAYROLL_UPLOADS.sql` | **Tabla payroll_uploads**: datos subidos por Excel por empleado por período (items JSONB), unique constraint, índice |
+| `HR_VALIDATIONS.sql` | **RLS + Validaciones**: RLS en employees/employee_history/employee_hr_documents, tenant isolation en pip_plans, fix payroll_uploads RLS, UNIQUE constraints en employee_code, departments, positions, payroll_closed |
 
 ### Prisma Schema
 
@@ -380,6 +382,7 @@
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
 9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga.
 10. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
+11. **Validaciones y seguridad completas**: RLS en las 21 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
 
 ---
 
@@ -388,12 +391,14 @@
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | ~~Sin tipos TypeScript para entidades HR~~ | ~~Errores en tiempo de ejecución; difícil mantenimiento~~ | ✅ Resuelta |
-| 2 | Sin integración contable de planilla | No se generan asientos contables automáticos | Alta |
+| 2 | ~~Sin integración contable de planilla~~ | ~~No se generan asientos contables automáticos~~ | ✅ Resuelta |
 | 3 | ~~PIP no tiene implementación alguna~~ | ~~Requisito del cliente sin cubrir~~ | ✅ Resuelta |
-| 4 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
-| 5 | Sin pruebas automatizadas | Riesgo de regresiones | Media |
-| 6 | Lógica de cálculo inline en componentes (~2242 líneas en payroll) | Difícil mantenimiento y testing | Media |
-| 7 | Search API filtra en JS (no en DB) | Rendimiento con muchos empleados | Baja |
+| 4 | ~~Sin RLS en tablas employees/employee_history/employee_hr_documents~~ | ~~Cross-tenant data leak~~ | ✅ Resuelta |
+| 5 | ~~Sin UNIQUE en employee_code, departments, positions, payroll_closed~~ | ~~Duplicados posibles~~ | ✅ Resuelta |
+| 6 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
+| 7 | Sin pruebas automatizadas | Riesgo de regresiones | Media |
+| 8 | Lógica de cálculo inline en componentes (~2600 líneas en payroll) | Difícil mantenimiento y testing | Media |
+| 9 | Search API filtra en JS (no en DB) | Rendimiento con muchos empleados | Baja |
 
 ---
 

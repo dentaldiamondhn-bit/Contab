@@ -222,6 +222,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id: tenantId } = await params;
     const body = await request.json();
 
+    if (!body.firstName || !body.lastName) {
+      return NextResponse.json({ error: 'Nombre y apellido son requeridos' }, { status: 400 });
+    }
+    if (body.salary !== undefined && body.salary < 0) {
+      return NextResponse.json({ error: 'El salario no puede ser negativo' }, { status: 400 });
+    }
+
     let positionId = null;
     if (body.position) {
       let { data: pos } = await getSupabaseServer()
@@ -241,10 +248,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       positionId = pos?.id || null;
     }
 
+    let employeeCode = body.employeeId;
+    if (!employeeCode) {
+      let attempts = 0;
+      while (attempts < 10) {
+        employeeCode = `EMP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
+        const { data: existing } = await getSupabaseServer()
+          .from('employees')
+          .select('id')
+          .eq('tenant_id', tenantId)
+          .eq('employee_code', employeeCode)
+          .maybeSingle();
+        if (!existing) break;
+        attempts++;
+      }
+    }
+
     const insertData: any = {
         tenant_id: tenantId,
-        company_id: 'demo-company-id',
-        employee_code: body.employeeId || `EMP-${Date.now().toString(36).toUpperCase()}`,
+        company_id: tenantId,
+        employee_code: employeeCode,
         first_name: body.firstName,
         last_name: body.lastName,
         id_number: body.identityNumber,
@@ -379,7 +402,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .single();
 
     const updateData: any = {
-        employee_code: body.employeeId || oldEmp?.employee_code || `EMP-${Date.now().toString(36).toUpperCase()}`,
+        employee_code: body.employeeId || oldEmp?.employee_code || `EMP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
         first_name: body.firstName,
         last_name: body.lastName,
         id_number: body.identityNumber,

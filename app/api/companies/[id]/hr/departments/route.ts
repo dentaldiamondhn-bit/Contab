@@ -16,12 +16,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
+  if (!body.name || !body.name.trim()) {
+    return NextResponse.json({ error: 'El nombre del departamento es requerido' }, { status: 400 });
+  }
   const { data, error } = await getSupabaseServer()
     .from('departments')
-    .insert({ tenant_id: companyId, name: body.name, description: body.description || '', manager: body.manager || '', parent_id: body.parentId || null })
+    .insert({ tenant_id: companyId, name: body.name.trim(), description: body.description || '', manager: body.manager || '', parent_id: body.parentId || null })
     .select()
     .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    if (error.code === '23505') return NextResponse.json({ error: 'Ya existe un departamento con ese nombre' }, { status: 409 });
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 

@@ -16,6 +16,23 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
+
+  if (!body.period || !body.month || !body.year || !body.frequency) {
+    return NextResponse.json({ error: 'Faltan campos requeridos: period, month, year, frequency' }, { status: 400 });
+  }
+
+  const { data: existing } = await getSupabaseServer()
+    .from('payroll_closed')
+    .select('id')
+    .eq('tenant_id', companyId)
+    .eq('month', body.month)
+    .eq('year', body.year)
+    .maybeSingle();
+
+  if (existing) {
+    return NextResponse.json({ error: `Ya existe una planilla cerrada para ${body.month}/${body.year}` }, { status: 409 });
+  }
+
   const { data, error } = await getSupabaseServer()
     .from('payroll_closed')
     .insert({

@@ -76,8 +76,9 @@ export async function POST(request: NextRequest) {
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
+    const { id: tenantId } = await params;
     const { searchParams } = new URL(request.url);
     const evaluationId = searchParams.get('evaluationId');
 
@@ -86,7 +87,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = getSupabaseServer();
-    const { error } = await supabase.from('pip_evaluations').delete().eq('id', evaluationId);
+    const { error } = await supabase.from('pip_evaluations').delete().eq('id', evaluationId).eq('tenant_id', tenantId);
     if (error) throw error;
 
     return NextResponse.json({ success: true });

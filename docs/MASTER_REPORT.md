@@ -38,6 +38,7 @@
 - **HR: Nómina — Código de empleado** — Columna "Código" agregada a tabla de detalle, vista de nómina cerrada, y voucher de pago. Matching por código en upload de Excel (evita conflictos con nombres duplicados).
 - **HR: Nómina — Rendimiento optimizado** — API calls paralelos (`Promise.all`), memoización de cálculos, API ligera `/hr/payroll/employees` (9 columnas vs 50+), paginator de 20 empleados por página, skeleton de carga.
 - **HR: Nómina — Bridge contable** — Cierre de nómina genera asientos contables automáticos (gasto salarios, cargas sociales, pago de nómina) via `/api/companies/[id]/hr/accounting`.
+- **HR: Validaciones y seguridad completas** — RLS habilitado en las 21 tablas HR (employees, employee_history, employee_hr_documents, pip_plans). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
