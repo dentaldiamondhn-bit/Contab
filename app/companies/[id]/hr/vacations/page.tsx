@@ -113,6 +113,7 @@ interface PermissionRequest {
 interface UsageRecord {
   annual: number;
   monthly: number;
+  carried: number;
   month: number;
   year: number;
 }
@@ -240,18 +241,19 @@ export default function PermissionsPage() {
     }
   };
 
-  const calculateVacationDays = (startDate: string): number => {
+  const calculateVacationDaysForYear = (startDate: string, refYear: number): number => {
     if (!startDate) return 0;
     const start = new Date(startDate);
-    const now = new Date();
-    const yearsDiff = now.getFullYear() - start.getFullYear();
-    const monthsDiff = now.getMonth() - start.getMonth();
-    const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
+    const totalYears = refYear - start.getFullYear();
     if (totalYears < 1) return 0;
     if (totalYears === 1) return 10;
     if (totalYears === 2) return 12;
     if (totalYears === 3) return 14;
     return Math.min(20, 14 + (totalYears - 3));
+  };
+
+  const calculateVacationDays = (startDate: string): number => {
+    return calculateVacationDaysForYear(startDate, new Date().getFullYear());
   };
 
   const getMaxDays = (emp: Employee, typeId: string): number => {
@@ -269,19 +271,38 @@ export default function PermissionsPage() {
     const curMonth = now.getMonth() + 1;
     const curYear = now.getFullYear();
     const empApproved = approvedRequests.filter(r => r.employeeId === empId && r.typeId === typeId);
-    const annual = empApproved.reduce((sum, r) => sum + r.days, 0);
+    const annual = empApproved.filter(r => {
+      const d = new Date(r.startDate || r.createdAt);
+      return d.getFullYear() === curYear;
+    }).reduce((sum, r) => sum + r.days, 0);
     const monthly = empApproved.filter(r => {
       const d = new Date(r.resolvedAt || r.createdAt);
       return d.getMonth() + 1 === curMonth && d.getFullYear() === curYear;
     }).reduce((sum, r) => sum + r.days, 0);
-    return { annual, monthly, month: curMonth, year: curYear };
+    const emp = employees.find(e => e.id === empId);
+    const carried = emp ? getCarriedDays(emp, typeId) : 0;
+    return { annual, monthly, carried, month: curMonth, year: curYear };
+  };
+
+  const getCarriedDays = (emp: Employee, typeId: string): number => {
+    if (typeId !== 'vacaciones') return 0;
+    const prevYear = new Date().getFullYear() - 1;
+    const prevYearMax = calculateVacationDaysForYear(emp.startDate, prevYear);
+    if (prevYearMax <= 0) return 0;
+    const prevYearUsed = approvedRequests.filter(r => {
+      if (r.employeeId !== emp.id || r.typeId !== typeId) return false;
+      const d = new Date(r.startDate || r.createdAt);
+      return d.getFullYear() === prevYear;
+    }).reduce((sum, r) => sum + r.days, 0);
+    return Math.max(0, prevYearMax - prevYearUsed);
   };
 
   const getAvailableDays = (emp: Employee, typeId: string): number => {
     const max = getMaxDays(emp, typeId);
     if (max === Infinity) return Infinity;
     const usage = getUsageForEmp(emp.id, typeId);
-    return max - usage.annual;
+    const carried = typeId === 'vacaciones' ? getCarriedDays(emp, typeId) : 0;
+    return max + carried - usage.annual;
   };
 
   const getYearsOfService = (startDate: string): number => {
@@ -590,9 +611,11 @@ export default function PermissionsPage() {
                           const colors = getColorClasses(pt.colorValue);
                           const max = getMaxDays(emp, pt.id);
                           const usage = getUsageForEmp(emp.id, pt.id);
-                          const available = max === Infinity ? Infinity : max - usage.annual;
+                          const carried = pt.id === 'vacaciones' ? getCarriedDays(emp, pt.id) : 0;
+                          const available = max === Infinity ? Infinity : max + carried - usage.annual;
                           const hasLimit = pt.hasLimit && max !== Infinity;
-                          const percentage = hasLimit && max > 0 ? (usage.annual / max) * 100 : 0;
+                          const totalBudget = max + carried;
+                          const percentage = hasLimit && totalBudget > 0 ? (usage.annual / totalBudget) * 100 : 0;
 
                           return (
                             <div key={pt.id} className={`p-3 rounded-lg border ${colors.border} ${colors.bg}`}>
@@ -605,11 +628,18 @@ export default function PermissionsPage() {
                               <div className="flex items-baseline gap-1">
                                 <span className="text-lg font-bold">{usage.annual}</span>
                                 {hasLimit ? (
-                                  <span className="text-xs text-gray-500">/ {max} anual</span>
+                                  <span className="text-xs text-gray-500">/ {totalBudget} anual</span>
                                 ) : (
                                   <span className="text-xs text-gray-500">días anuales</span>
                                 )}
                               </div>
+
+                              {/* Carried days */}
+                              {carried > 0 && (
+                                <div className="flex items-center gap-1 mt-1">
+                                  <span className="text-xs text-amber-600 font-medium">+{carried} arrastrados del {new Date().getFullYear() - 1}</span>
+                                </div>
+                              )}
 
                               {/* Monthly */}
                               <div className="flex items-center gap-1 mt-1">
@@ -1028,6 +1058,15 @@ export default function PermissionsPage() {
                         Usados este mes: {getUsageForEmp(selectedEmployee.id, reqForm.typeId).monthly}
                       </span>
                     </div>
+                    {reqForm.typeId === 'vacaciones' && (() => {
+                      const carried = getCarriedDays(selectedEmployee, reqForm.typeId);
+                      const max = getMaxDays(selectedEmployee, reqForm.typeId);
+                      return carried > 0 ? (
+                        <p key="carried" className="text-xs text-amber-600 mt-1">Incluye {carried} días arrastrados de {new Date().getFullYear() - 1} (ley: {max} días {new Date().getFullYear()} + {carried} arrastrados)</p>
+                      ) : (
+                        <p key="no-carried" className="text-xs text-gray-400 mt-1">Ley: {max} días por antigüedad ({getYearsOfService(selectedEmployee.startDate)} años de servicio)</p>
+                      );
+                    })()}
                   </div>
                 )}
                 <div className="grid grid-cols-2 gap-4">

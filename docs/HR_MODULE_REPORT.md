@@ -198,7 +198,7 @@
 - Sin notificaciones por correo electrónico para aprobación/rechazo
 - Sin integración con planilla (cálculo de pago por vacaciones)
 - Sin vista de calendario
-- Sin carrying forward de saldos entre años
+- Carry-forward de saldos entre años: ✅ Implementado (días no usados del año anterior se arrastran al actual, calculado on-the-fly desde aprobaciones)
 
 ---
 
@@ -447,7 +447,7 @@
 | # | Tarea | Archivos a Modificar/Crear | Dependencias | Entregable |
 |---|---|---|---|---|
 | 3.1 | Implementar motor de acumulación de vacaciones por antigüedad | `lib/services/vacation-service.ts` | Etapa 1 completada | Servicio de acumulación automática |
-| 3.2 | Implementar carried forward de saldos entre años | `lib/services/vacation-service.ts` | 3.1 | Lógica de carried forward |
+| 3.2 | Implementar carried forward de saldos entre años | `vacations/page.tsx` | 3.1 | ✅ Completada (on-the-fly calculation) |
 | 3.3 | Implementar flujos de aprobación (aprobado, rechazado, pendiente) | `lib/services/permission-service.ts` | 1.6 completada | Flujos de aprobación |
 | 3.4 | Implementar notificaciones de aprobación/rechazo | `lib/services/notification-service.ts` | 3.3 | Sistema de notificaciones |
 | 3.5 | Crear vista de calendario de ausencias | `app/companies/[id]/hr/vacations/calendar/page.tsx` | 3.3 | Página de calendario |
