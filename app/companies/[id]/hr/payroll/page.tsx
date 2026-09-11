@@ -610,7 +610,7 @@ export default function PayrollPage() {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 3 });
 
       const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
       const nameToEmp: Record<string, typeof activeEmployees[0]> = {};
@@ -622,7 +622,7 @@ export default function PayrollPage() {
       const notFound: string[] = [];
 
       for (const row of rows) {
-        const rawName = (row['Nombre'] || row['nombre'] || row['Name'] || '').toString().trim();
+        const rawName = (row['Nombre'] || row['Nombre completo'] || row['nombre'] || row['Name'] || '').toString().trim();
         const name = normalize(rawName);
         if (!name) { continue; }
         const emp = nameToEmp[name];
@@ -728,7 +728,7 @@ export default function PayrollPage() {
       'OTROS INGRESOS', '',
     ];
     const descRow = [
-      'Nombre completo', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)',
+      'Nombre', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)',
       'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)',
       'Feriado (L)', 'Vacaciones (L)', 'Bono (L)',
     ];
