@@ -337,16 +337,47 @@ export default function AttendancePage() {
             employee_id: record.employeeId,
             date: record.date,
             status: record.status,
-            amount: record.amount,
-            overtime_amount: record.overtimeAmount,
-            overtime_hours: record.overtimeHours,
-            holiday_type: record.holidayType,
-            notes: record.notes,
+            amount: record.amount || 0,
+            overtime_amount: record.overtimeAmount || 0,
+            overtime_hours: record.overtimeHours || 0,
+            holiday_type: record.holidayType || null,
+            disability_type: record.disabilityType || null,
+            notes: record.notes || '',
+            check_in: record.checkIn || '',
+            check_out: record.checkOut || '',
           }),
         });
       }
     } catch (err) {
       console.error('Error saving attendance:', err);
+    }
+  };
+
+  const saveSingleRecord = async (record: Attendance) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: record.employeeId,
+          date: record.date,
+          status: record.status,
+          amount: record.amount || 0,
+          overtime_amount: record.overtimeAmount || 0,
+          overtime_hours: record.overtimeHours || 0,
+          holiday_type: record.holidayType || null,
+          disability_type: record.disabilityType || null,
+          notes: record.notes || '',
+          check_in: record.checkIn || '',
+          check_out: record.checkOut || '',
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        console.error('Error saving single record:', err);
+      }
+    } catch (err) {
+      console.error('Error saving single record:', err);
     }
   };
 
@@ -545,7 +576,7 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    saveAttendanceRecords(updated);
+    saveSingleRecord(newAttendance);
     setAttendance(updated);
   };
 
@@ -584,20 +615,22 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    saveAttendanceRecords(updated);
+    saveSingleRecord(newAttendance);
     setAttendance(updated);
     setDisabilityPrompt(null);
   };
 
   const updateAttendanceAmount = (empId: string, status: string, amount: number, hours?: number) => {
+    const existing = attendance.find(a => a.employeeId === empId && a.date === selectedDate);
     const updated = attendance.map(a => {
       if (a.employeeId === empId && a.date === selectedDate) {
         return { ...a, amount, ...(hours !== undefined ? { hours } : {}) };
       }
       return a;
     });
+    const changed = updated.find(a => a.employeeId === empId && a.date === selectedDate);
     pushUndo();
-    saveAttendanceRecords(updated);
+    if (changed) saveSingleRecord(changed);
     setAttendance(updated);
     setEditingAmount(null);
   };
