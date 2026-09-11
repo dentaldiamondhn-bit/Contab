@@ -869,6 +869,7 @@ export default function PayrollPage() {
       </div>
     </div>
     <div class="emp-info">
+      <span class="label">Código:</span> <span class="value" style="font-family:monospace;">${emp.employeeCode || 'N/A'}</span><br>
       <span class="label">Nombre completo:</span> <span class="value">${emp.name}</span><br>
       <span class="label">Fecha de ingreso:</span> <span class="value">${emp.startDate || 'N/A'}</span><br>
       <span class="label">Salario mensual base:</span> <span class="value currency">${formatCurrency(emp.salary)}</span><br>
@@ -1048,6 +1049,7 @@ export default function PayrollPage() {
       </div>
     </div>
     <div class="emp-info">
+      <span class="label">Código:</span> <span class="value" style="font-family:monospace;">${emp.employeeCode || 'N/A'}</span><br>
       <span class="label">Nombre completo:</span> <span class="value">${emp.name}</span><br>
       <span class="label">Fecha de ingreso:</span> <span class="value">${emp.startDate || 'N/A'}</span><br>
       <span class="label">Salario mensual base:</span> <span class="value currency">${formatCurrency(emp.salary)}</span><br>
@@ -2415,6 +2417,7 @@ export default function PayrollPage() {
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b">
+                  <th className="text-left py-2">Código</th>
                   <th className="text-left py-2">Empleado</th>
                   <th className="text-left py-2">Cargo</th>
                   <th className="text-left py-2">Departamento</th>
@@ -2435,6 +2438,7 @@ export default function PayrollPage() {
                   const empDeds = getDeductionsForEmp(emp.id).filter(d => d.enabled && !d.isStandard);
                   return (
                     <tr key={emp.id} className="border-b hover:bg-gray-50">
+                      <td className="py-2 text-gray-500 font-mono text-xs">{emp.employeeCode || ''}</td>
                       <td className="py-2 font-medium">{emp.name}</td>
                       <td className="py-2 text-gray-500">{emp.position}</td>
                       <td className="py-2 text-gray-500">{emp.department || 'N/A'}</td>
@@ -2571,6 +2575,7 @@ export default function PayrollPage() {
                       <table className="w-full text-sm">
                         <thead>
                           <tr className="border-b">
+                            <th className="text-left py-1">Código</th>
                             <th className="text-left py-1">Nombre</th>
                             <th className="text-left py-1">Cargo</th>
                             <th className="text-right py-1">Salario Período</th>
@@ -2584,6 +2589,7 @@ export default function PayrollPage() {
                         <tbody>
                           {record.employees.map((emp, i) => (
                             <tr key={i} className="border-b">
+                              <td className="py-1 font-mono text-xs text-gray-500">{emp.employeeCode || ''}</td>
                               <td className="py-1">{emp.name}</td>
                               <td className="py-1">{emp.position}</td>
                               <td className="text-right py-1">{formatCurrency(emp.periodSalary || emp.salary)}</td>
