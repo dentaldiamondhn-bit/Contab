@@ -196,11 +196,13 @@ export default function PayrollPage() {
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    loadEmployees();
-    loadConfig();
-    loadClosedPayrolls();
-    loadEmployeeDeductions();
-    loadAttendanceDeductions();
+    Promise.all([
+      loadEmployees(),
+      loadConfig(),
+      loadClosedPayrolls(),
+      loadEmployeeDeductions(),
+      loadAttendanceDeductions(),
+    ]);
   }, [companyId]);
 
   useEffect(() => {

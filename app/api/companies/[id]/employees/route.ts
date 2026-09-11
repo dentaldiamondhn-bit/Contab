@@ -66,32 +66,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   try {
     const { id: tenantId } = await params;
     
-    const { data, error } = await getSupabaseServer()
-      .from('employees')
-      .select('*')
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
+    const [empResult, posResult, deptResult] = await Promise.all([
+      getSupabaseServer().from('employees').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      getSupabaseServer().from('positions').select('*').eq('tenant_id', tenantId),
+      getSupabaseServer().from('departments').select('*').eq('tenant_id', tenantId),
+    ]);
 
-    if (error) throw error;
+    if (empResult.error) throw empResult.error;
 
-    const { data: positions } = await getSupabaseServer()
-      .from('positions')
-      .select('*')
-      .eq('tenant_id', tenantId);
+    const data = empResult.data;
 
     const posMap: Record<string, string> = {};
-    if (positions) {
-      positions.forEach((p: any) => { posMap[p.id] = p.name; });
+    if (posResult.data) {
+      posResult.data.forEach((p: any) => { posMap[p.id] = p.name; });
     }
 
-    const { data: departments } = await getSupabaseServer()
-      .from('departments')
-      .select('*')
-      .eq('tenant_id', tenantId);
-
     const deptMap: Record<string, string> = {};
-    if (departments) {
-      departments.forEach((d: any) => { deptMap[d.id] = d.name; });
+    if (deptResult.data) {
+      deptResult.data.forEach((d: any) => { deptMap[d.id] = d.name; });
     }
 
     const calcVacationDays = (hireDate: string) => {
