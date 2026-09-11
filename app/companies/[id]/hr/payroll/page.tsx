@@ -191,6 +191,8 @@ export default function PayrollPage() {
   const [closingPeriod, setClosingPeriod] = useState<'1ra' | '2da'>('1ra');
   const [closingWeek, setClosingWeek] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 20;
   const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -469,6 +471,8 @@ export default function PayrollPage() {
   };
 
   const activeEmployees = employees.filter(e => e.status === 'active');
+  const totalPages = Math.ceil(activeEmployees.length / PAGE_SIZE);
+  const paginatedEmployees = activeEmployees.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {
@@ -2170,7 +2174,7 @@ export default function PayrollPage() {
                 </tr>
               </thead>
               <tbody>
-                {activeEmployees.map(emp => {
+                {paginatedEmployees.map(emp => {
                   const calc = calculatePayroll(emp.salary, emp.id);
                   const empDeds = getDeductionsForEmp(emp.id).filter(d => d.enabled && !d.isStandard);
                   return (
@@ -2237,6 +2241,27 @@ export default function PayrollPage() {
               </tfoot>
             </table>
           </div>
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between pt-4 border-t">
+              <span className="text-sm text-gray-500">
+                Mostrando {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, activeEmployees.length)} de {activeEmployees.length} empleados
+              </span>
+              <div className="flex items-center gap-1">
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(1)}>«</Button>
+                <Button variant="outline" size="sm" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)}>‹</Button>
+                {Array.from({ length: totalPages }, (_, i) => i + 1)
+                  .filter(p => p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2)
+                  .map((p, i, arr) => (
+                    <span key={p} className="flex items-center">
+                      {i > 0 && arr[i - 1] !== p - 1 && <span className="text-gray-400 px-1">…</span>}
+                      <Button variant={p === currentPage ? 'default' : 'outline'} size="sm" onClick={() => setCurrentPage(p)} className="min-w-[32px]">{p}</Button>
+                    </span>
+                  ))}
+                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(p => p + 1)}>›</Button>
+                <Button variant="outline" size="sm" disabled={currentPage === totalPages} onClick={() => setCurrentPage(totalPages)}>»</Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
       </>
