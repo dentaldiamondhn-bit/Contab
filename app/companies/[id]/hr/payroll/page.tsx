@@ -817,7 +817,12 @@ export default function PayrollPage() {
       <div class="section-title">Bonificaciones e Ingresos</div>
       <table>
         <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${attdIncs.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${attdIncs.filter((i: any) => !i.label.includes('Horas Extra')).map((item: any) => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).length > 0 ? `
+        <tr><td colspan="2" style="font-weight:bold; background:#f0f8f0; padding:4px 6px;">Horas Extras</td></tr>
+        ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).map((item: any) => `<tr><td style="padding-left:12px;">${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        <tr><td style="padding-left:12px; font-weight:bold;">Subtotal Horas Extra</td><td class="amount currency" style="font-weight:bold;">${formatCurrency(attdIncs.filter((i: any) => i.label.includes('Horas Extra')).reduce((s: number, i: any) => s + i.amount, 0))}</td></tr>
+        ` : ''}
         ${attdIncs.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
       </table>
     </div>
@@ -991,7 +996,12 @@ export default function PayrollPage() {
       <div class="section-title">Bonificaciones e Ingresos</div>
       <table>
         <tr><th>Descripción</th><th style="width:70px">Monto</th></tr>
-        ${attdIncs.map(item => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${attdIncs.filter((i: any) => !i.label.includes('Horas Extra')).map((item: any) => `<tr><td>${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).length > 0 ? `
+        <tr><td colspan="2" style="font-weight:bold; background:#f0f8f0; padding:4px 6px;">Horas Extras</td></tr>
+        ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).map((item: any) => `<tr><td style="padding-left:12px;">${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
+        <tr><td style="padding-left:12px; font-weight:bold;">Subtotal Horas Extra</td><td class="amount currency" style="font-weight:bold;">${formatCurrency(attdIncs.filter((i: any) => i.label.includes('Horas Extra')).reduce((s: number, i: any) => s + i.amount, 0))}</td></tr>
+        ` : ''}
         ${attdIncs.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
       </table>
     </div>
