@@ -610,7 +610,7 @@ export default function PayrollPage() {
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data);
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows: any[] = XLSX.utils.sheet_to_json(sheet, { header: 3 });
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
       const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
       const nameToEmp: Record<string, typeof activeEmployees[0]> = {};
@@ -721,17 +721,7 @@ export default function PayrollPage() {
       { wch: 14 }, { wch: 14 }, { wch: 14 },
     ];
 
-    const catRow = [
-      'Nombre', '', '',
-      'DEDUCCIONES', '', '', '', '', '',
-      'HORAS EXTRAS', '', '',
-      'OTROS INGRESOS', '',
-    ];
-    const descRow = [
-      'Nombre', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)',
-      'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)',
-      'Feriado (L)', 'Vacaciones (L)', 'Bono (L)',
-    ];
+    const headers = ['Nombre', 'IHSS (L)', 'RAP (L)', 'Incapacidad (L)', 'Inasistencia (L)', 'Retardo (L)', 'Permiso sin goce (L)', 'HE Mañana 25% (horas)', 'HE Mixto 50% (horas)', 'HE Nocturno 75% (horas)', 'Feriado (L)', 'Vacaciones (L)', 'Bono (L)'];
 
     const exampleRows = empNames.length > 0
       ? empNames.map((name, i) => i === 0
@@ -742,43 +732,12 @@ export default function PayrollPage() {
         ['Maria Lopez', '', '', '', 100, 25, '', 0, 0, 3, '', '', ''],
       ];
 
-    const data = [
-      ['FORMATO DE CARGA DE NÓMINA - ' + (config.closingMonth ? `${['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][config.closingMonth - 1]} ${config.closingYear}` : '')],
-      [],
-      catRow,
-      descRow,
-      [],
-      ...exampleRows,
-    ];
+    const data = [headers, ...exampleRows];
     XLSX.utils.sheet_add_aoa(ws, data, { origin: 'A1' });
 
-    ws['!merges'] = [
-      { s: { r: 0, c: 0 }, e: { r: 0, c: 12 } },
-      { s: { r: 2, c: 3 }, e: { r: 2, c: 8 } },
-      { s: { r: 2, c: 9 }, e: { r: 2, c: 11 } },
-      { s: { r: 2, c: 12 }, e: { r: 2, c: 13 } },
-    ];
-
-    const range = XLSX.utils.decode_range(ws['!ref']!);
     for (let c = 0; c <= 13; c++) {
       const cell = XLSX.utils.encode_cell({ r: 0, c });
-      if (ws[cell]) ws[cell].s = { font: { bold: true, size: 14 }, alignment: { horizontal: 'center' } };
-    }
-    for (let c = 3; c <= 8; c++) {
-      const cell = XLSX.utils.encode_cell({ r: 2, c });
       if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-    }
-    for (let c = 9; c <= 11; c++) {
-      const cell = XLSX.utils.encode_cell({ r: 2, c });
-      if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-    }
-    for (let c = 12; c <= 13; c++) {
-      const cell = XLSX.utils.encode_cell({ r: 2, c });
-      if (ws[cell]) ws[cell].s = { font: { bold: true }, alignment: { horizontal: 'center' } };
-    }
-    for (let c = 0; c <= 13; c++) {
-      const cell = XLSX.utils.encode_cell({ r: 3, c });
-      if (ws[cell]) ws[cell].s = { font: { italic: true, color: { rgb: '666666' } } };
     }
 
     const wb = XLSX.utils.book_new();
