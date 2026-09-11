@@ -146,6 +146,9 @@ export default function PermissionsPage() {
   const [requests, setRequests] = useState<PermissionRequest[]>([]);
   const [activeTab, setActiveTab] = useState<Tab>('control');
   const [filterType, setFilterType] = useState<string | 'all'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('all');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all');
 
   const [showRequestModal, setShowRequestModal] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
@@ -493,8 +496,29 @@ export default function PermissionsPage() {
   };
 
   const activeEmployees = useMemo(() => employees.filter(e => e.status === 'active' || e.status === 'suspended'), [employees]);
+
+  const departments = useMemo(() => [...new Set(activeEmployees.map(e => e.department).filter(Boolean))].sort(), [activeEmployees]);
+
+  const filteredEmployees = useMemo(() => {
+    return activeEmployees.filter(emp => {
+      const matchesSearch = searchTerm === '' ||
+        `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        emp.position.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
+      return matchesSearch && matchesDept;
+    });
+  }, [activeEmployees, searchTerm, filterDepartment]);
+
   const pendingRequests = useMemo(() => requests.filter(r => r.status === 'pending'), [requests]);
-  const processedRequests = useMemo(() => requests.filter(r => r.status !== 'pending'), [requests]);
+  const processedRequests = useMemo(() => {
+    return requests.filter(r => {
+      if (r.status === 'pending') return false;
+      const matchesStatus = filterStatus === 'all' || r.status === filterStatus;
+      const matchesSearch = searchTerm === '' ||
+        r.employeeName.toLowerCase().includes(searchTerm.toLowerCase());
+      return matchesStatus && matchesSearch;
+    });
+  }, [requests, filterStatus, searchTerm]);
   const typesToShow = useMemo(() => filterType === 'all' ? permTypes : permTypes.filter(t => t.id === filterType), [permTypes, filterType]);
 
   const reqDays = calcDaysBetween(reqForm.startDate, reqForm.endDate);
@@ -575,6 +599,39 @@ export default function PermissionsPage() {
         </div>
       </div>
 
+      {/* Filter bar */}
+      <div className="flex flex-wrap items-center gap-3 py-3">
+        <div className="relative flex-1 min-w-[200px]">
+          <input
+            type="text"
+            placeholder="Buscar empleado..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full border rounded-lg px-3 py-2 pl-9 text-sm"
+          />
+          <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+        {departments.length > 0 && (
+          <select
+            value={filterDepartment}
+            onChange={(e) => setFilterDepartment(e.target.value)}
+            className="border rounded-lg px-3 py-2 text-sm"
+          >
+            <option value="all">Todos los departamentos</option>
+            {departments.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
+            ))}
+          </select>
+        )}
+        {(searchTerm || filterDepartment !== 'all') && (
+          <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); }} className="text-sm text-blue-600 underline">
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       {/* Tab: Control */}
       {activeTab === 'control' && (
         <Card>
@@ -594,14 +651,14 @@ export default function PermissionsPage() {
               <div className="space-y-3">
                 {[1,2,3,4].map(i => <div key={i} className="h-28 bg-gray-200 rounded-lg animate-pulse" />)}
               </div>
-            ) : activeEmployees.length === 0 ? (
+            ) : filteredEmployees.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
                 <Briefcase className="h-12 w-12 mx-auto mb-3 text-gray-300" />
-                <p>No hay empleados activos o suspendidos</p>
+                <p>No se encontraron empleados con los filtros aplicados</p>
               </div>
             ) : (
               <div className="space-y-6">
-                {activeEmployees.map((emp) => {
+                {filteredEmployees.map((emp) => {
                   const years = getYearsOfService(emp.startDate);
                   return (
                     <div key={emp.id} className="p-4 border rounded-lg">
@@ -759,11 +816,20 @@ export default function PermissionsPage() {
           </Card>
 
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="flex items-center gap-2">
                 <CheckCircle className="h-5 w-5 text-gray-500" />
                 Historial de Solicitudes ({processedRequests.length})
               </CardTitle>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value as any)}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value="all">Todos</option>
+                <option value="approved">Aprobadas</option>
+                <option value="rejected">Rechazadas</option>
+              </select>
             </CardHeader>
             <CardContent>
               {processedRequests.length === 0 ? (
