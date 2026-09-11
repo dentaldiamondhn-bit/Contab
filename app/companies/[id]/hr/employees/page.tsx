@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -774,6 +774,7 @@ export default function EmployeesPage() {
   const [searchDepartments, setSearchDepartments] = useState<string[]>([]);
   const [searchPositions, setSearchPositions] = useState<string[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage, setItemsPerPage] = useState(10);
@@ -937,9 +938,10 @@ export default function EmployeesPage() {
 
   const loadData = async () => {
     try {
-      const [deptRes, posRes] = await Promise.all([
+      const [deptRes, posRes, empRes] = await Promise.all([
         fetch(`/api/companies/${companyId}/hr/departments`),
-        fetch(`/api/companies/${companyId}/hr/positions`)
+        fetch(`/api/companies/${companyId}/hr/positions`),
+        fetch(`/api/companies/${companyId}/employees`),
       ]);
       if (deptRes.ok) {
         const depts = await deptRes.json();
@@ -949,18 +951,14 @@ export default function EmployeesPage() {
         const pos = await posRes.json();
         setPositions(pos.map((p: any) => ({ id: p.id, name: p.name, department: p.department, description: p.description, minSalary: p.min_salary, maxSalary: p.max_salary, parentId: p.parent_id })));
       }
-    } catch (err) {
-      console.error('Error loading departments/positions:', err);
-    }
-
-    try {
-      const res = await fetch(`/api/companies/${companyId}/employees`);
-      if (res.ok) {
-        const data = await res.json();
+      if (empRes.ok) {
+        const data = await empRes.json();
         setEmployees(data);
       }
-    } catch (error) {
-      console.error('Error loading employees:', error);
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setPageLoading(false);
     }
   };
 
@@ -976,6 +974,10 @@ export default function EmployeesPage() {
         body: JSON.stringify(emp)
       });
       if (res.ok) {
+        const created = await res.json();
+        if (created?.id) {
+          setEmployees(prev => [{ ...emp, id: created.id }, ...prev]);
+        }
         return true;
       }
       return false;
@@ -994,7 +996,7 @@ export default function EmployeesPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        await loadData();
+        setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, ...emp } : e));
         showUploadMessage('Empleado actualizado correctamente');
       } else {
         console.error('Update error:', data);
@@ -1012,7 +1014,7 @@ export default function EmployeesPage() {
         method: 'DELETE'
       });
       if (res.ok) {
-        await loadData();
+        setEmployees(prev => prev.filter(e => e.id !== employeeId));
       }
     } catch (error) {
       console.error('Error deleting employee:', error);
@@ -1206,24 +1208,27 @@ export default function EmployeesPage() {
   };
 
   // Use server-side search results when filters are active, otherwise client-side filter
-  const baseEmployees = searchResults !== null ? searchResults : employees;
-  const filteredEmployees = searchResults !== null ? baseEmployees : employees.filter(emp => {
-    const matchesSearch = searchTerm === '' || 
-      (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.identityNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesDept = filterDepartment === '' || emp.department === filterDepartment;
-    const matchesPos = filterPosition === '' || emp.position === filterPosition;
-    const matchesStatus = filterStatus === '' || emp.status === filterStatus;
-    const matchesContract = filterContract === '' || emp.contractType === filterContract;
-    
-    return matchesSearch && matchesDept && matchesPos && matchesStatus && matchesContract;
-  });
+  const filteredEmployees = useMemo(() => {
+    const baseEmployees = searchResults !== null ? searchResults : employees;
+    if (searchResults !== null) return baseEmployees;
+    return employees.filter(emp => {
+      const matchesSearch = searchTerm === '' || 
+        (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.identityNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesDept = filterDepartment === '' || emp.department === filterDepartment;
+      const matchesPos = filterPosition === '' || emp.position === filterPosition;
+      const matchesStatus = filterStatus === '' || emp.status === filterStatus;
+      const matchesContract = filterContract === '' || emp.contractType === filterContract;
+      
+      return matchesSearch && matchesDept && matchesPos && matchesStatus && matchesContract;
+    });
+  }, [employees, searchResults, searchTerm, filterDepartment, filterPosition, filterStatus, filterContract]);
 
-  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+  const sortedEmployees = useMemo(() => [...filteredEmployees].sort((a, b) => {
     switch (sortBy) {
       case 'az':
         return (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
@@ -1240,10 +1245,10 @@ export default function EmployeesPage() {
       default:
         return 0;
     }
-  });
+  }), [filteredEmployees, sortBy]);
 
   const totalPages = Math.ceil(sortedEmployees.length / itemsPerPage);
-  const paginatedEmployees = sortedEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const paginatedEmployees = useMemo(() => sortedEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), [sortedEmployees, currentPage, itemsPerPage]);
 
   const handleSearchChange = (value: string) => {
     setSearchTerm(value);
@@ -1407,6 +1412,21 @@ export default function EmployeesPage() {
     }));
     exportToExcel(data, `empleados_${new Date().toISOString().slice(0, 10)}`);
   };
+
+  if (pageLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="h-8 bg-gray-200 rounded w-64 animate-pulse" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded animate-pulse" />)}
+        </div>
+        <div className="h-10 bg-gray-200 rounded w-full animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2,3,4,5,6].map(i => <div key={i} className="h-48 bg-gray-200 rounded animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-6 space-y-6">

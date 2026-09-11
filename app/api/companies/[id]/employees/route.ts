@@ -168,46 +168,41 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }));
 
     for (let emp of employees) {
-      try {
-        const { data: hrDocs } = await getSupabaseServer()
-          .from('employee_hr_documents')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('employee_id', emp.id);
-        
-        if (hrDocs) {
-          emp.hrDocuments = hrDocs.map((doc: any) => ({
-            id: doc.id,
-            name: doc.name,
-            type: doc.type,
-            date: doc.date,
-            file: doc.file,
-            observations: doc.observations,
-            uploadedBy: doc.uploaded_by,
-            uploadedAt: doc.uploaded_at
-          }));
-        }
-      } catch {}
+      emp.hrDocuments = [];
+      emp.history = [];
+    }
 
-      try {
-        const { data: history } = await getSupabaseServer()
-          .from('employee_history')
-          .select('*')
-          .eq('tenant_id', tenantId)
-          .eq('employee_id', emp.id)
-          .order('created_at', { ascending: false });
+    const [hrDocsResult, historyResult] = await Promise.all([
+      getSupabaseServer().from('employee_hr_documents').select('*').eq('tenant_id', tenantId),
+      getSupabaseServer().from('employee_history').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+    ]);
 
-        if (history) {
-          emp.history = history.map((h: any) => ({
-            id: h.id,
-            action: h.action,
-            description: h.description,
-            changes: h.changes || [],
-            performedBy: h.performed_by,
-            date: h.created_at
-          }));
-        }
-      } catch {}
+    const hrDocsByEmp: Record<string, any[]> = {};
+    if (hrDocsResult.data) {
+      hrDocsResult.data.forEach((doc: any) => {
+        if (!hrDocsByEmp[doc.employee_id]) hrDocsByEmp[doc.employee_id] = [];
+        hrDocsByEmp[doc.employee_id].push({
+          id: doc.id, name: doc.name, type: doc.type, date: doc.date,
+          file: doc.file, observations: doc.observations,
+          uploadedBy: doc.uploaded_by, uploadedAt: doc.uploaded_at,
+        });
+      });
+    }
+
+    const historyByEmp: Record<string, any[]> = {};
+    if (historyResult.data) {
+      historyResult.data.forEach((h: any) => {
+        if (!historyByEmp[h.employee_id]) historyByEmp[h.employee_id] = [];
+        historyByEmp[h.employee_id].push({
+          id: h.id, action: h.action, description: h.description,
+          changes: h.changes || [], performedBy: h.performed_by, date: h.created_at,
+        });
+      });
+    }
+
+    for (let emp of employees) {
+      emp.hrDocuments = hrDocsByEmp[emp.id] || [];
+      emp.history = historyByEmp[emp.id] || [];
     }
 
     return NextResponse.json(employees);
