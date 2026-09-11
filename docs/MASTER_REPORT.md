@@ -1,6 +1,6 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 10 de Septiembre de 2026
+> **Fecha:** 11 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
 > **Versión del Análisis:** 1.1
 
@@ -33,6 +33,11 @@
 - **HR: PIP — Filtros de tiempo** — Selector de tiempo (este mes, trimestre, año, rango personalizado) aplicable en ambos tabs (Planes y Estadísticas). Filtra planes y estadísticas por fecha de inicio.
 - **HR: PIP — Drill-down a empleados** — Desde estadísticas, clic en nombre de empleado filtra la lista de planes mostrando solo los de ese empleado. Banner con opción a limpiar filtro.
 - **HR: PIP — Historial de comentarios** — Comentarios de evaluaciones ahora se cargan desde Supabase al abrir el detalle del plan (antes solo se guardaban pero no se mostraban).
+- **HR: Nómina — Carga Excel con persistencia** — Menú "Subir Excel" procesa archivos .xlsx/.xls/.csv, matching por código de empleado o nombre. Datos persistidos en tabla `payroll_uploads`. Formato descargable con headers agrupados, código de empleado, y hoja de instrucciones.
+- **HR: Nómina — Horas extras por turno** — Horas extra divididas en 3 tipos: Mañana (25%), Mixto (50%), Nocturno (75%). El monto se calcula automáticamente según salario y horas. Separación visible en voucher de pago.
+- **HR: Nómina — Código de empleado** — Columna "Código" agregada a tabla de detalle, vista de nómina cerrada, y voucher de pago. Matching por código en upload de Excel (evita conflictos con nombres duplicados).
+- **HR: Nómina — Rendimiento optimizado** — API calls paralelos (`Promise.all`), memoización de cálculos, API ligera `/hr/payroll/employees` (9 columnas vs 50+), paginator de 20 empleados por página, skeleton de carga.
+- **HR: Nómina — Bridge contable** — Cierre de nómina genera asientos contables automáticos (gasto salarios, cargas sociales, pago de nómina) via `/api/companies/[id]/hr/accounting`.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
@@ -149,7 +154,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
 | Integración Fiscal | 14 | 18 | 78% |
-| Recursos Humanos | 16 | 16 | 100% |
+| Recursos Humanos | 21 | 21 | 100% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
 
@@ -166,7 +171,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (20 tablas + 2 buckets desplegados, RLS habilitado)** |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (21 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 

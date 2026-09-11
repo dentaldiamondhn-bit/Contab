@@ -1,6 +1,6 @@
 # Reporte de Estado y Plan de Ejecución: Módulo de Recursos Humanos
 
-> **Fecha de actualización:** 10 de Septiembre de 2026
+> **Fecha de actualización:** 11 de Septiembre de 2026
 
 ## 1. Estado Actual del Código
 
@@ -11,7 +11,7 @@
 | **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
 | **Control de Asistencia** | Completo | 2 páginas | 5 rutas | 4 tablas | Supabase + API |
 | **Vacaciones y Permisos** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
-| **Cálculo de Planilla (Nómina)** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
+| **Cálculo de Planilla (Nómina)** | Completo | 1 página | 5 rutas | 4 tablas | Supabase + API |
 | **Reportes de RRHH** | Completo | 1 página | — | — | — |
 | **Planes de Mejoramiento (PIP)** | Completo | 1 página | 3 rutas | 5 tablas | Supabase + API |
 
@@ -23,7 +23,7 @@
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E para HR |
 | Estabilidad y Validaciones | ~72% | Validaciones en UI + Supabase RLS + unique constraints + employee_code auto-gen |
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
-| Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina) |
+| Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina); **carga Excel de deducciones/ingresos** con persistencia en DB |
 | Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD completos (useEmployees, useDepartments, usePositions) — loading, error, refetch, optimistic updates |
 
 ---
@@ -203,22 +203,25 @@
 
 ### 2.4 Cálculo de Planilla (Nómina)
 
-**Estado: Completo (~92%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/payroll/page.tsx` | Motor de cálculo de nómina completo (~2242 líneas): configuración de frecuencia, deducciones, IGSS/IHSS/RAP, deducciones personalizadas por empleado, deducciones custom por período, integración con asistencia, exportación CSV, generación de comprobantes de pago (**diseño dos columnas**), cierre/historial de planilla, **menú desplegable de acciones consolidado** |
+| `app/companies/[id]/hr/payroll/page.tsx` | Motor de cálculo de nómina completo (~2600 líneas): configuración de frecuencia, deducciones, IGSS/IHSS/RAP, deducciones personalizadas por empleado, deducciones custom por período, integración con asistencia, exportación CSV, generación de comprobantes de pago (**diseño dos columnas**), cierre/historial de planilla, **menú desplegable de acciones consolidado**, **carga Excel de deducciones/ingresos con persistencia en DB**, **paginator de 20 empleados por página**, **skeleton de carga**, **optimización de rendimiento (memoización, API calls paralelos)**, **horas extras divididas por turno (mañana 25%, mixto 50%, nocturno 75%)**, **código de empleado en detalle/voucher** |
 | `app/api/companies/[id]/hr/payroll/config/route.ts` | API para configuración de planilla (frecuencia, % deducciones, quincena, etc.) |
 | `app/api/companies/[id]/hr/payroll/closed/route.ts` | API para planillas cerradas (historial con desglose completo) |
 | `app/api/companies/[id]/hr/payroll/deductions/route.ts` | API CRUD para deducciones por empleado (override individual de IGSS/IHSS/RAP) |
+| `app/api/companies/[id]/hr/payroll/employees/route.ts` | **API ligera de empleados para planilla** — solo 9 columnas (id, employeeCode, name, position, department, salary, startDate, status), sin mapeo de 50+ campos, sin cálculo de vacaciones |
+| `app/api/companies/[id]/hr/payroll/uploads/route.ts` | **API CRUD para datos subidos por Excel** — persiste deducciones/ingresos cargados vía Excel en tabla `payroll_uploads` |
 
 #### Tablas de Base de Datos (Supabase SQL)
 
 - `payroll_config` — Configuración de planilla por tenant (frecuencia, IGSS/IHSS/RAP %, quincena, aguinaldo, bono 14)
 - `payroll_closed` — Historial de planillas cerradas con JSONB de empleados
 - `payroll_deductions` — Deducciones individuales por empleado (estándar y personalizadas)
+- `payroll_uploads` — **Datos subidos por Excel por empleado por período** (items JSONB con deducciones/ingresos, unique constraint por tenant/employee/month/year)
 
 #### Funcionalidad Implementada
 
@@ -238,6 +241,7 @@
 - Cálculo de costo patrono (IGSS patronal)
 - **Comprobante de pago con diseño dos columnas** (referencia a imagen de diseño)
 - Generación de comprobante de pago (individual y por lote, popup HTML para impresión)
+- **Código de empleado en voucher** y en tabla de detalle
 - **Menú desplegable "Acciones"** consolidando botones de comprobante, exportar y cerrar planilla
 - **Resolución de datos del empleado**: API carga positions/departments en `posMap`/`deptMap` para resolver UUIDs → nombres
 - **Corrección de timezone**: Siempre usar `selectedDate + 'T12:00:00'` al crear objetos Date
@@ -245,6 +249,13 @@
 - Cierre de planilla con historial
 - Registros de planilla cerrada con desglose completo por empleado
 - Configuración de fechas límite (documentos, asistencia, horas extra, bonificación)
+- **Carga Excel de deducciones/ingresos**: menú "Subir Excel" que procesa archivos .xlsx/.xls/.csv, matching por código de empleado (primario) o nombre, persiste en DB (`payroll_uploads`)
+- **Descarga de formato Excel**: plantilla con headers, nombres de empleados reales, código de empleado, columna de instrucciones
+- **Horas extras divididas por turno**: Mañana (25%), Mixto (50%), Nocturno (75%) — el monto se calcula automáticamente según salario y horas
+- **Paginator**: 20 empleados por página con controles de navegación
+- **Skeleton de carga**: UI de esqueleto animado mientras se cargan datos
+- **Optimización de rendimiento**: API calls paralelos (`Promise.all`), memoización de `calculatePayroll`, `activeEmployees` y `paginatedEmployees` memoizados, `currencyFormatter` memoizado
+- **API ligera de empleados**: `/hr/payroll/employees` retorna solo 9 columnas (vs 50+ del endpoint general)
 
 #### Almacenamiento de Datos
 
@@ -252,6 +263,7 @@
 - Config: `/api/companies/${companyId}/hr/payroll/config` → tabla `payroll_config`
 - Planillas cerradas: `/api/companies/${companyId}/hr/payroll/closed` → tabla `payroll_closed`
 - Deducciones: `/api/companies/${companyId}/hr/payroll/deductions` → tabla `payroll_deductions`
+- Datos Excel: `/api/companies/${companyId}/hr/payroll/uploads` → tabla `payroll_uploads`
 - Asistencia leída de `/api/companies/${companyId}/hr/attendance` → tabla `attendance`
 
 #### Lo que Falta
@@ -260,7 +272,7 @@
 - Sin integración con declaraciones fiscales
 - Sin cálculo automático de aguinaldo/bono vacacional/decimotercer mes (config existe pero sin lógica de cálculo)
 - Sin generación de PDF de recibo de pago (usa popup HTML)
-- Sin integración con módulo contabilidad para asientos contables
+- ~~Sin integración con módulo contabilidad para asientos contables~~ ✅ Bridge planilla→contabilidad implementado
 
 ---
 
@@ -350,6 +362,7 @@
 | `HR_STORAGE.sql` | **2 buckets** de Supabase Storage (employee-photos, employee-documents) + 10 RLS policies |
 | `HR_HIERARCHY.sql` | **Columna reports_to** en employees (UUID FK) + índice para consultas de jerarquía |
 | `HR_PIP.sql` | **5 tablas PIP**: pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + RLS + índices |
+| `PAYROLL_UPLOADS.sql` | **Tabla payroll_uploads**: datos subidos por Excel por empleado por período (items JSONB), unique constraint, índice |
 
 ### Prisma Schema
 
@@ -358,13 +371,15 @@
 ### Observaciones Clave
 
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
-2. **19 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 3 de planilla (config, closed, deductions) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
+2. **21 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
 3. **10 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
-4. **16 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados.
+4. **21 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. Tabla `payroll_uploads` para datos de Excel.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
 6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
 7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
+9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga.
+10. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
 
 ---
 
@@ -374,7 +389,7 @@
 |---|---|---|---|
 | 1 | ~~Sin tipos TypeScript para entidades HR~~ | ~~Errores en tiempo de ejecución; difícil mantenimiento~~ | ✅ Resuelta |
 | 2 | Sin integración contable de planilla | No se generan asientos contables automáticos | Alta |
-| 3 | PIP no tiene implementación alguna | Requisito del cliente sin cubrir | Media |
+| 3 | ~~PIP no tiene implementación alguna~~ | ~~Requisito del cliente sin cubrir~~ | ✅ Resuelta |
 | 4 | Sin generación de PDFs (recibos de pago, reportes) | Limitación para uso en producción | Alta |
 | 5 | Sin pruebas automatizadas | Riesgo de regresiones | Media |
 | 6 | Lógica de cálculo inline en componentes (~2242 líneas en payroll) | Difícil mantenimiento y testing | Media |
