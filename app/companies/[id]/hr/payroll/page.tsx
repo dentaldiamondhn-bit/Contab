@@ -612,17 +612,21 @@ export default function PayrollPage() {
       const sheet = workbook.Sheets[workbook.SheetNames[0]];
       const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
+      const normalize = (s: string) => s.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim();
       const nameToEmp: Record<string, typeof activeEmployees[0]> = {};
-      activeEmployees.forEach(emp => { nameToEmp[emp.name.toLowerCase()] = emp; });
+      activeEmployees.forEach(emp => { nameToEmp[normalize(emp.name)] = emp; });
 
       const uploaded: typeof attendanceDeductions = {};
       let matched = 0;
       let skipped = 0;
+      const notFound: string[] = [];
 
       for (const row of rows) {
-        const name = (row['Nombre'] || row['nombre'] || row['Name'] || '').toString().trim().toLowerCase();
+        const rawName = (row['Nombre'] || row['nombre'] || row['Name'] || '').toString().trim();
+        const name = normalize(rawName);
+        if (!name) { continue; }
         const emp = nameToEmp[name];
-        if (!emp) { skipped++; continue; }
+        if (!emp) { skipped++; notFound.push(rawName); continue; }
 
         if (!uploaded[emp.id]) uploaded[emp.id] = [];
         matched++;
@@ -697,7 +701,7 @@ export default function PayrollPage() {
       );
       await Promise.all(savePromises);
 
-      alert(`Archivo cargado: ${matched} empleados procesados, ${skipped} no encontrados`);
+      alert(`Archivo cargado: ${matched} empleados procesados, ${skipped} no encontrados${notFound.length > 0 ? '\nNo encontrados: ' + notFound.join(', ') : ''}`);
     } catch (err: any) {
       console.error('Error uploading Excel:', err);
       alert('Error al procesar el archivo: ' + err.message);
