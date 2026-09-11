@@ -551,12 +551,19 @@ export default function PayrollPage() {
   const totalBase = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
   const totalPeriodBase = activeEmployees.reduce((sum, e) => sum + getPeriodSalary(e.salary), 0);
   const totalIgssEmployer = totalPeriodBase * (config.igssEmployer / 100);
-  const totalIgssEmployee = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).igssEmployee, 0);
-  const totalIhss = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).ihss, 0);
-  const totalRap = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).rap, 0);
-  const totalCustomDeductions = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).customDeductions, 0);
-  const totalAttendanceDeductions = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).attendanceDeductionTotal, 0);
-  const totalAttendanceIncomes = activeEmployees.reduce((sum, e) => sum + calculatePayroll(e.salary, e.id).attendanceIncomeTotal, 0);
+
+  const payrollCache = useMemo(() => {
+    const cache: Record<string, ReturnType<typeof calculatePayroll>> = {};
+    activeEmployees.forEach(e => { cache[e.id] = calculatePayroll(e.salary, e.id); });
+    return cache;
+  }, [activeEmployees, config, attendanceDeductions, employeeDeductions]);
+
+  const totalIgssEmployee = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.igssEmployee || 0), 0);
+  const totalIhss = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.ihss || 0), 0);
+  const totalRap = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.rap || 0), 0);
+  const totalCustomDeductions = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.customDeductions || 0), 0);
+  const totalAttendanceDeductions = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.attendanceDeductionTotal || 0), 0);
+  const totalAttendanceIncomes = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.attendanceIncomeTotal || 0), 0);
   const totalDeductions = totalIgssEmployee + totalIhss + totalRap + totalCustomDeductions + totalAttendanceDeductions;
   const totalNetPay = totalPeriodBase - totalDeductions + totalAttendanceIncomes;
 
@@ -2217,7 +2224,7 @@ export default function PayrollPage() {
               </thead>
               <tbody>
                 {paginatedEmployees.map(emp => {
-                  const calc = calculatePayroll(emp.salary, emp.id);
+                  const calc = payrollCache[emp.id] || calculatePayroll(emp.salary, emp.id);
                   const empDeds = getDeductionsForEmp(emp.id).filter(d => d.enabled && !d.isStandard);
                   return (
                     <tr key={emp.id} className="border-b hover:bg-gray-50">
