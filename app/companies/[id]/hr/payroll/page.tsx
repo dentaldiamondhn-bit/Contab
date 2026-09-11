@@ -21,7 +21,8 @@ import {
   Trash2,
   Pencil,
   Plus,
-  RefreshCw
+  RefreshCw,
+  Loader2
 } from 'lucide-react';
 
 interface Employee {
@@ -191,6 +192,7 @@ export default function PayrollPage() {
   const [closingPeriod, setClosingPeriod] = useState<'1ra' | '2da'>('1ra');
   const [closingWeek, setClosingWeek] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const PAGE_SIZE = 20;
   const menuRef = useRef<HTMLDivElement>(null);
@@ -202,7 +204,7 @@ export default function PayrollPage() {
       loadClosedPayrolls(),
       loadEmployeeDeductions(),
       loadAttendanceDeductions(),
-    ]);
+    ]).finally(() => setPageLoading(false));
   }, [companyId]);
 
   useEffect(() => {
@@ -1237,7 +1239,47 @@ export default function PayrollPage() {
                         if (d.quincena === 'ambas') perPeriod = perPeriod / 2;
                         const freqLabel = d.paymentFrequency === 'mensual' ? 'Mensual' : d.paymentFrequency === 'quincenal' ? 'Quincenal' : `${d.totalPayments} pagos`;
                         const quincenaLabel = d.quincena === '1ra' ? ' · 1ra quincena' : d.quincena === '2da' ? ' · 2da quincena' : d.quincena === 'ambas' ? ' · ambas quincenas' : '';
-                        return (
+  if (pageLoading) {
+    return (
+      <div className="max-w-[1800px] mx-auto p-6 space-y-6">
+        <div className="flex justify-between items-center">
+          <div>
+            <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
+            <div className="h-4 w-64 bg-gray-100 rounded animate-pulse mt-2" />
+          </div>
+          <div className="h-10 w-24 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map(i => (
+            <div key={i} className="h-20 bg-gray-200 rounded-lg animate-pulse" />
+          ))}
+        </div>
+        <div className="flex gap-2">
+          <div className="h-10 w-28 bg-gray-200 rounded animate-pulse" />
+          <div className="h-10 w-28 bg-gray-200 rounded animate-pulse" />
+        </div>
+        <div className="bg-white rounded-lg border p-6">
+          <div className="space-y-3">
+            {[1, 2, 3, 4, 5].map(i => (
+              <div key={i} className="flex gap-4 items-center">
+                <div className="h-4 w-40 bg-gray-200 rounded animate-pulse" />
+                <div className="h-4 w-20 bg-gray-100 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse ml-auto" />
+                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+                <div className="h-4 w-24 bg-gray-100 rounded animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="flex items-center justify-center mt-6 gap-2 text-gray-400">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Cargando nómina...</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
                           <div key={d.id} className="flex items-center justify-between p-3 border rounded-lg">
                             <div className="flex items-center gap-3">
                               <input type="checkbox" checked={d.enabled} onChange={() => {
