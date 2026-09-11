@@ -2151,8 +2151,8 @@ export default function PayrollPage() {
       <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-6">
-            <div className="text-center">
-              <DollarSign className="h-8 w-8 text-blue-600 mx-auto mb-2" />
+              <div className="text-center">
+                <CreditCard className="h-8 w-8 text-blue-600 mx-auto mb-2" />
               <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalPeriodBase)}</div>
               <div className="text-sm text-gray-500">Salarios Brutos ({FREQ_LABELS[config.frequency]})</div>
             </div>
