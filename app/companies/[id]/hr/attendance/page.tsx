@@ -47,12 +47,13 @@ interface Employee {
   position: string;
   department: string;
   salary: number;
-  status: 'active' | 'inactive';
+  status: 'active' | 'inactive' | 'suspended';
   contractType?: 'indefinido' | 'temporal' | 'obra';
   gender?: 'M' | 'F';
   scheduleEntry?: string;
   scheduleExit?: string;
   freeDays?: number[];
+  terminationDate?: string;
 }
 
 interface Attendance {
@@ -294,6 +295,7 @@ export default function AttendancePage() {
           freeDays: e.freeDays || [],
           scheduleEntry: e.scheduleEntry || '',
           scheduleExit: e.scheduleExit || '',
+          terminationDate: e.terminationDate || '',
         }));
         setEmployees(emps);
         let schedulesChanged = false;
@@ -1129,16 +1131,20 @@ export default function AttendancePage() {
                 {filteredEmployees.map((emp) => {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
+                  const isInactiveOnDate = emp.status === 'inactive' && emp.terminationDate && selectedDate >= emp.terminationDate;
                   const hasDeduction = ['absent', 'late', 'unpaid_leave'].includes(currentStatus) || (currentStatus === 'disability' && (att?.amount || 0) < (emp.salary / 30));
                   const hasOvertime = att?.overtimeHours && att.overtimeHours > 0;
                   const hasIncome = ['holiday', 'vacation'].includes(currentStatus) && (att?.amount || 0) > 0;
                   const deductionAmount = currentStatus === 'disability' ? (emp.salary / 30) - (att?.amount || 0) : att?.amount || 0;
                   return (
-                    <div key={emp.id} className="flex justify-between items-center px-3 py-4 my-2 border-b border-gray-200 last:border-b-0 bg-white rounded-lg shadow-sm">
+                    <div key={emp.id} className={`flex justify-between items-center px-3 py-4 my-2 border-b border-gray-200 last:border-b-0 bg-white rounded-lg shadow-sm ${isInactiveOnDate ? 'opacity-60' : ''}`}>
                       <div className="flex-1">
                         <div className="font-medium">{emp.name}</div>
-                        <div className="text-sm text-gray-500">{emp.position || 'Sin puesto'} • {emp.department || 'Sin depto'}</div>
-                        {att && (
+                        <div className="text-sm text-gray-500">
+                          {emp.position || 'Sin puesto'} • {emp.department || 'Sin depto'}
+                          {isInactiveOnDate && <span className="ml-2 text-red-500 font-medium">• Inactivo desde {emp.terminationDate}</span>}
+                        </div>
+                        {!isInactiveOnDate && att && (
                           <div className="text-xs mt-1 space-x-2">
                             {hasDeduction && <span className="text-red-600 font-medium">-{formatCurrency(deductionAmount)}</span>}
                             {hasOvertime && <span className="text-green-600 font-medium">+HE {formatCurrency(att.overtimeAmount || 0)} ({formatHours(att.overtimeHours || 0)})</span>}
@@ -1150,20 +1156,26 @@ export default function AttendancePage() {
                         )}
                       </div>
                       <div className="flex items-center gap-2">
-                        <Badge className={getStatusColor(currentStatus)}>{getStatusLabel(currentStatus)}</Badge>
-                        <div className="flex gap-1 flex-wrap justify-end items-center">
-                          <Button size="sm" variant={currentStatus === 'present' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'present')}><CheckCircle className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'absent' ? 'destructive' : 'outline'} onClick={() => recordAttendance(emp.id, 'absent')}><XCircle className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'late' ? 'default' : 'outline'} onClick={() => { setLatePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); if (att?.hours) { const h = Math.floor(att.hours); setLateHours(String(h)); setLateMinutes(String(Math.round((att.hours - h) * 60))); } else { setLateHours('1'); setLateMinutes('0'); } }} className={currentStatus === 'late' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}><Clock className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'vacation' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'vacation')} className={currentStatus === 'vacation' ? 'bg-blue-500 hover:bg-blue-600' : ''}><Plane className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={hasOvertime ? 'default' : 'outline'} onClick={() => { setOvertimePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); setOvertimeHours('1'); setOvertimeMinutes('0'); }} className={hasOvertime ? 'bg-orange-500 hover:bg-orange-600' : ''}><TrendingUp className="h-4 w-4" /></Button>
-                          {hasOvertime && <span className="text-orange-600 font-bold text-xs whitespace-nowrap">+{formatCurrency(att?.overtimeAmount || 0)} ({formatHours(att?.overtimeHours || 0)})</span>}
-                          <Button size="sm" variant={currentStatus === 'unpaid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'unpaid_leave')} className={currentStatus === 'unpaid_leave' ? 'bg-gray-500 hover:bg-gray-600' : ''}><FileText className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'disability' ? 'default' : 'outline'} onClick={() => setDisabilityPrompt({ empId: emp.id, empName: emp.name, date: selectedDate })} className={currentStatus === 'disability' ? 'bg-pink-500 hover:bg-pink-600' : ''}><DollarSign className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'holiday' ? 'default' : 'outline'} onClick={() => { setHolidayPrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); }} className={currentStatus === 'holiday' ? 'bg-indigo-500 hover:bg-indigo-600' : ''}><Star className="h-4 w-4" /></Button>
-                          <Button size="sm" variant={currentStatus === 'free_day' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'free_day')} className={currentStatus === 'free_day' ? 'bg-teal-500 hover:bg-teal-600' : ''}><CalendarOff className="h-4 w-4" /></Button>
-                          {att && <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => clearEmployeeAttendance(emp.id)}><Trash2 className="h-4 w-4" /></Button>}
-                        </div>
+                        {isInactiveOnDate ? (
+                          <Badge className="bg-gray-200 text-gray-600">Inactivo</Badge>
+                        ) : (
+                          <>
+                            <Badge className={getStatusColor(currentStatus)}>{getStatusLabel(currentStatus)}</Badge>
+                            <div className="flex gap-1 flex-wrap justify-end items-center">
+                              <Button size="sm" variant={currentStatus === 'present' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'present')}><CheckCircle className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'absent' ? 'destructive' : 'outline'} onClick={() => recordAttendance(emp.id, 'absent')}><XCircle className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'late' ? 'default' : 'outline'} onClick={() => { setLatePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); if (att?.hours) { const h = Math.floor(att.hours); setLateHours(String(h)); setLateMinutes(String(Math.round((att.hours - h) * 60))); } else { setLateHours('1'); setLateMinutes('0'); } }} className={currentStatus === 'late' ? 'bg-yellow-500 hover:bg-yellow-600' : ''}><Clock className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'vacation' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'vacation')} className={currentStatus === 'vacation' ? 'bg-blue-500 hover:bg-blue-600' : ''}><Plane className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={hasOvertime ? 'default' : 'outline'} onClick={() => { setOvertimePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); setOvertimeHours('1'); setOvertimeMinutes('0'); }} className={hasOvertime ? 'bg-orange-500 hover:bg-orange-600' : ''}><TrendingUp className="h-4 w-4" /></Button>
+                              {hasOvertime && <span className="text-orange-600 font-bold text-xs whitespace-nowrap">+{formatCurrency(att?.overtimeAmount || 0)} ({formatHours(att?.overtimeHours || 0)})</span>}
+                              <Button size="sm" variant={currentStatus === 'unpaid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'unpaid_leave')} className={currentStatus === 'unpaid_leave' ? 'bg-gray-500 hover:bg-gray-600' : ''}><FileText className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'disability' ? 'default' : 'outline'} onClick={() => setDisabilityPrompt({ empId: emp.id, empName: emp.name, date: selectedDate })} className={currentStatus === 'disability' ? 'bg-pink-500 hover:bg-pink-600' : ''}><DollarSign className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'holiday' ? 'default' : 'outline'} onClick={() => { setHolidayPrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); }} className={currentStatus === 'holiday' ? 'bg-indigo-500 hover:bg-indigo-600' : ''}><Star className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'free_day' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'free_day')} className={currentStatus === 'free_day' ? 'bg-teal-500 hover:bg-teal-600' : ''}><CalendarOff className="h-4 w-4" /></Button>
+                              {att && <Button size="sm" variant="ghost" className="text-red-500 hover:text-red-700 hover:bg-red-50" onClick={() => clearEmployeeAttendance(emp.id)}><Trash2 className="h-4 w-4" /></Button>}
+                            </div>
+                          </>
+                        )}
                       </div>
                     </div>
                   );
@@ -1297,6 +1309,7 @@ export default function AttendancePage() {
                   {filteredEmployees.map((emp) => {
                     const totals = getQuincenaTotals(emp.id);
                     const isCollapsed = collapsedEmployees.has(emp.id);
+                    const isInactiveEmployee = emp.status === 'inactive';
                     if (isCollapsed) {
                       return (
                         <tr key={emp.id} className="border-b-2 border-gray-300 hover:bg-gray-100 cursor-pointer" onClick={() => toggleEmployeeCollapse(emp.id)}>
@@ -1306,7 +1319,9 @@ export default function AttendancePage() {
                               <div>
                                 <div className="font-medium text-sm">{emp.name}</div>
                                 <div className="text-gray-500 text-xs">{emp.position || 'Sin puesto'}</div>
-                                {(emp.scheduleEntry || emp.scheduleExit) && (
+                                {isInactiveEmployee ? (
+                                  <div className="text-red-400 text-xs flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" />Sin horario</div>
+                                ) : (emp.scheduleEntry || emp.scheduleExit) && (
                                   <div className="text-gray-400 text-xs flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" />{emp.scheduleEntry} - {emp.scheduleExit}</div>
                                 )}
                               </div>
@@ -1328,14 +1343,16 @@ export default function AttendancePage() {
                       );
                     }
                     return (
-                      <tr key={emp.id} className="border-b-2 border-gray-300 hover:bg-gray-50">
+                      <tr key={emp.id} className={`border-b-2 border-gray-300 hover:bg-gray-50 ${isInactiveEmployee ? 'opacity-60' : ''}`}>
                         <td className="py-3 px-2 sticky left-0 bg-white z-10 border-r border-gray-200 cursor-pointer" onClick={() => toggleEmployeeCollapse(emp.id)}>
                           <div className="flex items-center gap-2">
                             <ChevronDown className="h-4 w-4 text-gray-400" />
                             <div>
                               <div className="font-medium text-sm">{emp.name}</div>
                               <div className="text-gray-500 text-xs">{emp.position || 'Sin puesto'} • {emp.department || 'Sin depto'}</div>
-                              {(emp.scheduleEntry || emp.scheduleExit) && (
+                              {isInactiveEmployee ? (
+                                <div className="text-red-400 text-xs flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" />Sin horario</div>
+                              ) : (emp.scheduleEntry || emp.scheduleExit) && (
                                 <div className="text-gray-400 text-xs flex items-center gap-1 mt-0.5"><Clock className="h-3 w-3" />{emp.scheduleEntry} - {emp.scheduleExit}</div>
                               )}
                             </div>
@@ -1346,8 +1363,12 @@ export default function AttendancePage() {
                           const status = cellInfo.status;
                           const isWeekend = new Date(date + 'T00:00:00').getDay() === 0 || new Date(date + 'T00:00:00').getDay() === 6;
                           const isSelected = date === selectedDate;
+                          const isInactiveOnDate = isInactiveEmployee && emp.terminationDate && date >= emp.terminationDate;
                           return (
                             <td key={i} onClick={() => setSelectedDate(date)} className={`text-center py-1 px-0.5 cursor-pointer ${isSelected ? 'bg-blue-50 ring-2 ring-blue-400' : isWeekend ? 'bg-gray-50' : ''}`}>
+                              {isInactiveOnDate ? (
+                                <div className="text-[9px] text-gray-400 py-1">Inactivo</div>
+                              ) : (
                               <div className="flex flex-col gap-0.5">
                                 {STATUS_OPTIONS.map(opt => {
                                   const isActive = status === opt.value;
@@ -1388,6 +1409,7 @@ export default function AttendancePage() {
                                   );
                                 })}
                               </div>
+                              )}
                             </td>
                           );
                         })}
