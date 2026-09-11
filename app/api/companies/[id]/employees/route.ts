@@ -65,11 +65,15 @@ async function logHistory(employeeId: string, tenantId: string, action: string, 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id: tenantId } = await params;
+    const { searchParams } = new URL(request.url);
+    const fields = searchParams.get('fields');
+    
+    const selectCols = fields ? fields : '*';
     
     const [empResult, posResult, deptResult] = await Promise.all([
-      getSupabaseServer().from('employees').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
-      getSupabaseServer().from('positions').select('*').eq('tenant_id', tenantId),
-      getSupabaseServer().from('departments').select('*').eq('tenant_id', tenantId),
+      getSupabaseServer().from('employees').select(selectCols).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      getSupabaseServer().from('positions').select('id,name').eq('tenant_id', tenantId),
+      getSupabaseServer().from('departments').select('id,name').eq('tenant_id', tenantId),
     ]);
 
     if (empResult.error) throw empResult.error;
