@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -151,7 +151,7 @@ export default function PipPage() {
     try {
       const [plansRes, empRes] = await Promise.all([
         fetch(`/api/companies/${companyId}/hr/pip`, { headers: { 'x-tenant-id': companyId } }),
-        fetch(`/api/companies/${companyId}/employees`, { headers: { 'x-tenant-id': companyId } }),
+        fetch(`/api/companies/${companyId}/employees?fields=id,first_name,last_name,employee_code,department,position_id,status,supervisor,reports_to,base_salary`, { headers: { 'x-tenant-id': companyId } }),
       ])
       if (plansRes.ok) {
         const plansData = await plansRes.json()
@@ -168,8 +168,8 @@ export default function PipPage() {
           position: e.position || '',
           status: e.status || 'active',
           supervisor: e.supervisor || '',
-          reportsTo: e.reportsTo || '',
-          salary: e.salary || 0,
+          reportsTo: e.reports_to || e.reportsTo || '',
+          salary: e.base_salary ? parseFloat(e.base_salary) : (e.salary || 0),
         })) : [])
       }
     } catch (e) {
@@ -353,10 +353,10 @@ export default function PipPage() {
     return diff
   }
 
-  const activePlans = plans.filter(p => p.status === 'active')
-  const draftPlans = plans.filter(p => p.status === 'draft')
-  const completedPlans = plans.filter(p => p.status === 'completed')
-  const displayedPlans = plans.filter(p => {
+  const activePlans = useMemo(() => plans.filter(p => p.status === 'active'), [plans])
+  const draftPlans = useMemo(() => plans.filter(p => p.status === 'draft'), [plans])
+  const completedPlans = useMemo(() => plans.filter(p => p.status === 'completed'), [plans])
+  const displayedPlans = useMemo(() => plans.filter(p => {
     if (filterEmployeeId && p.employeeId !== filterEmployeeId) return false
     if (timeFilter !== 'all') {
       const start = new Date(p.startDate)
@@ -375,8 +375,46 @@ export default function PipPage() {
       }
     }
     return true
-  })
+  }), [plans, filterEmployeeId, timeFilter, customDateRange.from])
   const filterEmployeeName = filterEmployeeId ? getEmployeeName(filterEmployeeId) : ''
+
+  const statsData = useMemo(() => {
+    const filteredPlans = plans.filter(p => {
+      if (timeFilter !== 'all') {
+        const start = new Date(p.startDate)
+        const now = new Date()
+        if (timeFilter === 'month') {
+          return start >= new Date(now.getFullYear(), now.getMonth(), 1)
+        } else if (timeFilter === 'quarter') {
+          return start >= new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
+        } else if (timeFilter === 'year') {
+          return start >= new Date(now.getFullYear(), 0, 1)
+        } else if (timeFilter === 'custom' && customDateRange.from) {
+          const from = new Date(customDateRange.from)
+          const to = customDateRange.to ? new Date(customDateRange.to) : new Date()
+          return start >= from && start <= to
+        }
+      }
+      return true
+    })
+    const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Record<string, { name: string; id: string }>; planIds: Set<string> }> = {}
+    filteredPlans.forEach(plan => {
+      const empName = getEmployeeName(plan.employeeId)
+      ;(plan.pip_goals || []).forEach((g: any) => {
+        const key = g.title || g.metric || 'Sin área'
+        if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: {}, planIds: new Set() }
+        areaCounts[key].count++
+        if (plan.employeeId) areaCounts[key].employees[plan.employeeId] = { name: empName, id: plan.employeeId }
+        areaCounts[key].planIds.add(plan.id)
+        if (g.status === 'met') areaCounts[key].met++
+        else if (g.status === 'in_progress') areaCounts[key].inProgress++
+        else areaCounts[key].pending++
+      })
+    })
+    const sorted = Object.values(areaCounts).sort((a, b) => b.count - a.count)
+    const maxCount = Math.max(...sorted.map(a => a.count), 1)
+    return { sorted, maxCount }
+  }, [plans, employees, timeFilter, customDateRange.from, customDateRange.to])
 
   if (loading) {
     return (
@@ -1245,40 +1283,7 @@ export default function PipPage() {
         </div>
 
         {activeTab === 'stats' ? (() => {
-          const filteredPlans = plans.filter(p => {
-            if (timeFilter !== 'all') {
-              const start = new Date(p.startDate)
-              const now = new Date()
-              if (timeFilter === 'month') {
-                return start >= new Date(now.getFullYear(), now.getMonth(), 1)
-              } else if (timeFilter === 'quarter') {
-                return start >= new Date(now.getFullYear(), Math.floor(now.getMonth() / 3) * 3, 1)
-              } else if (timeFilter === 'year') {
-                return start >= new Date(now.getFullYear(), 0, 1)
-              } else if (timeFilter === 'custom' && customDateRange.from) {
-                const from = new Date(customDateRange.from)
-                const to = customDateRange.to ? new Date(customDateRange.to) : new Date()
-                return start >= from && start <= to
-              }
-            }
-            return true
-          })
-          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number; employees: Record<string, { name: string; id: string }>; planIds: Set<string> }> = {}
-          filteredPlans.forEach(plan => {
-            const empName = getEmployeeName(plan.employeeId)
-            ;(plan.pip_goals || []).forEach((g: any) => {
-              const key = g.title || g.metric || 'Sin área'
-              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: {}, planIds: new Set() }
-              areaCounts[key].count++
-              if (plan.employeeId) areaCounts[key].employees[plan.employeeId] = { name: empName, id: plan.employeeId }
-              areaCounts[key].planIds.add(plan.id)
-              if (g.status === 'met') areaCounts[key].met++
-              else if (g.status === 'in_progress') areaCounts[key].inProgress++
-              else areaCounts[key].pending++
-            })
-          })
-          const sorted = Object.values(areaCounts).sort((a, b) => b.count - a.count)
-          const maxCount = Math.max(...sorted.map(a => a.count), 1)
+          const { sorted, maxCount } = statsData
 
           return (
             <>
