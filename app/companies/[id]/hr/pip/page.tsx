@@ -413,7 +413,7 @@ export default function PipPage() {
     })
     const sorted = Object.values(areaCounts).sort((a, b) => b.count - a.count)
     const maxCount = Math.max(...sorted.map(a => a.count), 1)
-    return { sorted, maxCount }
+    return { sorted, maxCount, planCount: filteredPlans.length }
   }, [plans, employees, timeFilter, customDateRange.from, customDateRange.to])
 
   if (loading) {
@@ -1351,7 +1351,7 @@ export default function PipPage() {
                       <div className="mt-4 pt-3 border-t">
                         <div className="text-sm text-gray-500">
                           Total de metas: <strong>{sorted.reduce((s, a) => s + a.count, 0)}</strong> en{' '}
-                          <strong>{filteredPlans.length}</strong> planes
+                          <strong>{statsData.planCount}</strong> planes
                         </div>
                       </div>
                     </div>
