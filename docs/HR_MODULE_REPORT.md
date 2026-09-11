@@ -78,7 +78,7 @@
 - Exportación de empleados a Excel
 - Creación automática de cargo al agregar empleado
 - Registro de historial de cambios (audit trail)
-- Cálculo de vacaciones por antigüedad (ley hondureña: <1yr=0, 1=10, 2=12, 3=14, 4+=20)
+- Cálculo de vacaciones por antigüedad (ley hondureña: <1yr=0, 1=10, 2=12, 3=14, 4+=20) con carry-forward de días no usados
 - **Organigrama interactivo** con vista de árbol y lista, búsqueda, filtro por departamento, asignación de jefes directos, subir foto, importación CSV de jerarquía
 - **Upload de fotos y documentos vía API** con URLs persistentes en Supabase Storage (reemplaza base64)
 - **Dropdown de Cargo filtrado por departamento** (case-insensitive)
@@ -156,7 +156,7 @@
 
 ### 2.3 Vacaciones y Permisos
 
-**Estado: Completo (~90%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -182,6 +182,7 @@
 - Barras de progreso mostrando uso vs límites
 - Botones de ajuste manual +/- pestaña de estadísticas/recuento: por tipo, por empleado, por mes
 - Cálculo automático de días de vacaciones por antigüedad (ley hondureña)
+- **Carry-forward automático**: días no usados del año anterior se arrastran al año actual (calculado on-the-fly desde solicitudes aprobadas)
 - Registro del nombre del aprobador al aprobar solicitudes
 - Tarjetas resumen por tipo de permiso
 - **Cálculo de salario por período** ajustado según frecuencia (quincenal = salario/2, semanal = salario/4)
