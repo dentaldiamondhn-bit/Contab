@@ -477,10 +477,8 @@ export default function PayrollPage() {
   const paginatedEmployees = useMemo(() => activeEmployees.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [activeEmployees, currentPage]);
 
   const currencyFormatter = useMemo(() => new Intl.NumberFormat('es-HN', {
-    style: 'currency',
-    currency: config.currency,
     minimumFractionDigits: 2
-  }), [config.currency]);
+  }), []);
 
   const formatCurrency = (amount: number) => {
     return currencyFormatter.format(amount);
