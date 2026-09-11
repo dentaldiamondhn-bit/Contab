@@ -182,7 +182,7 @@
 - Barras de progreso mostrando uso vs límites
 - Botones de ajuste manual +/- pestaña de estadísticas/recuento: por tipo, por empleado, por mes
 - Cálculo automático de días de vacaciones por antigüedad (ley hondureña)
-- **Carry-forward automático**: días no usados del año anterior se arrastran al año actual (calculado on-the-fly desde solicitudes aprobadas)
+- **Carry-forward automático**: días no usados del año anterior se arrastran al año actual, con vencimiento a 2 años según Código de Trabajo de Honduras (calculado on-the-fly desde solicitudes aprobadas)
 - Registro del nombre del aprobador al aprobar solicitudes
 - Tarjetas resumen por tipo de permiso
 - **Cálculo de salario por período** ajustado según frecuencia (quincenal = salario/2, semanal = salario/4)
@@ -199,7 +199,7 @@
 - Sin notificaciones por correo electrónico para aprobación/rechazo
 - Sin integración con planilla (cálculo de pago por vacaciones)
 - Sin vista de calendario
-- Carry-forward de saldos entre años: ✅ Implementado (días no usados del año anterior se arrastran al actual, calculado on-the-fly desde aprobaciones)
+- Carry-forward de saldos entre años: ✅ Implementado (días no usados se arrastran hasta 2 años, luego vencen según Código de Trabajo, calculado on-the-fly desde aprobaciones)
 
 ---
 

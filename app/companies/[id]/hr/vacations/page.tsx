@@ -286,15 +286,20 @@ export default function PermissionsPage() {
 
   const getCarriedDays = (emp: Employee, typeId: string): number => {
     if (typeId !== 'vacaciones') return 0;
-    const prevYear = new Date().getFullYear() - 1;
-    const prevYearMax = calculateVacationDaysForYear(emp.startDate, prevYear);
-    if (prevYearMax <= 0) return 0;
-    const prevYearUsed = approvedRequests.filter(r => {
-      if (r.employeeId !== emp.id || r.typeId !== typeId) return false;
-      const d = new Date(r.startDate || r.createdAt);
-      return d.getFullYear() === prevYear;
-    }).reduce((sum, r) => sum + r.days, 0);
-    return Math.max(0, prevYearMax - prevYearUsed);
+    const curYear = new Date().getFullYear();
+    let totalCarried = 0;
+    for (let offset = 1; offset <= 2; offset++) {
+      const checkYear = curYear - offset;
+      const yearMax = calculateVacationDaysForYear(emp.startDate, checkYear);
+      if (yearMax <= 0) continue;
+      const yearUsed = approvedRequests.filter(r => {
+        if (r.employeeId !== emp.id || r.typeId !== typeId) return false;
+        const d = new Date(r.startDate || r.createdAt);
+        return d.getFullYear() === checkYear;
+      }).reduce((sum, r) => sum + r.days, 0);
+      totalCarried += Math.max(0, yearMax - yearUsed);
+    }
+    return totalCarried;
   };
 
   const getAvailableDays = (emp: Employee, typeId: string): number => {
@@ -637,7 +642,7 @@ export default function PermissionsPage() {
                               {/* Carried days */}
                               {carried > 0 && (
                                 <div className="flex items-center gap-1 mt-1">
-                                  <span className="text-xs text-amber-600 font-medium">+{carried} arrastrados del {new Date().getFullYear() - 1}</span>
+                                  <span className="text-xs text-amber-600 font-medium">+{carried} arrastrados (vencen a 2 años)</span>
                                 </div>
                               )}
 
@@ -1062,7 +1067,7 @@ export default function PermissionsPage() {
                       const carried = getCarriedDays(selectedEmployee, reqForm.typeId);
                       const max = getMaxDays(selectedEmployee, reqForm.typeId);
                       return carried > 0 ? (
-                        <p key="carried" className="text-xs text-amber-600 mt-1">Incluye {carried} días arrastrados de {new Date().getFullYear() - 1} (ley: {max} días {new Date().getFullYear()} + {carried} arrastrados)</p>
+                        <p key="carried" className="text-xs text-amber-600 mt-1">Incluye {carried} días arrastrados (máx. 2 años según Código de Trabajo)</p>
                       ) : (
                         <p key="no-carried" className="text-xs text-gray-400 mt-1">Ley: {max} días por antigüedad ({getYearsOfService(selectedEmployee.startDate)} años de servicio)</p>
                       );
