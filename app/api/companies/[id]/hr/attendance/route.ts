@@ -42,8 +42,6 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         holiday_type: body.holiday_type || null,
         disability_type: body.disability_type || null,
         notes: body.notes || '',
-        check_in: body.check_in || null,
-        check_out: body.check_out || null,
       },
       { onConflict: 'tenant_id,employee_id,date' }
     )

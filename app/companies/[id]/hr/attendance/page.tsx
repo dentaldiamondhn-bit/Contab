@@ -343,8 +343,6 @@ export default function AttendancePage() {
             holiday_type: record.holidayType || null,
             disability_type: record.disabilityType || null,
             notes: record.notes || '',
-            check_in: record.checkIn || '',
-            check_out: record.checkOut || '',
           }),
         });
       }
@@ -368,8 +366,6 @@ export default function AttendancePage() {
           holiday_type: record.holidayType || null,
           disability_type: record.disabilityType || null,
           notes: record.notes || '',
-          check_in: record.checkIn || '',
-          check_out: record.checkOut || '',
         }),
       });
       if (!res.ok) {
