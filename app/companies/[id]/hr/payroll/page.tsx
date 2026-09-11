@@ -475,7 +475,7 @@ export default function PayrollPage() {
   }), []);
 
   const formatCurrency = (amount: number) => {
-    return currencyFormatter.format(amount);
+    return `L ${currencyFormatter.format(amount)}`;
   };
 
   const getPeriodSalary = (monthlySalary: number) => {
