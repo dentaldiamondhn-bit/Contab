@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/badge';
 import {
   ArrowLeft,
   Download,
+  Upload,
   DollarSign,
   Settings,
   Save,
@@ -194,6 +195,7 @@ export default function PayrollPage() {
   const [showMenu, setShowMenu] = useState(false);
   const [pageLoading, setPageLoading] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const PAGE_SIZE = 20;
   const menuRef = useRef<HTMLDivElement>(null);
 
@@ -580,6 +582,81 @@ export default function PayrollPage() {
     window.URL.revokeObjectURL(url);
   };
 
+  const uploadExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const XLSX = await import('xlsx');
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows: any[] = XLSX.utils.sheet_to_json(sheet);
+
+      const nameToEmp: Record<string, typeof activeEmployees[0]> = {};
+      activeEmployees.forEach(emp => { nameToEmp[emp.name.toLowerCase()] = emp; });
+
+      const uploaded: typeof attendanceDeductions = {};
+      let matched = 0;
+      let skipped = 0;
+
+      for (const row of rows) {
+        const name = (row['Nombre'] || row['nombre'] || row['Name'] || '').toString().trim().toLowerCase();
+        const emp = nameToEmp[name];
+        if (!emp) { skipped++; continue; }
+
+        if (!uploaded[emp.id]) uploaded[emp.id] = [];
+        matched++;
+
+        const dedFields = [
+          { key: 'IGSS', label: 'IGSS' },
+          { key: 'IHSS', label: 'IHSS' },
+          { key: 'RAP', label: 'RAP' },
+          { key: 'Incapacidad', label: 'Incapacidad' },
+          { key: 'Inasistencia', label: 'Inasistencia' },
+          { key: 'Retardo', label: 'Retardo' },
+          { key: 'Permiso sin goce', label: 'Permiso sin goce' },
+        ];
+        for (const f of dedFields) {
+          const val = parseFloat(row[f.key] || row[f.key.toLowerCase()] || '0');
+          if (val > 0) {
+            uploaded[emp.id].push({ amount: val, type: 'deduction', label: f.label });
+          }
+        }
+
+        const incFields = [
+          { key: 'Horas Extra', label: 'Horas Extra' },
+          { key: 'Feriado', label: 'Día Feriado' },
+          { key: 'Vacaciones', label: 'Vacaciones' },
+        ];
+        for (const f of incFields) {
+          const val = parseFloat(row[f.key] || row[f.key.toLowerCase()] || '0');
+          if (val > 0) {
+            uploaded[emp.id].push({ amount: val, type: 'income', label: f.label });
+          }
+        }
+
+        const bono = parseFloat(row['Bono'] || row['bono'] || row['Bonificacion'] || '0');
+        if (bono > 0) {
+          uploaded[emp.id].push({ amount: bono, type: 'income', label: 'Bonificación' });
+        }
+      }
+
+      setAttendanceDeductions(prev => {
+        const merged = { ...prev };
+        for (const [empId, items] of Object.entries(uploaded)) {
+          merged[empId] = [...(merged[empId] || []), ...items];
+        }
+        return merged;
+      });
+
+      alert(`Archivo cargado: ${matched} empleados procesados, ${skipped} no encontrados`);
+    } catch (err: any) {
+      console.error('Error uploading Excel:', err);
+      alert('Error al procesar el archivo: ' + err.message);
+    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
   const generateVoucher = (emp: typeof activeEmployees[0]) => {
     const calc = calculatePayroll(emp.salary, emp.id);
     const customDeds = getDeductionsForEmp(emp.id).filter(d => d.enabled && !d.isStandard);
@@ -928,6 +1005,7 @@ export default function PayrollPage() {
 
   return (
     <div className="max-w-[1800px] mx-auto p-6 space-y-6">
+      <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={uploadExcel} />
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Nómina</h1>
@@ -977,6 +1055,9 @@ export default function PayrollPage() {
                   <div className="border-t" />
                   <button onClick={() => { downloadCSV(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
                     <Download className="h-4 w-4" /> Descargar CSV
+                  </button>
+                  <button onClick={() => { fileInputRef.current?.click(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <Upload className="h-4 w-4" /> Subir Excel
                   </button>
                   <button onClick={() => { generateAllVouchers(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
                     <FileText className="h-4 w-4" /> Vauchers
