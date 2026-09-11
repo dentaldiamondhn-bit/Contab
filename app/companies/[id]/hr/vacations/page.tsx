@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -157,17 +157,33 @@ export default function PermissionsPage() {
   const [isAdding, setIsAdding] = useState(false);
 
   useEffect(() => {
-    fetchEmployees();
-    loadPermissionsData();
+    fetchAllData();
   }, [companyId]);
 
-  const loadPermissionsData = async () => {
+  const fetchAllData = async () => {
+    setLoading(true);
     try {
-      const [typesRes, usedRes, reqsRes] = await Promise.all([
+      const [empRes, typesRes, usedRes, reqsRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/hr/payroll/employees`),
         fetch(`/api/companies/${companyId}/hr/permissions/types`),
         fetch(`/api/companies/${companyId}/hr/permissions/used`),
-        fetch(`/api/companies/${companyId}/hr/permissions/requests`)
+        fetch(`/api/companies/${companyId}/hr/permissions/requests`),
       ]);
+      if (empRes.ok) {
+        const data = await empRes.json();
+        if (Array.isArray(data)) {
+          setEmployees(data.map((e: any) => ({
+            id: e.id,
+            firstName: (e.name || '').split(' ')[0] || '',
+            lastName: (e.name || '').split(' ').slice(1).join(' ') || '',
+            position: e.position || '',
+            department: e.department || '',
+            startDate: e.startDate || '',
+            salary: e.salary || 0,
+            status: e.status || 'active',
+          })));
+        }
+      }
       if (typesRes.ok) {
         const types = await typesRes.json();
         if (Array.isArray(types)) setPermTypes(types);
@@ -195,7 +211,9 @@ export default function PermissionsPage() {
         if (Array.isArray(reqs)) setRequests(reqs);
       }
     } catch (err) {
-      console.error('Error loading permissions data:', err);
+      console.error('Error loading data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -227,20 +245,6 @@ export default function PermissionsPage() {
     }
   };
 
-  const fetchEmployees = async () => {
-    try {
-      setLoading(true);
-      const res = await fetch(`/api/companies/${companyId}/employees`);
-      const data = await res.json();
-      if (Array.isArray(data)) setEmployees(data);
-      else if (data.employees) setEmployees(data.employees);
-    } catch (err) {
-      console.error('Error fetching employees:', err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const calculateVacationDaysForYear = (startDate: string, refYear: number): number => {
     if (!startDate) return 0;
     const start = new Date(startDate);
@@ -264,7 +268,7 @@ export default function PermissionsPage() {
     return pt.annualDays;
   };
 
-  const approvedRequests = requests.filter(r => r.status === 'approved');
+  const approvedRequests = useMemo(() => requests.filter(r => r.status === 'approved'), [requests]);
 
   const getUsageForEmp = (empId: string, typeId: string): UsageRecord => {
     const now = new Date();
@@ -488,10 +492,10 @@ export default function PermissionsPage() {
     if (filterType === typeId) setFilterType('all');
   };
 
-  const activeEmployees = employees.filter(e => e.status === 'active' || e.status === 'suspended');
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const processedRequests = requests.filter(r => r.status !== 'pending');
-  const typesToShow = filterType === 'all' ? permTypes : permTypes.filter(t => t.id === filterType);
+  const activeEmployees = useMemo(() => employees.filter(e => e.status === 'active' || e.status === 'suspended'), [employees]);
+  const pendingRequests = useMemo(() => requests.filter(r => r.status === 'pending'), [requests]);
+  const processedRequests = useMemo(() => requests.filter(r => r.status !== 'pending'), [requests]);
+  const typesToShow = useMemo(() => filterType === 'all' ? permTypes : permTypes.filter(t => t.id === filterType), [permTypes, filterType]);
 
   const reqDays = calcDaysBetween(reqForm.startDate, reqForm.endDate);
   const reqEmpAvailable = selectedEmployee && reqForm.typeId ? getAvailableDays(selectedEmployee, reqForm.typeId) : 0;
@@ -587,9 +591,8 @@ export default function PermissionsPage() {
           </CardHeader>
           <CardContent>
             {loading ? (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-600" />
-                <span className="ml-3 text-gray-500">Cargando empleados...</span>
+              <div className="space-y-3">
+                {[1,2,3,4].map(i => <div key={i} className="h-28 bg-gray-200 rounded-lg animate-pulse" />)}
               </div>
             ) : activeEmployees.length === 0 ? (
               <div className="text-center py-12 text-gray-500">
