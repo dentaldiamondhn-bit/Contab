@@ -10,7 +10,7 @@
 |---|---|---|---|---|---|
 | **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
 | **Control de Asistencia** | Completo | 2 páginas | 5 rutas | 4 tablas | Supabase + API |
-| **Vacaciones y Permisos** | Completo | 1 página | 3 rutas | 3 tablas | Supabase + API |
+| **Vacaciones y Permisos** | Completo | 2 páginas | 3 rutas | 3 tablas | Supabase + API |
 | **Cálculo de Planilla (Nómina)** | Completo | 1 página | 5 rutas | 4 tablas | Supabase + API |
 | **Reportes de RRHH** | Completo | 1 página | — | — | — |
 | **Planes de Mejoramiento (PIP)** | Completo | 1 página | 3 rutas | 5 tablas | Supabase + API |
@@ -86,6 +86,7 @@
 - Búsqueda server-side con debounce (300ms) que filtra en 8 campos
 - Filtros exactos por departamento, cargo, estado, tipo de contrato, género
 - Aislamiento multi-tenant vía Supabase RLS
+- **Rendimiento optimizado**: eliminación de N+1 queries (batch queries para employee_hr_documents + employee_history en lugar de consultas individuales por empleado), 3 fetches iniciales paralelizados en un solo `Promise.all`, `useMemo` para empleados filtrados/ordenados/paginados, skeleton de carga, actualizaciones optimistas para crear/editar/eliminar
 
 #### Implementado ✅
 
@@ -162,7 +163,8 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/vacations/page.tsx` | Gestión completa de permisos/ausencias: tipos de permiso, flujo de solicitudes, panel de control, seguimiento de uso, estadísticas/recuento |
+| `app/companies/[id]/hr/vacations/page.tsx` | Gestión completa de permisos/ausencias: tipos de permiso, flujo de solicitudes, panel de control, seguimiento de uso, estadísticas/recuento, **filtros avanzados** |
+| `app/companies/[id]/hr/vacations/calendar/page.tsx` | **Calendario mensual** de vacaciones y permisos: grilla con eventos codificados por color, rangos multi-día, filtros por empleado/tipo/estado, detalle por día, navegación mensual, estadísticas |
 | `app/api/companies/[id]/hr/permissions/types/route.ts` | API CRUD para tipos de permiso |
 | `app/api/companies/[id]/hr/permissions/requests/route.ts` | API CRUD para solicitudes de permiso |
 | `app/api/companies/[id]/hr/permissions/used/route.ts` | API para seguimiento de uso de permisos |
@@ -186,6 +188,9 @@
 - Registro del nombre del aprobador al aprobar solicitudes
 - Tarjetas resumen por tipo de permiso
 - **Cálculo de salario por período** ajustado según frecuencia (quincenal = salario/2, semanal = salario/4)
+- **Filtros avanzados**: búsqueda por nombre/posición del empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en historial, botón "Limpiar filtros" condicional
+- **Rendimiento optimizado**: API ligera de empleados (`/hr/payroll/employees`), 4 fetches paralelos en un solo `Promise.all`, `useMemo` para datos derivados (approvedRequests, activeEmployees, pendingRequests, processedRequests, typesToShow, filteredEmployees, departments), skeleton de carga
+- **Calendario mensual**: grilla de 7×6 con eventos codificados por color de tipo de permiso, rangos multi-día, filtros por empleado/tipo/estado, detalle de día al hacer click, navegación prev/next/hoy, estadísticas del mes (días ausentes, empleados ausentes, solicitudes, pendientes), leyenda de colores responsive
 
 #### Almacenamiento de Datos
 
@@ -197,9 +202,10 @@
 #### Lo que Falta
 
 - Sin notificaciones por correo electrónico para aprobación/rechazo
-- Integración vacaciones→planilla: ✅ Implementado (cálculo automático de pago por vacaciones desde solicitudes aprobadas, incluido en cálculo de nómina y asientos contables)
-- Sin vista de calendario
-- Carry-forward de saldos entre años: ✅ Implementado (días no usados se arrastran hasta 2 años, luego vencen según Código de Trabajo, calculado on-the-fly desde aprobaciones)
+- ~~Integración vacaciones→planilla~~ ✅ Implementado
+- ~~Sin vista de calendario~~ ✅ Implementada (calendario mensual con eventos multi-día, filtros, detalle por día)
+- ~~Carry-forward de saldos entre años~~ ✅ Implementado
+- Filtros de empleados: ✅ Implementado (búsqueda por nombre, departamento, estado de solicitud)
 
 ---
 
@@ -339,6 +345,7 @@
 - **Tab de Estadísticas por Área**: barras horizontales con frecuencia de cada área de mejoramiento
 - **Filtros de tiempo**: mes, trimestre, año, rango personalizado (en ambos tabs)
 - **Click en empleados**: desde estadísticas se puede filtrar los planes por empleado específico
+- **Rendimiento optimizado**: API ligera de empleados, `.limit(50)` en consulta de planes, skeleton de carga, `useMemo` para filteredPlans/activePlans/draftPlans/completedPlans, `statsData` memoizado
 
 ---
 
@@ -375,13 +382,13 @@
 
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
 2. **21 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
-3. **10 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, reports hub.
+3. **11 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, **vacations calendar**, reports hub.
 4. **21 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. Tabla `payroll_uploads` para datos de Excel.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
 6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
 7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
-9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga.
+9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga. **Empleados**: N+1 fix con batch queries (employee_hr_documents + employee_history), fetches paralelos, `useMemo` en filtros/paginación. **Vacaciones**: fetches paralelos, `useMemo` en datos derivados, filtros por nombre/departamento/estado. **PIP**: `.limit(50)`, `useMemo` en planes filtrados y stats.
 10. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
 11. **Validaciones y seguridad completas**: RLS en las 21 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
 

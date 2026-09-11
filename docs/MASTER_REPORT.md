@@ -21,9 +21,9 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~85% | Parcial | Alta |
+| 12 | Recursos Humanos | ~88% | Parcial | Alta |
 
-**Promedio General del Sistema: ~60%**
+**Promedio General del Sistema: ~62%**
 
 ### Notas de Actualización (10 Sept 2026)
 
@@ -39,6 +39,9 @@
 - **HR: Nómina — Rendimiento optimizado** — API calls paralelos (`Promise.all`), memoización de cálculos, API ligera `/hr/payroll/employees` (9 columnas vs 50+), paginator de 20 empleados por página, skeleton de carga.
 - **HR: Nómina — Bridge contable** — Cierre de nómina genera asientos contables automáticos (gasto salarios, cargas sociales, pago de nómina) via `/api/companies/[id]/hr/accounting`.
 - **HR: Validaciones y seguridad completas** — RLS habilitado en las 21 tablas HR (employees, employee_history, employee_hr_documents, pip_plans). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
+- **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
+- **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
+- **HR: Calendario de vacaciones** — Vista de calendario mensual (`/hr/vacations/calendar`) con grilla 7×6, eventos codificados por color de tipo de permiso, rangos multi-día, filtros por empleado/tipo/estado, detalle de día al hacer click, navegación prev/next/hoy, estadísticas del mes.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
@@ -68,9 +71,9 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          █████████████████████░░░░░░░░░  85%  Parcial
+12. Recursos Humanos          █████████████████████░░░░░░░░░  88%  Parcial
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      █████████████████░░░░░░░░░░░░░  60%
+PROMEDIO                      ██████████████████░░░░░░░░░░░░  62%
 ```
 
 ---
@@ -138,7 +141,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
 | Integración Fiscal | 5 | 8 | 63% |
-| Recursos Humanos | 10 | 11 | 91% |
+| Recursos Humanos | 11 | 11 | 100% |
 
 ### 5.2 API Routes
 
@@ -193,8 +196,8 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 5 | 14 | 10-15 semanas |
 | Otras Características | 5 | 15 | 9-13 semanas |
 | Integración Fiscal | 5 | 14 | 11-16 semanas |
-| Recursos Humanos | 5 | 33 | 10-14 semanas |
-| **TOTAL** | **60** | **213** | **110-155 semanas** |
+| Recursos Humanos | 5 | 28 | 8-12 semanas |
+| **TOTAL** | **60** | **208** | **108-153 semanas** |
 
 ### 6.2 Por Etapa (Agregado)
 
@@ -229,7 +232,8 @@ Prioridad 2 (Semanas 4-16):
 
 Prioridad 3 (Semanas 12-24):
 ├── Workflow de órdenes de compra
-├── PIP de Recursos Humanos
+├── PIP de Recursos Humanos ✅
+├── Calendario de vacaciones ✅
 ├── Notificaciones por correo real
 ├── 2FA y seguridad avanzada
 └── Reportes programados
@@ -308,9 +312,12 @@ Prioridad 3 (Semanas 12-24):
 2. ~~HR: Crear API de búsqueda y dashboard de reportes~~ ✅ Completada
 3. ~~HR: Migrar fotos/docs a Supabase Storage~~ ✅ Completada
 4. ~~HR: Organigrama interactivo~~ ✅ Completada
-4. Migrar Compras de JSON a Supabase
-5. Consolidar dual schemas (Facturación, Inventario)
-6. Conectar JournalEntryForm y FinancialStatements a API real
+5. ~~HR: PIP completo (5 tablas, 3 APIs, UI con stats/filtros/drill-down)~~ ✅ Completada
+6. ~~HR: Nómina optimizada (Excel, horas extras por turno, bridge contable)~~ ✅ Completada
+7. ~~HR: Filtros avanzados vacaciones + rendimiento empleados/vacaciones/PIP~~ ✅ Completada
+8. Migrar Compras de JSON a Supabase
+9. Consolidar dual schemas (Facturación, Inventario)
+10. Conectar JournalEntryForm y FinancialStatements a API real
 
 ### Fase 2: Cumplimiento Fiscal (Semanas 4-12)
 5. Implementar DIAT
@@ -342,7 +349,7 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~60% | 95% |
+| Completitud Funcional | ~62% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
 | Persistencia de Datos | ~75% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~40% | 80% |
