@@ -2224,21 +2224,6 @@ export default function PayrollPage() {
                   );
                 })}
               </tbody>
-              <tfoot>
-                <tr className="border-t-2 font-bold">
-                  <td className="py-2">TOTAL</td>
-                  <td></td>
-                  <td></td>
-                  <td className="py-2 text-right">{formatCurrency(totalPeriodBase)}</td>
-                  <td className="py-2 text-right text-red-600">-{formatCurrency(totalIgssEmployee)}</td>
-                  <td className="py-2 text-right text-red-600">-{formatCurrency(totalIhss)}</td>
-                  <td className="py-2 text-right text-red-600">-{formatCurrency(totalRap)}</td>
-                  <td className="py-2 text-right text-orange-600">-{formatCurrency(totalAttendanceDeductions)}</td>
-                  <td className="py-2 text-right text-green-600">+{formatCurrency(totalAttendanceIncomes)}</td>
-                  <td className="py-2 text-right text-red-600 font-medium">-{formatCurrency(totalDeductions)}</td>
-                  <td className="py-2 text-right text-green-600">{formatCurrency(totalNetPay)}</td>
-                </tr>
-              </tfoot>
             </table>
           </div>
           {totalPages > 1 && (
