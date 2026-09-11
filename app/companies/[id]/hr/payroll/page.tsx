@@ -623,7 +623,6 @@ export default function PayrollPage() {
         }
 
         const incFields = [
-          { key: 'Horas Extra', label: 'Horas Extra' },
           { key: 'Feriado', label: 'Día Feriado' },
           { key: 'Vacaciones', label: 'Vacaciones' },
         ];
@@ -632,6 +631,19 @@ export default function PayrollPage() {
           if (val > 0) {
             uploaded[emp.id].push({ amount: val, type: 'income', label: f.label });
           }
+        }
+
+        const heManana = parseFloat(row['HE Manana (25%)'] || row['he manana (25%)'] || row['HE Mañana'] || row['he mañana'] || '0');
+        if (heManana > 0) {
+          uploaded[emp.id].push({ amount: heManana * emp.salary / 30 / 8 * 1.25, type: 'income', label: `Horas Extra Mañana (${heManana}h)` });
+        }
+        const heMixto = parseFloat(row['HE Mixto (50%)'] || row['he mixto (50%)'] || '0');
+        if (heMixto > 0) {
+          uploaded[emp.id].push({ amount: heMixto * emp.salary / 30 / 8 * 1.50, type: 'income', label: `Horas Extra Mixto (${heMixto}h)` });
+        }
+        const heNocturno = parseFloat(row['HE Nocturno (75%)'] || row['he nocturno (75%)'] || '0');
+        if (heNocturno > 0) {
+          uploaded[emp.id].push({ amount: heNocturno * emp.salary / 30 / 8 * 1.75, type: 'income', label: `Horas Extra Nocturno (${heNocturno}h)` });
         }
 
         const bono = parseFloat(row['Bono'] || row['bono'] || row['Bonificacion'] || '0');
@@ -658,10 +670,10 @@ export default function PayrollPage() {
 
   const downloadTemplate = async () => {
     const XLSX = await import('xlsx');
-    const headers = ['Nombre', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'Horas Extra', 'Feriado', 'Vacaciones', 'Bono'];
+    const headers = ['Nombre', 'IHSS', 'RAP', 'Incapacidad', 'Inasistencia', 'Retardo', 'Permiso sin goce', 'HE Manana (25%)', 'HE Mixto (50%)', 'HE Nocturno (75%)', 'Feriado', 'Vacaciones', 'Bono'];
     const exampleRows = [
-      ['Juan Perez', 125, 75, 0, 0, 0, 0, 0, 0, 0, 0],
-      ['Maria Lopez', 0, 0, 100, 0, 25, 0, 150, 0, 0, 0],
+      ['Juan Perez', 125, 75, 0, 0, 0, 0, 2, 1, 0, 0, 0, 0],
+      ['Maria Lopez', 0, 0, 100, 0, 25, 0, 0, 0, 3, 0, 0, 0],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...exampleRows]);
     const wb = XLSX.utils.book_new();
