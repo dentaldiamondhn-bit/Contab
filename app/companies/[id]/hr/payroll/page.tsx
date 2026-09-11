@@ -50,6 +50,8 @@ interface PayrollRecord {
   totalNetPay: number;
   totalAttendanceDeductions: number;
   totalAttendanceIncomes: number;
+  totalVacationPay: number;
+  totalVacationDays: number;
   employeeCount: number;
   frequency: string;
   employees: {
@@ -64,6 +66,8 @@ interface PayrollRecord {
     totalDeductions: number;
     attendanceDeductionTotal: number;
     attendanceIncomeTotal: number;
+    vacationDays: number;
+    vacationPayAmount: number;
     netPay: number;
   }[];
 }
@@ -190,6 +194,7 @@ export default function PayrollPage() {
   const [editingDeductionId, setEditingDeductionId] = useState<string | null>(null);
   const [newDeduction, setNewDeduction] = useState({ name: '', type: 'fixed' as 'fixed' | 'percentage', value: 0, paymentFrequency: 'mensual' as 'mensual' | 'quincenal' | 'dividido', totalPayments: 1, quincena: 'ambas' as 'ambas' | '1ra' | '2da' });
   const [attendanceDeductions, setAttendanceDeductions] = useState<Record<string, { amount: number; type: 'deduction' | 'income'; label: string }[]>>({});
+  const [vacationPayroll, setVacationPayroll] = useState<Record<string, { days: number; amount: number }>>({});
   const [closingPeriod, setClosingPeriod] = useState<'1ra' | '2da'>('1ra');
   const [closingWeek, setClosingWeek] = useState(1);
   const [showMenu, setShowMenu] = useState(false);
@@ -208,6 +213,7 @@ export default function PayrollPage() {
       loadEmployeeDeductions().then(() => console.log(`[payroll] deductions: ${(performance.now() - t0).toFixed(0)}ms`)),
       loadAttendanceDeductions().then(() => console.log(`[payroll] attendance: ${(performance.now() - t0).toFixed(0)}ms`)),
       loadSavedUploads().then(() => console.log(`[payroll] saved uploads: ${(performance.now() - t0).toFixed(0)}ms`)),
+      loadVacationPayroll().then(() => console.log(`[payroll] vacation: ${(performance.now() - t0).toFixed(0)}ms`)),
     ]).finally(() => {
       console.log(`[payroll] TOTAL: ${(performance.now() - t0).toFixed(0)}ms`);
       setPageLoading(false);
@@ -357,6 +363,42 @@ export default function PayrollPage() {
     }
   };
 
+  const loadVacationPayroll = async () => {
+    try {
+      const m = config.closingMonth - 1;
+      const y = config.closingYear;
+      const startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const endDate = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const res = await fetch(`/api/companies/${companyId}/hr/permissions/requests?status=approved`);
+      if (!res.ok) return;
+      const requests: { employee_id: string; start_date: string; end_date: string; days: number; type_id: string }[] = await res.json();
+      const vacationMap: Record<string, { days: number; amount: number }> = {};
+      for (const req of requests) {
+        if (req.type_id !== 'vacaciones') continue;
+        const reqStart = new Date(req.start_date);
+        const reqEnd = new Date(req.end_date);
+        const periodStart = new Date(startDate);
+        const periodEnd = new Date(endDate);
+        const overlapStart = reqStart > periodStart ? reqStart : periodStart;
+        const overlapEnd = reqEnd < periodEnd ? reqEnd : periodEnd;
+        if (overlapStart > overlapEnd) continue;
+        const overlapDays = Math.ceil((overlapEnd.getTime() - overlapStart.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+        if (overlapDays <= 0) continue;
+        const emp = employees.find(e => e.id === req.employee_id);
+        if (!emp) continue;
+        const dailyRate = emp.salary / 30;
+        const vacPay = dailyRate * overlapDays;
+        if (!vacationMap[req.employee_id]) vacationMap[req.employee_id] = { days: 0, amount: 0 };
+        vacationMap[req.employee_id].days += overlapDays;
+        vacationMap[req.employee_id].amount += vacPay;
+      }
+      setVacationPayroll(vacationMap);
+    } catch (err) {
+      console.error('Error loading vacation payroll:', err);
+    }
+  };
+
   const saveEmployeeDeductions = async (empId: string, deductions: EmployeeDeduction[]) => {
     setEmployeeDeductions(prev => ({ ...prev, [empId]: deductions }));
     try {
@@ -391,6 +433,8 @@ export default function PayrollPage() {
       totalNetPay,
       totalAttendanceDeductions,
       totalAttendanceIncomes,
+      totalVacationPay,
+      totalVacationDays,
       employeeCount: activeEmployees.length,
       frequency: config.frequency,
       employees: activeEmployees.map(emp => {
@@ -407,6 +451,8 @@ export default function PayrollPage() {
           totalDeductions: calc.totalDeductions,
           attendanceDeductionTotal: calc.attendanceDeductionTotal,
           attendanceIncomeTotal: calc.attendanceIncomeTotal,
+          vacationDays: calc.vacationDays,
+          vacationPayAmount: calc.vacationPayAmount,
           netPay: calc.netPay,
         };
       }),
@@ -440,6 +486,8 @@ export default function PayrollPage() {
           totalCustomDeductions: activeEmployees.reduce((s, e) => s + calculatePayroll(e.salary, e.id).customDeductions, 0),
           totalAttendanceDeductions: record.totalAttendanceDeductions,
           totalAttendanceIncomes: record.totalAttendanceIncomes,
+          totalVacationPay: record.totalVacationPay,
+          totalVacationDays: record.totalVacationDays,
           totalDeductions: record.totalDeductions,
           totalNetPay: record.totalNetPay,
           employees: record.employees,
@@ -548,6 +596,8 @@ export default function PayrollPage() {
     let attendanceDeductionTotal = 0;
     let attendanceIncomeTotal = 0;
     const attendanceItems: { name: string; amount: number }[] = [];
+    let vacationDays = 0;
+    let vacationPayAmount = 0;
     if (empId && attendanceDeductions[empId]) {
       attendanceDeductions[empId].forEach(item => {
         if (item.type === 'deduction') {
@@ -559,9 +609,13 @@ export default function PayrollPage() {
         }
       });
     }
+    if (empId && vacationPayroll[empId]) {
+      vacationDays = vacationPayroll[empId].days;
+      vacationPayAmount = vacationPayroll[empId].amount;
+    }
     const totalDeductions = igssEmployee + ihss + rap + customDeductions + attendanceDeductionTotal;
-    const netPay = periodSalary - totalDeductions + attendanceIncomeTotal;
-    return { periodSalary, igssEmployee, ihss, rap, customDeductions, customItems, attendanceDeductionTotal, attendanceIncomeTotal, attendanceItems, totalDeductions, netPay };
+    const netPay = periodSalary - totalDeductions + attendanceIncomeTotal + vacationPayAmount;
+    return { periodSalary, igssEmployee, ihss, rap, customDeductions, customItems, attendanceDeductionTotal, attendanceIncomeTotal, attendanceItems, vacationDays, vacationPayAmount, totalDeductions, netPay };
   };
 
   const totalBase = activeEmployees.reduce((sum, e) => sum + e.salary, 0);
@@ -572,7 +626,7 @@ export default function PayrollPage() {
     const cache: Record<string, ReturnType<typeof calculatePayroll>> = {};
     activeEmployees.forEach(e => { cache[e.id] = calculatePayroll(e.salary, e.id); });
     return cache;
-  }, [activeEmployees, config, attendanceDeductions, employeeDeductions]);
+  }, [activeEmployees, config, attendanceDeductions, employeeDeductions, vacationPayroll]);
 
   const totalIgssEmployee = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.igssEmployee || 0), 0);
   const totalIhss = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.ihss || 0), 0);
@@ -580,8 +634,10 @@ export default function PayrollPage() {
   const totalCustomDeductions = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.customDeductions || 0), 0);
   const totalAttendanceDeductions = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.attendanceDeductionTotal || 0), 0);
   const totalAttendanceIncomes = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.attendanceIncomeTotal || 0), 0);
+  const totalVacationPay = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.vacationPayAmount || 0), 0);
+  const totalVacationDays = activeEmployees.reduce((sum, e) => sum + (payrollCache[e.id]?.vacationDays || 0), 0);
   const totalDeductions = totalIgssEmployee + totalIhss + totalRap + totalCustomDeductions + totalAttendanceDeductions;
-  const totalNetPay = totalPeriodBase - totalDeductions + totalAttendanceIncomes;
+  const totalNetPay = totalPeriodBase - totalDeductions + totalAttendanceIncomes + totalVacationPay;
 
   const downloadCSV = () => {
     let csv = 'Nombre,Cargo,Departamento,Salario Mensual,Salario Período,IGSS Empleado,IHSS,RAP,Deducciones Asistencia,Ingresos Asistencia,Total Deducciones,Neto\n';
@@ -920,14 +976,18 @@ export default function PayrollPage() {
         ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).map((item: any) => `<tr><td style="padding-left:12px;">${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
         <tr><td style="padding-left:12px; font-weight:bold;">Subtotal Horas Extra</td><td class="amount currency" style="font-weight:bold;">${formatCurrency(attdIncs.filter((i: any) => i.label.includes('Horas Extra')).reduce((s: number, i: any) => s + i.amount, 0))}</td></tr>
         ` : ''}
-        ${attdIncs.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
+        ${calc.vacationPayAmount > 0 ? `
+        <tr><td colspan="2" style="font-weight:bold; background:#e8f0fe; padding:4px 6px;">Vacaciones</td></tr>
+        <tr><td style="padding-left:12px;">Pago vacaciones (${calc.vacationDays} días × ${formatCurrency(emp.salary / 30)}/día)</td><td class="amount currency">${formatCurrency(calc.vacationPayAmount)}</td></tr>
+        ` : ''}
+        ${attdIncs.length === 0 && calc.vacationPayAmount === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
       </table>
     </div>
   </div>
 
   <div class="net-summary">
     <div class="section-title">Resumen de Pago Neto</div>
-    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal + calc.vacationPayAmount)}</span></div>
     <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
     <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
   </div>
@@ -1100,14 +1160,18 @@ export default function PayrollPage() {
         ${attdIncs.filter((i: any) => i.label.includes('Horas Extra')).map((item: any) => `<tr><td style="padding-left:12px;">${item.label}</td><td class="amount currency">${formatCurrency(item.amount)}</td></tr>`).join('\n        ')}
         <tr><td style="padding-left:12px; font-weight:bold;">Subtotal Horas Extra</td><td class="amount currency" style="font-weight:bold;">${formatCurrency(attdIncs.filter((i: any) => i.label.includes('Horas Extra')).reduce((s: number, i: any) => s + i.amount, 0))}</td></tr>
         ` : ''}
-        ${attdIncs.length === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
+        ${calc.vacationPayAmount > 0 ? `
+        <tr><td colspan="2" style="font-weight:bold; background:#e8f0fe; padding:4px 6px;">Vacaciones</td></tr>
+        <tr><td style="padding-left:12px;">Pago vacaciones (${calc.vacationDays} días × ${formatCurrency(emp.salary / 30)}/día)</td><td class="amount currency">${formatCurrency(calc.vacationPayAmount)}</td></tr>
+        ` : ''}
+        ${attdIncs.length === 0 && calc.vacationPayAmount === 0 ? '<tr><td style="color:#999; font-style:italic;">Sin bonificaciones</td><td class="amount">-</td></tr>' : ''}
       </table>
     </div>
   </div>
 
   <div class="net-summary">
     <div class="section-title">Resumen de Pago Neto</div>
-    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal)}</span></div>
+    <div class="net-row"><span>Total devengado:</span><span class="currency">${formatCurrency(periodSalary + calc.attendanceIncomeTotal + calc.vacationPayAmount)}</span></div>
     <div class="net-row"><span>Total deducciones:</span><span class="currency">${formatCurrency(calc.totalDeductions)}</span></div>
     <div class="net-row bold"><span>Neto a pagar:</span><span class="currency" style="color:#006600; font-size:14px;">${formatCurrency(calc.netPay)}</span></div>
   </div>
@@ -1197,8 +1261,8 @@ export default function PayrollPage() {
                   <button onClick={() => { generateAllVouchers(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
                     <FileText className="h-4 w-4" /> Vauchers
                   </button>
-                  <button onClick={() => { loadAttendanceDeductions(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
-                    <RefreshCw className="h-4 w-4" /> Recargar Asistencia
+                  <button onClick={() => { loadAttendanceDeductions(); loadVacationPayroll(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-gray-100 text-left">
+                    <RefreshCw className="h-4 w-4" /> Recargar Asistencia y Vacaciones
                   </button>
                   <div className="border-t" />
                   <button onClick={() => { closePayroll(); setShowMenu(false); }} className="w-full flex items-center gap-2 px-4 py-2 text-sm hover:bg-red-50 text-red-600 text-left">
@@ -2397,6 +2461,16 @@ export default function PayrollPage() {
             </div>
           </CardContent>
         </Card>
+        {totalVacationPay > 0 && (
+          <Card>
+            <CardContent className="pt-6">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-blue-600">{formatCurrency(totalVacationPay)}</div>
+                <div className="text-sm text-gray-500">Vacaciones ({totalVacationDays} días)</div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         <Card>
           <CardContent className="pt-6">
             <div className="text-center">
@@ -2427,6 +2501,7 @@ export default function PayrollPage() {
                   <th className="text-right py-2">RAP ({config.rap}%)</th>
                   <th className="text-right py-2 text-orange-600">Asistencia</th>
                   <th className="text-right py-2 text-green-600">Horas Extra</th>
+                  <th className="text-right py-2 text-blue-600">Vacaciones</th>
                   <th className="text-right py-2">Deducciones</th>
                   <th className="text-right py-2">Neto</th>
                   <th className="text-center py-2">Acciones</th>
@@ -2463,6 +2538,14 @@ export default function PayrollPage() {
                             {attendanceDeductions[emp.id]?.filter(a => a.type === 'income').slice(0, 3).map((item, idx) => (
                               <div key={idx} className="text-xs text-green-400">• {item.label}</div>
                             ))}
+                          </div>
+                        ) : '-'}
+                      </td>
+                      <td className="py-2 text-right text-blue-600">
+                        {calc.vacationPayAmount > 0 ? (
+                          <div>
+                            <div>+{formatCurrency(calc.vacationPayAmount)}</div>
+                            <div className="text-xs text-blue-400">{calc.vacationDays} días</div>
                           </div>
                         ) : '-'}
                       </td>

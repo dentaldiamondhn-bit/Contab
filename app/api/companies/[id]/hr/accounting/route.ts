@@ -25,6 +25,8 @@ export async function POST(request: NextRequest) {
       totalCustomDeductions,
       totalAttendanceDeductions,
       totalAttendanceIncomes,
+      totalVacationPay,
+      totalVacationDays,
       totalDeductions,
       totalNetPay,
       employees,
@@ -116,6 +118,15 @@ export async function POST(request: NextRequest) {
       salaryEntries.push({
         accountId: '5101',
         amount: Math.round(totalAttendanceIncomes * 100),
+        taxable: false,
+      });
+    }
+
+    // Debe: pago por vacaciones (salario diario × días)
+    if (totalVacationPay > 0) {
+      salaryEntries.push({
+        accountId: '5103',
+        amount: Math.round(totalVacationPay * 100),
         taxable: false,
       });
     }

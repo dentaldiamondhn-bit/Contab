@@ -197,7 +197,7 @@
 #### Lo que Falta
 
 - Sin notificaciones por correo electrónico para aprobación/rechazo
-- Sin integración con planilla (cálculo de pago por vacaciones)
+- Integración vacaciones→planilla: ✅ Implementado (cálculo automático de pago por vacaciones desde solicitudes aprobadas, incluido en cálculo de nómina y asientos contables)
 - Sin vista de calendario
 - Carry-forward de saldos entre años: ✅ Implementado (días no usados se arrastran hasta 2 años, luego vencen según Código de Trabajo, calculado on-the-fly desde aprobaciones)
 
@@ -468,7 +468,7 @@
 |---|---|---|---|---|
 | 4.1 | Crear servicio de cálculo de nómina | `lib/services/payroll-service.ts` | Etapa 1 completada | Motor de cálculo |
 | 4.2 | Integrar incidencias de asistencia (faltas, horas extra) | `lib/services/payroll-service.ts` | 2.5, 4.1 | Asistencia alimenta planilla |
-| 4.3 | Integrar permisos y vacaciones | `lib/services/payroll-service.ts` | 3.3, 4.1 | Permisos alimentan planilla |
+| 4.3 | Integrar permisos y vacaciones | `payroll/page.tsx`, `hr/accounting/route.ts` | 3.3, 4.1 | ✅ Completada (pago vacaciones automático + asiento contable 5103) |
 | 4.4 | Implementar reglas de deducciones legales (IGSS, IHSS, RAP) | `lib/services/payroll-service.ts` | 4.1 | Deducciones parametrizadas |
 | 4.5 | Implementar aguinaldo, bonificación vacacional, decimotercer mes | `lib/services/payroll-service.ts` | 4.1 | Cálculos de prestaciones |
 | 4.6 | Crear generador de pre-planilla (inspección antes de cierre) | `lib/services/payroll-service.ts` | 4.1-4.5 | Pre-planilla auditable |
