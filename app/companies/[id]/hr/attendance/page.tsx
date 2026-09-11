@@ -1196,7 +1196,9 @@ export default function AttendancePage() {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
                   const isInactiveOnDate = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
-                  if (selectedStatFilter && currentStatus !== selectedStatFilter) return null;
+                  if (selectedStatFilter === 'overtime') {
+                    if (!hasOvertime) return null;
+                  } else if (selectedStatFilter && currentStatus !== selectedStatFilter) return null;
                   const hasDeduction = ['absent', 'late', 'unpaid_leave'].includes(currentStatus) || (currentStatus === 'disability' && (att?.amount || 0) < (emp.salary / 30));
                   const hasOvertime = att?.overtimeHours && att.overtimeHours > 0;
                   const hasIncome = ['holiday', 'vacation'].includes(currentStatus) && (att?.amount || 0) > 0;
