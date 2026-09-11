@@ -221,20 +221,10 @@ export default function PayrollPage() {
 
   const loadEmployees = async () => {
     try {
-      const res = await fetch(`/api/companies/${companyId}/employees?fields=id,employee_code,first_name,last_name,position_id,department,base_salary,hire_date,status`);
+      const res = await fetch(`/api/companies/${companyId}/hr/payroll/employees`);
       if (res.ok) {
         const data = await res.json();
-        setEmployees(
-          data.map((e: any) => ({
-            id: e.id,
-            name: `${e.firstName || e.first_name || ''} ${e.lastName || e.last_name || ''}`.trim(),
-            position: e.position || '',
-            department: e.department || '',
-            salary: e.salary || 0,
-            startDate: e.startDate || e.hire_date || '',
-            status: e.status || 'active',
-          }))
-        );
+        setEmployees(data);
       }
     } catch (err) {
       console.error('Error loading employees:', err);
