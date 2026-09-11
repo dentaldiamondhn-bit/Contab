@@ -205,6 +205,7 @@ export default function AttendancePage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'terminated' | 'suspended'>('all');
+  const [selectedStatFilter, setSelectedStatFilter] = useState<string | null>(null);
   const [quincenaStartDate, setQuincenaStartDate] = useState(() => {
     const now = new Date();
     const day = now.getDate();
@@ -1119,14 +1120,44 @@ export default function AttendancePage() {
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <Card><CardContent className="pt-4 text-center"><CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-1" /><div className="text-xl font-bold text-green-600">{todayStats.present}</div><div className="text-xs text-gray-500">Presentes</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><XCircle className="h-6 w-6 text-red-600 mx-auto mb-1" /><div className="text-xl font-bold text-red-600">{todayStats.absent}</div><div className="text-xs text-gray-500">Ausentes</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><Clock className="h-6 w-6 text-yellow-600 mx-auto mb-1" /><div className="text-xl font-bold text-yellow-600">{todayStats.late}</div><div className="text-xs text-gray-500">Tardanzas</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><Plane className="h-6 w-6 text-blue-600 mx-auto mb-1" /><div className="text-xl font-bold text-blue-600">{todayStats.vacation}</div><div className="text-xs text-gray-500">Vacaciones</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><TrendingUp className="h-6 w-6 text-orange-600 mx-auto mb-1" /><div className="text-xl font-bold text-orange-600">{todayStats.overtime}</div><div className="text-xs text-gray-500">Horas Extras</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><FileText className="h-6 w-6 text-gray-600 mx-auto mb-1" /><div className="text-xl font-bold text-gray-600">{todayStats.unpaid_leave}</div><div className="text-xs text-gray-500">Permiso s/pago</div></CardContent></Card>
-            <Card><CardContent className="pt-4 text-center"><DollarSign className="h-6 w-6 text-pink-600 mx-auto mb-1" /><div className="text-xl font-bold text-pink-600">{todayStats.disability}</div><div className="text-xs text-gray-500">Incapacidad</div></CardContent></Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'present' ? 'ring-2 ring-green-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'present' ? null : 'present')}>
+              <CardContent className="pt-4 text-center"><CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-1" /><div className="text-xl font-bold text-green-600">{todayStats.present}</div><div className="text-xs text-gray-500">Presentes</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'absent' ? 'ring-2 ring-red-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'absent' ? null : 'absent')}>
+              <CardContent className="pt-4 text-center"><XCircle className="h-6 w-6 text-red-600 mx-auto mb-1" /><div className="text-xl font-bold text-red-600">{todayStats.absent}</div><div className="text-xs text-gray-500">Ausentes</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'late' ? 'ring-2 ring-yellow-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'late' ? null : 'late')}>
+              <CardContent className="pt-4 text-center"><Clock className="h-6 w-6 text-yellow-600 mx-auto mb-1" /><div className="text-xl font-bold text-yellow-600">{todayStats.late}</div><div className="text-xs text-gray-500">Tardanzas</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'vacation' ? 'ring-2 ring-blue-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'vacation' ? null : 'vacation')}>
+              <CardContent className="pt-4 text-center"><Plane className="h-6 w-6 text-blue-600 mx-auto mb-1" /><div className="text-xl font-bold text-blue-600">{todayStats.vacation}</div><div className="text-xs text-gray-500">Vacaciones</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'overtime' ? 'ring-2 ring-orange-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'overtime' ? null : 'overtime')}>
+              <CardContent className="pt-4 text-center"><TrendingUp className="h-6 w-6 text-orange-600 mx-auto mb-1" /><div className="text-xl font-bold text-orange-600">{todayStats.overtime}</div><div className="text-xs text-gray-500">Horas Extras</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'unpaid_leave' ? 'ring-2 ring-gray-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'unpaid_leave' ? null : 'unpaid_leave')}>
+              <CardContent className="pt-4 text-center"><FileText className="h-6 w-6 text-gray-600 mx-auto mb-1" /><div className="text-xl font-bold text-gray-600">{todayStats.unpaid_leave}</div><div className="text-xs text-gray-500">Permiso s/pago</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'disability' ? 'ring-2 ring-pink-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'disability' ? null : 'disability')}>
+              <CardContent className="pt-4 text-center"><DollarSign className="h-6 w-6 text-pink-600 mx-auto mb-1" /><div className="text-xl font-bold text-pink-600">{todayStats.disability}</div><div className="text-xs text-gray-500">Incapacidad</div></CardContent>
+            </Card>
           </div>
+
+          {selectedStatFilter && (
+            <div className="flex items-center gap-2 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+              <span className="text-sm text-blue-700 font-medium">
+                Filtrado por: {STATUS_OPTIONS.find(o => o.value === selectedStatFilter)?.label || selectedStatFilter}
+              </span>
+              <button onClick={() => setSelectedStatFilter(null)} className="text-sm text-blue-600 underline">Mostrar todos</button>
+            </div>
+          )}
 
           <Card>
             <CardHeader><CardTitle>Empleados — {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</CardTitle></CardHeader>
@@ -1136,6 +1167,7 @@ export default function AttendancePage() {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
                   const isInactiveOnDate = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
+                  if (selectedStatFilter && currentStatus !== selectedStatFilter) return null;
                   const hasDeduction = ['absent', 'late', 'unpaid_leave'].includes(currentStatus) || (currentStatus === 'disability' && (att?.amount || 0) < (emp.salary / 30));
                   const hasOvertime = att?.overtimeHours && att.overtimeHours > 0;
                   const hasIncome = ['holiday', 'vacation'].includes(currentStatus) && (att?.amount || 0) > 0;
