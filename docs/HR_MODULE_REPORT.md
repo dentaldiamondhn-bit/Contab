@@ -138,7 +138,8 @@
 - **Dashboard de análisis con gráficos Recharts** (tendencia diaria, distribución por estado, horas extra, ranking de empleados, distribución de incapacidades, feriados)
 - Exportación CSV de reportes de asistencia
 - Link a reportes desde herramientas de asistencia ("Reportes / Análisis")
-- **Filtros avanzados**: búsqueda por nombre de empleado, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos), botón "Limpiar filtros", contador de empleados filtrados — disponibles en ambas vistas (Día y Quincena)
+- **Filtros avanzados**: búsqueda por nombre de empleado, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados), botón "Limpiar filtros", contador de empleados filtrados — disponibles en ambas vistas (Día y Quincena)
+- **Control de asistencia desactivado para empleados inactivos/terminados**: desde la fecha de terminación, no se muestran botones de asistencia ni horario. Vista día muestra badge "Inactivo desde {fecha}" y fila atenuada. Vista quincena muestra "Sin horario" y celdas "Inactivo" sin botones desde la fecha de终止ación
 
 #### Almacenamiento de Datos
 
@@ -374,6 +375,7 @@
 | `HR_PIP.sql` | **5 tablas PIP**: pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + RLS + índices |
 | `PAYROLL_UPLOADS.sql` | **Tabla payroll_uploads**: datos subidos por Excel por empleado por período (items JSONB), unique constraint, índice |
 | `HR_VALIDATIONS.sql` | **RLS + Validaciones**: RLS en employees/employee_history/employee_hr_documents, tenant isolation en pip_plans, fix payroll_uploads RLS, UNIQUE constraints en employee_code, departments, positions, payroll_closed |
+| `HR_EMPLOYEE_WORKFLOW.sql` | **Columnas de workflow de estado**: termination_date/reason/requested_by/performed_by, suspension_date/reason/requested_by/performed_by, reactivation_date/reason/requested_by/performed_by, rehireable |
 
 ### Prisma Schema
 

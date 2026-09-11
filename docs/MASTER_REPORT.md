@@ -42,7 +42,9 @@
 - **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
 - **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
 - **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: fila eventos "todo el día" + cuadrícula horas 12AM-11PM. Día: eventos "todo el día" con acciones + cuadrícula horas. Línea roja de hora actual. Edición/eliminación, aprobación/rechazo directo, filtros por empleado/tipo/estado.
-- **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
+- **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
+- **HR: Asistencia — Empleados inactivos/terminados** — Desde la fecha de terminación, controles de asistencia desactivados (sin botones, sin horario). Vista día: badge "Inactivo desde {fecha}", fila atenuada. Vista quincena: "Sin horario", celdas "Inactivo" sin botones.
+- **HR: Migración workflow de estado** — `HR_EMPLOYEE_WORKFLOW.sql`: columnas termination_date/reason/requested_by/performed_by, suspension_date, reactivation_date, rehireable en tabla employees. Ejecutada sin errores.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
