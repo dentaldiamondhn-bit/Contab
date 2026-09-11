@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -304,22 +304,20 @@ export default function PayrollPage() {
   const loadAttendanceDeductions = async () => {
     let records: { employeeId: string; status: string; amount?: number; overtimeAmount?: number; overtimeHours?: number; date: string; holidayType?: string }[];
     try {
-      const res = await fetch(`/api/companies/${companyId}/hr/attendance`);
+      const m = config.closingMonth - 1;
+      const y = config.closingYear;
+      const startDate = `${y}-${String(m + 1).padStart(2, '0')}-01`;
+      const lastDay = new Date(y, m + 1, 0).getDate();
+      const endDate = `${y}-${String(m + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+      const res = await fetch(`/api/companies/${companyId}/hr/attendance?start=${startDate}&end=${endDate}`);
       if (!res.ok) return;
       records = await res.json();
     } catch (err) {
       console.error('Error loading attendance:', err);
       return;
     }
-    const now = new Date();
-    const closingMonth = config.closingMonth - 1;
-    const closingYear = config.closingYear;
-    const monthlyRecords = records.filter(r => {
-      const d = new Date(r.date + 'T12:00:00');
-      return d.getMonth() === closingMonth && d.getFullYear() === closingYear;
-    });
     const grouped: Record<string, { amount: number; type: 'deduction' | 'income'; label: string }[]> = {};
-    monthlyRecords.forEach(r => {
+    records.forEach(r => {
       if (!grouped[r.employeeId]) grouped[r.employeeId] = [];
       const amt = r.amount || 0;
       if (['absent', 'late', 'unpaid_leave'].includes(r.status)) {
@@ -472,16 +470,18 @@ export default function PayrollPage() {
     setClosedPayrolls(updated);
   };
 
-  const activeEmployees = employees.filter(e => e.status === 'active');
+  const activeEmployees = useMemo(() => employees.filter(e => e.status === 'active'), [employees]);
   const totalPages = Math.ceil(activeEmployees.length / PAGE_SIZE);
-  const paginatedEmployees = activeEmployees.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const paginatedEmployees = useMemo(() => activeEmployees.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE), [activeEmployees, currentPage]);
+
+  const currencyFormatter = useMemo(() => new Intl.NumberFormat('es-HN', {
+    style: 'currency',
+    currency: config.currency,
+    minimumFractionDigits: 2
+  }), [config.currency]);
 
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('es-HN', {
-      style: 'currency',
-      currency: config.currency,
-      minimumFractionDigits: 2
-    }).format(amount);
+    return currencyFormatter.format(amount);
   };
 
   const getPeriodSalary = (monthlySalary: number) => {
