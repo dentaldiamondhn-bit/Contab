@@ -109,6 +109,7 @@ export default function PipPage() {
   const [showEvalForm, setShowEvalForm] = useState(false)
   const [expandedPlan, setExpandedPlan] = useState<string | null>(null)
   const [viewMode, setViewMode] = useState<'list' | 'create' | 'detail' | 'evaluate' | 'edit'>('list')
+  const [activeTab, setActiveTab] = useState<'plans' | 'stats'>('plans')
   const [checkedGoals, setCheckedGoals] = useState<Record<string, boolean>>({})
   const [goalComments, setGoalComments] = useState<Record<string, string>>({})
   const [goalCommentHistory, setGoalCommentHistory] = useState<Record<string, { text: string; date: string }[]>>({})
@@ -1205,18 +1206,88 @@ export default function PipPage() {
           </Card>
         </div>
 
-        {plans.length === 0 ? (
-          <Card>
-            <CardContent className="p-12 text-center">
-              <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-              <h3 className="text-lg font-medium text-gray-700">No hay planes PIP</h3>
-              <p className="text-sm text-gray-500 mt-1">Cree un plan de mejoramiento para comenzar a hacer seguimiento.</p>
-              <Button className="mt-4" onClick={() => { setViewMode('create'); setShowForm(true) }}>
-                <Plus className="h-4 w-4 mr-1" /> Crear Primer Plan
-              </Button>
-            </CardContent>
-          </Card>
-        ) : (
+        <div className="flex gap-1 mb-6 border-b">
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'plans' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('plans')}>
+            <Target className="h-4 w-4 inline mr-1" /> Planes
+          </button>
+          <button
+            className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'stats' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+            onClick={() => setActiveTab('stats')}>
+            <BarChart3 className="h-4 w-4 inline mr-1" /> Estadísticas por Área
+          </button>
+        </div>
+
+        {activeTab === 'stats' ? (() => {
+          const areaCounts: Record<string, { title: string; count: number; met: number; inProgress: number; pending: number }> = {}
+          plans.forEach(plan => {
+            (plan.pip_goals || []).forEach((g: any) => {
+              const key = g.title || g.metric || 'Sin área'
+              if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0 }
+              areaCounts[key].count++
+              if (g.status === 'met') areaCounts[key].met++
+              else if (g.status === 'in_progress') areaCounts[key].inProgress++
+              else areaCounts[key].pending++
+            })
+          })
+          const sorted = Object.values(areaCounts).sort((a, b) => b.count - a.count)
+          const maxCount = Math.max(...sorted.map(a => a.count), 1)
+
+          return (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {sorted.length === 0 ? (
+                  <p className="text-sm text-gray-500 text-center py-8">No hay metas registradas en ningún plan.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {sorted.map((area, idx) => (
+                      <div key={idx} className="flex items-center gap-4">
+                        <div className="w-48 text-sm font-medium text-gray-700 truncate" title={area.title}>
+                          {area.title}
+                        </div>
+                        <div className="flex-1 bg-gray-100 rounded-full h-6 relative overflow-hidden">
+                          <div className="bg-cyan-500 h-6 rounded-full flex items-center justify-end pr-2 transition-all"
+                            style={{ width: `${(area.count / maxCount) * 100}%` }}>
+                            <span className="text-xs font-bold text-white">{area.count}</span>
+                          </div>
+                        </div>
+                        <div className="flex gap-2 text-xs">
+                          <span className="text-green-600" title="Cumplidas">{area.met}✓</span>
+                          <span className="text-blue-600" title="En progreso">{area.inProgress}⟳</span>
+                          <span className="text-gray-400" title="Pendientes">{area.pending}○</span>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="mt-4 pt-3 border-t">
+                      <div className="text-sm text-gray-500">
+                        Total de metas: <strong>{sorted.reduce((s, a) => s + a.count, 0)}</strong> en{' '}
+                        <strong>{plans.length}</strong> planes
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )
+        })() : (
+          plans.length === 0 ? (
+            <Card>
+              <CardContent className="p-12 text-center">
+                <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-gray-700">No hay planes PIP</h3>
+                <p className="text-sm text-gray-500 mt-1">Cree un plan de mejoramiento para comenzar a hacer seguimiento.</p>
+                <Button className="mt-4" onClick={() => { setViewMode('create'); setShowForm(true) }}>
+                  <Plus className="h-4 w-4 mr-1" /> Crear Primer Plan
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
           <div className="space-y-3">
             {plans.map(plan => {
               const statusInfo = STATUS_MAP[plan.status] || STATUS_MAP.draft
@@ -1340,6 +1411,7 @@ export default function PipPage() {
               )
             })}
           </div>
+          )
         )}
       </div>
     </div>
