@@ -1,7 +1,7 @@
 'use client';
 
 import { useParams, useRouter } from 'next/navigation';
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -36,7 +36,8 @@ import {
   Star,
   Plus,
   CalendarOff,
-  BarChart3
+  BarChart3,
+  Filter
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -200,6 +201,8 @@ export default function AttendancePage() {
   const [showScheduleConfig, setShowScheduleConfig] = useState(false);
   const [selectedScheduleTemplate, setSelectedScheduleTemplate] = useState('lun-sab');
   const [undoHistory, setUndoHistory] = useState<Attendance[][]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('all');
   const [quincenaStartDate, setQuincenaStartDate] = useState(() => {
     const now = new Date();
     const day = now.getDate();
@@ -642,6 +645,14 @@ export default function AttendancePage() {
   };
 
   const activeEmployees = employees.filter(e => e.status === 'active');
+  const departments = useMemo(() => [...new Set(activeEmployees.map(e => e.department).filter(Boolean))].sort(), [activeEmployees]);
+  const filteredEmployees = useMemo(() => {
+    return activeEmployees.filter(emp => {
+      const matchesSearch = searchTerm === '' || emp.name.toLowerCase().includes(searchTerm.toLowerCase());
+      const matchesDept = filterDepartment === 'all' || emp.department === filterDepartment;
+      return matchesSearch && matchesDept;
+    });
+  }, [activeEmployees, searchTerm, filterDepartment]);
   const quincenaDates = getQuincenaDates(quincenaStartDate);
 
   const clearAttendance = () => {
@@ -1068,6 +1079,31 @@ export default function AttendancePage() {
             </CardContent>
           </Card>
 
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <input type="text" placeholder="Buscar empleado..." value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 pl-9 text-sm" />
+              <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            {departments.length > 0 && (
+              <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm">
+                <option value="all">Todos los departamentos</option>
+                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
+            )}
+            {(searchTerm || filterDepartment !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); }}
+                className="text-sm text-blue-600 underline">
+                Limpiar filtros
+              </button>
+            )}
+            <span className="text-sm text-gray-500">{filteredEmployees.length} de {activeEmployees.length} empleados</span>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             <Card><CardContent className="pt-4 text-center"><CheckCircle className="h-6 w-6 text-green-600 mx-auto mb-1" /><div className="text-xl font-bold text-green-600">{todayStats.present}</div><div className="text-xs text-gray-500">Presentes</div></CardContent></Card>
             <Card><CardContent className="pt-4 text-center"><XCircle className="h-6 w-6 text-red-600 mx-auto mb-1" /><div className="text-xl font-bold text-red-600">{todayStats.absent}</div><div className="text-xs text-gray-500">Ausentes</div></CardContent></Card>
@@ -1082,7 +1118,7 @@ export default function AttendancePage() {
             <CardHeader><CardTitle>Empleados — {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {activeEmployees.map((emp) => {
+                {filteredEmployees.map((emp) => {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
                   const hasDeduction = ['absent', 'late', 'unpaid_leave'].includes(currentStatus) || (currentStatus === 'disability' && (att?.amount || 0) < (emp.salary / 30));
@@ -1194,6 +1230,31 @@ export default function AttendancePage() {
             ))}
           </div>
 
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="relative flex-1 min-w-[200px]">
+              <input type="text" placeholder="Buscar empleado..." value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="w-full border rounded-lg px-3 py-2 pl-9 text-sm" />
+              <svg className="absolute left-3 top-2.5 h-4 w-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            {departments.length > 0 && (
+              <select value={filterDepartment} onChange={(e) => setFilterDepartment(e.target.value)}
+                className="border rounded-lg px-3 py-2 text-sm">
+                <option value="all">Todos los departamentos</option>
+                {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+              </select>
+            )}
+            {(searchTerm || filterDepartment !== 'all') && (
+              <button onClick={() => { setSearchTerm(''); setFilterDepartment('all'); }}
+                className="text-sm text-blue-600 underline">
+                Limpiar filtros
+              </button>
+            )}
+            <span className="text-sm text-gray-500">{filteredEmployees.length} de {activeEmployees.length} empleados</span>
+          </div>
+
           {/* Quincena Grid */}
           <Card>
             <CardContent className="pt-4 overflow-x-auto">
@@ -1218,7 +1279,7 @@ export default function AttendancePage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {activeEmployees.map((emp) => {
+                  {filteredEmployees.map((emp) => {
                     const totals = getQuincenaTotals(emp.id);
                     const isCollapsed = collapsedEmployees.has(emp.id);
                     if (isCollapsed) {
