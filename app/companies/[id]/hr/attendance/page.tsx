@@ -253,8 +253,12 @@ export default function AttendancePage() {
 
   const loadData = async () => {
     setLoading(true);
-    const startOfMonth = new Date(selectedDate.substring(0, 7) + '-01').toISOString().split('T')[0];
-    const endOfMonth = new Date(new Date(selectedDate.substring(0, 7) + '-28').getFullYear(), new Date(selectedDate.substring(0, 7) + '-01').getMonth() + 1, 0).toISOString().split('T')[0];
+    const [yearStr, monthStr] = selectedDate.substring(0, 7).split('-');
+    const year = parseInt(yearStr);
+    const month = parseInt(monthStr);
+    const startOfMonth = `${yearStr}-${monthStr}-01`;
+    const lastDay = new Date(year, month, 0).getDate();
+    const endOfMonth = `${yearStr}-${monthStr.padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
     const safeFetch = async (url: string) => {
       try {
