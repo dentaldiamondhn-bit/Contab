@@ -564,7 +564,7 @@ export default function AttendancePage() {
     }
   };
 
-  const recordAttendance = (employeeId: string, status: Attendance['status'], date?: string) => {
+  const recordAttendance = async (employeeId: string, status: Attendance['status'], date?: string) => {
     const targetDate = date || selectedDate;
     const existing = attendance.find(a => a.employeeId === employeeId && a.date === targetDate);
     const emp = employees.find(e => e.id === employeeId);
@@ -584,8 +584,32 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    saveSingleRecord(newAttendance);
     setAttendance(updated);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          date: targetDate,
+          status,
+          amount: defaults.amount || 0,
+          overtime_amount: 0,
+          overtime_hours: 0,
+          holiday_type: null,
+          disability_type: null,
+          notes: '',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        console.error('[Attendance] Save FAILED:', res.status, data);
+      } else {
+        console.log('[Attendance] Save OK:', status, data?.id);
+      }
+    } catch (err) {
+      console.error('[Attendance] Save ERROR:', err);
+    }
   };
 
   const recordDisability = (employeeId: string, disabilityType: DisabilityPaymentType, date?: string, hours?: number) => {
