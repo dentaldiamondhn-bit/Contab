@@ -246,94 +246,94 @@ export default function AttendancePage() {
   }, [viewMode, selectedDate]);
 
   const loadData = async () => {
-    try {
-      setLoading(true);
-      const startOfMonth = new Date(selectedDate.substring(0, 7) + '-01').toISOString().split('T')[0];
-      const endOfMonth = new Date(new Date(selectedDate.substring(0, 7) + '-28').getFullYear(), new Date(selectedDate.substring(0, 7) + '-01').getMonth() + 1, 0).toISOString().split('T')[0];
-      const [attRes, configRes, holidaysRes, schedulesRes, empRes] = await Promise.all([
-        fetch(`/api/companies/${companyId}/hr/attendance?start=${startOfMonth}&end=${endOfMonth}`),
-        fetch(`/api/companies/${companyId}/hr/attendance/config`),
-        fetch(`/api/companies/${companyId}/hr/attendance/holidays`),
-        fetch(`/api/companies/${companyId}/hr/attendance/schedules`),
-        fetch(`/api/companies/${companyId}/employees`),
-      ]);
-      if (attRes.ok) {
-        const data = await attRes.json();
-        setAttendance(data.map((r: any) => ({
-          id: r.id,
-          employeeId: r.employee_id || r.employeeId,
-          date: r.date,
-          checkIn: r.check_in || r.checkIn || '',
-          checkOut: r.check_out || r.checkOut || '',
-          status: r.status,
-          amount: r.amount || 0,
-          hours: r.hours || 0,
-          overtimeHours: r.overtime_hours || r.overtimeHours || 0,
-          overtimeAmount: r.overtime_amount || r.overtimeAmount || 0,
-          overtimeRate: r.overtime_rate || r.overtimeRate,
-          holidayType: r.holiday_type || r.holidayType,
-          notes: r.notes || '',
-        })));
-      }
-      if (configRes.ok) {
-        const data = await configRes.json();
-        setDeductionConfig({ ...DEFAULT_DEDUCTION_CONFIG, ...data });
-      }
-      if (holidaysRes.ok) {
-        const data = await holidaysRes.json();
-        if (data.length > 0) setHolidays(data.map((h: any) => ({ date: h.date, name: h.name, type: h.type })));
-      }
-      let currentSchedules: WorkSchedule[] = [];
-      if (schedulesRes.ok) {
-        const data = await schedulesRes.json();
-        currentSchedules = data.map((s: any) => ({ employeeId: s.employee_id || s.employeeId, freeDays: s.free_days || s.freeDays || [] }));
+    setLoading(true);
+    const startOfMonth = new Date(selectedDate.substring(0, 7) + '-01').toISOString().split('T')[0];
+    const endOfMonth = new Date(new Date(selectedDate.substring(0, 7) + '-28').getFullYear(), new Date(selectedDate.substring(0, 7) + '-01').getMonth() + 1, 0).toISOString().split('T')[0];
+
+    const safeFetch = async (url: string) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) return null;
+        return await res.json();
+      } catch { return null; }
+    };
+
+    const [attData, configData, holidaysData, schedulesData, empData] = await Promise.all([
+      safeFetch(`/api/companies/${companyId}/hr/attendance?start=${startOfMonth}&end=${endOfMonth}`),
+      safeFetch(`/api/companies/${companyId}/hr/attendance/config`),
+      safeFetch(`/api/companies/${companyId}/hr/attendance/holidays`),
+      safeFetch(`/api/companies/${companyId}/hr/attendance/schedules`),
+      safeFetch(`/api/companies/${companyId}/employees`),
+    ]);
+
+    if (attData) {
+      setAttendance(attData.map((r: any) => ({
+        id: r.id,
+        employeeId: r.employee_id || r.employeeId,
+        date: r.date,
+        checkIn: r.check_in || r.checkIn || '',
+        checkOut: r.check_out || r.checkOut || '',
+        status: r.status,
+        amount: r.amount || 0,
+        hours: r.hours || 0,
+        overtimeHours: r.overtime_hours || r.overtimeHours || 0,
+        overtimeAmount: r.overtime_amount || r.overtimeAmount || 0,
+        overtimeRate: r.overtime_rate || r.overtimeRate,
+        holidayType: r.holiday_type || r.holidayType,
+        notes: r.notes || '',
+      })));
+    }
+    if (configData) {
+      setDeductionConfig({ ...DEFAULT_DEDUCTION_CONFIG, ...configData });
+    }
+    if (holidaysData && holidaysData.length > 0) {
+      setHolidays(holidaysData.map((h: any) => ({ date: h.date, name: h.name, type: h.type })));
+    }
+    let currentSchedules: WorkSchedule[] = [];
+    if (schedulesData) {
+      currentSchedules = schedulesData.map((s: any) => ({ employeeId: s.employee_id || s.employeeId, freeDays: s.free_days || s.freeDays || [] }));
+      setSchedules(currentSchedules);
+    }
+    if (empData) {
+      const emps = empData.map((e: any) => ({
+        id: e.id,
+        name: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
+        position: e.position || '',
+        department: e.department || '',
+        salary: e.salary || 0,
+        status: e.status || 'active',
+        contractType: e.contractType || e.contract_type || 'indefinido',
+        gender: e.gender || undefined,
+        freeDays: e.freeDays || [],
+        scheduleEntry: e.scheduleEntry || '',
+        scheduleExit: e.scheduleExit || '',
+        terminationDate: e.terminationDate || '',
+      }));
+      setEmployees(emps);
+      let schedulesChanged = false;
+      emps.forEach(emp => {
+        if (emp.freeDays && emp.freeDays.length > 0) {
+          const existing = currentSchedules.find(s => s.employeeId === emp.id);
+          if (!existing || JSON.stringify(existing.freeDays) !== JSON.stringify(emp.freeDays)) {
+            const idx = currentSchedules.findIndex(s => s.employeeId === emp.id);
+            if (idx >= 0) currentSchedules[idx] = { employeeId: emp.id, freeDays: emp.freeDays };
+            else currentSchedules.push({ employeeId: emp.id, freeDays: emp.freeDays });
+            schedulesChanged = true;
+          }
+        }
+      });
+      if (schedulesChanged) {
+        for (const schedule of currentSchedules) {
+          await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
+          });
+        }
         setSchedules(currentSchedules);
       }
-      if (empRes.ok) {
-        const data = await empRes.json();
-        const emps = data.map((e: any) => ({
-          id: e.id,
-          name: `${e.firstName || ''} ${e.lastName || ''}`.trim(),
-          position: e.position || '',
-          department: e.department || '',
-          salary: e.salary || 0,
-          status: e.status || 'active',
-          contractType: e.contractType || e.contract_type || 'indefinido',
-          gender: e.gender || undefined,
-          freeDays: e.freeDays || [],
-          scheduleEntry: e.scheduleEntry || '',
-          scheduleExit: e.scheduleExit || '',
-          terminationDate: e.terminationDate || '',
-        }));
-        setEmployees(emps);
-        let schedulesChanged = false;
-        emps.forEach(emp => {
-          if (emp.freeDays && emp.freeDays.length > 0) {
-            const existing = currentSchedules.find(s => s.employeeId === emp.id);
-            if (!existing || JSON.stringify(existing.freeDays) !== JSON.stringify(emp.freeDays)) {
-              const idx = currentSchedules.findIndex(s => s.employeeId === emp.id);
-              if (idx >= 0) currentSchedules[idx] = { employeeId: emp.id, freeDays: emp.freeDays };
-              else currentSchedules.push({ employeeId: emp.id, freeDays: emp.freeDays });
-              schedulesChanged = true;
-            }
-          }
-        });
-        if (schedulesChanged) {
-          for (const schedule of currentSchedules) {
-            await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
-            });
-          }
-          setSchedules(currentSchedules);
-        }
-      }
-    } catch (err) {
-      console.error('Error loading data:', err);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   const saveAttendanceRecords = async (records: Attendance[]) => {
