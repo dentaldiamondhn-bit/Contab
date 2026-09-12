@@ -25,7 +25,7 @@
 
 **Promedio General del Sistema: ~63%**
 
-### Notas de Actualización (10 Sept 2026)
+### Notas de Actualización (11 Sept 2026)
 
 #### HR Module
 - **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`) ejecutadas en Supabase sin errores. 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado. Tipos TypeScript actualizados.
@@ -38,13 +38,17 @@
 - **HR: Nómina — Código de empleado** — Columna "Código" agregada a tabla de detalle, vista de nómina cerrada, y voucher de pago. Matching por código en upload de Excel (evita conflictos con nombres duplicados).
 - **HR: Nómina — Rendimiento optimizado** — API calls paralelos (`Promise.all`), memoización de cálculos, API ligera `/hr/payroll/employees` (9 columnas vs 50+), paginator de 20 empleados por página, skeleton de carga.
 - **HR: Nómina — Bridge contable** — Cierre de nómina genera asientos contables automáticos (gasto salarios, cargas sociales, pago de nómina) via `/api/companies/[id]/hr/accounting`.
-- **HR: Validaciones y seguridad completas** — RLS habilitado en las 21 tablas HR (employees, employee_history, employee_hr_documents, pip_plans). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
+- **HR: Validaciones y seguridad completas** — RLS habilitado en las 25 tablas HR (employees, employee_history, employee_hr_documents, pip_plans, attendance_schedules, attendance_deduction_config, attendance_holidays). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
 - **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
 - **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
 - **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: fila eventos "todo el día" + cuadrícula horas 12AM-11PM. Día: eventos "todo el día" con acciones + cuadrícula horas. Línea roja de hora actual. Edición/eliminación, aprobación/rechazo directo, filtros por empleado/tipo/estado.
+- **HR: Asistencia — 3 vistas** — **Diaria** (con botones de acción para cada estado), **Quincenal** (tabla 2 semanas), **Compacta** (grid de tarjetas ultra ligero: solo nombre + badge de status, sin montos ni botones, 4 columnas desktop/2 mobile).
+- **HR: Asistencia — 11 estados** — Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, **Permiso Con Pago** (sin descuento), **Suspensión sin Goce de Salario** (descuento día completo), Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables con filtro especial para HE (`overtimeHours > 0`).
 - **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
 - **HR: Asistencia — Empleados inactivos/terminados** — Desde la fecha de terminación, controles de asistencia desactivados (sin botones, sin horario). Vista día: badge "Inactivo desde {fecha}", fila atenuada. Vista quincena: "Sin horario", celdas "Inactivo" sin botones.
+- **HR: Asistencia — Carga resiliente** — `safeFetch()` wrapper que maneja errores de API individualmente. Filtro de fecha en API (solo carga mes actual). Skeleton de carga animado.
 - **HR: Migración workflow de estado** — `HR_EMPLOYEE_WORKFLOW.sql`: columnas termination_date/reason/requested_by/performed_by, suspension_date, reactivation_date, rehireable en tabla employees. Ejecutada sin errores.
+- **HR: Tablas de asistencia creadas** — `ATTENDANCE_TABLES.sql`: 4 tablas con RLS (attendance_schedules, attendance_deduction_config, attendance_holidays, employee_history). Ejecutada sin errores.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
@@ -178,7 +182,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (21 tablas + 2 buckets desplegados, RLS habilitado)** |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (25 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 

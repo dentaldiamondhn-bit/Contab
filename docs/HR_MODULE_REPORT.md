@@ -9,7 +9,7 @@
 | Área Funcional | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
 | **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
-| **Control de Asistencia** | Completo | 2 páginas | 5 rutas | 4 tablas | Supabase + API |
+| **Control de Asistencia** | Completo | 3 páginas | 5 rutas | 4 tablas | Supabase + API |
 | **Vacaciones y Permisos** | Completo | 2 páginas | 3 rutas | 3 tablas | Supabase + API |
 | **Cálculo de Planilla (Nómina)** | Completo | 1 página | 5 rutas | 4 tablas | Supabase + API |
 | **Reportes de RRHH** | Completo | 1 página | — | — | — |
@@ -25,7 +25,7 @@
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina); **carga Excel de deducciones/ingresos** con persistencia en DB |
 | Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD completos (useEmployees, useDepartments, usePositions) — loading, error, refetch, optimistic updates |
-| Seguridad y Aislamiento | **95%** | **RLS habilitado en todas las 21 tablas HR** con service_role + tenant isolation. UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation. Collision-safe employee_code. |
+| Seguridad y Aislamiento | **95%** | **RLS habilitado en todas las 25 tablas HR** con service_role + tenant isolation. UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation. Collision-safe employee_code. |
 
 ---
 
@@ -103,7 +103,7 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/attendance/page.tsx` | UI completa: vista diaria + quincenal, 9 estados, gestión de feriados, horarios, operaciones masivas, importación CSV/Excel |
+| `app/companies/[id]/hr/attendance/page.tsx` | UI completa: vista diaria + quincenal + **compacta**, **11 estados**, gestión de feriados, horarios, operaciones masivas, importación CSV/Excel, **tarjetas de stats clickeables**, **safeFetch para carga resiliente** |
 | `app/companies/[id]/hr/attendance/reports/page.tsx` | **Dashboard de análisis con gráficos Recharts**: tendencia diaria, distribución por estado, horas extra, ranking de empleados, incapacidades, feriados |
 | `app/api/companies/[id]/hr/attendance/route.ts` | API CRUD para registros de asistencia (GET/POST/PUT/DELETE) |
 | `app/api/companies/[id]/hr/attendance/holidays/route.ts` | API CRUD para feriados |
@@ -120,14 +120,14 @@
 
 #### Funcionalidad Implementada
 
-- Vistas diaria y quincenal de asistencia
-- 9 estados de asistencia: Presente, Ausente, Tardanza, Vacaciones, Horas Extra, Permiso Sin Sueldo, Incapacidad, Feriado, Día Libre
+- **3 vistas de asistencia**: diaria (con botones de acción), quincenal (tabla 2 semanas), **compacta** (grid de tarjetas ultra ligero sin botones ni montos)
+- **11 estados de asistencia**: Presente, Ausente, Tardanza, Vacaciones, Horas Extra, Permiso Sin Sueldo, **Permiso Con Pago**, **Suspensión sin Goce de Salario**, Incapacidad, Feriado, Día Libre
 - Feriados nacionales de Honduras pre-configurados (2026) con tipos de pago doble/triple
 - Labels mejorados: "Día Feriado (Doble)", "Día Feriado (Triple)", "Día Asueto"
 - Configuración de horario laboral por empleado (días libres)
 - Tipos de incapacidad: 100% patrono, IHSS (33%), Sin pago, Maternidad (84 días)
 - Cálculo automático de monto por tardanza/horas extra basado en salario
-- Importación de archivo (CSV/XLSX) con mapeo de estados
+- Importación de archivo (CSV/XLSX) con mapeo de estados (acepta: suspension, suspendido, sus, permiso con pago, permiso c/pago, pcp)
 - Descarga de plantilla para importación
 - Deshacer/rehacer (historial de acciones)
 - Operaciones masivas (todos presentes, todos ausentes, aplicar feriados)
@@ -139,7 +139,12 @@
 - Exportación CSV de reportes de asistencia
 - Link a reportes desde herramientas de asistencia ("Reportes / Análisis")
 - **Filtros avanzados**: búsqueda por nombre de empleado, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados), botón "Limpiar filtros", contador de empleados filtrados — disponibles en ambas vistas (Día y Quincena)
-- **Control de asistencia desactivado para empleados inactivos/terminados**: desde la fecha de terminación, no se muestran botones de asistencia ni horario. Vista día muestra badge "Inactivo desde {fecha}" y fila atenuada. Vista quincena muestra "Sin horario" y celdas "Inactivo" sin botones desde la fecha de终止ación
+- **Tarjetas de estadísticas clickeables**: cada tarjeta (Presentes, Ausentes, Tardanzas, Vacaciones, HE, Permiso s/pago, Permiso c/pago, Suspensión, Incapacidad) filtra la lista de empleados al hacer click. Filtro especial para HE que detecta `overtimeHours > 0` en lugar de comparar status
+- **Control de asistencia desactivado para empleados inactivos/terminados**: desde la fecha de terminación, no se muestran botones de asistencia ni horario. Vista día muestra badge "Inactivo desde {fecha}" y fila atenuada. Vista quincena muestra "Sin horario" y celdas "Inactivo" sin botones desde la fecha de terminación
+- **Suspensión sin goce de salario**: estado con descuento de día completo (salario/30), botón rojo oscuro con icono Ban, badge rojo
+- **Permiso con pago**: estado sin descuento (salario pagado completo), botón verde esmeralda, badge verde
+- **Carga resiliente**: `safeFetch()` wrapper que maneja errores de API individualmente — una API caída no impide que las demás carguen
+- **Rendimiento**: filtro de fecha en API de asistencia (solo carga mes actual en vez de todos los registros), skeleton de carga animado
 
 #### Almacenamiento de Datos
 
@@ -376,6 +381,7 @@
 | `PAYROLL_UPLOADS.sql` | **Tabla payroll_uploads**: datos subidos por Excel por empleado por período (items JSONB), unique constraint, índice |
 | `HR_VALIDATIONS.sql` | **RLS + Validaciones**: RLS en employees/employee_history/employee_hr_documents, tenant isolation en pip_plans, fix payroll_uploads RLS, UNIQUE constraints en employee_code, departments, positions, payroll_closed |
 | `HR_EMPLOYEE_WORKFLOW.sql` | **Columnas de workflow de estado**: termination_date/reason/requested_by/performed_by, suspension_date/reason/requested_by/performed_by, reactivation_date/reason/requested_by/performed_by, rehireable |
+| `ATTENDANCE_TABLES.sql` | **4 tablas de asistencia**: attendance_schedules (horarios/días libres), attendance_deduction_config (config deducciones), attendance_holidays (feriados), employee_history (auditoría) — todas con RLS |
 
 ### Prisma Schema
 
@@ -386,14 +392,16 @@
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
 2. **21 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
 3. **11 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, **vacations calendar**, reports hub.
-4. **21 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. Tabla `payroll_uploads` para datos de Excel.
+4. **25 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. Tabla `payroll_uploads` para datos de Excel. Tablas de asistencia (`attendance_schedules`, `attendance_deduction_config`, `attendance_holidays`, `employee_history`) creadas con RLS.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
 6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
 7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
 8. **100% específico para Honduras**: Ley de vacaciones, deducciones IGSS/IHSS/RAP, calendario de feriados están adaptados a legislación hondureña.
-9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga. **Empleados**: N+1 fix con batch queries (employee_hr_documents + employee_history), fetches paralelos, `useMemo` en filtros/paginación. **Vacaciones**: fetches paralelos, `useMemo` en datos derivados, filtros por nombre/departamento/estado. **PIP**: `.limit(50)`, `useMemo` en planes filtrados y stats.
-10. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
-11. **Validaciones y seguridad completas**: RLS en las 21 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
+9. **Rendimiento optimizado**: API calls paralelos, memoización de cálculos, API ligera de empleados para planilla, paginator de 20 empleados por página, skeleton de carga. **Empleados**: N+1 fix con batch queries (employee_hr_documents + employee_history), fetches paralelos, `useMemo` en filtros/paginación. **Vacaciones**: fetches paralelos, `useMemo` en datos derivados, filtros por nombre/departamento/estado. **PIP**: `.limit(50)`, `useMemo` en planes filtrados y stats. **Asistencia**: safeFetch wrapper para carga resiliente, filtro de fecha por mes actual, skeleton animado.
+10. **11 estados de asistencia**: Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, Permiso Con Pago, Suspensión sin Goce, Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables con filtro especial para HE.
+11. **3 vistas de asistencia**: Diaria (con botones), Quincenal (tabla 2 semanas), Compacta (grid de tarjetas ultra ligero).
+12. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
+13. **Validaciones y seguridad completas**: RLS en las 25 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
 
 ---
 
