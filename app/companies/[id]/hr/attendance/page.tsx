@@ -201,6 +201,12 @@ export default function AttendancePage() {
   const [disabilityPrompt, setDisabilityPrompt] = useState<{ empId: string; empName: string; date: string } | null>(null);
   const [disabilityHours, setDisabilityHours] = useState('8');
   const [disabilityMinutes, setDisabilityMinutes] = useState('0');
+  const [unpaidLeavePrompt, setUnpaidLeavePrompt] = useState<{ empId: string; empName: string; date: string } | null>(null);
+  const [unpaidLeaveHours, setUnpaidLeaveHours] = useState('8');
+  const [unpaidLeaveMinutes, setUnpaidLeaveMinutes] = useState('0');
+  const [paidLeavePrompt, setPaidLeavePrompt] = useState<{ empId: string; empName: string; date: string } | null>(null);
+  const [paidLeaveHours, setPaidLeaveHours] = useState('8');
+  const [paidLeaveMinutes, setPaidLeaveMinutes] = useState('0');
   const [collapsedEmployees, setCollapsedEmployees] = useState<Set<string>>(new Set());
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
   const [showScheduleConfig, setShowScheduleConfig] = useState(false);
@@ -1346,8 +1352,8 @@ export default function AttendancePage() {
                               <Button size="sm" variant={currentStatus === 'vacation' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'vacation')} className={currentStatus === 'vacation' ? 'bg-blue-500 hover:bg-blue-600' : ''}><Plane className="h-4 w-4" /></Button>
                               <Button size="sm" variant={hasOvertime ? 'default' : 'outline'} onClick={() => { setOvertimePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); setOvertimeHours('1'); setOvertimeMinutes('0'); }} className={hasOvertime ? 'bg-orange-500 hover:bg-orange-600' : ''}><TrendingUp className="h-4 w-4" /></Button>
                               {hasOvertime && <span className="text-orange-600 font-bold text-xs whitespace-nowrap">+{formatCurrency(att?.overtimeAmount || 0)} ({formatHours(att?.overtimeHours || 0)})</span>}
-                              <Button size="sm" variant={currentStatus === 'unpaid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'unpaid_leave')} className={currentStatus === 'unpaid_leave' ? 'bg-gray-500 hover:bg-gray-600' : ''}><FileText className="h-4 w-4" /></Button>
-                              <Button size="sm" variant={currentStatus === 'paid_leave' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'paid_leave')} className={currentStatus === 'paid_leave' ? 'bg-emerald-500 hover:bg-emerald-600' : ''} title="Permiso con pago"><CheckCircle className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'unpaid_leave' ? 'default' : 'outline'} onClick={() => { setUnpaidLeavePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); if (att?.status === 'unpaid_leave' && att.hours) { const h = Math.floor(att.hours); setUnpaidLeaveHours(String(h)); setUnpaidLeaveMinutes(String(Math.round((att.hours - h) * 60))); } else { setUnpaidLeaveHours('8'); setUnpaidLeaveMinutes('0'); } }} className={currentStatus === 'unpaid_leave' ? 'bg-gray-500 hover:bg-gray-600' : ''}><FileText className="h-4 w-4" /></Button>
+                              <Button size="sm" variant={currentStatus === 'paid_leave' ? 'default' : 'outline'} onClick={() => { setPaidLeavePrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); if (att?.status === 'paid_leave' && att.hours) { const h = Math.floor(att.hours); setPaidLeaveHours(String(h)); setPaidLeaveMinutes(String(Math.round((att.hours - h) * 60))); } else { setPaidLeaveHours('8'); setPaidLeaveMinutes('0'); } }} className={currentStatus === 'paid_leave' ? 'bg-emerald-500 hover:bg-emerald-600' : ''} title="Permiso con pago"><CheckCircle className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'disability' ? 'default' : 'outline'} onClick={() => setDisabilityPrompt({ empId: emp.id, empName: emp.name, date: selectedDate })} className={currentStatus === 'disability' ? 'bg-pink-500 hover:bg-pink-600' : ''}><DollarSign className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'holiday' ? 'default' : 'outline'} onClick={() => { setHolidayPrompt({ empId: emp.id, empName: emp.name, date: selectedDate }); }} className={currentStatus === 'holiday' ? 'bg-indigo-500 hover:bg-indigo-600' : ''}><Star className="h-4 w-4" /></Button>
                               <Button size="sm" variant={currentStatus === 'free_day' ? 'default' : 'outline'} onClick={() => recordAttendance(emp.id, 'free_day')} className={currentStatus === 'free_day' ? 'bg-teal-500 hover:bg-teal-600' : ''}><CalendarOff className="h-4 w-4" /></Button>
@@ -2066,6 +2072,144 @@ export default function AttendancePage() {
                   );
                 })}
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Unpaid Leave Prompt Modal */}
+      {unpaidLeavePrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-sm w-full">
+            <div className="border-b px-6 py-4 flex justify-between items-center">
+              <h3 className="font-bold">Permiso Sin Sueldo — {unpaidLeavePrompt.date}</h3>
+              <Button variant="ghost" size="sm" onClick={() => setUnpaidLeavePrompt(null)}><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600"><strong>{unpaidLeavePrompt.empName}</strong></p>
+              {(() => {
+                const emp = employees.find(e => e.id === unpaidLeavePrompt.empId);
+                const dailySalary = emp ? emp.salary / 30 : 0;
+                const hourlySalary = dailySalary / 8;
+                const totalHrs = (parseInt(unpaidLeaveHours) || 0) + (parseInt(unpaidLeaveMinutes) || 0) / 60;
+                const deduction = hourlySalary * totalHrs;
+                return (
+                  <>
+                    <div>
+                      <label className="text-sm font-medium">Tiempo de permiso</label>
+                      <div className="flex gap-3 mt-1">
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-500">Horas</label>
+                          <input type="number" min="0" max="8" value={unpaidLeaveHours} onChange={(e) => setUnpaidLeaveHours(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-md text-lg text-center" autoFocus />
+                        </div>
+                        <div className="flex items-end pb-1 text-lg font-bold text-gray-400">:</div>
+                        <div className="flex-1">
+                          <label className="text-xs text-gray-500">Minutos</label>
+                          <input type="number" min="0" max="59" step="5" value={unpaidLeaveMinutes} onChange={(e) => setUnpaidLeaveMinutes(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-md text-lg text-center" />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-3 text-sm">
+                      <p>Total: {unpaidLeaveHours || 0}h {unpaidLeaveMinutes || 0}min = {totalHrs.toFixed(2)} horas</p>
+                      <p className="text-orange-600 font-medium mt-1">Descuento: -L {deduction.toFixed(2)}</p>
+                    </div>
+                    <Button onClick={async () => {
+                      const totalHours = (parseInt(unpaidLeaveHours) || 0) + (parseInt(unpaidLeaveMinutes) || 0) / 60;
+                      const amount = hourlySalary * totalHours;
+                      const existing = attendance.find(a => a.employeeId === unpaidLeavePrompt.empId && a.date === unpaidLeavePrompt.date);
+                      const record: Attendance = {
+                        id: existing?.id || `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                        employeeId: unpaidLeavePrompt.empId,
+                        date: unpaidLeavePrompt.date,
+                        checkIn: '', checkOut: '',
+                        status: 'unpaid_leave',
+                        amount,
+                        hours: totalHours,
+                        notes: '',
+                      };
+                      const updated = existing ? attendance.map(a => a.id === existing.id ? record : a) : [...attendance, record];
+                      pushUndo();
+                      setAttendance(updated);
+                      setUnpaidLeavePrompt(null);
+                      try {
+                        const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ employee_id: unpaidLeavePrompt.empId, date: unpaidLeavePrompt.date, status: 'unpaid_leave', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) console.error('[Attendance] Unpaid leave FAILED:', res.status, data);
+                        else console.log('[Attendance] Save OK: unpaid_leave', data?.id);
+                      } catch (err) { console.error('[Attendance] Unpaid leave ERROR:', err); }
+                    }} className="w-full">
+                      <Save className="h-4 w-4 mr-2" /> Guardar
+                    </Button>
+                  </>
+                );
+              })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Paid Leave Prompt Modal */}
+      {paidLeavePrompt && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-sm w-full">
+            <div className="border-b px-6 py-4 flex justify-between items-center">
+              <h3 className="font-bold">Permiso Con Sueldo — {paidLeavePrompt.date}</h3>
+              <Button variant="ghost" size="sm" onClick={() => setPaidLeavePrompt(null)}><X className="h-4 w-4" /></Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <p className="text-sm text-gray-600"><strong>{paidLeavePrompt.empName}</strong></p>
+              <div>
+                <label className="text-sm font-medium">Tiempo de permiso</label>
+                <div className="flex gap-3 mt-1">
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500">Horas</label>
+                    <input type="number" min="0" max="8" value={paidLeaveHours} onChange={(e) => setPaidLeaveHours(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-md text-lg text-center" autoFocus />
+                  </div>
+                  <div className="flex items-end pb-1 text-lg font-bold text-gray-400">:</div>
+                  <div className="flex-1">
+                    <label className="text-xs text-gray-500">Minutos</label>
+                    <input type="number" min="0" max="59" step="5" value={paidLeaveMinutes} onChange={(e) => setPaidLeaveMinutes(e.target.value)} className="w-full mt-1 px-3 py-2 border rounded-md text-lg text-center" />
+                  </div>
+                </div>
+              </div>
+              <div className="bg-emerald-50 rounded-lg p-3 text-sm">
+                <p>Total: {paidLeaveHours || 0}h {paidLeaveMinutes || 0}min = {((parseInt(paidLeaveHours) || 0) + (parseInt(paidLeaveMinutes) || 0) / 60).toFixed(2)} horas</p>
+                <p className="text-emerald-600 font-medium mt-1">Sin descuento — Permiso con goce de sueldo</p>
+              </div>
+              <Button onClick={async () => {
+                const totalHours = (parseInt(paidLeaveHours) || 0) + (parseInt(paidLeaveMinutes) || 0) / 60;
+                const existing = attendance.find(a => a.employeeId === paidLeavePrompt.empId && a.date === paidLeavePrompt.date);
+                const record: Attendance = {
+                  id: existing?.id || `att-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+                  employeeId: paidLeavePrompt.empId,
+                  date: paidLeavePrompt.date,
+                  checkIn: '', checkOut: '',
+                  status: 'paid_leave',
+                  amount: 0,
+                  hours: totalHours,
+                  notes: '',
+                };
+                const updated = existing ? attendance.map(a => a.id === existing.id ? record : a) : [...attendance, record];
+                pushUndo();
+                setAttendance(updated);
+                setPaidLeavePrompt(null);
+                try {
+                  const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ employee_id: paidLeavePrompt.empId, date: paidLeavePrompt.date, status: 'paid_leave', amount: 0, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) console.error('[Attendance] Paid leave FAILED:', res.status, data);
+                  else console.log('[Attendance] Save OK: paid_leave', data?.id);
+                } catch (err) { console.error('[Attendance] Paid leave ERROR:', err); }
+              }} className="w-full">
+                <Save className="h-4 w-4 mr-2" /> Guardar
+              </Button>
             </div>
           </div>
         </div>
