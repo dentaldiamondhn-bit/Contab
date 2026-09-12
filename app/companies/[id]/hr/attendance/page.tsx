@@ -761,7 +761,11 @@ export default function AttendancePage() {
   };
 
   const todayStats = {
-    present: attendance.filter(a => a.date === selectedDate && a.status === 'present').length,
+    present: (() => {
+      const totalActive = employees.filter(e => e.status === 'active' || e.status === 'suspended').length;
+      const nonPresentStatuses = new Set(attendance.filter(a => a.date === selectedDate && a.status && a.status !== 'present').map(a => a.employeeId));
+      return totalActive - nonPresentStatuses.size;
+    })(),
     absent: attendance.filter(a => a.date === selectedDate && a.status === 'absent').length,
     late: attendance.filter(a => a.date === selectedDate && a.status === 'late').length,
     vacation: attendance.filter(a => a.date === selectedDate && a.status === 'vacation').length,
