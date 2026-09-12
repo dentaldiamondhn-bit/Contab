@@ -377,12 +377,13 @@ export default function AttendancePage() {
           notes: record.notes || '',
         }),
       });
+      const data = await res.json();
       if (!res.ok) {
-        const err = await res.json();
-        console.error('Error saving single record:', err);
+        console.error('Attendance save failed:', res.status, data);
       }
+      return data;
     } catch (err) {
-      console.error('Error saving single record:', err);
+      console.error('Attendance save error:', err);
     }
   };
 
