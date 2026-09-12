@@ -337,13 +337,11 @@ export default function AttendancePage() {
         }
       });
       if (schedulesChanged) {
-        for (const schedule of currentSchedules) {
-          await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ employee_id: schedule.employeeId, free_days: schedule.freeDays }),
-          });
-        }
+        await fetch(`/api/companies/${companyId}/hr/attendance/schedules`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ records: currentSchedules.map(s => ({ employee_id: s.employeeId, free_days: s.freeDays })) }),
+        });
         setSchedules(currentSchedules);
       }
     }
@@ -352,24 +350,24 @@ export default function AttendancePage() {
 
   const saveAttendanceRecords = async (records: Attendance[]) => {
     try {
-      for (const record of records) {
-        await fetch(`/api/companies/${companyId}/hr/attendance`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            employee_id: record.employeeId,
-            date: record.date,
-            status: record.status,
-            amount: record.amount || 0,
-            hours: record.hours || 0,
-            overtime_amount: record.overtimeAmount || 0,
-            overtime_hours: record.overtimeHours || 0,
-            holiday_type: record.holidayType || null,
-            disability_type: record.disabilityType || null,
-            notes: record.notes || '',
-          }),
-        });
-      }
+      await fetch(`/api/companies/${companyId}/hr/attendance`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          records: records.map(r => ({
+            employee_id: r.employeeId,
+            date: r.date,
+            status: r.status,
+            amount: r.amount || 0,
+            hours: r.hours || 0,
+            overtime_amount: r.overtimeAmount || 0,
+            overtime_hours: r.overtimeHours || 0,
+            holiday_type: r.holidayType || null,
+            disability_type: r.disabilityType || null,
+            notes: r.notes || '',
+          })),
+        }),
+      });
     } catch (err) {
       console.error('Error saving attendance:', err);
     }
@@ -486,7 +484,7 @@ export default function AttendancePage() {
 
   const autoMarkFreeDays = () => {
     const updated = [...attendance];
-    let changed = false;
+    const changedRecords: Attendance[] = [];
     activeEmployees.forEach(employee => {
       const schedule = getSchedule(employee.id);
       if (!schedule) return;
@@ -513,12 +511,12 @@ export default function AttendancePage() {
         } else {
           updated.push(record);
         }
-        changed = true;
+        changedRecords.push(record);
       });
     });
-    if (changed) {
+    if (changedRecords.length > 0) {
       pushUndo();
-      saveAttendanceRecords(updated);
+      saveAttendanceRecords(changedRecords);
       setAttendance(updated);
     }
   };
@@ -958,7 +956,7 @@ export default function AttendancePage() {
 
   const applyHolidayDefaults = () => {
     const updated = [...attendance];
-    let changed = false;
+    const changedRecords: Attendance[] = [];
     activeEmployees.forEach(employee => {
       quincenaDates.forEach(date => {
         const holiday = getHoliday(date);
@@ -983,12 +981,12 @@ export default function AttendancePage() {
         } else {
           updated.push(record);
         }
-        changed = true;
+        changedRecords.push(record);
       });
     });
-    if (changed) {
+    if (changedRecords.length > 0) {
       pushUndo();
-      saveAttendanceRecords(updated);
+      saveAttendanceRecords(changedRecords);
       setAttendance(updated);
     }
   };

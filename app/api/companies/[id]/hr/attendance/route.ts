@@ -98,8 +98,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     date: string;
     status: string;
     amount?: number;
+    hours?: number;
     overtime_amount?: number;
     overtime_hours?: number;
+    holiday_type?: string | null;
+    disability_type?: string | null;
     notes?: string;
   }>;
 
@@ -113,8 +116,11 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     date: r.date,
     status: r.status,
     amount: r.amount || 0,
+    hours: r.hours || 0,
     overtime_amount: r.overtime_amount || 0,
     overtime_hours: r.overtime_hours || 0,
+    holiday_type: r.holiday_type || null,
+    disability_type: r.disability_type || null,
     notes: r.notes || '',
   }));
 

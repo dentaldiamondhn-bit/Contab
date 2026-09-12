@@ -41,3 +41,19 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
+
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id: companyId } = await params;
+  const body = await request.json();
+  const records = body.records as Array<{ employee_id: string; free_days: number[] }>;
+  if (!records || !Array.isArray(records) || records.length === 0) {
+    return NextResponse.json({ error: 'Missing records array' }, { status: 400 });
+  }
+  const rows = records.map(r => ({ tenant_id: companyId, employee_id: r.employee_id, free_days: r.free_days }));
+  const { data, error } = await getSupabaseServer()
+    .from('attendance_schedules')
+    .upsert(rows, { onConflict: 'tenant_id,employee_id' })
+    .select();
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json({ saved: data?.length || 0 });
+}
