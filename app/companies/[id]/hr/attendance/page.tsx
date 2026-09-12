@@ -263,7 +263,7 @@ export default function AttendancePage() {
       safeFetch(`/api/companies/${companyId}/hr/attendance/config`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/holidays`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/schedules`),
-      safeFetch(`/api/companies/${companyId}/employees`),
+      safeFetch(`/api/companies/${companyId}/employees?fields=id,first_name,last_name,position_id,department,base_salary,status,contract_type,gender,free_days,schedule_entry,schedule_exit,termination_date`),
     ]);
 
     if (attData) {
