@@ -214,6 +214,8 @@ export default function AttendancePage() {
   const [undoHistory, setUndoHistory] = useState<Attendance[][]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
+  const [empPage, setEmpPage] = useState(0);
+  const EMP_PAGE_SIZE = 10;
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'terminated' | 'suspended'>('all');
   const [selectedStatFilter, setSelectedStatFilter] = useState<string | null>(null);
   const [quincenaStartDate, setQuincenaStartDate] = useState(() => {
@@ -226,6 +228,8 @@ export default function AttendancePage() {
   useEffect(() => {
     loadData();
   }, [companyId]);
+
+  useEffect(() => { setEmpPage(0); }, [selectedDate, filterDepartment, searchTerm, selectedStatFilter]);
 
   useEffect(() => {
     if (viewMode === 'quincena' && activeEmployees.length > 0) {
@@ -1330,7 +1334,20 @@ export default function AttendancePage() {
             <CardHeader><CardTitle>Empleados — {new Date(selectedDate + 'T12:00:00').toLocaleDateString('es-HN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</CardTitle></CardHeader>
             <CardContent>
               <div className="space-y-3">
-                {filteredEmployees.map((emp) => {
+                {(() => {
+                  const visibleEmps = filteredEmployees.filter(emp => {
+                    const att = getAttendance(emp.id);
+                    const currentStatus = att?.status || 'present';
+                    const hasOvertime = att?.overtimeHours && att.overtimeHours > 0;
+                    if (selectedStatFilter === 'overtime') return hasOvertime;
+                    if (selectedStatFilter) return currentStatus === selectedStatFilter;
+                    return true;
+                  });
+                  const totalPages = Math.ceil(visibleEmps.length / EMP_PAGE_SIZE);
+                  const pagedEmps = visibleEmps.slice(empPage * EMP_PAGE_SIZE, (empPage + 1) * EMP_PAGE_SIZE);
+                  return (
+                    <>
+                      {pagedEmps.map((emp) => {
                   const att = getAttendance(emp.id);
                   const currentStatus = att?.status || 'present';
                   const isInactiveOnDate = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
@@ -1387,6 +1404,35 @@ export default function AttendancePage() {
                     </div>
                   );
                 })}
+                      {totalPages > 1 && (
+                        <div className="flex items-center justify-between pt-4 border-t">
+                          <span className="text-sm text-gray-500">
+                            {visibleEmps.length} empleado{visibleEmps.length !== 1 ? 's' : ''} • Página {empPage + 1} de {totalPages}
+                          </span>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" disabled={empPage === 0} onClick={() => setEmpPage(0)}>«</Button>
+                            <Button size="sm" variant="outline" disabled={empPage === 0} onClick={() => setEmpPage(p => p - 1)}>‹</Button>
+                            {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                              let pageIdx = i;
+                              if (totalPages > 7) {
+                                if (empPage < 3) pageIdx = i;
+                                else if (empPage > totalPages - 4) pageIdx = totalPages - 7 + i;
+                                else pageIdx = empPage - 3 + i;
+                              }
+                              return (
+                                <Button key={pageIdx} size="sm" variant={pageIdx === empPage ? 'default' : 'outline'} onClick={() => setEmpPage(pageIdx)}>
+                                  {pageIdx + 1}
+                                </Button>
+                              );
+                            })}
+                            <Button size="sm" variant="outline" disabled={empPage >= totalPages - 1} onClick={() => setEmpPage(p => p + 1)}>›</Button>
+                            <Button size="sm" variant="outline" disabled={empPage >= totalPages - 1} onClick={() => setEmpPage(totalPages - 1)}>»</Button>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
             </CardContent>
           </Card>
