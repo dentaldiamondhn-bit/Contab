@@ -21,13 +21,19 @@
 | 9 | Seguridad y Control | ~80% | Completo | Media |
 | 10 | Otras Características | ~35% | Básico | Media |
 | 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~90% | Parcial | Alta |
+| 12 | Recursos Humanos | ~95% | Completo | Alta |
 
 **Promedio General del Sistema: ~63%**
 
 ### Notas de Actualización (11 Sept 2026)
 
 #### HR Module
+- **HR: Asistencia — Rendimiento N+1 eliminado** — `saveAttendanceRecords` usa PATCH batch (1 request vs N POSTs). Schedules usa PUT batch (1 request vs N POSTs). `autoMarkFreeDays` y `applyHolidayDefaults` solo guardan registros cambiados (no todos). Carga de página ~5x más rápida.
+- **HR: Asistencia — Vista compacta con departamentos** — Empleados agrupados por departamento con secciones colapsables (colapsadas por defecto). Indicador de empleados con registro por departamento. Click en header para expandir/colapsar.
+- **HR: Asistencia — Re-fetch al cambiar de mes** — `loadData` re-ejecuta al cambiar `selectedDate` de mes. Antes solo cargaba al montar el componente, causando datos desactualizados al navegar meses.
+- **HR: Asistencia — Permisos parciales** — Permiso Sin Pago y Permiso Con Pago abren modal con selector de horas y minutos. Permiso sin pago descuenta salario horario × horas. Permiso con pago rastrea horas sin descuento. Columna `hours` (DECIMAL 5,2) agregada a tabla attendance.
+- **HR: Asistencia — Tarjetas stats expandidas** — 11 tarjetas clickeables (incluye Días Libres y Feriados). 11 estados de asistencia con badges y filtros.
+- **HR: API validations fix** — `lib/validations/hr.ts`: `.required({ id: true })` fix para evitar `ReferenceError: id is not defined` en employees API.
 - **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`) ejecutadas en Supabase sin errores. 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado. Tipos TypeScript actualizados.
 - **HR: PIP — Tab de Estadísticas por Área** — Nuevo tab con barras horizontales que muestra frecuencia de cada área de mejoramiento, con desglose de metas cumplidas/en progreso/pendientes. Click en nombre de área abre modal con lista de empleados afectados.
 - **HR: PIP — Filtros de tiempo** — Selector de tiempo (este mes, trimestre, año, rango personalizado) aplicable en ambos tabs (Planes y Estadísticas). Filtra planes y estadísticas por fecha de inicio.
@@ -42,7 +48,7 @@
 - **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
 - **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
 - **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: fila eventos "todo el día" + cuadrícula horas 12AM-11PM. Día: eventos "todo el día" con acciones + cuadrícula horas. Línea roja de hora actual. Edición/eliminación, aprobación/rechazo directo, filtros por empleado/tipo/estado.
-- **HR: Asistencia — 3 vistas** — **Diaria** (con botones de acción para cada estado), **Quincenal** (tabla 2 semanas), **Compacta** (grid de tarjetas ultra ligero: solo nombre + badge de status, sin montos ni botones, 4 columnas desktop/2 mobile).
+- **HR: Asistencia — 3 vistas** — **Diaria** (con botones de acción para cada estado), **Quincenal** (tabla 2 semanas), **Compacta** (empleados agrupados por departamento con secciones colapsables, colapsadas por defecto).
 - **HR: Asistencia — 11 estados** — Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, **Permiso Con Pago** (sin descuento), **Suspensión sin Goce de Salario** (descuento día completo), Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables con filtro especial para HE (`overtimeHours > 0`).
 - **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
 - **HR: Asistencia — Empleados inactivos/terminados** — Desde la fecha de terminación, controles de asistencia desactivados (sin botones, sin horario). Vista día: badge "Inactivo desde {fecha}", fila atenuada. Vista quincena: "Sin horario", celdas "Inactivo" sin botones.
@@ -78,7 +84,7 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
 11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ██████████████████████░░░░░░░  90%  Parcial
+12. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
 PROMEDIO                      ██████████████████░░░░░░░░░░░  63%
 ```
@@ -182,7 +188,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance, attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (25 tablas + 2 buckets desplegados, RLS habilitado)** |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance (con columna hours DECIMAL 5,2), attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (25 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 
@@ -322,7 +328,8 @@ Prioridad 3 (Semanas 12-24):
 5. ~~HR: PIP completo (5 tablas, 3 APIs, UI con stats/filtros/drill-down)~~ ✅ Completada
 6. ~~HR: Nómina optimizada (Excel, horas extras por turno, bridge contable)~~ ✅ Completada
 7. ~~HR: Filtros avanzados vacaciones + rendimiento empleados/vacaciones/PIP~~ ✅ Completada
-8. Migrar Compras de JSON a Supabase
+8. ~~HR: Asistencia N+1 eliminado (PATCH batch, schedules batch, compacto con departamentos)~~ ✅ Completada
+9. Migrar Compras de JSON a Supabase
 9. Consolidar dual schemas (Facturación, Inventario)
 10. Conectar JournalEntryForm y FinancialStatements a API real
 
