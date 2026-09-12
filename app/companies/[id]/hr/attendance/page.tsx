@@ -35,6 +35,7 @@ import {
   RotateCcw,
   Star,
   Plus,
+  Building2,
   CalendarOff,
   BarChart3,
   Filter,
@@ -208,6 +209,7 @@ export default function AttendancePage() {
   const [paidLeaveHours, setPaidLeaveHours] = useState('8');
   const [paidLeaveMinutes, setPaidLeaveMinutes] = useState('0');
   const [collapsedEmployees, setCollapsedEmployees] = useState<Set<string>>(new Set());
+  const [expandedDepts, setExpandedDepts] = useState<Set<string>>(new Set());
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
   const [showScheduleConfig, setShowScheduleConfig] = useState(false);
   const [selectedScheduleTemplate, setSelectedScheduleTemplate] = useState('lun-sab');
@@ -227,7 +229,7 @@ export default function AttendancePage() {
 
   useEffect(() => {
     loadData();
-  }, [companyId]);
+  }, [companyId, selectedDate.substring(0, 7)]);
 
   useEffect(() => { setEmpPage(0); }, [selectedDate, filterDepartment, searchTerm, selectedStatFilter]);
 
@@ -1706,28 +1708,61 @@ export default function AttendancePage() {
               </select>
               <span className="text-sm text-gray-500">{filteredEmployees.length} empleados</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
-              {filteredEmployees.map((emp) => {
-                const att = getAttendance(emp.id);
-                const status = att?.status || 'sin_registro';
-                const isInactive = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
+            {(() => {
+              const deptGroups: Record<string, typeof filteredEmployees> = {};
+              filteredEmployees.forEach(emp => {
+                const dept = emp.department || 'Sin departamento';
+                if (!deptGroups[dept]) deptGroups[dept] = [];
+                deptGroups[dept].push(emp);
+              });
+              const sortedDepts = Object.keys(deptGroups).sort((a, b) => a === 'Sin departamento' ? 1 : b === 'Sin departamento' ? -1 : a.localeCompare(b));
+              return sortedDepts.map(dept => {
+                const emps = deptGroups[dept];
+                const deptPresent = emps.filter(e => getAttendance(e.id)?.status && getAttendance(e.id)?.status !== 'sin_registro').length;
+                const isExpanded = expandedDepts.has(dept);
                 return (
-                  <div key={emp.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isInactive ? 'opacity-50 bg-gray-50' : 'bg-white hover:bg-gray-50'}`}>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">{emp.name}</div>
-                      <div className="text-xs text-gray-400 truncate">{emp.department || '—'}</div>
-                    </div>
-                    {status === 'sin_registro' ? (
-                      <span className="text-xs text-gray-300 whitespace-nowrap">—</span>
-                    ) : (
-                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getStatusColor(status)}`}>
-                        {getStatusLabel(status)}
-                      </span>
+                  <div key={dept} className="mb-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const next = new Set(expandedDepts);
+                        if (next.has(dept)) next.delete(dept); else next.add(dept);
+                        setExpandedDepts(next);
+                      }}
+                      className="w-full flex items-center gap-2 mb-2 pb-1 border-b hover:bg-gray-50 rounded px-1 py-1 transition-colors"
+                    >
+                      {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" /> : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />}
+                      <Building2 className="h-4 w-4 text-gray-400 shrink-0" />
+                      <span className="text-sm font-semibold text-gray-700">{dept}</span>
+                      <span className="text-xs text-gray-400">({emps.length} empleados — {deptPresent} con registro)</span>
+                    </button>
+                    {isExpanded && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                        {emps.map((emp) => {
+                          const att = getAttendance(emp.id);
+                          const status = att?.status || 'sin_registro';
+                          const isInactive = (emp.status === 'inactive' || emp.status === 'terminated') && emp.terminationDate && selectedDate >= emp.terminationDate;
+                          return (
+                            <div key={emp.id} className={`flex items-center gap-2 px-3 py-2 rounded-lg border ${isInactive ? 'opacity-50 bg-gray-50' : 'bg-white hover:bg-gray-50'}`}>
+                              <div className="flex-1 min-w-0">
+                                <div className="text-sm font-medium truncate">{emp.name}</div>
+                              </div>
+                              {status === 'sin_registro' ? (
+                                <span className="text-xs text-gray-300 whitespace-nowrap">—</span>
+                              ) : (
+                                <span className={`text-xs font-medium px-2 py-0.5 rounded-full whitespace-nowrap ${getStatusColor(status)}`}>
+                                  {getStatusLabel(status)}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
                 );
-              })}
-            </div>
+              });
+            })()}
           </CardContent>
         </Card>
       )}
