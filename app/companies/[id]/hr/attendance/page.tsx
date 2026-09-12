@@ -1307,6 +1307,14 @@ export default function AttendancePage() {
               onClick={() => setSelectedStatFilter(selectedStatFilter === 'disability' ? null : 'disability')}>
               <CardContent className="pt-4 text-center"><DollarSign className="h-6 w-6 text-pink-600 mx-auto mb-1" /><div className="text-xl font-bold text-pink-600">{todayStats.disability}</div><div className="text-xs text-gray-500">Incapacidad</div></CardContent>
             </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'free_day' ? 'ring-2 ring-teal-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'free_day' ? null : 'free_day')}>
+              <CardContent className="pt-4 text-center"><CalendarOff className="h-6 w-6 text-teal-600 mx-auto mb-1" /><div className="text-xl font-bold text-teal-600">{todayStats.free_day}</div><div className="text-xs text-gray-500">Días Libres</div></CardContent>
+            </Card>
+            <Card className={`cursor-pointer hover:shadow-md transition-shadow ${selectedStatFilter === 'holiday' ? 'ring-2 ring-indigo-500' : ''}`}
+              onClick={() => setSelectedStatFilter(selectedStatFilter === 'holiday' ? null : 'holiday')}>
+              <CardContent className="pt-4 text-center"><Star className="h-6 w-6 text-indigo-600 mx-auto mb-1" /><div className="text-xl font-bold text-indigo-600">{todayStats.holiday}</div><div className="text-xs text-gray-500">Feriados</div></CardContent>
+            </Card>
           </div>
 
           {selectedStatFilter && (
