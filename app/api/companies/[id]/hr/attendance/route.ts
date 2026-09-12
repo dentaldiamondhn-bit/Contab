@@ -37,6 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         date: body.date,
         status: body.status,
         amount: body.amount || 0,
+        hours: body.hours || 0,
         overtime_amount: body.overtime_amount || 0,
         overtime_hours: body.overtime_hours || 0,
         holiday_type: body.holiday_type || null,

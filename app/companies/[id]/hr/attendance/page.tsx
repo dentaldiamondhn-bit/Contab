@@ -353,6 +353,7 @@ export default function AttendancePage() {
             date: record.date,
             status: record.status,
             amount: record.amount || 0,
+            hours: record.hours || 0,
             overtime_amount: record.overtimeAmount || 0,
             overtime_hours: record.overtimeHours || 0,
             holiday_type: record.holidayType || null,
@@ -376,6 +377,7 @@ export default function AttendancePage() {
           date: record.date,
           status: record.status,
           amount: record.amount || 0,
+          hours: record.hours || 0,
           overtime_amount: record.overtimeAmount || 0,
           overtime_hours: record.overtimeHours || 0,
           holiday_type: record.holidayType || null,
@@ -600,6 +602,7 @@ export default function AttendancePage() {
           date: targetDate,
           status,
           amount: defaults.amount || 0,
+          hours: defaults.hours || 0,
           overtime_amount: 0,
           overtime_hours: 0,
           holiday_type: null,
@@ -664,6 +667,7 @@ export default function AttendancePage() {
           date: targetDate,
           status: 'disability',
           amount,
+          hours: disabilityHours,
           overtime_amount: 0,
           overtime_hours: 0,
           holiday_type: null,
@@ -699,6 +703,7 @@ export default function AttendancePage() {
             date: selectedDate,
             status: changed.status,
             amount: changed.amount || 0,
+            hours: changed.hours || 0,
             overtime_amount: changed.overtimeAmount || 0,
             overtime_hours: changed.overtimeHours || 0,
             holiday_type: changed.holidayType || null,
@@ -1850,6 +1855,7 @@ export default function AttendancePage() {
                       date: latePrompt.date,
                       status: 'late',
                       amount,
+                      hours: totalHours,
                       overtime_amount: 0,
                       overtime_hours: 0,
                       holiday_type: null,
@@ -1959,6 +1965,7 @@ export default function AttendancePage() {
                       date: overtimePrompt.date,
                       status: record.status,
                       amount: record.amount || 0,
+                      hours: existing?.hours || 0,
                       overtime_amount: overtimeAmountCalc,
                       overtime_hours: totalHours,
                       holiday_type: null,
@@ -2135,7 +2142,7 @@ export default function AttendancePage() {
                         const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ employee_id: unpaidLeavePrompt.empId, date: unpaidLeavePrompt.date, status: 'unpaid_leave', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
+                          body: JSON.stringify({ employee_id: unpaidLeavePrompt.empId, date: unpaidLeavePrompt.date, status: 'unpaid_leave', amount, hours: totalHours, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
                         });
                         const data = await res.json();
                         if (!res.ok) console.error('[Attendance] Unpaid leave FAILED:', res.status, data);
@@ -2201,7 +2208,7 @@ export default function AttendancePage() {
                   const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ employee_id: paidLeavePrompt.empId, date: paidLeavePrompt.date, status: 'paid_leave', amount: 0, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
+                    body: JSON.stringify({ employee_id: paidLeavePrompt.empId, date: paidLeavePrompt.date, status: 'paid_leave', amount: 0, hours: totalHours, overtime_amount: 0, overtime_hours: 0, holiday_type: null, disability_type: null, notes: '' }),
                   });
                   const data = await res.json();
                   if (!res.ok) console.error('[Attendance] Paid leave FAILED:', res.status, data);
@@ -2263,7 +2270,7 @@ export default function AttendancePage() {
                         const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: 'doble', disability_type: null, notes: '' }),
+                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, hours: 8, overtime_amount: 0, overtime_hours: 0, holiday_type: 'doble', disability_type: null, notes: '' }),
                         });
                         const data = await res.json();
                         if (!res.ok) console.error('[Attendance] Holiday doble FAILED:', res.status, data);
@@ -2303,7 +2310,7 @@ export default function AttendancePage() {
                         const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: 'triple', disability_type: null, notes: '' }),
+                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, hours: 8, overtime_amount: 0, overtime_hours: 0, holiday_type: 'triple', disability_type: null, notes: '' }),
                         });
                         const data = await res.json();
                         if (!res.ok) console.error('[Attendance] Holiday triple FAILED:', res.status, data);
