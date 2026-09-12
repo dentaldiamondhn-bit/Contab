@@ -612,7 +612,7 @@ export default function AttendancePage() {
     }
   };
 
-  const recordDisability = (employeeId: string, disabilityType: DisabilityPaymentType, date?: string, hours?: number) => {
+  const recordDisability = async (employeeId: string, disabilityType: DisabilityPaymentType, date?: string, hours?: number) => {
     const targetDate = date || selectedDate;
     const existing = attendance.find(a => a.employeeId === employeeId && a.date === targetDate);
     const emp = employees.find(e => e.id === employeeId);
@@ -647,12 +647,31 @@ export default function AttendancePage() {
       ? attendance.map(a => a.id === existing.id ? newAttendance : a)
       : [...attendance, newAttendance];
     pushUndo();
-    saveSingleRecord(newAttendance);
     setAttendance(updated);
     setDisabilityPrompt(null);
+    try {
+      const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          employee_id: employeeId,
+          date: targetDate,
+          status: 'disability',
+          amount,
+          overtime_amount: 0,
+          overtime_hours: 0,
+          holiday_type: null,
+          disability_type: disabilityType,
+          notes: label,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) console.error('[Attendance] Disability save FAILED:', res.status, data);
+      else console.log('[Attendance] Save OK: disability', disabilityType, data?.id);
+    } catch (err) { console.error('[Attendance] Disability save ERROR:', err); }
   };
 
-  const updateAttendanceAmount = (empId: string, status: string, amount: number, hours?: number) => {
+  const updateAttendanceAmount = async (empId: string, status: string, amount: number, hours?: number) => {
     const existing = attendance.find(a => a.employeeId === empId && a.date === selectedDate);
     const updated = attendance.map(a => {
       if (a.employeeId === empId && a.date === selectedDate) {
@@ -662,9 +681,30 @@ export default function AttendancePage() {
     });
     const changed = updated.find(a => a.employeeId === empId && a.date === selectedDate);
     pushUndo();
-    if (changed) saveSingleRecord(changed);
     setAttendance(updated);
     setEditingAmount(null);
+    if (changed) {
+      try {
+        const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            employee_id: empId,
+            date: selectedDate,
+            status: changed.status,
+            amount: changed.amount || 0,
+            overtime_amount: changed.overtimeAmount || 0,
+            overtime_hours: changed.overtimeHours || 0,
+            holiday_type: changed.holidayType || null,
+            disability_type: changed.disabilityType || null,
+            notes: changed.notes || '',
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) console.error('[Attendance] Update amount FAILED:', res.status, data);
+        else console.log('[Attendance] Save OK: amount update', data?.id);
+      } catch (err) { console.error('[Attendance] Update amount ERROR:', err); }
+    }
   };
 
   const getAttendance = (employeeId: string, date?: string) => {
@@ -1770,7 +1810,7 @@ export default function AttendancePage() {
                   Total: {lateHours || 0}h {lateMinutes || 0}min = {((parseInt(lateHours) || 0) + (parseInt(lateMinutes) || 0) / 60).toFixed(2)} horas
                 </p>
               </div>
-              <Button onClick={() => {
+              <Button onClick={async () => {
                 const emp = employees.find(e => e.id === latePrompt.empId);
                 const totalHours = (parseInt(lateHours) || 0) + (parseInt(lateMinutes) || 0) / 60;
                 const dailySalary = emp ? emp.salary / 30 : 0;
@@ -1793,9 +1833,28 @@ export default function AttendancePage() {
                   ? attendance.map(a => a.id === existing.id ? record : a)
                   : [...attendance, record];
                 pushUndo();
-                saveAttendanceRecords(updated);
                 setAttendance(updated);
                 setLatePrompt(null);
+                try {
+                  const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      employee_id: latePrompt.empId,
+                      date: latePrompt.date,
+                      status: 'late',
+                      amount,
+                      overtime_amount: 0,
+                      overtime_hours: 0,
+                      holiday_type: null,
+                      disability_type: null,
+                      notes: '',
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) console.error('[Attendance] Late save FAILED:', res.status, data);
+                  else console.log('[Attendance] Save OK: late', data?.id);
+                } catch (err) { console.error('[Attendance] Late save ERROR:', err); }
               }} className="w-full">
                 <Save className="h-4 w-4 mr-2" /> Guardar
               </Button>
@@ -1849,7 +1908,7 @@ export default function AttendancePage() {
                   Total: {overtimeHours || 0}h {overtimeMinutes || 0}min = {((parseInt(overtimeHours) || 0) + (parseInt(overtimeMinutes) || 0) / 60).toFixed(2)} horas
                 </p>
               </div>
-              <Button onClick={() => {
+              <Button onClick={async () => {
                 const emp = employees.find(e => e.id === overtimePrompt.empId);
                 const totalHours = (parseInt(overtimeHours) || 0) + (parseInt(overtimeMinutes) || 0) / 60;
                 const baseSalary = emp ? emp.salary : 0;
@@ -1883,9 +1942,28 @@ export default function AttendancePage() {
                   ? attendance.map(a => a.id === existing.id ? record : a)
                   : [...attendance, record];
                 pushUndo();
-                saveSingleRecord(record);
                 setAttendance(updated);
                 setOvertimePrompt(null);
+                try {
+                  const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      employee_id: overtimePrompt.empId,
+                      date: overtimePrompt.date,
+                      status: record.status,
+                      amount: record.amount || 0,
+                      overtime_amount: overtimeAmountCalc,
+                      overtime_hours: totalHours,
+                      holiday_type: null,
+                      disability_type: null,
+                      notes: '',
+                    }),
+                  });
+                  const data = await res.json();
+                  if (!res.ok) console.error('[Attendance] Overtime save FAILED:', res.status, data);
+                  else console.log('[Attendance] Save OK: overtime', data?.id);
+                } catch (err) { console.error('[Attendance] Overtime save ERROR:', err); }
               }} className="w-full">
                 <Save className="h-4 w-4 mr-2" /> Guardar
               </Button>
@@ -2014,7 +2092,7 @@ export default function AttendancePage() {
                 <label className="text-sm font-medium">Tipo de pago:</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const emp = employees.find(e => e.id === holidayPrompt.empId);
                       const dailySalary = emp ? emp.salary / 30 : 0;
                       const amount = dailySalary * 2;
@@ -2035,9 +2113,18 @@ export default function AttendancePage() {
                         ? attendance.map(a => a.id === existing.id ? record : a)
                         : [...attendance, record];
                       pushUndo();
-                      saveAttendanceRecords(updated);
                       setAttendance(updated);
                       setHolidayPrompt(null);
+                      try {
+                        const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: 'doble', disability_type: null, notes: '' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) console.error('[Attendance] Holiday doble FAILED:', res.status, data);
+                        else console.log('[Attendance] Save OK: holiday doble', data?.id);
+                      } catch (err) { console.error('[Attendance] Holiday doble ERROR:', err); }
                     }}
                     className="p-3 border-2 rounded-lg text-center hover:border-green-500 transition-colors"
                   >
@@ -2045,7 +2132,7 @@ export default function AttendancePage() {
                     <div className="text-xs text-gray-500">200%</div>
                   </button>
                   <button
-                    onClick={() => {
+                    onClick={async () => {
                       const emp = employees.find(e => e.id === holidayPrompt.empId);
                       const dailySalary = emp ? emp.salary / 30 : 0;
                       const amount = dailySalary * 3;
@@ -2066,9 +2153,18 @@ export default function AttendancePage() {
                         ? attendance.map(a => a.id === existing.id ? record : a)
                         : [...attendance, record];
                       pushUndo();
-                      saveAttendanceRecords(updated);
                       setAttendance(updated);
                       setHolidayPrompt(null);
+                      try {
+                        const res = await fetch(`/api/companies/${companyId}/hr/attendance`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ employee_id: holidayPrompt.empId, date: holidayPrompt.date, status: 'holiday', amount, overtime_amount: 0, overtime_hours: 0, holiday_type: 'triple', disability_type: null, notes: '' }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) console.error('[Attendance] Holiday triple FAILED:', res.status, data);
+                        else console.log('[Attendance] Save OK: holiday triple', data?.id);
+                      } catch (err) { console.error('[Attendance] Holiday triple ERROR:', err); }
                     }}
                     className="p-3 border-2 rounded-lg text-center hover:border-purple-500 transition-colors"
                   >
