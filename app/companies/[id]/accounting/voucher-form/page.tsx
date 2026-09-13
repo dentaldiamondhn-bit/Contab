@@ -80,10 +80,14 @@ export default function VoucherFormPage() {
   const [accountSearch, setAccountSearch] = useState('');
   const [attachedDocument, setAttachedDocument] = useState<File | null>(null);
   const [documentPreview, setDocumentPreview] = useState<string | null>(null);
+  const [templates, setTemplates] = useState<any[]>([]);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
+  const [templateSearch, setTemplateSearch] = useState('');
 
   // Cargar cuentas para el selector
   useEffect(() => {
     loadAccounts();
+    loadTemplates();
   }, []);
 
   const loadAccounts = async () => {
@@ -96,6 +100,50 @@ export default function VoucherFormPage() {
     } catch (error) {
       console.error('Error loading accounts:', error);
     }
+  };
+
+  const loadTemplates = async () => {
+    try {
+      const response = await fetch(`/api/accounting/journal-templates?tenantId=${companyId}`, {
+        headers: { 'x-tenant-id': companyId },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        setTemplates(data.filter((t: any) => t.is_active));
+      }
+    } catch (error) {
+      console.error('Error loading templates:', error);
+    }
+  };
+
+  const applyTemplate = (template: any) => {
+    setVoucherHeader(prev => ({
+      ...prev,
+      voucherType: template.voucher_type || prev.voucherType,
+      concept: template.description || template.name,
+    }));
+
+    const newDetails = template.lines.map((line: any, idx: number) => ({
+      id: String(idx + 1),
+      accountCode: line.account_code,
+      accountName: line.account_name,
+      debit: line.debit_enabled ? (line.default_amount || 0) : 0,
+      credit: line.credit_enabled ? (line.default_amount || 0) : 0,
+    }));
+
+    // Fill remaining rows to have at least 2 lines
+    while (newDetails.length < 2) {
+      newDetails.push({
+        id: String(newDetails.length + 1),
+        accountCode: '',
+        accountName: '',
+        debit: 0,
+        credit: 0,
+      });
+    }
+
+    setVoucherDetails(newDetails);
+    setShowTemplateSelector(false);
   };
 
   // Generar número de póliza automático
@@ -287,6 +335,41 @@ export default function VoucherFormPage() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              <div className="relative">
+                <Button variant="outline" size="sm" onClick={() => setShowTemplateSelector(!showTemplateSelector)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Plantilla
+                </Button>
+                {showTemplateSelector && (
+                  <div className="absolute z-50 top-full right-0 mt-1 w-80 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+                    <div className="p-2 border-b">
+                      <Input
+                        value={templateSearch}
+                        onChange={(e) => setTemplateSearch(e.target.value)}
+                        placeholder="Buscar plantilla..."
+                        className="text-sm"
+                        autoFocus
+                      />
+                    </div>
+                    {templates.filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase())).length === 0 ? (
+                      <div className="p-4 text-center text-sm text-gray-500">No hay plantillas</div>
+                    ) : (
+                      templates
+                        .filter(t => t.name.toLowerCase().includes(templateSearch.toLowerCase()))
+                        .map(t => (
+                          <div
+                            key={t.id}
+                            className="px-3 py-2 hover:bg-gray-100 cursor-pointer"
+                            onClick={() => applyTemplate(t)}
+                          >
+                            <div className="font-medium text-sm">{t.name}</div>
+                            <div className="text-xs text-gray-500">{t.lines.length} líneas · {t.voucher_type}</div>
+                          </div>
+                        ))
+                    )}
+                  </div>
+                )}
+              </div>
               <Button variant="outline" size="sm" onClick={duplicateVoucher}>
                 <Copy className="h-4 w-4 mr-2" />
                 Duplicar
