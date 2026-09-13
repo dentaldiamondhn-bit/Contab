@@ -11,7 +11,7 @@
 | **Balance General** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Estado de Resultados** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Flujo de Efectivo** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
-| **Balanza de Comprobación** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
+| **Balanza de Comprobación** | Completo | 1 página | 2 rutas | 1 vista + 1 API | Supabase |
 | **Ratios Financieros** | Básico | En componentes | 0 rutas | — | Cálculos en código |
 | **Comparativos de Período** | Parcial | En FinancialStatements | 0 rutas | — | Mock data |
 
@@ -19,7 +19,7 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~60% | Los 3 estados financieros tienen componentes con datos reales; el combinado usa mock |
+| Completitud Funcional | ~65% | Balance de Comprobación 6 columnas funcional; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales |
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Estabilidad y Validaciones | ~50% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
 | Exportación | ~40% | Solo CSV; sin exportación Excel ni PDF real |

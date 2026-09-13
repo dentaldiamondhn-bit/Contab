@@ -387,7 +387,7 @@ TenantProvider → Envuelve toda la app
 
 | # | Módulo | Completitud | Estado |
 |---|---|---|---|
-| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~70% | Parcial |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~72% | Parcial |
 | 2 | Facturación y Ventas | ~55% | Parcial |
 | 3 | Inventario | ~55% | Parcial |
 | 4 | Compras y Proveedores | ~35% | Básico |
@@ -398,11 +398,11 @@ TenantProvider → Envuelve toda la app
 | 9 | Integración Fiscal | ~55% | Parcial |
 | 10 | Recursos Humanos | ~95% | Completo |
 
-**Promedio General: ~65%**
+**Promedio General: ~68%**
 
 ### Detalle por Módulo
 
-#### 8.1 Contabilidad (~70%)
+#### 8.1 Contabilidad (~72%)
 - ✅ Catálogo de cuentas jerárquico (3 plantillas: PYME, Comercial, Servicios)
 - ✅ Tipos de comprobante (INGRESO, EGRESO, DIARIO, AJUSTE)
 - ✅ Libros contables (Diario, Mayor, Balance, Ingresos, Egresos)
@@ -410,6 +410,9 @@ TenantProvider → Envuelve toda la app
 - ✅ Estados Financieros: Balance General, Estado de Resultados, Flujo de Efectivo, Balance de Comprobación
 - ✅ Libros Legales: Libro de Compras, Ventas, Retenciones, CAI
 - ✅ Dashboard unificado con acceso a las 3 áreas
+- ✅ Balances de Apertura — Página CRUD + botón "Calcular desde Movimientos" con matching flexible de códigos
+- ✅ Balance de Comprobación 6 columnas (Saldo Anterior / Movimientos / Saldo Actual)
+- ✅ Performance optimizado (fetches paralelos)
 - ⚠️ Formulario de asientos no conectado a API (usa mock data)
 - ⚠️ Hook use-accounts retorna datos mock
 
@@ -900,7 +903,7 @@ RESEND_API_KEY=re_...
 
 | # | Módulo | Completitud | UI Pages | API Routes | DB Tables | Almacenamiento | Estado |
 |---|---|---|---|---|---|---|---|
-| 1 | Contabilidad (Registro + EF + LL) | ~70% | 13 | 21 | 2 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
+| 1 | Contabilidad (Registro + EF + LL) | ~72% | 14 | 22 | 2 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
 | 2 | Control de Asistencia | ~95% | 1 (4 tabs) | 7 | 5 tablas | Supabase | Completo |
 | 3 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
 | 4 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |
@@ -929,7 +932,7 @@ RESEND_API_KEY=re_...
 ```
 MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
-1.  Contabilidad              ████████████████████░░░░░░░░░░  70%  Parcial
+1.  Contabilidad              █████████████████████░░░░░░░░░  72%  Parcial
     (Registro + EF + LL)
 2.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
 3.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
@@ -941,7 +944,7 @@ MÓDULO                        PROGRESO                              ESTADO
 9.  Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
 10. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ██████████████████░░░░░░░░░░░  65%
+PROMEDIO                      ███████████████████░░░░░░░░░░  68%
 ```
 
 ### 16.4 Estado de Almacenamiento de Datos

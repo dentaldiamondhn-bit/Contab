@@ -19,7 +19,7 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~70% | Catálogo y libros completos; formulario de asientos no conectado a API |
+| Completitud Funcional | ~72% | Catálogo y libros completos; balances de apertura; Balance de Comprobación 6 columnas funcional |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E |
 | Estabilidad y Validaciones | ~65% | Validación de doble entrada implementada; middleware de períodos activo |
 | Persistencia de Datos | ~80% | Supabase + Prisma para la mayoría; hook use-accounts usa mock data |

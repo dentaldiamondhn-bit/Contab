@@ -63,9 +63,9 @@ export default function BalanceComprobacionPage() {
   // Cargar datos iniciales
   useEffect(() => {
     const today = new Date();
-    const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+    const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
     const endDateStr = today.toISOString().split('T')[0];
-    const startDateStr = firstDayOfMonth.toISOString().split('T')[0];
+    const startDateStr = firstDayOfYear.toISOString().split('T')[0];
     
     setEndDate(endDateStr);
     setStartDate(startDateStr);
@@ -81,32 +81,25 @@ export default function BalanceComprobacionPage() {
   const loadBalanceData = async () => {
     setLoading(true);
     try {
-      // Cargar trial balance y saldos de apertura en paralelo
-      const [trialRes, openingRes] = await Promise.all([
-        fetch(`/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`),
-        fetch(`/api/accounting/opening-balances?tenantId=${companyId}`, {
-          headers: { 'x-tenant-id': companyId }
-        })
-      ]);
+      console.log('[Balance] Fetching trial balance for', companyId, startDate, endDate);
+      const trialRes = await fetch(`/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`);
 
-      // Procesar saldos de apertura
       const openingMap: Record<string, number> = {};
-      if (openingRes.ok) {
-        const openingData = await openingRes.json();
-        for (const acc of openingData.accounts || []) {
-          openingMap[acc.code] = acc.opening_balance || 0;
-        }
-      }
       setOpeningBalances(openingMap);
 
-      // Procesar trial balance
       if (trialRes.ok) {
         const data = await trialRes.json();
+        console.log('[Balance] Trial balance rows:', data.length, 'sample:', data[0]);
         const transformed = transformToBalanceComprobacion(data || [], openingMap);
+        console.log('[Balance] Transformed rows:', transformed.length, 'sample:', transformed[0]);
         setBalanceData(transformed);
+      } else {
+        console.error('[Balance] Trial balance error:', trialRes.status, await trialRes.text());
+        setBalanceData([]);
       }
     } catch (error) {
-      console.error('Error loading balance data:', error);
+      console.error('[Balance] Error loading data:', error);
+      setBalanceData([]);
     } finally {
       setLoading(false);
     }
@@ -119,9 +112,9 @@ export default function BalanceComprobacionPage() {
       const code = account.code || item.code || '';
       const name = account.name || item.name || 'Sin nombre';
       
-      // Movimientos del período
-      const movDebe = parseFloat(item.debit || item.debit_amount || item.debe || 0);
-      const movHaber = parseFloat(item.credit || item.credit_amount || item.haber || 0);
+      // Movimientos del período (centavos → lempiras)
+      const movDebe = (parseFloat(item.debit) || 0) / 100;
+      const movHaber = (parseFloat(item.credit) || 0) / 100;
       
       // Saldo de apertura (en centavos, convertir a lempiras)
       const openingBalanceCents = openingMap[code] || 0;

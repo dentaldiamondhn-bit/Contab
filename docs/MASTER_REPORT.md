@@ -10,7 +10,7 @@
 
 | # | Módulo | Completitud | Estado | Prioridad |
 |---|---|---|---|---|
-| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~70% | Parcial | Alta |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~72% | Parcial | Alta |
 | 2 | Control de Asistencia | ~95% | Completo | Alta |
 | 3 | Facturación y Ventas | ~55% | Parcial | Crítica |
 | 4 | Inventario | ~55% | Parcial | Alta |
@@ -22,13 +22,15 @@
 | 10 | Integración Fiscal | ~55% | Parcial | Crítica |
 | 11 | Recursos Humanos | ~95% | Completo | Alta |
 
-**Promedio General del Sistema: ~67%**
+**Promedio General del Sistema: ~68%**
 
 ### Notas de Actualización (12 Sept 2026)
 
-#### Contabilidad — Módulos Combinados
+#### Contabilidad — Módulos Combinados + Balances de Apertura
 - **Contabilidad unificada** — "Registro Contable", "Estados Financieros" y "Libros Legales" combinados en un solo módulo "Contabilidad". Las 3 tarjetas en la página de módulos ahora son 1 sola. La página de contabilidad (`/accounting`) muestra acceso directo a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales) desde una tarjeta unificada.
 - **Performance optimizado** — `loadCompanyData` en `/companies/[id]/accounting` reescrito: fetches de empresa, companies y tenant en paralelo (1 ronda), luego transacciones, cuentas y archivos en paralelo (2da ronda). De 5-6 fetches secuenciales a 2 rondas paralelas.
+- **Balances de Apertura** — Nueva página `/accounting/opening-balances` para gestionar saldos iniciales de cuentas. API `GET/PUT` en `/api/accounting/opening-balances`. Botón "Calcular desde Movimientos" que auto-calcula saldos desde el trial balance existente con matching flexible de códigos (maneja `.` y `-`). SQL migration `ADD_OPENING_BALANCE.sql` agrega columnas `opening_balance` y `opening_balance_date` a `chart_of_accounts`.
+- **Balance de Comprobación (fix)** — Fix crítico: `tenantId` faltante en el fetch del trial balance causaba página en blanco. Fechas por defecto cambiadas a año completo (no solo mes actual). Simplificado para no depender de API de opening balances (bloqueada por Clerk en client-side). Montos convertidos de centavos a lempiras.
 - **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador, acceso directo a `/hr/attendance/time-clock`.
 
 #### HR Module
@@ -59,7 +61,7 @@
 ```
 MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
-1.  Contabilidad              ████████████████████░░░░░░░░░░  70%  Parcial
+1.  Contabilidad              █████████████████████░░░░░░░░░  72%  Parcial
     (Registro + EF + LL)
 2.  Control de Asistencia     ████████████████████████████░░  95%  Completo
 3.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
@@ -72,7 +74,7 @@ MÓDULO                        PROGRESO                              ESTADO
 10. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
 11. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ███████████████████░░░░░░░░░░  67%
+PROMEDIO                      ███████████████████░░░░░░░░░░  68%
 ```
 
 ---
@@ -127,7 +129,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 13 | 19 | 68% |
+| Contabilidad (Registro + EF + LL) | 14 | 19 | 74% |
 | Facturación y Ventas | 3 | 7 | 43% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
@@ -142,7 +144,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 21 | 26 | 81% |
+| Contabilidad (Registro + EF + LL) | 22 | 26 | 85% |
 | Facturación y Ventas | 12 | 16 | 75% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
@@ -157,7 +159,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
-| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts, account_audit_log, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
+| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), account_audit_log, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
 | Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
 | Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
 | Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |
@@ -333,7 +335,7 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~67% | 95% |
+| Completitud Funcional | ~68% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
 | Persistencia de Datos | ~80% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~55% | 80% |

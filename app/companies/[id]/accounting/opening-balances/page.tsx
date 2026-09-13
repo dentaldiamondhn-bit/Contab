@@ -83,6 +83,7 @@ export default function OpeningBalancesPage() {
   const [editingDates, setEditingDates] = useState<Record<string, string>>({});
   const [hasChanges, setHasChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [calculating, setCalculating] = useState(false);
 
   useEffect(() => {
     loadAccounts();
@@ -121,10 +122,6 @@ export default function OpeningBalancesPage() {
       if (filterHasBalance && (editingBalances[acc.id] ?? acc.opening_balance) === 0) {
         return false;
       }
-      // Only show selectable accounts (leaf accounts)
-      if (!acc.is_selectable) {
-        return false;
-      }
       return true;
     });
   }, [accounts, search, filterType, filterHasBalance, editingBalances]);
@@ -161,6 +158,67 @@ export default function OpeningBalancesPage() {
   const handleDateChange = (accountId: string, value: string) => {
     setEditingDates(prev => ({ ...prev, [accountId]: value }));
     setHasChanges(true);
+  };
+
+  const calculateFromTrialBalance = async () => {
+    setCalculating(true);
+    setSaveMessage(null);
+    try {
+      const today = new Date();
+      const startOfYear = new Date(today.getFullYear(), 0, 1).toISOString().split('T')[0];
+      const endOfYesterday = new Date(today.getTime() - 86400000).toISOString().split('T')[0];
+      
+      const res = await fetch(
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startOfYear}T00:00:00Z&endDate=${endOfYesterday}T23:59:59Z`
+      );
+      
+      if (!res.ok) {
+        setSaveMessage({ type: 'error', text: 'Error al obtener datos del balance' });
+        return;
+      }
+      
+      const data = await res.json();
+      const newBalances: Record<string, number> = {};
+      const newDates: Record<string, string> = {};
+      let matched = 0;
+      const yesterday = new Date(today.getTime() - 86400000).toISOString().split('T')[0];
+      
+      for (const item of data) {
+        const account = item.account || {};
+        const code = account.code || item.code || '';
+        const balance = item.balance || 0;
+        
+        if (balance === 0) continue;
+        
+        const matchedAccount = accounts.find(a => 
+          a.code === code || 
+          a.code === code.replace('.', '-') ||
+          a.code.replace('-', '.') === code ||
+          a.code.startsWith(code + '.') ||
+          a.code.startsWith(code + '-') ||
+          code.startsWith(a.code + '.') ||
+          code.startsWith(a.code + '-')
+        );
+        if (matchedAccount) {
+          newBalances[matchedAccount.id] = balance;
+          newDates[matchedAccount.id] = yesterday;
+          matched++;
+        }
+      }
+      
+      if (matched === 0) {
+        setSaveMessage({ type: 'error', text: 'No se encontraron cuentas con movimientos. Verificá que las cuentas del catálogo coincidan con las del libro diario.' });
+      } else {
+        setEditingBalances(prev => ({ ...prev, ...newBalances }));
+        setEditingDates(prev => ({ ...prev, ...newDates }));
+        setHasChanges(true);
+        setSaveMessage({ type: 'success', text: `${matched} cuenta(s) calculada(s) desde movimientos. Revisá los montos y hacé clic en Guardar.` });
+      }
+    } catch (error) {
+      console.error('Error calculating from trial balance:', error);
+      setSaveMessage({ type: 'error', text: 'Error de conexión al calcular' });
+    }
+    setCalculating(false);
   };
 
   const handleSave = async () => {
@@ -240,6 +298,18 @@ export default function OpeningBalancesPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            onClick={calculateFromTrialBalance}
+            disabled={calculating}
+          >
+            {calculating ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current mr-2"></div>
+            ) : (
+              <Calculator className="h-4 w-4 mr-2" />
+            )}
+            Calcular desde Movimientos
+          </Button>
           <Button
             variant="outline"
             onClick={loadAccounts}
