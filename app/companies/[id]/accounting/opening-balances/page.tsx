@@ -225,11 +225,15 @@ export default function OpeningBalancesPage() {
     setSaving(true);
     setSaveMessage(null);
 
-    const balances = Object.entries(editingBalances).map(([account_id, opening_balance]) => ({
-      account_id,
-      opening_balance,
-      opening_balance_date: editingDates[account_id] || new Date().toISOString().split('T')[0],
-    }));
+    const balances = Object.entries(editingBalances).map(([account_id, opening_balance]) => {
+      const acc = accounts.find(a => a.id === account_id);
+      return {
+        account_id,
+        account_code: acc?.code || '',
+        opening_balance,
+        opening_balance_date: editingDates[account_id] || new Date().toISOString().split('T')[0],
+      };
+    });
 
     // Also save accounts with 0 balance that were explicitly edited
     for (const acc of accounts) {

@@ -126,7 +126,7 @@ export async function PUT(request: NextRequest) {
           id: crypto.randomUUID(),
           tenant_id: tenantId,
           account_id: item.account_id,
-          account_code: currentAccount?.code || '',
+          account_code: currentAccount?.code || item.account_code || '',
           action: 'OPENING_BALANCE_UPDATE',
           old_values: { opening_balance: oldValue, opening_balance_date: currentAccount?.opening_balance_date },
           new_values: { opening_balance: newValue, opening_balance_date: item.opening_balance_date },
@@ -139,13 +139,7 @@ export async function PUT(request: NextRequest) {
     // Si no se actualizó nada en chart_of_accounts, intentar Account table
     if (updated === 0) {
       for (const item of balances) {
-        const { data: currentAcct } = await supabaseService
-          .from("Account")
-          .select("id, code, name, description")
-          .eq("id", item.account_id)
-          .single();
-
-        const oldValue = currentAcct?.description || '';
+        const oldValue = 0;
 
         const { error } = await supabaseService
           .from("Account")
@@ -160,10 +154,10 @@ export async function PUT(request: NextRequest) {
             id: crypto.randomUUID(),
             tenant_id: tenantId,
             account_id: item.account_id,
-            account_code: currentAcct?.code || '',
+            account_code: item.account_code || '',
             action: 'OPENING_BALANCE_UPDATE',
-            old_values: { description: oldValue },
-            new_values: { description: `opening_balance:${item.opening_balance}|date:${item.opening_balance_date || ''}` },
+            old_values: { opening_balance: oldValue, opening_balance_date: null },
+            new_values: { opening_balance: item.opening_balance || 0, opening_balance_date: item.opening_balance_date || null },
             performed_by: request.headers.get("x-user-id") || request.headers.get("x-user-email") || 'system',
             performed_at: new Date().toISOString()
           });
