@@ -274,15 +274,37 @@ export default function AccountingAuditPage() {
                                   <div className="grid grid-cols-2 gap-6">
                                     <div className="bg-white rounded-lg border p-4">
                                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Anteriores</span>
-                                      <pre className="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                                        {JSON.stringify(log.old_values, null, 2)}
-                                      </pre>
+                                      <div className="mt-3 space-y-2">
+                                        {log.old_values?.opening_balance != null && (
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Saldo de Apertura</span>
+                                            <span className="text-sm font-medium">{formatCurrency(log.old_values.opening_balance)}</span>
+                                          </div>
+                                        )}
+                                        {log.old_values?.opening_balance_date && (
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Fecha</span>
+                                            <span className="text-sm font-medium">{log.old_values.opening_balance_date}</span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                     <div className="bg-white rounded-lg border p-4">
                                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Nuevos</span>
-                                      <pre className="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono">
-                                        {JSON.stringify(log.new_values, null, 2)}
-                                      </pre>
+                                      <div className="mt-3 space-y-2">
+                                        {log.new_values?.opening_balance != null && (
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Saldo de Apertura</span>
+                                            <span className="text-sm font-medium">{formatCurrency(log.new_values.opening_balance)}</span>
+                                          </div>
+                                        )}
+                                        {log.new_values?.opening_balance_date && (
+                                          <div className="flex justify-between items-center">
+                                            <span className="text-sm text-gray-600">Fecha</span>
+                                            <span className="text-sm font-medium">{log.new_values.opening_balance_date}</span>
+                                          </div>
+                                        )}
+                                      </div>
                                     </div>
                                   </div>
                                 </div>
