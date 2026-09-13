@@ -13,6 +13,7 @@ import {
   CheckCircle,
   ChevronDown,
   RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 
 interface ValidationIssue {
@@ -43,6 +44,30 @@ const TYPE_LABELS: Record<string, string> = {
   INVALID_TYPE: 'Tipo No Válido',
   SELF_REFERENCE: 'Autorreferencia',
   CODE_AS_NAME: 'Nombre = Código',
+};
+
+const FIX_URLS: Record<string, string> = {
+  DUPLICATE_CODE: '/accounting/accounts',
+  ORPHAN_PARENT: '/accounting/accounts',
+  MISSING_CODE: '/accounting/accounts',
+  MISSING_NAME: '/accounting/accounts',
+  INCONSISTENT_SEPARATORS: '/accounting/accounts',
+  INACTIVE_ACCOUNTS: '/accounting/accounts',
+  INVALID_TYPE: '/accounting/accounts',
+  SELF_REFERENCE: '/accounting/accounts',
+  CODE_AS_NAME: '/accounting/accounts',
+};
+
+const FIX_LABELS: Record<string, string> = {
+  DUPLICATE_CODE: 'Revisar códigos duplicados en el catálogo',
+  ORPHAN_PARENT: 'Reasignar padres de cuentas huérfanas',
+  MISSING_CODE: 'Asignar código a cuentas sin código',
+  MISSING_NAME: 'Editar nombre de cuentas sin nombre descriptivo',
+  INCONSISTENT_SEPARATORS: 'Estandarizar separadores de código (. o -)',
+  INACTIVE_ACCOUNTS: 'Reactivar cuentas desactivadas',
+  INVALID_TYPE: 'Corregir tipo de cuenta',
+  SELF_REFERENCE: 'Corregir padre autorreferenciado',
+  CODE_AS_NAME: 'Renombrar cuentas que usan código como nombre',
 };
 
 export default function ValidateCatalogPage() {
@@ -212,6 +237,20 @@ export default function ValidateCatalogPage() {
 
                         {isExpanded && (
                           <div className="border-t px-4 py-3 bg-gray-50">
+                            <div className="flex items-center justify-between mb-3">
+                              <p className="text-sm text-gray-600">{FIX_LABELS[issue.type]}</p>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  router.push(`/companies/${companyId}${FIX_URLS[issue.type]}`);
+                                }}
+                              >
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                Solucionar
+                              </Button>
+                            </div>
                             <table className="w-full text-sm">
                               <thead>
                                 <tr className="text-left text-gray-500">
