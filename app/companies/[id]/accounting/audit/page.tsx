@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -19,11 +19,11 @@ import {
   History,
   Search,
   Filter,
-  ChevronLeft,
-  ChevronRight,
+  ChevronDown,
   Clock,
   User,
-  FileText
+  FileText,
+  Shield,
 } from 'lucide-react';
 
 interface AuditLog {
@@ -57,17 +57,17 @@ function formatDate(iso: string): string {
 }
 
 const ACTION_LABELS: Record<string, string> = {
-  OPENING_BALANCE_UPDATE: 'Actualización Saldo Apertura',
+  OPENING_BALANCE_UPDATE: 'Saldo de Apertura',
   INSERT: 'Creación',
   UPDATE: 'Actualización',
   DELETE: 'Eliminación',
 };
 
 const ACTION_COLORS: Record<string, string> = {
-  OPENING_BALANCE_UPDATE: 'bg-cyan-100 text-cyan-700',
-  INSERT: 'bg-green-100 text-green-700',
-  UPDATE: 'bg-blue-100 text-blue-700',
-  DELETE: 'bg-red-100 text-red-700',
+  OPENING_BALANCE_UPDATE: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  INSERT: 'bg-green-100 text-green-700 border-green-200',
+  UPDATE: 'bg-blue-100 text-blue-700 border-blue-200',
+  DELETE: 'bg-red-100 text-red-700 border-red-200',
 };
 
 export default function AccountingAuditPage() {
@@ -82,7 +82,7 @@ export default function AccountingAuditPage() {
   const [total, setTotal] = useState(0);
   const [searchCode, setSearchCode] = useState('');
   const [filterAction, setFilterAction] = useState('');
-  const [expandedLog, setExpandedLog] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadLogs();
@@ -120,6 +120,18 @@ export default function AccountingAuditPage() {
     loadLogs();
   };
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b shadow-sm">
@@ -135,10 +147,12 @@ export default function AccountingAuditPage() {
                 Volver
               </Button>
               <div className="flex items-center space-x-3">
-                <History className="h-6 w-6 text-purple-600" />
+                <div className="p-2 bg-purple-100 rounded-lg">
+                  <Shield className="h-6 w-6 text-purple-600" />
+                </div>
                 <div>
-                  <h1 className="text-2xl font-bold text-gray-900">Historial de Cambios</h1>
-                  <p className="text-gray-600">Registro de auditoría de movimientos contables</p>
+                  <h1 className="text-2xl font-bold text-gray-900">Historial de Auditoría</h1>
+                  <p className="text-sm text-gray-500">Registro inmutable de cambios contables</p>
                 </div>
               </div>
             </div>
@@ -198,23 +212,34 @@ export default function AccountingAuditPage() {
                 <Table>
                   <TableHeader>
                     <TableRow className="bg-gray-50">
+                      <TableHead className="w-[60px]"></TableHead>
                       <TableHead className="w-[160px]">Fecha</TableHead>
                       <TableHead className="w-[100px]">Código</TableHead>
                       <TableHead className="w-[140px]">Acción</TableHead>
                       <TableHead>Saldo Anterior</TableHead>
                       <TableHead>Saldo Nuevo</TableHead>
                       <TableHead className="w-[120px]">Usuario</TableHead>
-                      <TableHead className="w-[60px]"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => {
                       const oldBal = log.old_values?.opening_balance ?? null;
                       const newBal = log.new_values?.opening_balance ?? null;
-                      const isExpanded = expandedLog === log.id;
-                        return (
-                          <Fragment key={log.id}>
-                            <TableRow className="hover:bg-gray-50">
+                      const isExpanded = expandedIds.has(log.id);
+
+                      return (
+                        <Fragment key={log.id}>
+                          <TableRow
+                            className="hover:bg-gray-50 cursor-pointer select-none"
+                            onClick={() => toggleExpand(log.id)}
+                          >
+                            <TableCell className="w-[60px]">
+                              <ChevronDown
+                                className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
+                                  isExpanded ? 'rotate-180' : ''
+                                }`}
+                              />
+                            </TableCell>
                             <TableCell className="text-sm text-gray-600">
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3 text-gray-400" />
@@ -222,7 +247,7 @@ export default function AccountingAuditPage() {
                               </div>
                             </TableCell>
                             <TableCell className="font-mono text-sm font-medium">
-                              {log.account_code}
+                              {log.account_code || '-'}
                             </TableCell>
                             <TableCell>
                               <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
@@ -241,37 +266,30 @@ export default function AccountingAuditPage() {
                                 {log.performed_by || 'Sistema'}
                               </div>
                             </TableCell>
-                            <TableCell>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => setExpandedLog(isExpanded ? null : log.id)}
-                              >
-                                {isExpanded ? <ChevronLeft className="h-4 w-4 rotate-[-90deg]" /> : <ChevronRight className="h-4 w-4 rotate-[-90deg]" />}
-                              </Button>
-                            </TableCell>
                           </TableRow>
                           {isExpanded && (
-                            <TableRow key={`${log.id}-detail`}>
-                              <TableCell colSpan={7} className="bg-gray-50 text-xs">
-                                <div className="grid grid-cols-2 gap-4 p-2">
-                                  <div>
-                                    <span className="font-medium text-gray-700">Valores Anteriores:</span>
-                                    <pre className="mt-1 text-gray-600 whitespace-pre-wrap">
-                                      {JSON.stringify(log.old_values, null, 2)}
-                                    </pre>
-                                  </div>
-                                  <div>
-                                    <span className="font-medium text-gray-700">Valores Nuevos:</span>
-                                    <pre className="mt-1 text-gray-600 whitespace-pre-wrap">
-                                      {JSON.stringify(log.new_values, null, 2)}
-                                    </pre>
+                            <TableRow>
+                              <TableCell colSpan={7} className="bg-gray-50 p-0">
+                                <div className="px-12 py-4">
+                                  <div className="grid grid-cols-2 gap-6">
+                                    <div className="bg-white rounded-lg border p-4">
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Anteriores</span>
+                                      <pre className="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                                        {JSON.stringify(log.old_values, null, 2)}
+                                      </pre>
+                                    </div>
+                                    <div className="bg-white rounded-lg border p-4">
+                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Nuevos</span>
+                                      <pre className="mt-2 text-sm text-gray-700 whitespace-pre-wrap font-mono">
+                                        {JSON.stringify(log.new_values, null, 2)}
+                                      </pre>
+                                    </div>
                                   </div>
                                 </div>
                               </TableCell>
                             </TableRow>
                           )}
-                          </Fragment>
+                        </Fragment>
                       );
                     })}
                   </TableBody>
@@ -293,7 +311,7 @@ export default function AccountingAuditPage() {
                 onClick={() => setPage(p => Math.max(1, p - 1))}
                 disabled={page === 1}
               >
-                <ChevronLeft className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4 rotate-90" />
               </Button>
               <Button
                 variant="outline"
@@ -301,7 +319,7 @@ export default function AccountingAuditPage() {
                 onClick={() => setPage(p => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
               >
-                <ChevronRight className="h-4 w-4" />
+                <ChevronDown className="h-4 w-4 rotate-[-90deg]" />
               </Button>
             </div>
           </div>
