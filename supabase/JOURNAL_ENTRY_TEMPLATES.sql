@@ -1,5 +1,6 @@
 -- Migración: Crear tabla de plantillas de asientos contables
 -- Permite guardar y reutilizar estructuras de pólizas frecuentes
+-- SAFE TO RUN MULTIPLE TIMES (uses IF NOT EXISTS)
 
 CREATE TABLE IF NOT EXISTS journal_entry_templates (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -32,18 +33,26 @@ CREATE INDEX IF NOT EXISTS idx_je_template_lines_template ON journal_entry_templ
 ALTER TABLE journal_entry_templates ENABLE ROW LEVEL SECURITY;
 ALTER TABLE journal_entry_template_lines ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist, then recreate
+DO $$ BEGIN
+  DROP POLICY IF EXISTS "tenant_isolation_templates" ON journal_entry_templates;
+  DROP POLICY IF EXISTS "service_role_all_templates" ON journal_entry_templates;
+  DROP POLICY IF EXISTS "tenant_isolation_template_lines" ON journal_entry_template_lines;
+  DROP POLICY IF EXISTS "service_role_all_template_lines" ON journal_entry_template_lines;
+EXCEPTION WHEN OTHERS THEN NULL;
+END $$;
+
 CREATE POLICY "tenant_isolation_templates" ON journal_entry_templates
   USING (tenant_id = current_setting('request.jwt.claims', true)::json->>'tenant_id');
+
+CREATE POLICY "service_role_all_templates" ON journal_entry_templates
+  FOR ALL USING (current_setting('role') = 'service_role');
 
 CREATE POLICY "tenant_isolation_template_lines" ON journal_entry_template_lines
   USING (template_id IN (
     SELECT id FROM journal_entry_templates
     WHERE tenant_id = current_setting('request.jwt.claims', true)::json->>'tenant_id'
   ));
-
--- service_role access
-CREATE POLICY "service_role_all_templates" ON journal_entry_templates
-  FOR ALL USING (current_setting('role') = 'service_role');
 
 CREATE POLICY "service_role_all_template_lines" ON journal_entry_template_lines
   FOR ALL USING (current_setting('role') = 'service_role');
