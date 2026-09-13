@@ -42,7 +42,9 @@ import {
   CheckCircle,
   DollarSign,
   History,
-  ShieldCheck
+  ShieldCheck,
+  RefreshCw,
+  RotateCcw
 } from "lucide-react";
 
 interface Transaction {
@@ -712,6 +714,14 @@ export default function CompanyAccountingPage() {
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/journal-templates`)}>
               <FileText className="h-4 w-4 mr-2" />
               Plantillas
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/recurring-entries`)}>
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Recurrentes
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/reversals`)}>
+              <RotateCcw className="h-4 w-4 mr-2" />
+              Reversiones
             </Button>
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/voucher-form`)}>
               <Plus className="h-4 w-4 mr-2" />
