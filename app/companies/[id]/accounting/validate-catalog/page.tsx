@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import * as XLSX from 'xlsx';
 import {
   ArrowLeft,
   ShieldCheck,
@@ -14,6 +15,8 @@ import {
   ChevronDown,
   RefreshCw,
   ExternalLink,
+  FileDown,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface ValidationIssue {
@@ -99,6 +102,78 @@ export default function ValidateCatalogPage() {
     setLoading(false);
   };
 
+  const exportExcel = () => {
+    if (!result) return;
+    const rows: any[] = [];
+    for (const issue of result.issues) {
+      for (const acc of issue.accounts) {
+        rows.push({
+          'Severidad': issue.severity === 'error' ? 'Error' : 'Advertencia',
+          'Tipo': TYPE_LABELS[issue.type] || issue.type,
+          'Descripción': issue.message,
+          'Código': acc.code,
+          'Nombre': acc.name,
+        });
+      }
+    }
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Validación');
+    XLSX.writeFile(wb, `Validacion_Catalogo_${companyId}_${new Date().toISOString().slice(0,10)}.xlsx`);
+  };
+
+  const exportPDF = async () => {
+    if (!result) return;
+    const { default: jsPDF } = await import('jspdf');
+    const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageWidth = pdf.internal.pageSize.getWidth();
+
+    // Header
+    pdf.setFontSize(16);
+    pdf.setFont('helvetica', 'bold');
+    pdf.text('Validación del Catálogo de Cuentas', 14, 15);
+    pdf.setFontSize(10);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(`Empresa: ${companyId}`, 14, 22);
+    pdf.text(`Fecha: ${new Date().toLocaleDateString('es-HN')}`, 14, 28);
+    pdf.text(`Total cuentas: ${result.summary.total} | Errores: ${result.summary.errors} | Advertencias: ${result.summary.warnings}`, 14, 34);
+
+    let y = 42;
+
+    for (const issue of result.issues) {
+      if (y > 180) { pdf.addPage(); y = 15; }
+
+      // Issue header
+      pdf.setFontSize(11);
+      pdf.setFont('helvetica', 'bold');
+      const prefix = issue.severity === 'error' ? '[ERROR] ' : '[WARNING] ';
+      pdf.text(`${prefix}${TYPE_LABELS[issue.type] || issue.type} (${issue.accounts.length})`, 14, y);
+      y += 6;
+
+      pdf.setFontSize(9);
+      pdf.setFont('helvetica', 'normal');
+      pdf.text(issue.message, 18, y);
+      y += 6;
+
+      // Table header
+      pdf.setFont('helvetica', 'bold');
+      pdf.text('Código', 18, y);
+      pdf.text('Nombre', 55, y);
+      y += 5;
+
+      pdf.setFont('helvetica', 'normal');
+      for (const acc of issue.accounts) {
+        if (y > 190) { pdf.addPage(); y = 15; }
+        pdf.text(acc.code || '-', 18, y);
+        pdf.text(acc.name || '-', 55, y);
+        y += 5;
+      }
+      y += 4;
+    }
+
+    pdf.save(`Validacion_Catalogo_${companyId}_${new Date().toISOString().slice(0,10)}.pdf`);
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b shadow-sm">
@@ -123,10 +198,24 @@ export default function ValidateCatalogPage() {
                 </div>
               </div>
             </div>
-            <Button variant="outline" size="sm" onClick={validate} disabled={loading}>
-              <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
-              Re-validar
-            </Button>
+            <div className="flex items-center gap-2">
+              {result && result.issues.length > 0 && (
+                <>
+                  <Button variant="outline" size="sm" onClick={exportExcel}>
+                    <FileSpreadsheet className="h-4 w-4 mr-2" />
+                    Excel
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={exportPDF}>
+                    <FileDown className="h-4 w-4 mr-2" />
+                    PDF
+                  </Button>
+                </>
+              )}
+              <Button variant="outline" size="sm" onClick={validate} disabled={loading}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />
+                Re-validar
+              </Button>
+            </div>
           </div>
         </div>
       </div>
