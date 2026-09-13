@@ -8,6 +8,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import * as XLSX from 'xlsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   ArrowLeft,
   RotateCcw,
@@ -16,6 +25,9 @@ import {
   XCircle,
   Clock,
   Search,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface Reversal {
@@ -57,6 +69,11 @@ export default function ReversalsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
+
   useEffect(() => {
     loadReversals();
     loadTransactions();
@@ -82,34 +99,156 @@ export default function ReversalsPage() {
     } catch (e) { console.error(e); }
   };
 
-  const handleRevert = async () => {
-    if (!selectedTx || !reason || !reversedBy) return;
+  const handleRevert = async (txId?: string, revReason?: string, revBy?: string, revNotes?: string) => {
+    const targetTx = txId ? transactions.find(t => t.id === txId) || selectedTx : selectedTx;
+    const targetReason = revReason || reason;
+    const targetBy = revBy || reversedBy;
+    const targetNotes = revNotes || notes;
+
+    if (!targetTx || !targetReason || !targetBy) return;
     setSubmitting(true);
     try {
       const res = await fetch('/api/accounting/reversals', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
         body: JSON.stringify({
-          transactionId: selectedTx.id,
-          reason,
-          reversedBy,
-          notes,
+          transactionId: targetTx.id,
+          reason: targetReason,
+          reversedBy: targetBy,
+          notes: targetNotes,
         }),
       });
       if (res.ok) {
-        setShowRevertDialog(false);
-        setSelectedTx(null);
-        setReason('');
-        setReversedBy('');
-        setNotes('');
+        if (!txId) {
+          setShowRevertDialog(false);
+          setSelectedTx(null);
+          setReason('');
+          setReversedBy('');
+          setNotes('');
+        }
         loadReversals();
         loadTransactions();
       } else {
         const err = await res.json();
-        alert(err.error || 'Error al revertir');
+        if (!txId) alert(err.error || 'Error al revertir');
+        return { error: err.error };
       }
-    } catch (e) { console.error(e); alert('Error al revertir'); }
+    } catch (e) { console.error(e); if (!txId) alert('Error al revertir'); return { error: 'Error' }; }
     setSubmitting(false);
+    return { success: true };
+  };
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        setUploadPreview(rows.slice(0, 50));
+      } catch (err) {
+        console.error('Error leyendo Excel:', err);
+        alert('Error al leer el archivo.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const processUpload = async () => {
+    if (!uploadFile) return;
+    setUploading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+          let successCount = 0;
+          let errorCount = 0;
+          const errors: string[] = [];
+
+          for (const row of rows) {
+            const r = row as any;
+            const txId = (r.id_transaccion || r.transaction_id || r.id || '').toString().trim();
+            const txDesc = (r.descripcion || r.description || '').toString().trim();
+            const revReason = (r.motivo || r.reason || 'Reversión masiva desde Excel').toString().trim();
+            const revBy = (r.revertido_por || r.reversed_by || 'Sistema').toString().trim();
+
+            if (!txId && !txDesc) { errorCount++; errors.push(`Fila sin ID ni descripción`); continue; }
+
+            let targetTx: Transaction | undefined;
+            if (txId) {
+              targetTx = transactions.find(t => t.id === txId || String(t.voucherNumber) === txId);
+            }
+            if (!targetTx && txDesc) {
+              targetTx = transactions.find(t =>
+                t.description?.toLowerCase().includes(txDesc.toLowerCase())
+              );
+            }
+
+            if (!targetTx) {
+              errorCount++;
+              errors.push(`Transacción no encontrada: ${txId || txDesc}`);
+              continue;
+            }
+
+            const alreadyReversed = reversals.some(
+              r => r.original_transaction_id === targetTx!.id && r.status === 'completed'
+            );
+            if (alreadyReversed) {
+              errorCount++;
+              errors.push(`Ya revertida: ${targetTx.description}`);
+              continue;
+            }
+
+            const result = await handleRevert(targetTx.id, revReason, revBy, '');
+            if (result?.error) {
+              errorCount++;
+              errors.push(`${targetTx.description}: ${result.error}`);
+            } else {
+              successCount++;
+            }
+          }
+
+          setShowUploadDialog(false);
+          setUploadFile(null);
+          setUploadPreview([]);
+          loadReversals();
+          loadTransactions();
+
+          let msg = `Proceso completado: ${successCount} revertida(s)`;
+          if (errorCount > 0) msg += `, ${errorCount} error(es)`;
+          if (errors.length > 0) msg += `\n\nErrores:\n${errors.slice(0, 10).join('\n')}`;
+          alert(msg);
+        } catch (err) {
+          console.error('Error procesando Excel:', err);
+          alert('Error al procesar el archivo.');
+        }
+        setUploading(false);
+      };
+      reader.readAsBinaryString(uploadFile);
+    } catch (err) {
+      console.error('Error:', err);
+      setUploading(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['id_transaccion', 'descripcion', 'motivo', 'revertido_por'],
+      ['', 'Pago de proveedor duplicado', 'Duplicado detectado en reconciliación', 'Carlos López'],
+      ['', 'Ajuste contable erróneo', 'Error en póliza de diario', 'María García'],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Reversiones');
+    XLSX.writeFile(wb, 'Plantilla_Reversiones.xlsx');
   };
 
   const filteredTransactions = transactions.filter(t =>
@@ -147,10 +286,16 @@ export default function ReversalsPage() {
                 </div>
               </div>
             </div>
-            <Button onClick={() => setShowRevertDialog(true)}>
-              <RotateCcw className="h-4 w-4 mr-2" />
-              Nueva Reversión
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowUploadDialog(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Importar Reversiones
+              </Button>
+              <Button onClick={() => setShowRevertDialog(true)}>
+                <RotateCcw className="h-4 w-4 mr-2" />
+                Nueva Reversión
+              </Button>
+            </div>
           </div>
         </div>
       </div>
@@ -196,7 +341,7 @@ export default function ReversalsPage() {
           </CardContent>
         </Card>
 
-        {/* Dialog de reversión */}
+        {/* Dialog de reversión manual */}
         {showRevertDialog && (
           <Card className="border-orange-200">
             <CardHeader>
@@ -277,7 +422,7 @@ export default function ReversalsPage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={handleRevert}
+                  onClick={() => handleRevert()}
                   disabled={!selectedTx || !reason || !reversedBy || submitting}
                   className="bg-orange-600 hover:bg-orange-700"
                 >
@@ -287,6 +432,96 @@ export default function ReversalsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Dialog de importación Excel */}
+        <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+          <DialogContent className="max-w-4xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                Importar Reversiones desde Excel
+              </DialogTitle>
+              <DialogDescription>
+                Suba un archivo Excel (.xlsx) con las reversiones a procesar.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                <p className="text-sm font-medium text-blue-800 mb-1">Formato esperado del Excel:</p>
+                <p className="text-xs text-blue-700">
+                  <strong>id_transaccion</strong> (UUID o # de póliza) o <strong>descripcion</strong> (texto para buscar),
+                  <strong> motivo</strong>, <strong>revertido_por</strong>
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Las transacciones se buscan por ID exacto, número de póliza, o coincidencia de descripción.
+                </p>
+                <button
+                  onClick={downloadTemplate}
+                  className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 underline"
+                >
+                  <Download className="h-3 w-3" />
+                  Descargar plantilla de ejemplo
+                </button>
+              </div>
+
+              <div>
+                <Label>Archivo Excel</Label>
+                <Input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={handleFileUpload}
+                  className="file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+                />
+              </div>
+
+              {uploadPreview.length > 0 && (
+                <div>
+                  <Label>Vista previa ({uploadPreview.length} filas)</Label>
+                  <div className="mt-1 border rounded-lg overflow-auto max-h-60">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          {Object.keys(uploadPreview[0]).map(key => (
+                            <th key={key} className="px-2 py-1 text-left font-medium text-gray-600">{key}</th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {uploadPreview.map((row, i) => (
+                          <tr key={i} className="border-t">
+                            {Object.values(row).map((val, j) => (
+                              <td key={j} className="px-2 py-1">{String(val)}</td>
+                            ))}
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setShowUploadDialog(false); setUploadFile(null); setUploadPreview([]); }}>
+                Cancelar
+              </Button>
+              <Button onClick={processUpload} disabled={!uploadFile || uploading}>
+                {uploading ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                    Procesando...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Procesar Reversiones
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
