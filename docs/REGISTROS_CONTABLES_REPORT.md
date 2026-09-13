@@ -13,13 +13,14 @@
 | **Tipos de Comprobante** | Completo | En AccountingBooks | 1 ruta | — | Lógica en código |
 | **Libros Contables** | Completo | 1 página | 2 rutas | 5 vistas | Supabase |
 | **Cierre de Período** | Parcial | 1 página | 3 rutas | Config en GlobalSettings | Prisma |
-| **Auditoría** | Completo | En Dashboard | 1 ruta | 2 tablas | Supabase + Prisma |
+| **Balances de Apertura** | Completo | 1 página | 1 ruta (GET/PUT) | 2 columnas en `chart_of_accounts` | Supabase |
+| **Auditoría** | Completo | `/accounting/audit` | 2 rutas | 1 tabla (`account_audit_log`) | Supabase |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~72% | Catálogo y libros completos; balances de apertura; Balance de Comprobación 6 columnas funcional |
+| Completitud Funcional | ~72% | Catálogo y libros completos; balances de apertura; Balance de Comprobación 6 columnas; auditoría inmutable de saldos de apertura |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E |
 | Estabilidad y Validaciones | ~65% | Validación de doble entrada implementada; middleware de períodos activo |
 | Persistencia de Datos | ~80% | Supabase + Prisma para la mayoría; hook use-accounts usa mock data |
@@ -43,15 +44,22 @@
 | `app/api/accounting/accounts/route.ts` | API CRUD para cuentas, sub-rutas `check-transactions` y `delete-all` |
 | `lib/accounting-utils.ts` | Utilidades contables: etiquetas/colores, validación doble entrada, cálculo de saldos, formato moneda centavos HNL, balanza de comprobación |
 
+#### Archivos de Balances de Apertura
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/opening-balances/page.tsx` | UI de balances de apertura: tabla agrupada por tipo, "Calcular desde Movimientos" con matching flexible, input de saldo, date picker, filtros, cards de resumen |
+| `app/api/accounting/opening-balances/route.ts` | API GET (chart_of_accounts → Account fallback → global fallback) y PUT (actualiza saldos + escribe `account_audit_log`) |
+| `supabase/ADD_OPENING_BALANCE.sql` | Migración SQL: agrega columnas `opening_balance` (BIGINT) y `opening_balance_date` (DATE) a `chart_of_accounts` + funciones RPC |
+
 #### Tablas de Base de Datos
 
-- `chart_of_accounts` (Supabase) — id, company_id, code, name, type, nature, level, is_selectable, parent_id, currency, fiscal_code, balance, tenant_id
+- `chart_of_accounts` (Supabase) — id, company_id, code, name, type, nature, level, is_selectable, parent_id, currency, fiscal_code, balance, **opening_balance** (BIGINT), **opening_balance_date** (DATE), tenant_id
 - `Account` (Prisma) — id, tenantId, name, code, type, description, parentId, isActive
 - `account_audit_log` (Supabase) — Registro de auditoría a nivel de cuenta con JSONB old/new values
 
 #### Lo que Falta
 
-- Sin gestión de cuentas de balance de apertura
 - Sin validación de integridad del catálogo (cuentas huérfanas)
 
 ---
@@ -130,17 +138,38 @@
 
 ### 2.5 Auditoría Contable
 
-**Estado: Completo (~80%)**
+**Estado: Completo (~85%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
+| `app/companies/[id]/accounting/audit/page.tsx` | UI de historial de auditoría: logs agrupados por día, expand/collapse por día, columnas de Hora, Cuenta (código + nombre), Acción, Saldo Anterior/Nuevo, Usuario. Valores formateados (no JSON crudo). |
+| `app/api/accounting/audit-logs/route.ts` | API GET con paginación, filtros por acción/código/fecha. Enriquece datos con nombre de cuenta desde tabla Account. Service role bypass RLS. |
+| `app/api/accounting/opening-balances/route.ts` | PUT escribe a `account_audit_log` al actualizar saldos de apertura (old_values/new_values JSONB). |
 | `lib/audit-middleware.ts` | Extensión Prisma para auditoría automática en Transaction y JournalEntry |
 | `lib/audit-context.ts` | Configuración de contexto de auditoría desde NextRequest |
 | `lib/services/audit-service.ts` | CRUD de auditoría con paginación |
 | `components/dashboard/AuditFeed.tsx` | Feed de auditoría en tiempo real con auto-refresh (30s) |
-| `app/api/audit-logs/route.ts` | API de logs de auditoría |
+| `app/api/audit-logs/route.ts` | API global de logs de auditoría (Prisma) |
+
+#### Tabla de Base de Datos
+
+- `account_audit_log` (Supabase) — PK `id`, `tenant_id`, `account_id`, `account_code`, `action`, `old_values` (JSONB), `new_values` (JSONB), `performed_by`, `performed_at`. RLS habilitado, service_role tiene acceso completo. Backfill automático de `account_code` desde tabla `Account`.
+
+#### Flujo de Auditoría
+
+1. Usuario guarda saldos de apertura → PUT `/api/accounting/opening-balances`
+2. API actualiza `chart_of_accounts` (o `Account` table fallback)
+3. Por cada cuenta modificada, inserta registro en `account_audit_log` con valores anteriores y nuevos
+4. UI de auditoría carga logs → GET `/api/accounting/audit-logs`
+5. API enriquece datos con `account_name` desde tabla `Account`
+6. UI agrupa por día, renderiza con expand/collapse
+
+#### Lo que Falta
+
+- Auditoría solo cubre saldos de apertura (no transacciones ni JournalEntry en `account_audit_log`)
+- Sin exportación de logs de auditoría a PDF/Excel
 
 ---
 
@@ -187,8 +216,8 @@
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
 | 4.1 | Validación de integridad del catálogo | `lib/services/account-validation.ts` | Etapa 1 | Validaciones server-side |
-| 4.2 | Auditoría extendida (todos los modelos contables) | `lib/audit-middleware.ts` | Etapa 1 | Auditoría completa |
-| 4.3 | Dashboard de auditoría contable | `app/accounting/audit/page.tsx` | 4.2 | Dashboard de auditoría |
+| ~~4.2~~ | ~~Auditoría extendida (todos los modelos contables)~~ | ~~`lib/audit-middleware.ts`~~ | ~~Etapa 1~~ | ✅ Completada |
+| ~~4.3~~ | ~~Dashboard de auditoría contable~~ | ~~`app/accounting/audit/page.tsx`~~ | ~~4.2~~ | ✅ Completada — UI agrupada por día, expand/collapse, valores formateados |
 
 ### Etapa 5: QA y Documentación
 
