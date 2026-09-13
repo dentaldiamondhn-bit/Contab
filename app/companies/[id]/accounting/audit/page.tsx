@@ -214,6 +214,7 @@ export default function AccountingAuditPage() {
                       const isExpanded = expandedLog === log.id;
                         return (
                           <Fragment key={log.id}>
+                            <TableRow className="hover:bg-gray-50">
                             <TableCell className="text-sm text-gray-600">
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3 text-gray-400" />
