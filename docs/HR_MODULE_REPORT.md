@@ -1,6 +1,22 @@
 # Reporte de Estado y Plan de Ejecución: Módulo de Recursos Humanos
 
-> **Fecha de actualización:** 11 de Septiembre de 2026
+> **Fecha de actualización:** 12 de Septiembre de 2026
+
+## 0. Últimos Cambios
+
+| Fecha | Cambio | Archivos |
+|---|---|---|
+| 12 Sep | **Dashboard de asistencia** — Página reestructurada con 4 tabs: Dashboard (stats + tarjetas colapsables), Mi Fichaje, Mi Equipo, Horarios. Empleados ausentes ocultos tras toggle. Cards expandibles con historial. | `time-clock/page.tsx` |
+| 12 Sep | **Plantillas de horario con multi-descanso** — Tabla `work_schedules` con hasta 3 descansos. CRUD completo en tab Horarios. Asignación a empleados. | `work-schedules/route.ts`, `ADD_MULTI_BREAKS.sql` |
+| 12 Sep | **Visibilidad del horario en todos los módulos** — Nombre del horario visible en empleados (card y detalle), nómina (columna), asistencia (dropdown), búsqueda. | `employees/route.ts`, `employees/search/route.ts`, `payroll/employees/route.ts` |
+| 12 Sep | **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador. | `RoleBasedSidebar.tsx` |
+| 12 Sep | **Performance contabilidad** — `loadCompanyData` optimizado: fetches en paralelo (2 rondas vs 5-6 secuenciales). | `companies/[id]/accounting/page.tsx` |
+| 12 Sep | **Contabilidad unificada** — Registro Contable + Estados Financieros + Libros Legales combinados en 1 módulo. | `modules/page.tsx`, `modules.ts` |
+| 12 Sep | **Time-clock empleados fix** — Empleados no podían fichar porque `selectedEmployee` nunca se seteaba. Ahora se auto-asigna su propio ID al cargar. | `app/companies/[id]/hr/attendance/time-clock/page.tsx` |
+| 12 Sep | **API user/profile auto-creación** — Si el usuario no existe en tabla `users`, se crea automáticamente con `auth_id` de Clerk. Elimina 404 al iniciar sesión. | `app/api/user/profile/route.ts` |
+| 12 Sep | **Tablas de equipos y roles** — `employee_teams`, `team_members`, campo `role` en employees. Fichaje con control por roles (gerente/supervisor/empleado). | SQL migrations + time-clock page + teams API |
+
+---
 
 ## 1. Estado Actual del Código
 
@@ -8,8 +24,8 @@
 
 | Área Funcional | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 5 tablas | Supabase Storage + API |
-| **Control de Asistencia** | Completo | 3 páginas | 5 rutas | 4 tablas | Supabase + API |
+| **Gestión de Personal** | Completo | 5 páginas | 4 rutas | 6 tablas | Supabase Storage + API |
+| **Control de Asistencia** | Completo (Módulo independiente) | — | — | — | Ver `CONTROL_ASISTENCIA_REPORT.md` |
 | **Vacaciones y Permisos** | Completo | 2 páginas | 3 rutas | 3 tablas | Supabase + API |
 | **Cálculo de Planilla (Nómina)** | Completo | 1 página | 5 rutas | 4 tablas | Supabase + API |
 | **Reportes de RRHH** | Completo | 1 página | — | — | — |
@@ -25,7 +41,7 @@
 | Persistencia de Datos | 100% | Toda la data persiste en Supabase via API routes. **localStorage eliminado al 100%** |
 | Integración entre Módulos | ~75% | Asistencia alimenta planilla; **cierre de planilla genera asientos contables automáticamente** (gasto salarios, cargas sociales, pago nómina); **carga Excel de deducciones/ingresos** con persistencia en DB |
 | Documentación y Tipado | ~90% | `types/hr.ts` con **50+ interfaces** alineadas al código real; `hooks/use-hr.ts` con 3 hooks CRUD completos (useEmployees, useDepartments, usePositions) |
-| Seguridad y Aislamiento | **95%** | **RLS habilitado en todas las 25 tablas HR** con service_role + tenant isolation. UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation. Collision-safe employee_code. |
+| Seguridad y Aislamiento | **95%** | **RLS habilitado en todas las 29 tablas HR** con service_role + tenant isolation. UNIQUE constraints en employee_code, departments, positions, payroll_closed, work_schedules (tenant+name). API input validation. Collision-safe employee_code. |
 | **Rendimiento** | **~95%** | **N+1 eliminado**: batch save (PATCH), schedules batch (PUT), auto-mark solo guarda cambios. **Re-fetch automático al cambiar de mes**. Skeleton de carga, memoización, API calls paralelos. |
 
 ---
@@ -40,7 +56,7 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/employees/page.tsx` | UI completa de gestión de empleados: CRUD, pestañas (Personal, Trabajo, Académico, Habilidades, Ficha Médica, Documentos, Doc. RRHH, Historial), modales de desactivar/suspender/reactivar, importación CSV, **búsqueda server-side con debounce (300ms)**, upload de fotos/docs vía API con URLs, **puestos multi-ocupante (múltiples empleados por puesto)** |
+| `app/companies/[id]/hr/employees/page.tsx` | UI completa de gestión de empleados: CRUD, pestañas (Personal, Trabajo, Académico, Habilidades, Ficha Médica, Documentos, Doc. RRHH, Historial), modales de desactivar/suspender/reactivar, importación CSV, **búsqueda server-side con debounce (300ms)**, upload de fotos/docs vía API con URLs, **puestos multi-ocupante (múltiples empleados por puesto)**, **selector de rol de asistencia (gerente/supervisor/empleado)** |
 | `app/companies/[id]/hr/departments/page.tsx` | Gestión de departamentos y cargos con vista jerárquica en árbol, CRUD, rangos salariales, **pestañas Departamentos/Puestos**, **importación CSV unificada de departamentos y puestos con plantilla descargable y vista previa**, **cambio de departamento al editar puestos**, **múltiples ocupantes por puesto mostrados en badges** |
 | `app/companies/[id]/hr/hierarchy/page.tsx` | Visor de jerarquía organizacional con asignación de padres-cargos |
 | `app/companies/[id]/hr/org-chart/page.tsx` | **Organigrama interactivo**: vista de árbol y lista, expandir/contraer, búsqueda en tiempo real, filtro por departamento, asignar/cambiar/quitar jefe directo, subir foto del empleado (Supabase Storage), importación CSV de jerarquía con plantilla descargable |
@@ -54,7 +70,7 @@
 
 #### Tablas de Base de Datos (Supabase SQL)
 
-- `employees` — Esquema completo con 50+ columnas: datos personales, contrato, educación, habilidades, seguridad social, documentos, médico, campos de terminación/suspensión/reactivación. **Photo almacena URL (no base64)**
+- `employees` — Esquema completo con 50+ columnas: datos personales, contrato, educación, habilidades, seguridad social, documentos, médico, campos de terminación/suspensión/reactivación. **Photo almacena URL (no base64)**. **Campo `role` para asistencia** (gerente/supervisor/empleado). **Campo `work_schedule_id`** FK a work_schedules
 - `employee_history` — Registro de auditoría para cambios en empleados
 - `employee_hr_documents` — Almacenamiento de documentos RRHH por empleado
 - `departments` — Departamentos jerárquicos con parent_id
@@ -86,6 +102,7 @@
 - **Dropdown de Jefe Directo filtrado por departamento**
 - Búsqueda server-side con debounce (300ms) que filtra en 8 campos
 - Filtros exactos por departamento, cargo, estado, tipo de contrato, género
+- **Visibilidad del horario**: nombre del horario visible en tarjetas de empleados, detalle modal (pestaña Trabajo), header del modal, resultados de búsqueda, y API de empleados
 - Aislamiento multi-tenant vía Supabase RLS
 - **Rendimiento optimizado**: eliminación de N+1 queries (batch queries para employee_hr_documents + employee_history en lugar de consultas individuales por empleado), 3 fetches iniciales paralelizados en un solo `Promise.all`, `useMemo` para empleados filtrados/ordenados/paginados, skeleton de carga, actualizaciones optimistas para crear/editar/eliminar
 
@@ -105,22 +122,33 @@
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/hr/attendance/page.tsx` | UI completa: vista diaria + quincenal + **compacta**, **11 estados**, gestión de feriados, horarios, operaciones masivas, importación CSV/Excel, **tarjetas de stats clickeables**, **safeFetch para carga resiliente** |
+| `app/companies/[id]/hr/attendance/time-clock/page.tsx` | **Dashboard de asistencia con 4 tabs**: Dashboard (stats cards + tarjetas de empleados colapsables, sección ausentes oculta tras toggle), Mi Fichaje (reloj personal con botones), Mi Equipo (vista gerente/supervisor), Horarios (CRUD plantillas de horario con multi-descanso). Selector de usuario, reloj en tiempo real, **control por roles** |
 | `app/companies/[id]/hr/attendance/reports/page.tsx` | **Dashboard de análisis con gráficos Recharts**: tendencia diaria, distribución por estado, horas extra, ranking de empleados, incapacidades, feriados |
 | `app/api/companies/[id]/hr/attendance/route.ts` | API CRUD para registros de asistencia (GET/POST/PUT/DELETE) |
+| `app/api/companies/[id]/hr/attendance/time-tracking/route.ts` | **API de fichaje por timestamps**: GET (por fecha/empleado/rango), POST (upsert por empleado+fecha+tipo), DELETE (por ID o empleado+fecha+tipo) |
 | `app/api/companies/[id]/hr/attendance/holidays/route.ts` | API CRUD para feriados |
 | `app/api/companies/[id]/hr/attendance/config/route.ts` | API para configuración de deducciones por asistencia |
 | `app/api/companies/[id]/hr/attendance/schedules/route.ts` | API CRUD para horarios por empleado |
+| `app/api/companies/[id]/hr/work-schedules/route.ts` | **API CRUD de plantillas de horario**: GET (lista), POST (crear con validación UNIQUE tenant+nombre), PUT (actualizar), DELETE (verificar asignaciones antes de eliminar). Soporta break2/break3 |
 | `app/api/companies/[id]/hr/attendance/reports/route.ts` | **API de datos agregados** para reportes (summary, tendencia diaria, ranking empleados, incapacidades, feriados) |
+| `app/api/companies/[id]/hr/teams/route.ts` | **API CRUD de equipos**: GET (con miembros, filtro por departamento/empleado), POST (crear equipo con miembros), PUT (actualizar equipo y reemplazar miembros), DELETE |
 
 #### Tablas de Base de Datos
 
 - `attendance` — Registros diarios de asistencia por empleado (status, monto, horas extra, feriados, incapacidades)
+- `time_tracking` — **Fichajes por timestamps**: entrance, break_start, break_end, lunch_start, lunch_end, end_of_shift, overtime_start, overtime_end. Unique por empleado+fecha+tipo
 - `attendance_holidays` — Feriados nacionales configurables por tenant
 - `attendance_deduction_config` — Configuración de deducciones (% ausencia, tardanza, incapacidad, etc.)
 - `attendance_schedules` — Horarios por empleado con días libres (INTEGER[])
+- `work_schedules` — **Plantillas de horario**: nombre, hora entrada/salida, hasta 3 descansos (break/break2/break3), almuerzo, días libres. UNIQUE por tenant+nombre
+- `employee_teams` — **Sub-equipos dentro de departamentos**: nombre, departamento, descripción, color
+- `team_members` — **Relación empleado-equipo**: rol (leader/member), unique por equipo+empleado
 
 #### Funcionalidad Implementada
 
+- **4 tabs en página de asistencia**: Dashboard (overview con stats y tarjetas), Mi Fichaje (reloj personal), Mi Equipo (vista gerente/supervisor), Horarios (CRUD plantillas)
+- **DashboardTab**: Stats cards (presentes/break/almuerzo/completados/ausentes), sección "Empleados en turno" colapsable, sección "Ausentes" oculta tras toggle "Ver ausentes". Cards expandibles con historial de eventos y botón "Fichar este empleado"
+- **HorariosTab**: CRUD completo de plantillas de horario con nombre, hora entrada/salida, 1-3 descansos dinámicos, almuerzo, días libres (Dom-Sab). Cards colapsables. Asignar/desasignar empleados
 - **3 vistas de asistencia**: diaria (con botones de acción), quincenal (tabla 2 semanas), **compacta** (grid de tarjetas con empleados agrupados por departamento, **secciones colapsables** por defecto)
 - **11 estados de asistencia**: Presente, Ausente, Tardanza, Vacaciones, Horas Extra, Permiso Sin Sueldo, **Permiso Con Pago**, **Suspensión sin Goce de Salario**, Incapacidad, Feriado, Día Libre
 - Feriados nacionales de Honduras pre-configurados (2026) con tipos de pago doble/triple
@@ -156,19 +184,31 @@
   - `applyHolidayDefaults` solo guarda registros cambiados (no todos)
   - PATCH endpoint actualizado con campos `hours`, `holiday_type`, `disability_type`
 - **Vista compacta colapsable**: departamentos con secciones expandible/colapsable (default: colapsado), click en header para toggle
+- **Reloj de asistencia con roles (time-clock)**: Página dedicada con 2 pestanas:
+  - **Mi Fichaje**: Selector de empleado, 6 botones grandes (Entrada, Break, Almuerzo, Salida), reloj en tiempo real, cálculo de horas trabajadas, eliminar registros individuales
+  - **Mi Equipo**: Vista de todos los empleados agrupados por departamento con badges de estado en tiempo real (Presente/Break/Almuerzo/Finalizado/Ausente), estadísticas resumen
+- **Sistema de roles para asistencia**: Campo `role` en employees (gerente/supervisor/empleado) que controla qué ve cada usuario:
+  - **Empleado**: Solo ficha su tiempo (pestaña Mi Fichaje únicamente)
+  - **Supervisor**: Ficha su tiempo + ve/modifica a sus empleados directos (via `reports_to`)
+  - **Gerente**: Ficha su tiempo + ve/modifica a todos los empleados
+- **Selector de usuario persistente**: Se guarda en localStorage. Al abrir el reloj, seleccionas tu nombre y se recuerda entre sesiones
+- **Sub-equipos por departamento**: Crear grupos dentro de cada departamento con líder y miembros. Modal para crear/editar equipos con selección de miembros y color personalizado
+- **Fichajes por timestamps**: Tabla `time_tracking` con eventos: entrada, salida break, regreso break, salida almuerzo, regreso almuerzo, salida final. Timestamps precisos con segundo
 
 #### Almacenamiento de Datos
 
 **Todos los datos se persisten en Supabase via API routes:**
 - Asistencia: `/api/companies/${companyId}/hr/attendance` → tabla `attendance`
+- **Fichajes: `/api/companies/${companyId}/hr/attendance/time-tracking` → tabla `time_tracking`**
 - Horarios: `/api/companies/${companyId}/hr/attendance/schedules` → tabla `attendance_schedules`
 - Feriados: `/api/companies/${companyId}/hr/attendance/holidays` → tabla `attendance_holidays`
 - Config deducciones: `/api/companies/${companyId}/hr/attendance/config` → tabla `attendance_deduction_config`
-- Reportes: `/api/companies/${companyId}/hr/attendance/reports` → datos agregados de las 4 tablas
+- Reportes: `/api/companies/${companyId}/hr/attendance/reports` → datos agregados de las tablas
+- **Equipos: `/api/companies/${companyId}/hr/teams` → tablas `employee_teams` + `team_members`**
 
 #### Lo que Falta
 
-- Sin registro de entrada/salida en tiempo real con timestamps
+- ~~Sin registro de entrada/salida en tiempo real con timestamps~~ ✅ Implementado (time_tracking)
 - Sin verificación biométrica o por GPS
 
 ---
@@ -235,11 +275,11 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/hr/payroll/page.tsx` | Motor de cálculo de nómina completo (~2600 líneas): configuración de frecuencia, deducciones, IGSS/IHSS/RAP, deducciones personalizadas por empleado, deducciones custom por período, integración con asistencia, exportación CSV, generación de comprobantes de pago (**diseño dos columnas**), cierre/historial de planilla, **menú desplegable de acciones consolidado**, **carga Excel de deducciones/ingresos con persistencia en DB**, **paginator de 20 empleados por página**, **skeleton de carga**, **optimización de rendimiento (memoización, API calls paralelos)**, **horas extras divididas por turno (mañana 25%, mixto 50%, nocturno 75%)**, **código de empleado en detalle/voucher** |
+| `app/companies/[id]/hr/payroll/page.tsx` | Motor de cálculo de nómina completo (~2600 líneas): configuración de frecuencia, deducciones, IGSS/IHSS/RAP, deducciones personalizadas por empleado, deducciones custom por período, integración con asistencia, exportación CSV, generación de comprobantes de pago (**diseño dos columnas**), cierre/historial de planilla, **menú desplegable de acciones consolidado**, **carga Excel de deducciones/ingresos con persistencia en DB**, **paginator de 20 empleados por página**, **skeleton de carga**, **optimización de rendimiento (memoización, API calls paralelos)**, **horas extras divididas por turno (mañana 25%, mixto 50%, nocturno 75%)**, **código de empleado en detalle/voucher**, **columna Horario** |
 | `app/api/companies/[id]/hr/payroll/config/route.ts` | API para configuración de planilla (frecuencia, % deducciones, quincena, etc.) |
 | `app/api/companies/[id]/hr/payroll/closed/route.ts` | API para planillas cerradas (historial con desglose completo) |
 | `app/api/companies/[id]/hr/payroll/deductions/route.ts` | API CRUD para deducciones por empleado (override individual de IGSS/IHSS/RAP) |
-| `app/api/companies/[id]/hr/payroll/employees/route.ts` | **API ligera de empleados para planilla** — solo 9 columnas (id, employeeCode, name, position, department, salary, startDate, status), sin mapeo de 50+ campos, sin cálculo de vacaciones |
+| `app/api/companies/[id]/hr/payroll/employees/route.ts` | **API ligera de empleados para planilla** — 9 columnas + workScheduleId/workScheduleName (via JOIN con work_schedules) |
 | `app/api/companies/[id]/hr/payroll/uploads/route.ts` | **API CRUD para datos subidos por Excel** — persiste deducciones/ingresos cargados vía Excel en tabla `payroll_uploads` |
 
 #### Tablas de Base de Datos (Supabase SQL)
@@ -373,7 +413,7 @@
 
 `components/RoleBasedSidebar.tsx` — Contiene ítem "Recursos Humanos" apuntando a `/hr` para roles ADMIN y MANAGER.
 
-### Migraciones SQL de Supabase (10 archivos)
+### Migraciones SQL de Supabase (18 archivos)
 
 | Archivo | Propósito |
 |---|---|
@@ -393,6 +433,9 @@
 | `HR_VALIDATIONS.sql` | **RLS + Validaciones**: RLS en employees/employee_history/employee_hr_documents, tenant isolation en pip_plans, fix payroll_uploads RLS, UNIQUE constraints en employee_code, departments, positions, payroll_closed |
 | `HR_EMPLOYEE_WORKFLOW.sql` | **Columnas de workflow de estado**: termination_date/reason/requested_by/performed_by, suspension_date/reason/requested_by/performed_by, reactivation_date/reason/requested_by/performed_by, rehireable |
 | `ATTENDANCE_TABLES.sql` | **4 tablas de asistencia**: attendance_schedules (horarios/días libres), attendance_deduction_config (config deducciones), attendance_holidays (feriados), employee_history (auditoría) — todas con RLS |
+| `TIME_TRACKING.sql` | **Tabla time_tracking**: fichajes por timestamps (entrance, break, lunch, end_of_shift) con unique constraint por empleado+fecha+tipo, índices, RLS |
+| `EMPLOYEE_TEAMS.sql` | **2 tablas de equipos**: employee_teams (sub-equipos por departamento con color), team_members (relación empleado-equipo con rol leader/member) — RLS |
+| `ADD_EMPLOYEE_ROLE.sql` | **Columna role** en employees: gerente/supervisor/empleado para control de asistencia. Índices en role y reports_to |
 
 ### Prisma Schema
 
@@ -401,9 +444,9 @@
 ### Observaciones Clave
 
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
-2. **21 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 5 de asistencia (attendance, holidays, config, schedules, reports) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics).
-3. **11 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, attendance reports, payroll, vacations, **vacations calendar**, reports hub.
-4. **25 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. Tabla `payroll_uploads` para datos de Excel. Tablas de asistencia (`attendance_schedules`, `attendance_deduction_config`, `attendance_holidays`, `employee_history`) creadas con RLS.
+2. **23 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 6 de asistencia (attendance, holidays, config, schedules, reports, **time-tracking**) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics) + **1 de equipos (teams)**.
+3. **12 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, **attendance time-clock**, attendance reports, payroll, vacations, **vacations calendar**, reports hub.
+4. **28 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. **Campo `role`** (gerente/supervisor/empleado) para control de asistencia. **Tabla `time_tracking`** para fichajes por timestamps. **Tablas `employee_teams` y `team_members`** para sub-equipos por departamento. Tabla `payroll_uploads` para datos de Excel. Tablas de asistencia (`attendance_schedules`, `attendance_deduction_config`, `attendance_holidays`, `employee_history`) creadas con RLS.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
 6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
 7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
@@ -412,7 +455,7 @@
 10. **11 estados de asistencia**: Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, Permiso Con Pago, Suspensión sin Goce, Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables (11) con filtro especial para HE.
 11. **3 vistas de asistencia**: Diaria (con botones), Quincenal (tabla 2 semanas), **Compacta** (empleados agrupados por departamento con secciones colapsables por defecto, indicador de registro por depto).
 12. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
-13. **Validaciones y seguridad completas**: RLS en las 25 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
+13. **Validaciones y seguridad completas**: RLS en las 28 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
 14. **Permisos parciales**: Permiso Sin Pago y Permiso Con Pago soportan horas y minutos parciales (modal con selector de horas/minutos). Horas almacenadas en columna `hours` (DECIMAL 5,2) de la tabla attendance.
 
 ---

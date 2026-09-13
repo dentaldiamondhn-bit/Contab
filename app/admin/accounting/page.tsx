@@ -111,11 +111,9 @@ export default function AdminAccountingPage() {
   const getStats = () => {
     const total = tenants.length;
     const active = tenants.filter(t => t.isActive).length;
-    const withAccounting = tenants.filter(t => t.modules.includes('ACCOUNTING')).length;
-    const withFinancial = tenants.filter(t => t.modules.includes('FINANCIAL_STATEMENTS')).length;
-    const withLegal = tenants.filter(t => t.modules.includes('LEGAL_BOOKS')).length;
+    const withAccounting = tenants.filter(t => t.modules.includes('ACCOUNTING') || t.modules.includes('FINANCIAL_STATEMENTS') || t.modules.includes('LEGAL_BOOKS')).length;
     const totalStorageMB = tenants.reduce((sum, t) => sum + (t.storageBytes || 0), 0) / (1024 * 1024);
-    return { total, active, withAccounting, withFinancial, withLegal, totalStorageMB };
+    return { total, active, withAccounting, totalStorageMB };
   };
 
   const getStorageColor = (bytes: number, maxGB: number) => {
@@ -169,26 +167,10 @@ export default function AdminAccountingPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Contabilidad Central</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Contabilidad</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-cyan-600">{stats.withAccounting}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Estados Financieros</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-purple-600">{stats.withFinancial}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Libros Legales</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats.withLegal}</div>
           </CardContent>
         </Card>
         <Card>

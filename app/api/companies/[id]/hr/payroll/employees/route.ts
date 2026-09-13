@@ -4,10 +4,10 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: tenantId } = await params;
 
-  const [empResult, posResult, deptResult] = await Promise.all([
+  const [empResult, posResult, deptResult, scheduleResult] = await Promise.all([
     getSupabaseServer()
       .from('employees')
-      .select('id, employee_code, first_name, last_name, position_id, department, base_salary, hire_date, status')
+      .select('id, employee_code, first_name, last_name, position_id, department, base_salary, hire_date, status, work_schedule_id')
       .eq('tenant_id', tenantId),
     getSupabaseServer()
       .from('positions')
@@ -15,6 +15,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .eq('tenant_id', tenantId),
     getSupabaseServer()
       .from('departments')
+      .select('id, name')
+      .eq('tenant_id', tenantId),
+    getSupabaseServer()
+      .from('work_schedules')
       .select('id, name')
       .eq('tenant_id', tenantId),
   ]);
@@ -33,6 +37,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     deptResult.data.forEach((d: any) => { deptMap[d.id] = d.name; });
   }
 
+  const scheduleMap: Record<string, string> = {};
+  if (scheduleResult.data) {
+    scheduleResult.data.forEach((s: any) => { scheduleMap[s.id] = s.name; });
+  }
+
   const data = (empResult.data || []).map((emp: any) => ({
     id: emp.id,
     employeeCode: emp.employee_code || '',
@@ -42,6 +51,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     salary: parseFloat(emp.base_salary) || 0,
     startDate: emp.hire_date || '',
     status: emp.status || 'active',
+    workScheduleId: emp.work_schedule_id || null,
+    workScheduleName: scheduleMap[emp.work_schedule_id] || '',
   }));
 
   return NextResponse.json(data);

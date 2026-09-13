@@ -25,14 +25,36 @@ export async function GET() {
 
     
 
-    const { data, error } = await getSupabaseServer()
+    let { data, error } = await getSupabaseServer()
       .from('users')
       .select('*')
       .eq('auth_id', userId)
       .single();
 
     if (error) {
-      return NextResponse.json({ error: 'Usuario no encontrado', detail: error.message }, { status: 404 });
+      await getSupabaseServer()
+        .from('users')
+        .insert({
+          auth_id: userId,
+          role: 'USER',
+          is_active: true,
+          timezone: 'America/Tegucigalpa',
+          language: 'es',
+        })
+        .then(() => {})
+        .catch(() => {});
+
+      const { data: reFetched, error: reFetchErr } = await getSupabaseServer()
+        .from('users')
+        .select('*')
+        .eq('auth_id', userId)
+        .single();
+
+      if (reFetchErr) {
+        return NextResponse.json({ error: 'Usuario no encontrado', detail: reFetchErr.message }, { status: 404 });
+      }
+
+      data = reFetched;
     }
 
     return NextResponse.json({

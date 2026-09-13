@@ -146,9 +146,7 @@ export default function SupportTenantDetailPage() {
 
   // Módulos disponibles en el sistema (excluyendo hidden y required)
   const availableModules = [
-    { id: 'ACCOUNTING', name: 'Contabilidad Central', icon: '📊', description: 'Libros contables, asientos y transacciones' },
-    { id: 'FINANCIAL_STATEMENTS', name: 'Estados Financieros', icon: '📈', description: 'Balance General, Estado de Resultados, Flujo de Efectivo' },
-    { id: 'LEGAL_BOOKS', name: 'Libros Legales', icon: '📕', description: 'Libros legales y registros fiscales obligatorios' },
+    { id: 'ACCOUNTING', name: 'Contabilidad', icon: '📊', description: 'Registro contable, estados financieros, libros legales y reportes' },
     { id: 'BILLING', name: 'Facturación y Ventas', icon: '🧾', description: 'Facturación, ventas y gestión de clientes' },
     { id: 'INVENTORY', name: 'Inventarios', icon: '📦', description: 'Gestión de inventario y kardex' },
     { id: 'PURCHASES', name: 'Compras y Proveedores', icon: '🛒', description: 'Órdenes de compra, proveedores y gastos' },

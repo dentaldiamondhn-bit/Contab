@@ -23,28 +23,28 @@ export interface ModuleDef {
 }
 
 export const MODULES: Record<string, ModuleDef> = {
-  // Contabilidad
+  // Contabilidad (Registro Contable + Estados Financieros + Libros Legales)
   ACCOUNTING: {
     id: 'ACCOUNTING',
-    name: 'Contabilidad Central',
-    description: 'Libros contables, asientos y transacciones',
+    name: 'Contabilidad',
+    description: 'Registro contable, estados financieros, libros legales y reportes',
     category: 'main',
   },
-  
-  // Estados Financieros
+
+  // Legacy (hidden - migrado a ACCOUNTING)
   FINANCIAL_STATEMENTS: {
     id: 'FINANCIAL_STATEMENTS',
     name: 'Estados Financieros',
-    description: 'Balance General, Estado de Resultados, Flujo de Efectivo',
+    description: 'Migrado a Contabilidad',
     category: 'accounting',
+    hidden: true,
   },
-
-  // Libros Legales
   LEGAL_BOOKS: {
     id: 'LEGAL_BOOKS',
     name: 'Libros Legales',
-    description: 'Libros legales y registros fiscales obligatorios',
+    description: 'Migrado a Contabilidad',
     category: 'accounting',
+    hidden: true,
   },
 
   // Facturación

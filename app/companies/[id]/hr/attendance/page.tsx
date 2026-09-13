@@ -39,7 +39,8 @@ import {
   CalendarOff,
   BarChart3,
   Filter,
-  Ban
+  Ban,
+  Timer
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -213,10 +214,14 @@ export default function AttendancePage() {
   const [schedules, setSchedules] = useState<WorkSchedule[]>([]);
   const [showScheduleConfig, setShowScheduleConfig] = useState(false);
   const [selectedScheduleTemplate, setSelectedScheduleTemplate] = useState('lun-sab');
+  const [workSchedules, setWorkSchedules] = useState<any[]>([]);
+  const [editingWorkSchedule, setEditingWorkSchedule] = useState<any>(null);
+  const [showWorkScheduleForm, setShowWorkScheduleForm] = useState(false);
   const [undoHistory, setUndoHistory] = useState<Attendance[][]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('all');
   const [empPage, setEmpPage] = useState(0);
+  const [timeTracking, setTimeTracking] = useState<Record<string, { event_type: string; event_time: string }[]>>({});
   const EMP_PAGE_SIZE = 10;
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive' | 'terminated' | 'suspended'>('all');
   const [selectedStatFilter, setSelectedStatFilter] = useState<string | null>(null);
@@ -274,12 +279,14 @@ export default function AttendancePage() {
       } catch { return null; }
     };
 
-    const [attData, configData, holidaysData, schedulesData, empData] = await Promise.all([
+    const [attData, configData, holidaysData, schedulesData, empData, timeTrackingData, workSchedulesData] = await Promise.all([
       safeFetch(`/api/companies/${companyId}/hr/attendance?start=${startOfMonth}&end=${endOfMonth}`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/config`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/holidays`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/schedules`),
       safeFetch(`/api/companies/${companyId}/employees?fields=id,first_name,last_name,position_id,department,base_salary,status,contract_type,gender,free_days,schedule_entry,schedule_exit,termination_date`),
+      safeFetch(`/api/companies/${companyId}/hr/attendance/time-tracking?start=${selectedDate}&end=${selectedDate}`),
+      safeFetch(`/api/companies/${companyId}/hr/work-schedules`),
     ]);
 
     if (attData) {
@@ -324,6 +331,7 @@ export default function AttendancePage() {
         scheduleEntry: e.scheduleEntry || '',
         scheduleExit: e.scheduleExit || '',
         terminationDate: e.terminationDate || '',
+        workScheduleId: e.workScheduleId || null,
       }));
       setEmployees(emps);
       let schedulesChanged = false;
@@ -346,6 +354,18 @@ export default function AttendancePage() {
         });
         setSchedules(currentSchedules);
       }
+    }
+    if (timeTrackingData && Array.isArray(timeTrackingData)) {
+      const grouped: Record<string, { event_type: string; event_time: string }[]> = {};
+      timeTrackingData.forEach((tt: any) => {
+        const empId = tt.employee_id || tt.employeeId;
+        if (!grouped[empId]) grouped[empId] = [];
+        grouped[empId].push({ event_type: tt.event_type || tt.eventType, event_time: tt.event_time || tt.eventTime });
+      });
+      setTimeTracking(grouped);
+    }
+    if (workSchedulesData && Array.isArray(workSchedulesData)) {
+      setWorkSchedules(workSchedulesData);
     }
     setLoading(false);
   };
@@ -1212,7 +1232,11 @@ export default function AttendancePage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/hr/attendance/reports`)}>
-                <BarChart3 className="h-4 w-4 mr-2" /> Reportes / Análisis
+                <BarChart3 className="h-4 w-4 mr-2" /> Reportes / Analisis
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/hr/attendance/time-clock`)}>
+                <Timer className="h-4 w-4 mr-2" /> Reloj de Asistencia
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -1366,6 +1390,36 @@ export default function AttendancePage() {
                           {emp.position || 'Sin puesto'} • {emp.department || 'Sin depto'}
                           {isInactiveOnDate && <span className="ml-2 text-red-500 font-medium">• Inactivo desde {emp.terminationDate}</span>}
                         </div>
+                        {timeTracking[emp.id] && timeTracking[emp.id].length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {timeTracking[emp.id].map((tt, i) => {
+                              const t = new Date(tt.event_time);
+                              const timeStr = t.toLocaleTimeString('es-HN', { hour: '2-digit', minute: '2-digit' });
+                              const labels: Record<string, string> = {
+                                entrance: 'Entrada',
+                                break_start: 'Salida Break',
+                                break_end: 'Regreso Break',
+                                lunch_start: 'Salida Almuerzo',
+                                lunch_end: 'Regreso Almuerzo',
+                                end_of_shift: 'Salida Final',
+                              };
+                              const colors: Record<string, string> = {
+                                entrance: 'bg-green-100 text-green-700',
+                                break_start: 'bg-yellow-100 text-yellow-700',
+                                break_end: 'bg-blue-100 text-blue-700',
+                                lunch_start: 'bg-orange-100 text-orange-700',
+                                lunch_end: 'bg-purple-100 text-purple-700',
+                                end_of_shift: 'bg-red-100 text-red-700',
+                              };
+                              return (
+                                <span key={i} className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${colors[tt.event_type] || 'bg-gray-100 text-gray-700'}`}>
+                                  <Timer className="h-2.5 w-2.5" />
+                                  {labels[tt.event_type] || tt.event_type} {timeStr}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                         {!isInactiveOnDate && att && (
                           <div className="text-xs mt-1 space-x-2">
                             {hasDeduction && <span className="text-red-600 font-medium">-{formatCurrency(deductionAmount)}</span>}
@@ -2490,81 +2544,212 @@ export default function AttendancePage() {
       {/* Schedule Config Modal */}
       {showScheduleConfig && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-lg max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-            <div className="border-b px-6 py-4 flex justify-between items-center sticky top-0 bg-white">
+          <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="border-b px-6 py-4 flex justify-between items-center sticky top-0 bg-white z-10">
               <div>
                 <h2 className="text-lg font-bold">Configuración de Horarios</h2>
-                <p className="text-sm text-gray-500">Definir días libres por empleado</p>
+                <p className="text-sm text-gray-500">Crear horarios predefinidos y asignar a empleados</p>
               </div>
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setShowScheduleConfig(false)}>
                   <X className="h-4 w-4 mr-2" /> Cerrar
                 </Button>
                 <Button onClick={() => { saveSchedules(); autoMarkFreeDays(); }}>
-                  <Save className="h-4 w-4 mr-2" /> Guardar y Aplicar
+                  <Save className="h-4 w-4 mr-2" /> Guardar
                 </Button>
               </div>
             </div>
-            <div className="p-6 space-y-4">
-              <div className="p-4 bg-teal-50 rounded-lg border border-teal-200">
-                <h3 className="font-medium text-teal-800 mb-3">Plantilla Rápida</h3>
-                <p className="text-sm text-teal-700 mb-3">Aplicar a todos los empleados:</p>
-                <div className="flex gap-2 flex-wrap">
-                  <Button size="sm" variant="outline" onClick={() => { applyScheduleToAll([0]); setSelectedScheduleTemplate('lun-sab'); }}>
-                    Lun-Sab (Dom libre)
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { applyScheduleToAll([0, 6]); setSelectedScheduleTemplate('lun-vie'); }}>
-                    Lun-Vie (Dom y Sab libre)
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => { applyScheduleToAll([3]); setSelectedScheduleTemplate('mirob-sab'); }}>
-                    Mirob-Sab (Miércoles libre)
+            <div className="p-6 space-y-6">
+
+              {/* Sección 1: Horarios predefinidos del tenant */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className="font-bold text-gray-800">Horarios del Tenant</h3>
+                  <Button size="sm" onClick={() => { setEditingWorkSchedule({ name: '', entry_time: '08:00', exit_time: '17:00', break_start: '', break_end: '', lunch_start: '', lunch_end: '', free_days: [0] }); setShowWorkScheduleForm(true); }}>
+                    <Plus className="h-3 w-3 mr-1" /> Nuevo Horario
                   </Button>
                 </div>
-              </div>
-
-              <div className="space-y-3">
-                <h3 className="font-medium">Por Empleado:</h3>
-                {activeEmployees.map(emp => {
-                  const schedule = getSchedule(emp.id);
-                  const freeDays = schedule?.freeDays || [];
-                  return (
-                    <div key={emp.id} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div className="flex-1">
-                        <div className="font-medium">{emp.name}</div>
-                        <div className="text-sm text-gray-500">{emp.position || 'Sin puesto'} • {emp.department || 'Sin depto'}</div>
-                        <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                          {(emp.scheduleEntry || emp.scheduleExit) && (
-                            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{emp.scheduleEntry} - {emp.scheduleExit}</span>
-                          )}
-                          {emp.freeDays && emp.freeDays.length > 0 && (
-                            <span className="flex items-center gap-1"><CalendarOff className="h-3 w-3" />Libre: {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}</span>
-                          )}
+                {workSchedules.length === 0 ? (
+                  <p className="text-sm text-gray-400 italic">No hay horarios creados. Crea uno para empezar.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {workSchedules.map((ws: any) => (
+                      <div key={ws.id} className="flex items-center justify-between p-3 border rounded-lg bg-gray-50">
+                        <div>
+                          <div className="font-medium">{ws.name}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {ws.entry_time} - {ws.exit_time}
+                            {ws.break_start && ws.break_end && ` · Break ${ws.break_start}-${ws.break_end}`}
+                            {ws.lunch_start && ws.lunch_end && ` · Almuerzo ${ws.lunch_start}-${ws.lunch_end}`}
+                          </div>
+                          <div className="text-xs text-gray-400 mt-0.5">
+                            Libre: {(ws.free_days || []).map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ') || 'Ninguno'}
+                          </div>
+                        </div>
+                        <div className="flex gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => { setEditingWorkSchedule(ws); setShowWorkScheduleForm(true); }}>
+                            <Pencil className="h-3 w-3" />
+                          </Button>
+                          <Button size="sm" variant="ghost" className="text-red-500" onClick={async () => {
+                            if (!confirm(`Eliminar horario "${ws.name}"?`)) return;
+                            await fetch(`/api/companies/${companyId}/hr/work-schedules?id=${ws.id}`, { method: 'DELETE' });
+                            setWorkSchedules(prev => prev.filter((w: any) => w.id !== ws.id));
+                          }}>
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
                         </div>
                       </div>
-                      <div className="flex gap-1">
-                        {['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'].map((day, i) => (
-                          <button
-                            key={i}
-                            onClick={() => {
-                              const newFreeDays = freeDays.includes(i)
-                                ? freeDays.filter(d => d !== i)
-                                : [...freeDays, i];
-                              applyScheduleToEmployee(emp.id, newFreeDays);
-                            }}
-                            className={`w-10 h-8 rounded text-xs font-bold border transition-colors ${
-                              freeDays.includes(i)
-                                ? 'bg-teal-100 text-teal-700 border-teal-300'
-                                : 'bg-white border-gray-200 hover:border-gray-400 text-gray-600'
-                            }`}
-                          >
-                            {day}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  );
-                })}
+                    ))}
+                  </div>
+                )}
               </div>
+
+              {/* Sección 2: Asignar horario a empleados */}
+              <div className="border-t pt-4">
+                <h3 className="font-bold text-gray-800 mb-3">Asignar Horario a Empleados</h3>
+                <div className="space-y-2">
+                  {activeEmployees.map(emp => {
+                    const schedule = getSchedule(emp.id);
+                    const freeDays = schedule?.freeDays || [];
+                    return (
+                      <div key={emp.id} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium truncate">{emp.name}</div>
+                          <div className="text-xs text-gray-400">{emp.department || 'Sin depto'}</div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                           <select
+                            className="text-xs border rounded px-2 py-1 max-w-[160px]"
+                            value={(emp as any).workScheduleId || (emp as any).work_schedule_id || ''}
+                            onChange={async (e) => {
+                              const wsId = e.target.value;
+                              if (!wsId) return;
+                              const ws = workSchedules.find((w: any) => w.id === wsId);
+                              if (!ws) return;
+                              applyScheduleToEmployee(emp.id, ws.free_days || []);
+                              await fetch(`/api/companies/${companyId}/employees`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ id: emp.id, workScheduleId: ws.id, scheduleEntry: ws.entry_time, scheduleExit: ws.exit_time }),
+                              }).catch(() => {});
+                            }}
+                          >
+                            <option value="">Seleccionar horario...</option>
+                            {workSchedules.map((ws: any) => (
+                              <option key={ws.id} value={ws.id}>{ws.name} ({ws.entry_time}-{ws.exit_time})</option>
+                            ))}
+                          </select>
+                          <div className="flex gap-0.5">
+                            {['D','L','M','X','J','V','S'].map((day, i) => (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  const newFreeDays = freeDays.includes(i) ? freeDays.filter(d => d !== i) : [...freeDays, i];
+                                  applyScheduleToEmployee(emp.id, newFreeDays);
+                                }}
+                                className={`w-7 h-6 rounded text-[10px] font-bold border transition-colors ${
+                                  freeDays.includes(i) ? 'bg-teal-100 text-teal-700 border-teal-300' : 'bg-white border-gray-200 text-gray-500 hover:border-gray-400'
+                                }`}
+                              >
+                                {day}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Work Schedule Form Modal */}
+      {showWorkScheduleForm && editingWorkSchedule && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-lg max-w-md w-full">
+            <div className="border-b px-6 py-4 flex justify-between items-center">
+              <h2 className="font-bold">{editingWorkSchedule.id ? 'Editar' : 'Nuevo'} Horario</h2>
+              <Button variant="ghost" size="sm" onClick={() => { setShowWorkScheduleForm(false); setEditingWorkSchedule(null); }}>
+                <X className="h-4 w-4" />
+              </Button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="text-sm font-medium">Nombre</label>
+                <input type="text" value={editingWorkSchedule.name} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, name: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" placeholder="Ej: Turno Mañana" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Hora Entrada</label>
+                  <input type="time" value={editingWorkSchedule.entry_time} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, entry_time: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Hora Salida</label>
+                  <input type="time" value={editingWorkSchedule.exit_time} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, exit_time: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Break Inicio</label>
+                  <input type="time" value={editingWorkSchedule.break_start || ''} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, break_start: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Break Fin</label>
+                  <input type="time" value={editingWorkSchedule.break_end || ''} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, break_end: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-sm font-medium">Almuerzo Inicio</label>
+                  <input type="time" value={editingWorkSchedule.lunch_start || ''} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, lunch_start: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Almuerzo Fin</label>
+                  <input type="time" value={editingWorkSchedule.lunch_end || ''} onChange={e => setEditingWorkSchedule({ ...editingWorkSchedule, lunch_end: e.target.value })} className="w-full mt-1 px-3 py-2 border rounded-md text-sm" />
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Días Libres</label>
+                <div className="flex gap-1 mt-1">
+                  {['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'].map((day, i) => (
+                    <button
+                      key={i}
+                      type="button"
+                      onClick={() => {
+                        const fd = editingWorkSchedule.free_days || [];
+                        const newFd = fd.includes(i) ? fd.filter((d: number) => d !== i) : [...fd, i];
+                        setEditingWorkSchedule({ ...editingWorkSchedule, free_days: newFd });
+                      }}
+                      className={`w-10 h-8 rounded text-xs font-bold border transition-colors ${
+                        (editingWorkSchedule.free_days || []).includes(i) ? 'bg-teal-100 text-teal-700 border-teal-300' : 'bg-white border-gray-200 hover:border-gray-400 text-gray-600'
+                      }`}
+                    >
+                      {day}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-3 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowWorkScheduleForm(false); setEditingWorkSchedule(null); }}>Cancelar</Button>
+              <Button onClick={async () => {
+                if (!editingWorkSchedule.name) { alert('Ingresa un nombre'); return; }
+                const payload = { ...editingWorkSchedule, free_days: editingWorkSchedule.free_days || [0] };
+                if (editingWorkSchedule.id) {
+                  await fetch(`/api/companies/${companyId}/hr/work-schedules`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                } else {
+                  const res = await fetch(`/api/companies/${companyId}/hr/work-schedules`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+                  const created = await res.json();
+                  if (created.id) setWorkSchedules(prev => [...prev, created]);
+                }
+                setShowWorkScheduleForm(false);
+                setEditingWorkSchedule(null);
+              }}>
+                <Save className="h-4 w-4 mr-2" /> Guardar
+              </Button>
             </div>
           </div>
         </div>

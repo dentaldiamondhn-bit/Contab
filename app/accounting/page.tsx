@@ -44,6 +44,24 @@ export default function AccountingPage() {
       color: "bg-purple-500",
       href: `/companies/${currentTenant?.id || 1}/accounting/books`,
       features: ["Libro Diario", "Libro Mayor", "Balance de Comprobación"]
+    },
+    {
+      id: "financial-statements",
+      title: "📑 Estados Financieros",
+      description: "Balance General, Estado de Resultados y Flujo de Efectivo",
+      icon: FileText,
+      color: "bg-cyan-500",
+      href: `/companies/${currentTenant?.id || 1}/accounting/financial-statements`,
+      features: ["Balance General", "Estado de Resultados", "Flujo de Efectivo"]
+    },
+    {
+      id: "legal-books",
+      title: "🧾 Libros Legales",
+      description: "Libros de Compras, Ventas, Retenciones y más",
+      icon: Scale,
+      color: "bg-orange-500",
+      href: `/companies/${currentTenant?.id || 1}/accounting/books`,
+      features: ["Libro de Compras y Ventas", "Retenciones", "Cumplimiento SAR"]
     }
   ];
 

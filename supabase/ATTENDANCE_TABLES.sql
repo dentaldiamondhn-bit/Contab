@@ -10,15 +10,12 @@ CREATE TABLE IF NOT EXISTS attendance_schedules (
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(tenant_id, employee_id)
 );
-
 ALTER TABLE attendance_schedules ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "tenant_isolation" ON attendance_schedules
-  USING (tenant_id = current_setting('request.headers')::json->>'x-tenant-id');
-
-CREATE POLICY "service_role_all" ON attendance_schedules
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'attendance_schedules') THEN
+    CREATE POLICY "service_role_all" ON attendance_schedules FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 2. attendance_deduction_config (configuración de deducciones)
 CREATE TABLE IF NOT EXISTS attendance_deduction_config (
@@ -32,15 +29,12 @@ CREATE TABLE IF NOT EXISTS attendance_deduction_config (
   overtime_rate_multiplier NUMERIC DEFAULT 2,
   created_at TIMESTAMPTZ DEFAULT now()
 );
-
 ALTER TABLE attendance_deduction_config ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "tenant_isolation" ON attendance_deduction_config
-  USING (tenant_id = current_setting('request.headers')::json->>'x-tenant-id');
-
-CREATE POLICY "service_role_all" ON attendance_deduction_config
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'attendance_deduction_config') THEN
+    CREATE POLICY "service_role_all" ON attendance_deduction_config FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 3. attendance_holidays (feriados)
 CREATE TABLE IF NOT EXISTS attendance_holidays (
@@ -52,15 +46,12 @@ CREATE TABLE IF NOT EXISTS attendance_holidays (
   created_at TIMESTAMPTZ DEFAULT now(),
   UNIQUE(tenant_id, date)
 );
-
 ALTER TABLE attendance_holidays ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "tenant_isolation" ON attendance_holidays
-  USING (tenant_id = current_setting('request.headers')::json->>'x-tenant-id');
-
-CREATE POLICY "service_role_all" ON attendance_holidays
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'attendance_holidays') THEN
+    CREATE POLICY "service_role_all" ON attendance_holidays FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 4. employee_history (si no existe)
 CREATE TABLE IF NOT EXISTS employee_history (
@@ -73,12 +64,9 @@ CREATE TABLE IF NOT EXISTS employee_history (
   performed_by TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
-
 ALTER TABLE employee_history ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "tenant_isolation" ON employee_history
-  USING (tenant_id = current_setting('request.headers')::json->>'x-tenant-id');
-
-CREATE POLICY "service_role_all" ON employee_history
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'service_role_all' AND tablename = 'employee_history') THEN
+    CREATE POLICY "service_role_all" ON employee_history FOR ALL TO service_role USING (true) WITH CHECK (true);
+  END IF;
+END $$;

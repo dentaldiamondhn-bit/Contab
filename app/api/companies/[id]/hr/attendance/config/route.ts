@@ -25,7 +25,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       .upsert({ tenant_id: companyId, ...DEFAULT_CONFIG }, { onConflict: 'tenant_id' })
       .select()
       .single();
-    if (insertError) return NextResponse.json({ error: insertError.message }, { status: 500 });
+    if (insertError) return NextResponse.json(DEFAULT_CONFIG, { status: 200 });
     return NextResponse.json(created);
   }
 

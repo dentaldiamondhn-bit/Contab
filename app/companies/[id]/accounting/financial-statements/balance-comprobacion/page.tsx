@@ -58,6 +58,7 @@ export default function BalanceComprobacionPage() {
   const [endDate, setEndDate] = useState('');
   const [accountLevel, setAccountLevel] = useState<'all' | 'mayor' | 'detalle'>('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [openingBalances, setOpeningBalances] = useState<Record<string, number>>({});
 
   // Cargar datos iniciales
   useEffect(() => {
@@ -80,18 +81,29 @@ export default function BalanceComprobacionPage() {
   const loadBalanceData = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/accounting/trial-balance?startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
-      );
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Trial balance data:', data);
-        // Transformar datos al formato de Balance de Comprobación
-        const transformed = transformToBalanceComprobacion(data || []);
+      // Cargar trial balance y saldos de apertura en paralelo
+      const [trialRes, openingRes] = await Promise.all([
+        fetch(`/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`),
+        fetch(`/api/accounting/opening-balances?tenantId=${companyId}`, {
+          headers: { 'x-tenant-id': companyId }
+        })
+      ]);
+
+      // Procesar saldos de apertura
+      const openingMap: Record<string, number> = {};
+      if (openingRes.ok) {
+        const openingData = await openingRes.json();
+        for (const acc of openingData.accounts || []) {
+          openingMap[acc.code] = acc.opening_balance || 0;
+        }
+      }
+      setOpeningBalances(openingMap);
+
+      // Procesar trial balance
+      if (trialRes.ok) {
+        const data = await trialRes.json();
+        const transformed = transformToBalanceComprobacion(data || [], openingMap);
         setBalanceData(transformed);
-      } else {
-        console.error('Error loading trial balance:', await response.text());
       }
     } catch (error) {
       console.error('Error loading balance data:', error);
@@ -101,30 +113,40 @@ export default function BalanceComprobacionPage() {
   };
 
   // Transformar datos a formato 6 columnas
-  const transformToBalanceComprobacion = (data: any[]): BalanceItem[] => {
+  const transformToBalanceComprobacion = (data: any[], openingMap: Record<string, number>): BalanceItem[] => {
     return data.map((item: any) => {
-      // Manejar estructura anidada de getTrialBalance: item.account.code, item.debit, item.credit
       const account = item.account || {};
       const code = account.code || item.code || '';
       const name = account.name || item.name || 'Sin nombre';
       
-      // Los campos de la API trial-balance son: debit, credit, balance
+      // Movimientos del período
       const movDebe = parseFloat(item.debit || item.debit_amount || item.debe || 0);
       const movHaber = parseFloat(item.credit || item.credit_amount || item.haber || 0);
-      const saldoActual = parseFloat(item.balance || (movDebe - movHaber) || 0);
       
-      // Calcular nivel de la cuenta basado en el código
+      // Saldo de apertura (en centavos, convertir a lempiras)
+      const openingBalanceCents = openingMap[code] || 0;
+      const openingBalanceLps = openingBalanceCents / 100;
+      
+      // Calcular saldo anterior: positivo=Debe, negativo=Haber
+      const saldoAnteriorDebe = openingBalanceLps > 0 ? openingBalanceLps : 0;
+      const saldoAnteriorHaber = openingBalanceLps < 0 ? Math.abs(openingBalanceLps) : 0;
+      
+      // Saldo actual = saldo anterior + movimientos del período
+      const saldoAnteriorNeto = saldoAnteriorDebe - saldoAnteriorHaber;
+      const movimientosNeto = movDebe - movHaber;
+      const saldoActualNeto = saldoAnteriorNeto + movimientosNeto;
+      
       const nivel = code.length <= 2 ? 1 : code.length <= 4 ? 2 : 3;
       
       return {
         code,
         name,
-        saldoAnteriorDebe: 0, // Se calcularía de transacciones previas al período
-        saldoAnteriorHaber: 0,
+        saldoAnteriorDebe,
+        saldoAnteriorHaber,
         movimientosDebe: movDebe,
         movimientosHaber: movHaber,
-        saldoActualDebe: saldoActual > 0 ? saldoActual : 0,
-        saldoActualHaber: saldoActual < 0 ? Math.abs(saldoActual) : 0,
+        saldoActualDebe: saldoActualNeto > 0 ? saldoActualNeto : 0,
+        saldoActualHaber: saldoActualNeto < 0 ? Math.abs(saldoActualNeto) : 0,
         nivel,
         parentCode: code.length > 2 ? code.substring(0, 2) : undefined
       };

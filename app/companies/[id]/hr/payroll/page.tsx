@@ -34,6 +34,8 @@ interface Employee {
   salary: number;
   startDate: string;
   status: 'active' | 'inactive';
+  workScheduleId: string | null;
+  workScheduleName: string;
 }
 
 interface PayrollRecord {
@@ -2495,6 +2497,7 @@ export default function PayrollPage() {
                   <th className="text-left py-2">Empleado</th>
                   <th className="text-left py-2">Cargo</th>
                   <th className="text-left py-2">Departamento</th>
+                  <th className="text-left py-2">Horario</th>
                   <th className="text-right py-2">Salario Período</th>
                   <th className="text-right py-2">IGSS ({config.igssEmployee}%)</th>
                   <th className="text-right py-2">IHSS ({config.ihss}%)</th>
@@ -2517,6 +2520,7 @@ export default function PayrollPage() {
                       <td className="py-2 font-medium">{emp.name}</td>
                       <td className="py-2 text-gray-500">{emp.position}</td>
                       <td className="py-2 text-gray-500">{emp.department || 'N/A'}</td>
+                      <td className="py-2 text-gray-500 text-xs">{emp.workScheduleName || '-'}</td>
                       <td className="py-2 text-right">{formatCurrency(calc.periodSalary)}</td>
                       <td className="py-2 text-right text-red-600">-{formatCurrency(calc.igssEmployee)}</td>
                       <td className="py-2 text-right text-red-600">-{formatCurrency(calc.ihss)}</td>

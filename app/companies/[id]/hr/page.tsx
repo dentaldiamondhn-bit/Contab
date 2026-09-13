@@ -10,12 +10,10 @@ import {
   Users,
   UserPlus,
   Calendar,
-  Clock,
   DollarSign,
   FileText,
   Download,
   Briefcase,
-  CheckCircle,
   AlertCircle,
   Building2,
   Network,
@@ -145,15 +143,6 @@ export default function HRDashboardPage() {
       path: '/hr/departments'
     },
     {
-      title: 'Asistencia',
-      description: 'Registro diario de asistencia, tardanzas y faltas',
-      icon: CheckCircle,
-      color: 'text-green-600',
-      bgColor: 'bg-green-50',
-      count: 'Hoy',
-      path: '/hr/attendance'
-    },
-    {
       title: 'Nómina',
       description: 'Cálculo de nómina mensual, deducciones y pagos netos',
       icon: DollarSign,
@@ -206,7 +195,7 @@ export default function HRDashboardPage() {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Recursos Humanos</h1>
-          <p className="text-gray-500">Gestión de empleados, nómina y asistencia</p>
+          <p className="text-gray-500">Gestión de empleados, nómina y vacaciones</p>
         </div>
         <Button variant="outline" onClick={() => router.push(`/companies/${companyId}`)}>
           <ArrowLeft className="h-4 w-4 mr-2" />

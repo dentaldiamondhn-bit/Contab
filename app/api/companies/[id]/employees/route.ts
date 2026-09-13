@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { employeeCreateSchema, employeeUpdateSchema } from '@/lib/validations/hr';
 
 
 function fieldLabel(key: string): string {
@@ -26,7 +27,7 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
     startDate: 'hire_date', phone: 'phone',
     email: 'email', address: 'address', civilStatus: 'civil_status',
     contractType: 'contract_type', supervisor: 'supervisor',
-    reportsTo: 'reports_to',
+    reportsTo: 'reports_to', role: 'role',
     schedule: 'schedule', modality: 'modality', educationLevel: 'education_level',
     university: 'university', degree: 'degree', languages: 'languages',
     certifications: 'certifications', otherSkills: 'other_skills'
@@ -70,10 +71,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     
     const selectCols = fields ? fields : '*';
     
-    const [empResult, posResult, deptResult] = await Promise.all([
+    const [empResult, posResult, deptResult, scheduleResult] = await Promise.all([
       getSupabaseServer().from('employees').select(selectCols).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
       getSupabaseServer().from('positions').select('id,name').eq('tenant_id', tenantId),
       getSupabaseServer().from('departments').select('id,name').eq('tenant_id', tenantId),
+      getSupabaseServer().from('work_schedules').select('id,name').eq('tenant_id', tenantId),
     ]);
 
     if (empResult.error) throw empResult.error;
@@ -88,6 +90,11 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const deptMap: Record<string, string> = {};
     if (deptResult.data) {
       deptResult.data.forEach((d: any) => { deptMap[d.id] = d.name; });
+    }
+
+    const scheduleMap: Record<string, string> = {};
+    if (scheduleResult.data) {
+      scheduleResult.data.forEach((s: any) => { scheduleMap[s.id] = s.name; });
     }
 
     const calcVacationDays = (hireDate: string) => {
@@ -124,6 +131,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       contractType: emp.contract_type || 'indefinido',
       supervisor: emp.supervisor || '',
       reportsTo: emp.reports_to || null,
+      role: emp.role || 'empleado',
+      workScheduleId: emp.work_schedule_id || null,
+      workScheduleName: scheduleMap[emp.work_schedule_id] || '',
       schedule: emp.schedule || 'completa',
       scheduleEntry: emp.schedule_entry || '',
       scheduleExit: emp.schedule_exit || '',
@@ -217,25 +227,47 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const { id: tenantId } = await params;
     const body = await request.json();
 
-    if (!body.firstName || !body.lastName) {
-      return NextResponse.json({ error: 'Nombre y apellido son requeridos' }, { status: 400 });
+    const parsed = employeeCreateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
     }
-    if (body.salary !== undefined && body.salary < 0) {
-      return NextResponse.json({ error: 'El salario no puede ser negativo' }, { status: 400 });
+
+    if (parsed.data.identityNumber) {
+      const { data: dupIdentity } = await getSupabaseServer()
+        .from('employees')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('id_number', parsed.data.identityNumber)
+        .maybeSingle();
+      if (dupIdentity) {
+        return NextResponse.json({ error: 'Ya existe un empleado con ese número de identidad' }, { status: 409 });
+      }
+    }
+
+    if (parsed.data.email) {
+      const { data: dupEmail } = await getSupabaseServer()
+        .from('employees')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('email', parsed.data.email)
+        .maybeSingle();
+      if (dupEmail) {
+        return NextResponse.json({ error: 'Ya existe un empleado con ese email' }, { status: 409 });
+      }
     }
 
     let positionId = null;
-    if (body.position) {
+    if (parsed.data.position) {
       let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
-        .eq('name', body.position)
+        .eq('name', parsed.data.position)
         .single();
       if (!pos) {
         const { data: newPos } = await getSupabaseServer()
           .from('positions')
-          .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
+          .insert({ id: crypto.randomUUID(), name: parsed.data.position, tenant_id: tenantId, department: parsed.data.department || '' })
           .select('id')
           .single();
         pos = newPos;
@@ -243,11 +275,26 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       positionId = pos?.id || null;
     }
 
-    let employeeCode = body.employeeId;
+    let employeeCode = parsed.data.employeeId;
     if (!employeeCode) {
+      const seqPrefix = `EMP-${new Date().getFullYear()}`;
+      const { data: lastEmp } = await getSupabaseServer()
+        .from('employees')
+        .select('employee_code')
+        .eq('tenant_id', tenantId)
+        .like('employee_code', `${seqPrefix}-%`)
+        .order('employee_code', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      let seq = 1;
+      if (lastEmp?.employee_code) {
+        const parts = lastEmp.employee_code.split('-');
+        const lastNum = parseInt(parts[parts.length - 1], 10);
+        if (!isNaN(lastNum)) seq = lastNum + 1;
+      }
+      employeeCode = `${seqPrefix}-${String(seq).padStart(4, '0')}`;
       let attempts = 0;
-      while (attempts < 10) {
-        employeeCode = `EMP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`;
+      while (attempts < 5) {
         const { data: existing } = await getSupabaseServer()
           .from('employees')
           .select('id')
@@ -255,73 +302,64 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
           .eq('employee_code', employeeCode)
           .maybeSingle();
         if (!existing) break;
+        seq++;
+        employeeCode = `${seqPrefix}-${String(seq).padStart(4, '0')}`;
         attempts++;
       }
     }
 
+    const d = parsed.data;
     const insertData: any = {
         tenant_id: tenantId,
         company_id: tenantId,
         employee_code: employeeCode,
-        first_name: body.firstName,
-        last_name: body.lastName,
-        id_number: body.identityNumber,
-        rtn: body.identityNumber,
-        photo: body.photo,
-        cv: body.cv,
+        first_name: d.firstName,
+        last_name: d.lastName,
+        id_number: d.identityNumber,
+        rtn: d.identityNumber,
+        photo: d.photo,
+        cv: d.cv,
         position_id: positionId,
-        department: body.department || null,
-        base_salary: body.salary || 0,
-        hire_date: body.startDate || null,
-        status: body.status || 'active',
-        phone: body.phone,
-        email: body.email,
-        address: body.address,
-        civil_status: body.civilStatus,
-        contract_type: body.contractType,
-        supervisor: body.supervisor,
-        reports_to: body.reportsTo || null,
-        schedule: body.schedule,
-        schedule_entry: body.scheduleEntry || null,
-        schedule_exit: body.scheduleExit || null,
-        schedule_hours: (body.scheduleEntry && body.scheduleExit) ? `${body.scheduleEntry} - ${body.scheduleExit}` : body.scheduleHours || '08:00 - 17:00',
-        modality: body.modality,
-        education_level: body.educationLevel,
-        university: body.university,
-        degree: body.degree,
-        graduation_year: body.graduationYear,
-        languages: body.languages,
-        certifications: body.certifications,
-        driver_license: body.driverLicense || false,
-        other_skills: body.otherSkills,
-        social_security_number: body.socialSecurityNumber,
-        pension_fund: body.pensionFund,
-        labor_risk_insurer: body.laborRiskInsurer,
-        work_permit_status: body.workPermitStatus,
-        visa_expiry: body.visaExpiry || null,
-        doc_identity: body.docIdentity,
-        doc_address_proof: body.docAddressProof,
-        doc_contract: body.docContract,
-        doc_nda: body.docNDA,
-        doc_education_certs: body.docEducationCerts,
-        doc_previous_jobs: body.docPreviousJobs,
-        doc_medical_cert: body.docMedicalCert,
-        medical_record: body.medicalRecord || {},
-        termination_date: body.terminationDate || null,
-        termination_reason: body.terminationReason || null,
-        termination_requested_by: body.terminationRequestedBy || null,
-        termination_performed_by: body.terminationPerformedBy || null,
-        rehireable: body.rehireable ?? true,
-        reactivation_date: body.reactivationDate || null,
-        reactivation_reason: body.reactivationReason || null,
-        reactivation_requested_by: body.reactivationRequestedBy || null,
-        reactivation_performed_by: body.reactivationPerformedBy || null,
-        suspension_date: body.suspensionDate || null,
-        suspension_reason: body.suspensionReason || null,
-        suspension_requested_by: body.suspensionRequestedBy || null,
-        suspension_performed_by: body.suspensionPerformedBy || null,
-        gender: body.gender || null,
-        free_days: body.freeDays || [],
+        department: d.department || null,
+        base_salary: d.salary || 0,
+        hire_date: d.startDate || null,
+        status: d.status || 'active',
+        phone: d.phone,
+        email: d.email,
+        address: d.address,
+        civil_status: d.civilStatus,
+        contract_type: d.contractType,
+        supervisor: d.supervisor,
+        reports_to: d.reportsTo || null,
+        role: d.role || 'empleado',
+        schedule: d.schedule,
+        schedule_entry: d.scheduleEntry || null,
+        schedule_exit: d.scheduleExit || null,
+        schedule_hours: (d.scheduleEntry && d.scheduleExit) ? `${d.scheduleEntry} - ${d.scheduleExit}` : '08:00 - 17:00',
+        modality: d.modality,
+        education_level: d.educationLevel,
+        university: d.university,
+        degree: d.degree,
+        graduation_year: d.graduationYear,
+        languages: d.languages,
+        certifications: d.certifications,
+        driver_license: false,
+        other_skills: d.otherSkills,
+        social_security_number: '',
+        pension_fund: '',
+        labor_risk_insurer: '',
+        work_permit_status: '',
+        visa_expiry: null,
+        doc_identity: '',
+        doc_address_proof: '',
+        doc_contract: '',
+        doc_nda: '',
+        doc_education_certs: '',
+        doc_previous_jobs: '',
+        doc_medical_cert: '',
+        medical_record: {},
+        gender: d.gender || null,
+        free_days: [],
       }
 
     const { data, error } = await getSupabaseServer()
@@ -335,7 +373,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
     }
 
-    await logHistory(data.id, tenantId, 'creation', `Empleado ${body.firstName} ${body.lastName} creado`, [`Código: ${body.employeeId}`, `Puesto: ${body.position || 'N/A'}`, `Departamento: ${body.department || 'N/A'}`]);
+    await logHistory(data.id, tenantId, 'creation', `Empleado ${d.firstName} ${d.lastName} creado`, [`Código: ${employeeCode}`, `Puesto: ${d.position || 'N/A'}`, `Departamento: ${d.department || 'N/A'}`]);
 
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
@@ -369,20 +407,51 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { id: tenantId } = await params;
     const body = await request.json();
 
-    console.log('PUT employee:', body.id, 'hrDocs:', body.hrDocuments?.length || 0);
+    const parsed = employeeUpdateSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
+    }
+
+    const d = parsed.data;
+
+    if (d.identityNumber) {
+      const { data: dupIdentity } = await getSupabaseServer()
+        .from('employees')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('id_number', d.identityNumber)
+        .neq('id', d.id)
+        .maybeSingle();
+      if (dupIdentity) {
+        return NextResponse.json({ error: 'Ya existe otro empleado con ese número de identidad' }, { status: 409 });
+      }
+    }
+
+    if (d.email) {
+      const { data: dupEmail } = await getSupabaseServer()
+        .from('employees')
+        .select('id')
+        .eq('tenant_id', tenantId)
+        .eq('email', d.email)
+        .neq('id', d.id)
+        .maybeSingle();
+      if (dupEmail) {
+        return NextResponse.json({ error: 'Ya existe otro empleado con ese email' }, { status: 409 });
+      }
+    }
 
     let positionId = null;
-    if (body.position) {
+    if (d.position) {
       let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
         .eq('tenant_id', tenantId)
-        .eq('name', body.position)
+        .eq('name', d.position)
         .single();
       if (!pos) {
         const { data: newPos } = await getSupabaseServer()
           .from('positions')
-          .insert({ id: crypto.randomUUID(), name: body.position, tenant_id: tenantId, department: body.department || '' })
+          .insert({ id: crypto.randomUUID(), name: d.position, tenant_id: tenantId, department: d.department || '' })
           .select('id')
           .single();
         pos = newPos;
@@ -393,77 +462,51 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     const { data: oldEmp } = await getSupabaseServer()
       .from('employees')
       .select('*')
-      .eq('id', body.id)
+      .eq('id', d.id)
       .single();
 
-    const updateData: any = {
-        employee_code: body.employeeId || oldEmp?.employee_code || `EMP-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).substring(2, 5).toUpperCase()}`,
-        first_name: body.firstName,
-        last_name: body.lastName,
-        id_number: body.identityNumber,
-        rtn: body.identityNumber,
-        photo: body.photo,
-        cv: body.cv,
-        position_id: positionId,
-        department: body.department || null,
-        base_salary: body.salary || 0,
-        hire_date: body.startDate || null,
-        status: body.status,
-        phone: body.phone,
-        email: body.email,
-        address: body.address,
-        civil_status: body.civilStatus,
-        contract_type: body.contractType,
-        supervisor: body.supervisor,
-        reports_to: body.reportsTo || null,
-        schedule: body.schedule,
-        schedule_entry: body.scheduleEntry || null,
-        schedule_exit: body.scheduleExit || null,
-        schedule_hours: (body.scheduleEntry && body.scheduleExit) ? `${body.scheduleEntry} - ${body.scheduleExit}` : body.scheduleHours || '08:00 - 17:00',
-        modality: body.modality,
-        education_level: body.educationLevel,
-        university: body.university,
-        degree: body.degree,
-        graduation_year: body.graduationYear,
-        languages: body.languages,
-        certifications: body.certifications,
-        driver_license: body.driverLicense,
-        other_skills: body.otherSkills,
-        social_security_number: body.socialSecurityNumber,
-        pension_fund: body.pensionFund,
-        labor_risk_insurer: body.laborRiskInsurer,
-        work_permit_status: body.workPermitStatus,
-        visa_expiry: body.visaExpiry || null,
-        doc_identity: body.docIdentity,
-        doc_address_proof: body.docAddressProof,
-        doc_contract: body.docContract,
-        doc_nda: body.docNDA,
-        doc_education_certs: body.docEducationCerts,
-        doc_previous_jobs: body.docPreviousJobs,
-        doc_medical_cert: body.docMedicalCert,
-        medical_record: body.medicalRecord || {},
-        termination_date: body.terminationDate || null,
-        termination_reason: body.terminationReason || null,
-        termination_requested_by: body.terminationRequestedBy || null,
-        termination_performed_by: body.terminationPerformedBy || null,
-        rehireable: body.rehireable ?? true,
-        reactivation_date: body.reactivationDate || null,
-        reactivation_reason: body.reactivationReason || null,
-        reactivation_requested_by: body.reactivationRequestedBy || null,
-        reactivation_performed_by: body.reactivationPerformedBy || null,
-        suspension_date: body.suspensionDate || null,
-        suspension_reason: body.suspensionReason || null,
-        suspension_requested_by: body.suspensionRequestedBy || null,
-        suspension_performed_by: body.suspensionPerformedBy || null,
-        gender: body.gender || null,
-        free_days: body.freeDays || [],
-        updated_at: new Date().toISOString()
-      }
+    const updateData: any = { updated_at: new Date().toISOString() };
+    if (d.employeeId !== undefined) updateData.employee_code = d.employeeId;
+    else if (oldEmp?.employee_code) updateData.employee_code = oldEmp.employee_code;
+    if (d.firstName !== undefined) updateData.first_name = d.firstName;
+    if (d.lastName !== undefined) updateData.last_name = d.lastName;
+    if (d.identityNumber !== undefined) { updateData.id_number = d.identityNumber; updateData.rtn = d.identityNumber; }
+    if (d.photo !== undefined) updateData.photo = d.photo;
+    if (d.cv !== undefined) updateData.cv = d.cv;
+    if (positionId !== null) updateData.position_id = positionId;
+    if (d.department !== undefined) updateData.department = d.department || null;
+    if (d.salary !== undefined) updateData.base_salary = d.salary || 0;
+    if (d.startDate !== undefined) updateData.hire_date = d.startDate || null;
+    if (d.status !== undefined) updateData.status = d.status;
+    if (d.phone !== undefined) updateData.phone = d.phone;
+    if (d.email !== undefined) updateData.email = d.email;
+    if (d.address !== undefined) updateData.address = d.address;
+    if (d.civilStatus !== undefined) updateData.civil_status = d.civilStatus;
+    if (d.contractType !== undefined) updateData.contract_type = d.contractType;
+    if (d.supervisor !== undefined) updateData.supervisor = d.supervisor;
+    if (d.reportsTo !== undefined) updateData.reports_to = d.reportsTo || null;
+    if (d.role !== undefined) updateData.role = d.role || 'empleado';
+    if (d.schedule !== undefined) updateData.schedule = d.schedule;
+    if (d.scheduleEntry !== undefined) updateData.schedule_entry = d.scheduleEntry || null;
+    if (d.scheduleExit !== undefined) updateData.schedule_exit = d.scheduleExit || null;
+    if (d.scheduleEntry !== undefined && d.scheduleExit !== undefined) {
+      updateData.schedule_hours = (d.scheduleEntry && d.scheduleExit) ? `${d.scheduleEntry} - ${d.scheduleExit}` : '08:00 - 17:00';
+    }
+    if (d.modality !== undefined) updateData.modality = d.modality;
+    if (d.educationLevel !== undefined) updateData.education_level = d.educationLevel;
+    if (d.university !== undefined) updateData.university = d.university;
+    if (d.degree !== undefined) updateData.degree = d.degree;
+    if (d.graduationYear !== undefined) updateData.graduation_year = d.graduationYear;
+    if (d.languages !== undefined) updateData.languages = d.languages;
+    if (d.certifications !== undefined) updateData.certifications = d.certifications;
+    if (d.otherSkills !== undefined) updateData.other_skills = d.otherSkills;
+    if (d.gender !== undefined) updateData.gender = d.gender || null;
+    if (d.workScheduleId !== undefined) updateData.work_schedule_id = d.workScheduleId || null;
 
     const { error } = await getSupabaseServer()
       .from('employees')
       .update(updateData)
-      .eq('id', body.id)
+      .eq('id', d.id)
       .eq('tenant_id', tenantId);
 
     if (error) {
@@ -473,7 +516,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
     if (oldEmp) {
       const prevStatus = oldEmp.status || 'active';
-      const newStatus = body.status;
+      const newStatus = d.status;
       const changes = detectChanges(oldEmp, body);
 
       if (prevStatus !== newStatus) {
@@ -485,31 +528,31 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         const action = actionMap[newStatus] || 'update';
         let description = '';
         if (newStatus === 'terminated') {
-          description = `Desactivado por ${body.terminationPerformedBy || 'N/A'}. Solicitado por: ${body.terminationRequestedBy || 'N/A'}. Razón: ${body.terminationReason || 'N/A'}`;
+          description = `Desactivado por ${d.supervisor || 'N/A'}. Razón: ${body.terminationReason || 'N/A'}`;
         } else if (newStatus === 'suspended') {
-          description = `Suspendido por ${body.suspensionPerformedBy || 'N/A'}. Solicitado por: ${body.suspensionRequestedBy || 'N/A'}. Razón: ${body.suspensionReason || 'N/A'}`;
+          description = `Suspendido por ${d.supervisor || 'N/A'}. Razón: ${body.suspensionReason || 'N/A'}`;
         } else if (newStatus === 'active' && (prevStatus === 'terminated' || prevStatus === 'inactive')) {
-          description = `Reactivado por ${body.reactivationPerformedBy || 'N/A'}. Solicitado por: ${body.reactivationRequestedBy || 'N/A'}. Razón: ${body.reactivationReason || 'N/A'}`;
+          description = `Reactivado por ${d.supervisor || 'N/A'}. Razón: ${body.reactivationReason || 'N/A'}`;
         } else {
           description = `Estado cambiado de "${prevStatus}" a "${newStatus}"`;
         }
-        await logHistory(body.id, tenantId, action, description, changes);
+        await logHistory(d.id, tenantId, action, description, changes);
       } else if (changes.length > 0) {
-        await logHistory(body.id, tenantId, 'update', `Datos actualizados por edición`, changes);
+        await logHistory(d.id, tenantId, 'update', `Datos actualizados por edición`, changes);
       }
     }
 
     await getSupabaseServer()
       .from('employee_hr_documents')
       .delete()
-      .eq('employee_id', body.id)
+      .eq('employee_id', d.id)
       .eq('tenant_id', tenantId);
 
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
         id: doc.id,
         tenant_id: tenantId,
-        employee_id: body.id,
+        employee_id: d.id,
         name: doc.name,
         type: doc.type,
         date: doc.date,

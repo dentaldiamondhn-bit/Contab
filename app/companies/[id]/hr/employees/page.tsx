@@ -59,6 +59,9 @@ interface Employee {
   contractType: 'indefinido' | 'determinado' | 'por obra' | 'prueba' | 'temporada';
   supervisor: string;
   reportsTo: string | null;
+  role: 'gerente' | 'supervisor' | 'empleado';
+  workScheduleId: string | null;
+  workScheduleName: string;
   schedule: 'completa' | 'media' | 'personalizada';
   scheduleHours: string;
   scheduleEntry: string;
@@ -285,6 +288,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => { if (!emp.department) return true; const deptNorm = emp.department.trim().toLowerCase(); const posDept = (p.department || '').trim().toLowerCase(); return deptNorm === posDept; }).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
                 <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id && (!emp.department || e.department === emp.department)).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.position || 'Sin puesto'}</option>))}</select></div>
+                <div><label className="text-gray-500">Rol Asistencia:</label><select value={emp.role || 'empleado'} onChange={(e) => updateField('role', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="empleado">Empleado</option><option value="supervisor">Supervisor</option><option value="gerente">Gerente</option></select></div>
                 <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
@@ -336,11 +340,22 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><span className="text-gray-500">Cargo:</span><p className="font-medium">{emp.position || '-'}</p></div>
                 <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
                 <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.reportsTo ? (employees.find(e => e.id === emp.reportsTo) ? `${employees.find(e => e.id === emp.reportsTo)!.firstName} ${employees.find(e => e.id === emp.reportsTo)!.lastName}` : emp.supervisor || '-') : (emp.supervisor || '-')}</p></div>
+                <div><span className="text-gray-500">Rol Asistencia:</span><p className="font-medium capitalize">{emp.role === 'gerente' ? 'Gerente' : emp.role === 'supervisor' ? 'Supervisor' : 'Empleado'}</p></div>
                 <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
                 <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
-                <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
-                <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
-                <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
+                {emp.workScheduleName ? (
+                  <>
+                    <div><span className="text-gray-500">Horario:</span><p className="font-medium text-cyan-600">{emp.workScheduleName}</p></div>
+                    <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
+                  </>
+                )}
                 <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
                 <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium">{emp.workPermitStatus || 'No aplica'}</p></div>
                 <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
@@ -824,6 +839,7 @@ export default function EmployeesPage() {
     contractType: 'indefinido' as const,
     supervisor: '',
     reportsTo: null,
+    role: 'empleado' as const,
     schedule: 'completa' as const,
     scheduleHours: '08:00 - 17:00',
     scheduleEntry: '08:00',
@@ -904,7 +920,7 @@ export default function EmployeesPage() {
           salary: parseFloat(e.base_salary) || 0, startDate: e.hire_date, status: e.status,
           phone: e.phone, email: e.email, address: e.address, photo: e.photo || '',
           cv: e.cv || '', civilStatus: e.civil_status, contractType: e.contract_type,
-          supervisor: e.supervisor, reportsTo: e.reportsTo || null, schedule: e.schedule, modality: e.modality,
+          supervisor: e.supervisor, reportsTo: e.reportsTo || null, role: e.role || 'empleado', schedule: e.schedule, modality: e.modality,
           educationLevel: e.education_level, university: e.university, degree: e.degree,
           graduationYear: e.graduation_year, languages: e.languages, certifications: e.certifications,
           driverLicense: e.driver_license, otherSkills: e.other_skills,
@@ -913,6 +929,7 @@ export default function EmployeesPage() {
           visaExpiry: e.visa_expiry, scheduleEntry: e.schedule_entry, scheduleExit: e.schedule_exit,
           scheduleHours: e.schedule_hours, freeDays: e.free_days || [],
           gender: e.gender, vacationDays: e.vacation_days || 0,
+          workScheduleId: e.work_schedule_id || null, workScheduleName: e.work_schedule_name || '',
           docIdentity: e.doc_identity || '', docAddressProof: e.doc_address_proof || '',
           docContract: e.doc_contract || '', docNDA: e.doc_nda || '',
           docEducationCerts: e.doc_education_certs || '', docPreviousJobs: e.doc_previous_jobs || '',
@@ -1096,7 +1113,7 @@ export default function EmployeesPage() {
       usedVacationDays: 0
     };
     await saveEmployeeToAPI(emp);
-    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', reportsTo: null, schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', reportsTo: null, role: 'empleado', workScheduleId: null, workScheduleName: '', schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
     setShowAddEmployee(false);
   };
 
@@ -1331,6 +1348,8 @@ export default function EmployeesPage() {
       vacationDays: calculateVacationDays(row.startdate || row.fecha_ingreso || row.fecha || ''),
       usedVacationDays: 0,
       freeDays: [],
+      workScheduleId: null,
+      workScheduleName: '',
     })).filter(emp => emp.firstName && emp.lastName);
 
     if (newEmployees.length === 0) {
@@ -1944,6 +1963,19 @@ export default function EmployeesPage() {
                   </select>
                 </div>
                 <div>
+                  <label className="text-sm font-medium">Rol de Asistencia</label>
+                  <select
+                    value={newEmployee.role}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as 'gerente' | 'supervisor' | 'empleado' })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="empleado">Empleado</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="gerente">Gerente</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Gerente ve todo, Supervisor ve su equipo, Empleado solo ficha</p>
+                </div>
+                <div>
                   <label className="text-sm font-medium">Jornada *</label>
                   <select
                     value={newEmployee.schedule}
@@ -2483,6 +2515,12 @@ export default function EmployeesPage() {
                         {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
                         <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
                         <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
+                        {emp.workScheduleName && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-cyan-500" />
+                            Horario: {emp.workScheduleName}
+                          </span>
+                        )}
                         {(emp.scheduleEntry || emp.scheduleExit) && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3 text-blue-500" />
@@ -2882,7 +2920,10 @@ export default function EmployeesPage() {
                   <h2 className="text-lg font-bold">{emp.firstName} {emp.lastName}</h2>
                   <p className="text-sm text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
-                    {(emp.scheduleEntry || emp.scheduleExit) && (
+                    {emp.workScheduleName && (
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-cyan-500" />{emp.workScheduleName}</span>
+                    )}
+                    {(emp.scheduleEntry || emp.scheduleExit) && !emp.workScheduleName && (
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}</span>
                     )}
                     {emp.freeDays && emp.freeDays.length > 0 && (

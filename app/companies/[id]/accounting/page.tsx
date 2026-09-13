@@ -39,7 +39,8 @@ import {
   FileSpreadsheet,
   Printer,
   Upload,
-  CheckCircle
+  CheckCircle,
+  DollarSign
 } from "lucide-react";
 
 interface Transaction {
@@ -138,180 +139,131 @@ export default function CompanyAccountingPage() {
 
   const loadCompanyData = async () => {
     try {
-      console.log("Cargando datos para companyId:", companyId);
       setLoading(true);
       
-      // 1. Resolver empresa/tenant (soporta id uuid, tenant_code como ANGELOH7, o companies.id)
+      // 1. Resolver empresa en paralelo con todas las fuentes posibles
+      const [companyRes, companiesRes, tenantRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}`).catch(() => null),
+        fetch(`/api/companies`).catch(() => null),
+        fetch(`/api/tenant/my-tenant`).catch(() => null),
+      ]);
+
       let companyData: any = null;
       let tenantIdReal: string = companyId;
 
-      const companyResponse = await fetch(`/api/companies/${companyId}`);
-      if (companyResponse.ok) {
-        companyData = await companyResponse.json();
+      // Intentar extraer de /companies/:id
+      if (companyRes?.ok) {
+        companyData = await companyRes.json();
         tenantIdReal = companyData.id || companyData.tenant_id || companyId;
-        // Normalizar campos de Tenant (vienen como businessname/business_name, etc.)
-        const cleanEmail = (e: string) => (e || "").replace(/\+[^@]+@/, "@");
-        const cleanRtn = (r: string) => (r || "").split("-")[0].trim();
-        companyData = {
-          ...companyData,
-          business_name: companyData.business_name || companyData.businessname || companyData.name || "",
-          business_rtn: cleanRtn(companyData.business_rtn || companyData.businessrtn || companyData.rtn || ""),
-          industry: companyData.industry || companyData.business_type || "",
-          regimen_tributario: companyData.regimen_tributario || "Régimen General",
-          actividad_economica: companyData.actividad_economica || companyData.business_type || companyData.industry || "",
-          direccion_fiscal: companyData.direccion_fiscal || companyData.businessaddress || companyData.business_address || companyData.address || "",
-          telefono_fiscal: companyData.telefono_fiscal || companyData.phonenumber || companyData.phone_number || companyData.phone || "",
-          email_fiscal: cleanEmail(companyData.email_fiscal || companyData.businessemail || companyData.business_email || companyData.email || ""),
-        };
-        // Enriquecer con fila de companies (tiene industry, business_type, address, etc.)
-        try {
-          const compListRes = await fetch(`/api/companies`);
-          if (compListRes.ok) {
-            const compJson = await compListRes.json();
-            const comps: any[] = compJson.companies || compJson || [];
-            const comp = comps.find((c:any)=> c.tenant_id === tenantIdReal || c.id === tenantIdReal);
-            if (comp) {
-              companyData = {
-                ...companyData,
-                industry: companyData.industry || comp.industry || comp.business_type || "",
-                regimen_tributario: companyData.regimen_tributario || (comp as any).regimen_tributario || "Régimen General",
-                actividad_economica: companyData.actividad_economica || comp.actividad_economica || comp.business_type || comp.industry || "",
-                direccion_fiscal: companyData.direccion_fiscal || comp.direccion_fiscal || comp.address || "",
-                telefono_fiscal: companyData.telefono_fiscal || comp.telefono_fiscal || comp.phone || comp.contact_phone || comp.company_phone || "",
-                email_fiscal: cleanEmail(companyData.email_fiscal || comp.email_fiscal || comp.email || ""),
-                business_name: companyData.business_name || comp.business_name || comp.name || "",
-                business_rtn: cleanRtn(companyData.business_rtn || comp.business_rtn || comp.rtn || ""),
-              };
-            }
-          }
-        } catch {}
-      } else {
-        // Fallback: buscar en lista de companies por id / name / tenant_code
-        try {
-          const listRes = await fetch(`/api/companies`);
-          if (listRes.ok) {
-            const listJson = await listRes.json();
-            const list: any[] = listJson.companies || listJson || [];
-            const found = list.find((c: any) => c.id === companyId || c.tenant_code === companyId || c.business_name === companyId);
-            if (found) {
-              companyData = found;
-              tenantIdReal = found.tenant_id || found.id;
-            } else if (list.length === 1) {
-              // si solo hay 1 empresa para el tenant, usarla
-              companyData = list[0];
-              tenantIdReal = list[0].tenant_id || list[0].id;
-            }
-          }
-        } catch {}
-        // Último fallback: intentar Tenant directo por tenant_code
-        if (!companyData) {
-          try {
-            const tRes = await fetch(`/api/tenant/my-tenant`);
-            if (tRes.ok) {
-              const tJson = await tRes.json();
-              if (tJson.id || tJson.tenant?.id) {
-                const tid = tJson.id || tJson.tenant?.id;
-                // verificar si coincide con ANGELOH7 etc - usar igual para no bloquear
-                if (!companyId || tid) tenantIdReal = tid;
-                if (!companyData && tJson.businessName) {
-                  companyData = {
-                    id: tid,
-                    business_name: tJson.businessName,
-                    business_rtn: tJson.businessRTN || "",
-                    industry: tJson.industry || "",
-                    regimen_tributario: "Régimen General",
-                    actividad_economica: "",
-                    direccion_fiscal: tJson.businessAddress || "",
-                    telefono_fiscal: tJson.phoneNumber || "",
-                    email_fiscal: tJson.businessEmail || "",
-                    is_active: true,
-                  };
-                }
-              }
-            }
-          } catch {}
+      }
+
+      // Enriquecer desde lista de companies
+      if (companiesRes?.ok) {
+        const compJson = await companiesRes.json();
+        const comps: any[] = compJson.companies || compJson || [];
+        const comp = comps.find((c: any) => 
+          c.tenant_id === tenantIdReal || c.id === tenantIdReal || 
+          c.tenant_code === companyId || c.id === companyId
+        );
+        if (comp) {
+          companyData = companyData ? { ...companyData, ...comp } : comp;
+          tenantIdReal = comp.tenant_id || comp.id || tenantIdReal;
+        } else if (!companyData && comps.length === 1) {
+          companyData = comps[0];
+          tenantIdReal = comps[0].tenant_id || comps[0].id;
         }
       }
 
-      if (!companyData) {
-        // mock mínimo para no bloquear UI, pero con tenantIdReal correcto para cargar transacciones
+      // Fallback: /tenant/my-tenant
+      if (!companyData && tenantRes?.ok) {
+        const tJson = await tenantRes.json();
+        const tid = tJson.id || tJson.tenant?.id;
+        if (tid) {
+          tenantIdReal = tid;
+          companyData = {
+            id: tid,
+            business_name: tJson.businessName || `Empresa ${companyId}`,
+            business_rtn: tJson.businessRTN || "",
+            industry: tJson.industry || "",
+            regimen_tributario: "Régimen General",
+            actividad_economica: "",
+            direccion_fiscal: tJson.businessAddress || "",
+            telefono_fiscal: tJson.phoneNumber || "",
+            email_fiscal: tJson.businessEmail || "",
+            is_active: true,
+          };
+        }
+      }
+
+      // Normalizar
+      if (companyData) {
+        const cleanEmail = (e: string) => (e || "").replace(/\+[^@]+@/, "@");
+        const cleanRtn = (r: string) => (r || "").split("-")[0].trim();
+        companyData = {
+          id: tenantIdReal,
+          business_name: companyData.business_name || companyData.businessname || companyData.name || `Empresa ${companyId}`,
+          business_rtn: cleanRtn(companyData.business_rtn || companyData.businessrtn || companyData.rtn || ""),
+          industry: companyData.industry || companyData.business_type || "",
+          regimen_tributario: companyData.regimen_tributario || "Régimen General",
+          actividad_economica: companyData.actividad_economica || companyData.business_type || "",
+          direccion_fiscal: companyData.direccion_fiscal || companyData.businessaddress || companyData.address || "",
+          telefono_fiscal: companyData.telefono_fiscal || companyData.phonenumber || companyData.phone || "",
+          email_fiscal: cleanEmail(companyData.email_fiscal || companyData.businessemail || companyData.email || ""),
+          is_active: companyData.is_active ?? true,
+        };
+      } else {
         companyData = {
           id: tenantIdReal,
           business_name: `Empresa ${companyId}`,
-          business_rtn: "",
-          industry: "",
-          regimen_tributario: "Régimen General",
-          actividad_economica: "",
-          direccion_fiscal: "",
-          telefono_fiscal: "",
-          email_fiscal: "",
+          business_rtn: "", industry: "", regimen_tributario: "Régimen General",
+          actividad_economica: "", direccion_fiscal: "", telefono_fiscal: "", email_fiscal: "",
           is_active: true,
         };
-        console.warn(`Empresa no encontrada para ${companyId}, usando fallback con tenantIdReal=${tenantIdReal}`);
       }
 
       setCompany(companyData);
 
-      // 2. Cargar transacciones y cuentas reales en paralelo (usa tenantIdReal, no el param crudo)
-      console.log(`Cargando datos reales para tenantIdReal=${tenantIdReal} (param=${companyId})`);
-      try {
-        const [txRes, accRes] = await Promise.all([
-          fetch(`/api/accounting/transactions?tenantId=${tenantIdReal}`),
-          fetch(`/api/accounting/accounts?tenantId=${tenantIdReal}`),
-        ]);
-        if (txRes.ok) {
-          const txData = await txRes.json();
-          // normalizar: la API puede devolver array o {transactions:[]}
-          const arr = Array.isArray(txData) ? txData : txData.transactions || [];
-          // mapear a formato local Transaction si viene con entries anidadas
-          const mapped: Transaction[] = arr.map((t: any) => ({
-            id: t.id,
-            date: t.date,
-            description: t.description,
-            voucherType: t.voucherType || t.voucher_type,
-            voucherNumber: t.voucherNumber ?? t.voucher_number ?? 0,
-            totalAmount: typeof t.totalAmount === "number" ? t.totalAmount : Number(t.total_amount ?? t.totalAmount ?? 0),
-            currency: t.currency || "HNL",
-            entries: (t.entries || t.JournalEntry || []).map((e: any) => ({
-              accountCode: e.accountCode || e.Account?.code || e.code || "",
-              accountName: e.accountName || e.Account?.name || e.name || "",
-              debit: e.debit ?? (e.amount > 0 ? e.amount : 0),
-              credit: e.credit ?? (e.amount < 0 ? Math.abs(e.amount) : 0),
-            })),
-          }));
-          setTransactions(mapped);
-          console.log(`Transacciones reales cargadas: ${mapped.length}`);
-        } else {
-          console.warn("Error cargando transacciones", await txRes.text());
-        }
-        if (accRes.ok) {
-          const accData = await accRes.json();
-          const arr = Array.isArray(accData) ? accData : accData.accounts || [];
-          const mappedAcc: Account[] = arr.map((a: any) => ({
-            id: a.id,
-            code: a.code,
-            name: a.name,
-            type: a.type,
-            description: a.description || "",
-            is_active: a.is_active ?? a.isActive ?? true,
-          }));
-          setAccounts(mappedAcc);
-          console.log(`Cuentas reales cargadas: ${mappedAcc.length}`);
-        } else {
-          console.warn("Error cargando cuentas", await accRes.text());
-        }
-      } catch (e) {
-        console.error("Error cargando transacciones/cuentas", e);
+      // 2. Cargar transacciones, cuentas y archivos en paralelo
+      const [txRes, accRes, filesRes] = await Promise.all([
+        fetch(`/api/accounting/transactions?tenantId=${tenantIdReal}`),
+        fetch(`/api/accounting/accounts?tenantId=${tenantIdReal}`),
+        fetch(`/api/accounting/uploaded-files?tenantId=${tenantIdReal}`),
+      ]);
+
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        const arr = Array.isArray(txData) ? txData : txData.transactions || [];
+        setTransactions(arr.map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          description: t.description,
+          voucherType: t.voucherType || t.voucher_type,
+          voucherNumber: t.voucherNumber ?? t.voucher_number ?? 0,
+          totalAmount: typeof t.totalAmount === "number" ? t.totalAmount : Number(t.total_amount ?? 0),
+          currency: t.currency || "HNL",
+          entries: (t.entries || t.JournalEntry || []).map((e: any) => ({
+            accountCode: e.accountCode || e.Account?.code || e.code || "",
+            accountName: e.accountName || e.Account?.name || e.name || "",
+            debit: e.debit ?? (e.amount > 0 ? e.amount : 0),
+            credit: e.credit ?? (e.amount < 0 ? Math.abs(e.amount) : 0),
+          })),
+        })));
       }
 
-      // Cargar historial de archivos subidos
-      try {
-        const filesRes = await fetch(`/api/accounting/uploaded-files?tenantId=${tenantIdReal}`);
-        if (filesRes.ok) {
-          const fj = await filesRes.json();
-          setUploadedFiles(fj.files || []);
-        }
-      } catch {}
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        const arr = Array.isArray(accData) ? accData : accData.accounts || [];
+        setAccounts(arr.map((a: any) => ({
+          id: a.id, code: a.code, name: a.name, type: a.type,
+          description: a.description || "",
+          is_active: a.is_active ?? a.isActive ?? true,
+        })));
+      }
+
+      if (filesRes.ok) {
+        const fj = await filesRes.json();
+        setUploadedFiles(fj.files || []);
+      }
 
       setLoading(false);
     } catch (error) {
@@ -743,6 +695,10 @@ export default function CompanyAccountingPage() {
           </p>
         </div>
         <div className="flex items-center space-x-2">
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/opening-balances`)}>
+              <DollarSign className="h-4 w-4 mr-2" />
+              Balances Apertura
+            </Button>
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/voucher-form`)}>
               <Plus className="h-4 w-4 mr-2" />
               Nueva Póliza
@@ -807,27 +763,44 @@ export default function CompanyAccountingPage() {
 
         {/* Tab Resumen */}
         <TabsContent value="overview" className="space-y-6">
-          <div className="grid grid-cols-1 gap-6">
-            {/* Botón prominente para Libros Contables */}
-            <Card className="bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 hover:shadow-lg transition-shadow">
-              <CardHeader className="text-center">
-                <BookOpen className="h-12 w-12 text-green-600 mx-auto mb-2" />
-                <CardTitle className="text-lg text-green-800">Libros Contables</CardTitle>
-                <CardDescription className="text-green-600">
-                  Gestiona los libros obligatorios del Código de Comercio
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex justify-center">
+          {/* Acceso principal a sub-módulos de Contabilidad */}
+          <Card className="bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200">
+            <CardHeader className="text-center">
+              <BookOpen className="h-12 w-12 text-cyan-600 mx-auto mb-2" />
+              <CardTitle className="text-lg text-cyan-800">Módulos de Contabilidad</CardTitle>
+              <CardDescription className="text-cyan-600">
+                Registro contable, estados financieros y libros legales
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <Button 
                   onClick={() => router.push(`/companies/${companyId}/accounting/books`)}
-                  className="bg-green-600 hover:bg-green-700 text-white font-semibold px-6 py-3"
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-6 flex flex-col items-center gap-2"
                 >
-                  <BookOpen className="h-5 w-5 mr-2" />
-                  Ir a Libros
+                  <BookOpen className="h-6 w-6" />
+                  <span>📒 Registro Contable</span>
+                  <span className="text-xs opacity-80">Partidas, libros y pólizas</span>
                 </Button>
-              </CardContent>
-            </Card>
-          </div>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/financial-statements`)}
+                  className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-6 flex flex-col items-center gap-2"
+                >
+                  <FileText className="h-6 w-6" />
+                  <span>📑 Estados Financieros</span>
+                  <span className="text-xs opacity-80">Balance, resultados, flujo</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/books`)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-6 flex flex-col items-center gap-2"
+                >
+                  <Scale className="h-6 w-6" />
+                  <span>🧾 Libros Legales</span>
+                  <span className="text-xs opacity-80">Compras, ventas, retenciones</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Contenedor: Conteo por cada libro (DB) */}
           <Card className="border-blue-200">

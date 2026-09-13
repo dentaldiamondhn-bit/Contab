@@ -387,28 +387,29 @@ TenantProvider → Envuelve toda la app
 
 | # | Módulo | Completitud | Estado |
 |---|---|---|---|
-| 1 | Registros Contables | ~70% | Parcial |
-| 2 | Estados Financieros | ~60% | Parcial |
-| 3 | Libros Legales | ~65% | Parcial |
-| 4 | Facturación y Ventas | ~55% | Parcial |
-| 5 | Inventario | ~55% | Parcial |
-| 6 | Compras y Proveedores | ~35% | Básico |
-| 7 | Control Financiero | ~35% | Parcial |
-| 8 | Reportes y Análisis | ~75% | Completo |
-| 9 | Seguridad y Control | ~80% | Completo |
-| 10 | Otras Características | ~35% | Básico |
-| 11 | Integración Fiscal | ~55% | Parcial |
-| 12 | Recursos Humanos | ~55% | Parcial |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~70% | Parcial |
+| 2 | Facturación y Ventas | ~55% | Parcial |
+| 3 | Inventario | ~55% | Parcial |
+| 4 | Compras y Proveedores | ~35% | Básico |
+| 5 | Control Financiero | ~35% | Parcial |
+| 6 | Reportes y Análisis | ~75% | Completo |
+| 7 | Seguridad y Control | ~80% | Completo |
+| 8 | Otras Características | ~35% | Básico |
+| 9 | Integración Fiscal | ~55% | Parcial |
+| 10 | Recursos Humanos | ~95% | Completo |
 
-**Promedio General: ~58%**
+**Promedio General: ~65%**
 
 ### Detalle por Módulo
 
-#### 8.1 Registros Contables (~70%)
+#### 8.1 Contabilidad (~70%)
 - ✅ Catálogo de cuentas jerárquico (3 plantillas: PYME, Comercial, Servicios)
 - ✅ Tipos de comprobante (INGRESO, EGRESO, DIARIO, AJUSTE)
 - ✅ Libros contables (Diario, Mayor, Balance, Ingresos, Egresos)
 - ✅ Auditoría con middleware Prisma
+- ✅ Estados Financieros: Balance General, Estado de Resultados, Flujo de Efectivo, Balance de Comprobación
+- ✅ Libros Legales: Libro de Compras, Ventas, Retenciones, CAI
+- ✅ Dashboard unificado con acceso a las 3 áreas
 - ⚠️ Formulario de asientos no conectado a API (usa mock data)
 - ⚠️ Hook use-accounts retorna datos mock
 
@@ -899,27 +900,26 @@ RESEND_API_KEY=re_...
 
 | # | Módulo | Completitud | UI Pages | API Routes | DB Tables | Almacenamiento | Estado |
 |---|---|---|---|---|---|---|---|
-| 1 | Registros Contables | ~70% | 4 | 10 | 2 tablas + 5 vistas | Supabase + Prisma | Parcial |
-| 2 | Estados Financieros | ~60% | 4 | 11 | 5 vistas | Supabase | Parcial |
-| 3 | Libros Legales | ~65% | 5 | 10 | 4 tablas + 4 vistas | Supabase + Prisma | Parcial |
-| 4 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
-| 5 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |
-| 6 | Compras y Proveedores | ~35% | 2 | 6 | 4 tablas | **JSON files** | **Básico** |
-| 7 | Control Financiero | ~35% | 1 | 3 | 1 tabla | Supabase + Prisma | Parcial |
-| 8 | Reportes y Análisis | ~75% | 9 | 11 | 15 vistas | Supabase | Completo |
-| 9 | Seguridad y Control | ~80% | 1 | 2 | 4 tablas | Supabase + Prisma | Completo |
-| 10 | Otras Características | ~35% | 1 | 2 | 6 tablas (Prisma) | Supabase Storage | Básico |
-| 11 | Integración Fiscal | ~55% | 5 | 14 | 4 tablas + 2 vistas | Supabase + Prisma | Parcial |
-| 12 | Recursos Humanos | ~55% | 7 | 3 | 8 tablas | Supabase + **localStorage** | Parcial |
+| 1 | Contabilidad (Registro + EF + LL) | ~70% | 13 | 21 | 2 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
+| 2 | Control de Asistencia | ~95% | 1 (4 tabs) | 7 | 5 tablas | Supabase | Completo |
+| 3 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
+| 4 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |
+| 5 | Compras y Proveedores | ~35% | 2 | 6 | 4 tablas | **JSON files** | **Básico** |
+| 6 | Control Financiero | ~35% | 1 | 3 | 1 tabla | Supabase + Prisma | Parcial |
+| 7 | Reportes y Análisis | ~75% | 9 | 11 | 15 vistas | Supabase | Completo |
+| 8 | Seguridad y Control | ~80% | 1 | 2 | 4 tablas | Supabase + Prisma | Completo |
+| 9 | Otras Características | ~35% | 1 | 2 | 6 tablas (Prisma) | Supabase Storage | Básico |
+| 10 | Integración Fiscal | ~55% | 5 | 14 | 4 tablas + 2 vistas | Supabase + Prisma | Parcial |
+| 11 | Recursos Humanos | ~95% | 5 | 16 | 29 tablas | Supabase | Completo |
 
 ### 16.2 Métricas de Madurez
 
 | Métrica | Valor Actual | Objetivo | Brecha |
 |---|---|---|---|
-| Completitud Funcional | ~58% | 95% | -37% |
+| Completitud Funcional | ~67% | 95% | -28% |
 | Cobertura de Pruebas | 0% | 70% | -70% |
-| Persistencia de Datos | ~65% | 100% | -35% |
-| Integración entre Módulos | ~40% | 80% | -40% |
+| Persistencia de Datos | ~80% | 100% | -20% |
+| Integración entre Módulos | ~55% | 80% | -25% |
 | Exportación (PDF/Excel) | ~30% | 90% | -60% |
 | Cumplimiento Fiscal Honduras | ~50% | 95% | -45% |
 | Documentación y Tipado | ~20% | 70% | -50% |
@@ -929,29 +929,27 @@ RESEND_API_KEY=re_...
 ```
 MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
-1.  Registros Contables       ████████████████████░░░░░░░░░░  70%  Parcial
-2.  Estados Financieros       ████████████████░░░░░░░░░░░░░░  60%  Parcial
-3.  Libros Legales            █████████████████░░░░░░░░░░░░░  65%  Parcial
-4.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-5.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-6.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-7.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
-8.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
-9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
-10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+1.  Contabilidad              ████████████████████░░░░░░░░░░  70%  Parcial
+    (Registro + EF + LL)
+2.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+3.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+4.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+5.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
+6.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
+7.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
+8.  Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+9.  Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+10. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ███████████████░░░░░░░░░░░░░░░  58%
+PROMEDIO                      ██████████████████░░░░░░░░░░░  65%
 ```
 
 ### 16.4 Estado de Almacenamiento de Datos
 
 | Módulo | Supabase | Prisma | localStorage | JSON Files | Estado |
 |---|---|---|---|---|---|
-| Registros Contables | ✅ | ✅ | — | — | ✅ Correcto |
-| Estados Financieros | ✅ | — | — | — | ✅ Correcto |
-| Libros Legales | ✅ | ✅ | — | — | ✅ Correcto |
+| Contabilidad (Registro + EF + LL) | ✅ | ✅ | — | — | ✅ Correcto |
+| Control de Asistencia | ✅ | — | — | — | ✅ Correcto |
 | Facturación y Ventas | ✅ | ✅ | — | — | ⚠️ Dual schema |
 | Inventario | ✅ | — | — | — | ⚠️ Dual schema |
 | Compras y Proveedores | Parcial | — | — | **⚠️ JSON** | ❌ Crítico |
@@ -960,7 +958,7 @@ PROMEDIO                      ███████████████░�
 | Seguridad y Control | ✅ | ✅ | — | — | ✅ Correcto |
 | Otras Características | ✅ | ✅ | — | — | ✅ Correcto |
 | Integración Fiscal | ✅ | ✅ | — | — | ✅ Correcto |
-| Recursos Humanos | Parcial | — | **⚠️ localStorage** | — | ❌ Crítico |
+| Recursos Humanos | ✅ | — | — | — | ✅ Correcto |
 
 ### 16.5 Problemas Críticos Consolidados (Top 10)
 
@@ -998,30 +996,28 @@ PROMEDIO                      ███████████████░�
 
 ```
                     ┌─────────────────────┐
-                    │   9. SEGURIDAD       │
+                    │   8. SEGURIDAD       │
                     │   (Base transversal) │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
               │                │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 1. REGISTROS       │ │ 4. FACTU-  │ │ 12. RECURSOS      │
-    │    CONTABLES       │ │ RACIÓN     │ │    HUMANOS        │
+    │ 1. CONTABILIDAD    │ │ 3. FACTU-  │ │ 11. RECURSOS      │
+    │ (Registro + EF +   │ │ RACIÓN     │ │     HUMANOS       │
+    │  Libros Legales)   │ │            │ │                   │
     └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
               │               │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 2. ESTADOS         │ │ 5. INVEN-  │ │ 11. INTEGRACIÓN   │
-    │    FINANCIEROS     │ │ TARIO      │ │    FISCAL         │
+    │ 2. CONTROL DE      │ │ 4. INVEN-  │ │ 10. INTEGRACIÓN   │
+    │    ASISTENCIA      │ │ TARIO      │ │     FISCAL        │
     └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
               │               │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 3. LIBROS          │ │ 6. COMPRAS │ │ 7. CONTROL        │
-    │    LEGALES         │ │            │ │    FINANCIERO     │
-    └───────────────────┘ └───┬────────┘ └───────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │ 8. REPORTES Y      │
-                    │    ANÁLISIS        │
+    │ 5. COMPRAS Y       │ │ 6. REPORTES│ │ 7. CONTROL        │
+    │    PROVEEDORES     │ │ Y ANÁLISIS │ │    FINANCIERO     │
+    └───────────────────┘ └────────────┘ └───────────────────┘
+```
                     │ (Consolida todo)   │
                     └───────────────────┘
 ```
@@ -1286,9 +1282,9 @@ ETAPA 6                                 █████████████�
 > - `PROJECT_DOCUMENTATION.md` — Este documento
 > - `MASTER_REPORT.md` — Reporte maestro de progreso
 > - `HR_MODULE_REPORT.md` — Reporte de Recursos Humanos
-> - `REGISTROS_CONTABLES_REPORT.md` — Reporte de Registros Contables
-> - `ESTADOS_FINANCIEROS_REPORT.md` — Reporte de Estados Financieros
-> - `LIBROS_LEGALES_REPORT.md` — Reporte de Libros Legales
+> - `REGISTROS_CONTABLES_REPORT.md` — Reporte de Registros Contables (incluido en Contabilidad unificada)
+> - `ESTADOS_FINANCIEROS_REPORT.md` — Reporte de Estados Financieros (incluido en Contabilidad unificada)
+> - `LIBROS_LEGALES_REPORT.md` — Reporte de Libros Legales (incluido en Contabilidad unificada)
 > - `FACTURACION_VENTAS_REPORT.md` — Reporte de Facturación
 > - `INVENTARIO_REPORT.md` — Reporte de Inventario
 > - `COMPRAS_PROVEEDORES_REPORT.md` — Reporte de Compras

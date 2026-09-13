@@ -20,14 +20,25 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
   try {
     // Fetch all employees for tenant, filter in JS
-    const { data: allEmployees, error } = await getSupabaseServer()
-      .from('employees')
-      .select('*')
-      .eq('tenant_id', companyId);
+    const [{ data: allEmployees, error }, { data: schedules }] = await Promise.all([
+      getSupabaseServer()
+        .from('employees')
+        .select('*')
+        .eq('tenant_id', companyId),
+      getSupabaseServer()
+        .from('work_schedules')
+        .select('id, name')
+        .eq('tenant_id', companyId),
+    ]);
 
     if (error) {
       console.error('Employee search error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const scheduleMap: Record<string, string> = {};
+    if (schedules) {
+      schedules.forEach((s: any) => { scheduleMap[s.id] = s.name; });
     }
 
     let filtered = allEmployees || [];
@@ -89,7 +100,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const positions = [...new Set(filtered.map(e => e.position).filter(Boolean))].sort();
 
     return NextResponse.json({
-      employees: paginated,
+      employees: paginated.map((e: any) => ({ ...e, work_schedule_name: scheduleMap[e.work_schedule_id] || '' })),
       total,
       page,
       limit,

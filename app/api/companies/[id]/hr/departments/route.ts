@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-
+import { departmentCreateSchema, departmentUpdateSchema } from '@/lib/validations/hr';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
@@ -16,12 +16,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  if (!body.name || !body.name.trim()) {
-    return NextResponse.json({ error: 'El nombre del departamento es requerido' }, { status: 400 });
+
+  const parsed = departmentCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
   }
+
+  const { name, description, manager, parentId } = parsed.data;
+
+  const { data: existing } = await getSupabaseServer()
+    .from('departments')
+    .select('id')
+    .eq('tenant_id', companyId)
+    .ilike('name', name)
+    .maybeSingle();
+  if (existing) {
+    return NextResponse.json({ error: 'Ya existe un departamento con ese nombre' }, { status: 409 });
+  }
+
   const { data, error } = await getSupabaseServer()
     .from('departments')
-    .insert({ tenant_id: companyId, name: body.name.trim(), description: body.description || '', manager: body.manager || '', parent_id: body.parentId || null })
+    .insert({ tenant_id: companyId, name: name.trim(), description: description || '', manager: manager || '', parent_id: parentId || null })
     .select()
     .single();
   if (error) {
@@ -34,11 +49,36 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { id, ...updates } = body;
-  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+  const parsed = departmentUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
+  }
+
+  const { id, name, description, manager, parentId } = parsed.data;
+
+  if (name) {
+    const { data: existing } = await getSupabaseServer()
+      .from('departments')
+      .select('id')
+      .eq('tenant_id', companyId)
+      .ilike('name', name)
+      .neq('id', id)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json({ error: 'Ya existe un departamento con ese nombre' }, { status: 409 });
+    }
+  }
+
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (description !== undefined) updates.description = description;
+  if (manager !== undefined) updates.manager = manager;
+  if (parentId !== undefined) updates.parent_id = parentId;
+
   const { error } = await getSupabaseServer()
     .from('departments')
-    .update({ name: updates.name, description: updates.description, manager: updates.manager, parent_id: updates.parentId || null })
+    .update(updates)
     .eq('id', id)
     .eq('tenant_id', companyId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

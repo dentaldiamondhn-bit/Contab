@@ -1,8 +1,8 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 11 de Septiembre de 2026
+> **Fecha:** 12 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
-> **Versión del Análisis:** 1.1
+> **Versión del Análisis:** 1.2
 
 ---
 
@@ -10,55 +10,41 @@
 
 | # | Módulo | Completitud | Estado | Prioridad |
 |---|---|---|---|---|
-| 1 | Registros Contables | ~70% | Parcial | Alta |
-| 2 | Estados Financieros | ~60% | Parcial | Alta |
-| 3 | Libros Legales | ~65% | Parcial | Crítica |
-| 4 | Facturación y Ventas | ~55% | Parcial | Crítica |
-| 5 | Inventario | ~55% | Parcial | Alta |
-| 6 | Compras y Proveedores | ~35% | **Básico** | **Crítica** |
-| 7 | Control Financiero | ~35% | Parcial | Alta |
-| 8 | Reportes y Análisis | ~75% | Completo | Media |
-| 9 | Seguridad y Control | ~80% | Completo | Media |
-| 10 | Otras Características | ~35% | Básico | Media |
-| 11 | Integración Fiscal | ~55% | Parcial | Crítica |
-| 12 | Recursos Humanos | ~95% | Completo | Alta |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~70% | Parcial | Alta |
+| 2 | Control de Asistencia | ~95% | Completo | Alta |
+| 3 | Facturación y Ventas | ~55% | Parcial | Crítica |
+| 4 | Inventario | ~55% | Parcial | Alta |
+| 5 | Compras y Proveedores | ~35% | **Básico** | **Crítica** |
+| 6 | Control Financiero | ~35% | Parcial | Alta |
+| 7 | Reportes y Análisis | ~75% | Completo | Media |
+| 8 | Seguridad y Control | ~80% | Completo | Media |
+| 9 | Otras Características | ~35% | Básico | Media |
+| 10 | Integración Fiscal | ~55% | Parcial | Crítica |
+| 11 | Recursos Humanos | ~95% | Completo | Alta |
 
-**Promedio General del Sistema: ~63%**
+**Promedio General del Sistema: ~67%**
 
-### Notas de Actualización (11 Sept 2026)
+### Notas de Actualización (12 Sept 2026)
+
+#### Contabilidad — Módulos Combinados
+- **Contabilidad unificada** — "Registro Contable", "Estados Financieros" y "Libros Legales" combinados en un solo módulo "Contabilidad". Las 3 tarjetas en la página de módulos ahora son 1 sola. La página de contabilidad (`/accounting`) muestra acceso directo a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales) desde una tarjeta unificada.
+- **Performance optimizado** — `loadCompanyData` en `/companies/[id]/accounting` reescrito: fetches de empresa, companies y tenant en paralelo (1 ronda), luego transacciones, cuentas y archivos en paralelo (2da ronda). De 5-6 fetches secuenciales a 2 rondas paralelas.
+- **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador, acceso directo a `/hr/attendance/time-clock`.
 
 #### HR Module
-- **HR: Asistencia — Rendimiento N+1 eliminado** — `saveAttendanceRecords` usa PATCH batch (1 request vs N POSTs). Schedules usa PUT batch (1 request vs N POSTs). `autoMarkFreeDays` y `applyHolidayDefaults` solo guardan registros cambiados (no todos). Carga de página ~5x más rápida.
-- **HR: Asistencia — Vista compacta con departamentos** — Empleados agrupados por departamento con secciones colapsables (colapsadas por defecto). Indicador de empleados con registro por departamento. Click en header para expandir/colapsar.
-- **HR: Asistencia — Re-fetch al cambiar de mes** — `loadData` re-ejecuta al cambiar `selectedDate` de mes. Antes solo cargaba al montar el componente, causando datos desactualizados al navegar meses.
-- **HR: Asistencia — Permisos parciales** — Permiso Sin Pago y Permiso Con Pago abren modal con selector de horas y minutos. Permiso sin pago descuenta salario horario × horas. Permiso con pago rastrea horas sin descuento. Columna `hours` (DECIMAL 5,2) agregada a tabla attendance.
-- **HR: Asistencia — Tarjetas stats expandidas** — 11 tarjetas clickeables (incluye Días Libres y Feriados). 11 estados de asistencia con badges y filtros.
-- **HR: API validations fix** — `lib/validations/hr.ts`: `.required({ id: true })` fix para evitar `ReferenceError: id is not defined` en employees API.
-- **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL (`pip_plans`, `pip_goals`, `pip_evaluations`, `pip_evidence`, `pip_attendance_metrics`) ejecutadas en Supabase sin errores. 3 API routes, UI con dashboard/crear/detalle/evaluaciones. Dashboard link agregado. Tipos TypeScript actualizados.
-- **HR: PIP — Tab de Estadísticas por Área** — Nuevo tab con barras horizontales que muestra frecuencia de cada área de mejoramiento, con desglose de metas cumplidas/en progreso/pendientes. Click en nombre de área abre modal con lista de empleados afectados.
-- **HR: PIP — Filtros de tiempo** — Selector de tiempo (este mes, trimestre, año, rango personalizado) aplicable en ambos tabs (Planes y Estadísticas). Filtra planes y estadísticas por fecha de inicio.
-- **HR: PIP — Drill-down a empleados** — Desde estadísticas, clic en nombre de empleado filtra la lista de planes mostrando solo los de ese empleado. Banner con opción a limpiar filtro.
-- **HR: PIP — Historial de comentarios** — Comentarios de evaluaciones ahora se cargan desde Supabase al abrir el detalle del plan (antes solo se guardaban pero no se mostraban).
-- **HR: Nómina — Carga Excel con persistencia** — Menú "Subir Excel" procesa archivos .xlsx/.xls/.csv, matching por código de empleado o nombre. Datos persistidos en tabla `payroll_uploads`. Formato descargable con headers agrupados, código de empleado, y hoja de instrucciones.
-- **HR: Nómina — Horas extras por turno** — Horas extra divididas en 3 tipos: Mañana (25%), Mixto (50%), Nocturno (75%). El monto se calcula automáticamente según salario y horas. Separación visible en voucher de pago.
-- **HR: Nómina — Código de empleado** — Columna "Código" agregada a tabla de detalle, vista de nómina cerrada, y voucher de pago. Matching por código en upload de Excel (evita conflictos con nombres duplicados).
-- **HR: Nómina — Rendimiento optimizado** — API calls paralelos (`Promise.all`), memoización de cálculos, API ligera `/hr/payroll/employees` (9 columnas vs 50+), paginator de 20 empleados por página, skeleton de carga.
-- **HR: Nómina — Bridge contable** — Cierre de nómina genera asientos contables automáticos (gasto salarios, cargas sociales, pago de nómina) via `/api/companies/[id]/hr/accounting`.
-- **HR: Validaciones y seguridad completas** — RLS habilitado en las 25 tablas HR (employees, employee_history, employee_hr_documents, pip_plans, attendance_schedules, attendance_deduction_config, attendance_holidays). UNIQUE constraints en employee_code, departments, positions, payroll_closed. API input validation en employees (nombre requerido, salario >= 0), departments (nombre requerido, duplicados), positions (nombre requerido, salario max >= min). Employee_code collision-safe con random. Prevención de cierre duplicado de nómina.
-- **HR: Vacaciones — Filtros avanzados** — Búsqueda por nombre/posición de empleado, dropdown de departamento, filtro por estado de solicitud (todas/aprobadas/rechazadas) en sección de historial, botón "Limpiar filtros" condicional.
-- **HR: Rendimiento optimizado en 3 páginas** — **Empleados**: N+1 fix con batch queries para employee_hr_documents + employee_history, 3 fetches iniciales paralelizados en `Promise.all`, `useMemo` para filtros/paginación, skeleton, actualizaciones optimistas. **Vacaciones**: fetches paralelos en `Promise.all`, `useMemo` para datos derivados, skeleton. **PIP**: `.limit(50)`, `useMemo` para planes filtrados y stats, skeleton.
-- **HR: Calendario de vacaciones** — Vista de calendario con 3 modos (Día/Semana/Mes). Mes: grilla 7×6 con eventos multi-día. Semana: fila eventos "todo el día" + cuadrícula horas 12AM-11PM. Día: eventos "todo el día" con acciones + cuadrícula horas. Línea roja de hora actual. Edición/eliminación, aprobación/rechazo directo, filtros por empleado/tipo/estado.
-- **HR: Asistencia — 3 vistas** — **Diaria** (con botones de acción para cada estado), **Quincenal** (tabla 2 semanas), **Compacta** (empleados agrupados por departamento con secciones colapsables, colapsadas por defecto).
-- **HR: Asistencia — 11 estados** — Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, **Permiso Con Pago** (sin descuento), **Suspensión sin Goce de Salario** (descuento día completo), Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables con filtro especial para HE (`overtimeHours > 0`).
-- **HR: Asistencia — Filtros** — Búsqueda por nombre, dropdown de departamento, filtro por estado (activos/suspendidos/inactivos/terminados) en ambas vistas (Día y Quincena). Botón limpiar filtros, contador de empleados filtrados.
-- **HR: Asistencia — Empleados inactivos/terminados** — Desde la fecha de terminación, controles de asistencia desactivados (sin botones, sin horario). Vista día: badge "Inactivo desde {fecha}", fila atenuada. Vista quincena: "Sin horario", celdas "Inactivo" sin botones.
-- **HR: Asistencia — Carga resiliente** — `safeFetch()` wrapper que maneja errores de API individualmente. Filtro de fecha en API (solo carga mes actual). Skeleton de carga animado.
-- **HR: Migración workflow de estado** — `HR_EMPLOYEE_WORKFLOW.sql`: columnas termination_date/reason/requested_by/performed_by, suspension_date, reactivation_date, rehireable en tabla employees. Ejecutada sin errores.
-- **HR: Tablas de asistencia creadas** — `ATTENDANCE_TABLES.sql`: 4 tablas con RLS (attendance_schedules, attendance_deduction_config, attendance_holidays, employee_history). Ejecutada sin errores.
+- **HR: Dashboard de asistencia** — Página `/hr/attendance/time-clock` reestructurada con 4 tabs: Dashboard (stats + tarjetas de empleados colapsables), Mi Fichaje (reloj personal), Mi Equipo (vista de gerente/supervisor), Horarios (CRUD de plantillas de horario). Empleados ausentes ocultos tras toggle "Ver ausentes". Cards de empleados expandibles con historial de eventos.
+- **HR: Plantillas de horario con multi-descanso** — Tabla `work_schedules` soporta hasta 3 descansos (`break2_start/end`, `break3_start/end`). CRUD completo en tab Horarios. Asignación de horario a empleados desde la gestión de horarios.
+- **HR: Visibilidad del horario en todos los módulos** — Nombre del horario visible en: página de empleados (card y detalle), nómina (columna Horario), asistencia (dropdown de asignación), resultados de búsqueda de empleados.
+- **HR: Reloj de asistencia con roles** — Gerente ve todos los empleados; Supervisor ve sus reportes directos; Empleado solo ficha su tiempo. Selector de usuario persistente en localStorage.
+- **HR: Asistencia — Rendimiento N+1 eliminado** — `saveAttendanceRecords` usa PATCH batch (1 request vs N POSTs). Schedules usa PUT batch. `autoMarkFreeDays` y `applyHolidayDefaults` solo guardan registros cambiados.
+- **HR: PIP implementado y desplegado** — Módulo completo de Planes de Mejoramiento: 5 tablas SQL, 3 API routes, UI con dashboard/crear/detalle/evaluaciones.
+- **HR: Nómina optimizada** — API calls paralelos, memoización, API ligera `/hr/payroll/employees`, paginator de 20 empleados, bridge contable automático.
+- **HR: Calendario de vacaciones** — Vista con 3 modos (Día/Semana/Mes), edición/eliminación, aprobación/rechazo directo.
+- **HR: Validaciones y seguridad completas** — RLS habilitado en las 28+ tablas HR. API input validation. Employee_code collision-safe.
 
 #### Infraestructura y Despliegue
 - **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
-- **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `auth_id` (Clerk userId). Archivo duplicado `route.js` eliminado, `route.ts` creado.
+- **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `auth_id` (Clerk userId). Auto-crea registro si no existe. Archivo duplicado `route.js` eliminado, `route.ts` creado.
 - **Vercel env vars fix** — Clerk `publishableKey` y `secret key` agregadas a Vercel para resolver `MIDDLEWARE_INVOCATION_FAILED`.
 - **Vercel SpeedInsights + Analytics** — `<SpeedInsights />` y `<Analytics />` integrados en `app/layout.tsx` para monitoreo de rendimiento.
 - **@clerk/clerk-sdk-node eliminado** — Paquete deprecado reemplazado por `lib/clerk-api.ts` (helper REST API directo). 7 scripts y 6 API routes migrados. 0 vulnerabilidades restantes.
@@ -73,20 +59,20 @@
 ```
 MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
-1.  Registros Contables       ████████████████████░░░░░░░░░░  70%  Parcial
-2.  Estados Financieros       ████████████████░░░░░░░░░░░░░░  60%  Parcial
-3.  Libros Legales            █████████████████░░░░░░░░░░░░░  65%  Parcial
-4.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-5.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-6.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-7.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
-8.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
-9.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
-10. Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-11. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-12. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
+1.  Contabilidad              ████████████████████░░░░░░░░░░  70%  Parcial
+    (Registro + EF + LL)
+2.  Control de Asistencia     ████████████████████████████░░  95%  Completo
+3.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+4.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+5.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+6.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
+7.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
+8.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
+9.  Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+10. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+11. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ██████████████████░░░░░░░░░░░  63%
+PROMEDIO                      ███████████████████░░░░░░░░░░  67%
 ```
 
 ---
@@ -97,9 +83,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Supabase | Prisma | localStorage | JSON Files |
 |---|---|---|---|---|
-| Registros Contables | ✅ | ✅ | — | — |
-| Estados Financieros | ✅ | — | — | — |
-| Libros Legales | ✅ | ✅ | — | — |
+| Contabilidad (Registro + EF + LL) | ✅ | ✅ | — | — |
 | Facturación y Ventas | ✅ | ✅ | — | — |
 | Inventario | ✅ | — | — | — |
 | Compras y Proveedores | Parcial | — | — | **⚠️ JSON** |
@@ -128,7 +112,7 @@ PROMEDIO                      ████████████████�
 | 2 | **Sin DIAT** (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
 | 3 | **Sin notas de crédito/débito** con UI | Facturación | Incumplimiento fiscal | **Crítica** |
 | 4 | **JournalEntryForm usa mockData** y no guarda | Contabilidad | Función rota | **Crítica** |
-| 5 | **FinancialStatements usa mockData** | Estados Financieros | Componente inutilizable | **Crítica** |
+| 5 | **FinancialStatements usa mockData** | Contabilidad | Componente inutilizable | **Crítica** |
 | 6 | **Sin presupuestos** | Control Financiero | Sin control presupuestario | Alta |
 | 7 | **Sin multi-almacén funcional** | Inventario | Sin logística | Alta |
 | 8 | **Sin generación de PDF** real | Múltiples | Sin impresión profesional | Alta |
@@ -143,9 +127,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
-| Registros Contables | 4 | 5 | 80% |
-| Estados Financieros | 4 | 6 | 67% |
-| Libros Legales | 5 | 8 | 63% |
+| Contabilidad (Registro + EF + LL) | 13 | 19 | 68% |
 | Facturación y Ventas | 3 | 7 | 43% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
@@ -154,15 +136,13 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
 | Integración Fiscal | 5 | 8 | 63% |
-| Recursos Humanos | 11 | 11 | 100% |
+| Recursos Humanos | 12 | 12 | 100% |
 
 ### 5.2 API Routes
 
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
-| Registros Contables | 10 | 12 | 83% |
-| Estados Financieros | 11 | 12 | 92% |
-| Libros Legales | 10 | 14 | 71% |
+| Contabilidad (Registro + EF + LL) | 21 | 26 | 81% |
 | Facturación y Ventas | 12 | 16 | 75% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
@@ -171,15 +151,13 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
 | Integración Fiscal | 14 | 18 | 78% |
-| Recursos Humanos | 21 | 21 | 100% |
+| Recursos Humanos | 23 | 23 | 100% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
 
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
-| Registros Contables | Account, Transaction, JournalEntry, chart_of_accounts, account_audit_log + 5 vistas | Sólido |
-| Estados Financieros | 5 vistas (balance_general, estado_resultados, etc.) | Sólido |
-| Libros Legales | libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai | Sólido |
+| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts, account_audit_log, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
 | Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
 | Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
 | Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |
@@ -188,7 +166,7 @@ PROMEDIO                      ████████████████�
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
 | Otras Características | File, FileProcessing, FileTemplate, FileActivity, CompanyLogo, PushSubscription | Prisma |
 | Integración Fiscal | TaxConfig, CustomTaxes, Withholding, cai, talonarios | Sólido |
-| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance (con columna hours DECIMAL 5,2), attendance_holidays, attendance_deduction_config, attendance_schedules, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (25 tablas + 2 buckets desplegados, RLS habilitado)** |
+| Recursos Humanos | employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_requests, permission_used, attendance (con columna hours DECIMAL 5,2), **time_tracking**, **work_schedules**, attendance_holidays, attendance_deduction_config, attendance_schedules, **employee_teams**, **team_members**, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics + 2 Storage buckets | **Sólido (29 tablas + 2 buckets desplegados, RLS habilitado)** |
 
 ---
 
@@ -198,9 +176,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Etapas | Tareas | Estimación |
 |---|---|---|---|
-| Registros Contables | 5 | 15 | 6-11 semanas |
-| Estados Financieros | 5 | 14 | 8-12 semanas |
-| Libros Legales | 5 | 14 | 7-11 semanas |
+| Contabilidad (Registro + EF + LL) | 5 | 43 | 20-30 semanas |
 | Facturación y Ventas | 5 | 15 | 9-13 semanas |
 | Inventario | 5 | 14 | 10-14 semanas |
 | Compras y Proveedores | 5 | 15 | 10-14 semanas |
@@ -210,7 +186,7 @@ PROMEDIO                      ████████████████�
 | Otras Características | 5 | 15 | 9-13 semanas |
 | Integración Fiscal | 5 | 14 | 11-16 semanas |
 | Recursos Humanos | 5 | 28 | 8-12 semanas |
-| **TOTAL** | **60** | **208** | **108-153 semanas** |
+| **TOTAL** | **50** | **188** | **96-140 semanas** |
 
 ### 6.2 Por Etapa (Agregado)
 
@@ -258,33 +234,27 @@ Prioridad 3 (Semanas 12-24):
 
 ```
                     ┌─────────────────────┐
-                    │   9. SEGURIDAD       │
+                    │   8. SEGURIDAD       │
                     │   (Base transversal) │
                     └──────────┬──────────┘
                                │
               ┌────────────────┼────────────────┐
               │                │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 1. REGISTROS       │ │ 4. FACTU-  │ │ 12. RECURSOS      │
-    │    CONTABLES       │ │ RACIÓN     │ │    HUMANOS        │
-    │ (Base contable)    │ │            │ │                   │
+    │ 1. CONTABILIDAD    │ │ 3. FACTU-  │ │ 11. RECURSOS      │
+    │ (Registro + EF +   │ │ RACIÓN     │ │     HUMANOS       │
+    │  Libros Legales)   │ │            │ │                   │
     └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
               │               │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 2. ESTADOS         │ │ 5. INVEN-  │ │ 11. INTEGRACIÓN   │
-    │    FINANCIEROS     │ │ TARIO      │ │    FISCAL         │
+    │ 2. CONTROL DE      │ │ 4. INVEN-  │ │ 10. INTEGRACIÓN   │
+    │    ASISTENCIA      │ │ TARIO      │ │     FISCAL        │
     └─────────┬─────────┘ └───┬────────┘ └────┬──────────────┘
               │               │                │
     ┌─────────▼─────────┐ ┌───▼────────┐ ┌────▼──────────────┐
-    │ 3. LIBROS          │ │ 6. COMPRAS │ │ 7. CONTROL        │
-    │    LEGALES         │ │            │ │    FINANCIERO     │
-    └───────────────────┘ └───┬────────┘ └───────────────────┘
-                              │
-                    ┌─────────▼─────────┐
-                    │ 8. REPORTES Y      │
-                    │    ANÁLISIS        │
-                    │ (Consolida todo)   │
-                    └───────────────────┘
+    │ 5. COMPRAS Y       │ │ 6. REPORTES│ │ 7. CONTROL        │
+    │    PROVEEDORES     │ │ Y ANÁLISIS │ │    FINANCIERO     │
+    └───────────────────┘ └────────────┘ └───────────────────┘
 ```
 
 ---
@@ -310,7 +280,7 @@ Prioridad 3 (Semanas 12-24):
 |---|---|
 | **Almacenamiento en archivos JSON** | Compras y Proveedores |
 | **Dual schemas (lowercase/PascalCase)** | Facturación, Inventario |
-| **Componentes con mockData** | Contabilidad, Estados Financieros |
+| **Componentes con mockData** | Contabilidad |
 | **0% cobertura de pruebas** | Todos los módulos |
 | **Sin generación PDF real** | Múltiples |
 | **Sin exportación Excel** | Reportes |
@@ -363,13 +333,13 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~63% | 95% |
+| Completitud Funcional | ~67% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
-| Persistencia de Datos | ~75% | 100% (sin JSON/localStorage) |
-| Integración entre Módulos | ~40% | 80% |
+| Persistencia de Datos | ~80% | 100% (sin JSON/localStorage) |
+| Integración entre Módulos | ~55% | 80% |
 | Exportación (PDF/Excel) | ~30% | 90% |
 | Cumplimiento Fiscal Honduras | ~50% | 95% |
-| Documentación | ~20% | 70% |
+| Documentación | ~25% | 70% |
 
 ### 10.1 Estado de Infraestructura (8 Sept 2026)
 
@@ -389,9 +359,10 @@ Prioridad 3 (Semanas 12-24):
 ---
 
 > **Archivos de reporte individuales:**
-> - `REGISTROS_CONTABLES_REPORT.md`
-> - `ESTADOS_FINANCIEROS_REPORT.md`
-> - `LIBROS_LEGALES_REPORT.md`
+> - `REGISTROS_CONTABLES_REPORT.md` (incluido en Contabilidad unificada)
+> - `ESTADOS_FINANCIEROS_REPORT.md` (incluido en Contabilidad unificada)
+> - `LIBROS_LEGALES_REPORT.md` (incluido en Contabilidad unificada)
+> - `CONTROL_ASISTENCIA_REPORT.md` — Reporte de Control de Asistencia
 > - `FACTURACION_VENTAS_REPORT.md`
 > - `INVENTARIO_REPORT.md`
 > - `COMPRAS_PROVEEDORES_REPORT.md`
@@ -400,4 +371,5 @@ Prioridad 3 (Semanas 12-24):
 > - `SEGURIDAD_CONTROL_REPORT.md`
 > - `OTRAS_CARACTERISTICAS_REPORT.md`
 > - `INTEGRACION_FISCAL_REPORT.md`
+> - `HR_MODULE_REPORT.md`
 > - `HR_MODULE_REPORT.md`

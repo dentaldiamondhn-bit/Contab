@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-
+import { positionCreateSchema, positionUpdateSchema } from '@/lib/validations/hr';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
@@ -16,15 +16,27 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  if (!body.name || !body.name.trim()) {
-    return NextResponse.json({ error: 'El nombre del cargo es requerido' }, { status: 400 });
+
+  const parsed = positionCreateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
   }
-  if (body.minSalary && body.maxSalary && body.maxSalary < body.minSalary) {
-    return NextResponse.json({ error: 'El salario máximo no puede ser menor al mínimo' }, { status: 400 });
+
+  const { name, department, description, minSalary, maxSalary, parentId } = parsed.data;
+
+  const { data: existing } = await getSupabaseServer()
+    .from('positions')
+    .select('id')
+    .eq('tenant_id', companyId)
+    .ilike('name', name)
+    .maybeSingle();
+  if (existing) {
+    return NextResponse.json({ error: 'Ya existe un cargo con ese nombre' }, { status: 409 });
   }
+
   const { data, error } = await getSupabaseServer()
     .from('positions')
-    .insert({ tenant_id: companyId, name: body.name.trim(), department: body.department || '', description: body.description || '', min_salary: body.minSalary || 0, max_salary: body.maxSalary || 0, parent_id: body.parentId || null })
+    .insert({ tenant_id: companyId, name: name.trim(), department: department || '', description: description || '', min_salary: minSalary || 0, max_salary: maxSalary || 0, parent_id: parentId || null })
     .select()
     .single();
   if (error) {
@@ -37,11 +49,42 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id: companyId } = await params;
   const body = await request.json();
-  const { id, ...updates } = body;
-  if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
+
+  const parsed = positionUpdateSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.issues[0].message, details: parsed.error.issues }, { status: 400 });
+  }
+
+  const { id, name, department, description, minSalary, maxSalary, parentId } = parsed.data;
+
+  if (name) {
+    const { data: existing } = await getSupabaseServer()
+      .from('positions')
+      .select('id')
+      .eq('tenant_id', companyId)
+      .ilike('name', name)
+      .neq('id', id)
+      .maybeSingle();
+    if (existing) {
+      return NextResponse.json({ error: 'Ya existe un cargo con ese nombre' }, { status: 409 });
+    }
+  }
+
+  if (minSalary !== undefined && maxSalary !== undefined && maxSalary > 0 && minSalary > 0 && maxSalary < minSalary) {
+    return NextResponse.json({ error: 'El salario máximo no puede ser menor al salario mínimo' }, { status: 400 });
+  }
+
+  const updates: Record<string, any> = {};
+  if (name !== undefined) updates.name = name.trim();
+  if (department !== undefined) updates.department = department;
+  if (description !== undefined) updates.description = description;
+  if (minSalary !== undefined) updates.min_salary = minSalary;
+  if (maxSalary !== undefined) updates.max_salary = maxSalary;
+  if (parentId !== undefined) updates.parent_id = parentId;
+
   const { error } = await getSupabaseServer()
     .from('positions')
-    .update({ name: updates.name, department: updates.department, description: updates.description, min_salary: updates.minSalary, max_salary: updates.maxSalary, parent_id: updates.parentId || null })
+    .update(updates)
     .eq('id', id)
     .eq('tenant_id', companyId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

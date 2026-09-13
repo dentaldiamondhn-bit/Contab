@@ -1,5 +1,7 @@
 ﻿# Reporte de Estado y Plan de Ejecución: Libros Legales
 
+> **Nota:** Este módulo ha sido combinado con "Registros Contables" y "Estados Financieros" en un solo módulo "Contabilidad". Ver `MASTER_REPORT.md` para el estado unificado.
+
 ## 1. Estado Actual del Código
 
 ### 1.1 Resumen Ejecutivo

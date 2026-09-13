@@ -28,7 +28,8 @@ import {
   Cog,
   ExternalLink,
   RefreshCw,
-  UserCheck
+  UserCheck,
+  Clock
 } from 'lucide-react';
 
 interface Company {
@@ -40,32 +41,12 @@ interface Company {
 const modules = [
   {
     id: 'accounting',
-    title: '📒 Registro Contable',
-    description: 'Gestiona las operaciones contables, asientos, pólizas y registros diarios.',
+    title: '📒 Contabilidad',
+    description: 'Registro contable, estados financieros, libros legales y reportes contables.',
     icon: BookOpen,
     color: 'text-cyan-600',
     bgColor: 'bg-cyan-50',
     path: '/accounting',
-    status: 'active'
-  },
-  {
-    id: 'financial-statements',
-    title: '📑 Estados Financieros',
-    description: 'Genera balances, estados de resultados y flujos de efectivo.',
-    icon: FileText,
-    color: 'text-green-600',
-    bgColor: 'bg-green-50',
-    path: '/accounting/financial-statements',
-    status: 'active'
-  },
-  {
-    id: 'legal-books',
-    title: '🧾 Libros Legales',
-    description: 'Libro de ingresos, egresos, diario, mayor y otros registros legales.',
-    icon: Scale,
-    color: 'text-purple-600',
-    bgColor: 'bg-purple-50',
-    path: '/accounting/books',
     status: 'active'
   },
   {
@@ -156,6 +137,16 @@ const modules = [
     color: 'text-indigo-600',
     bgColor: 'bg-indigo-50',
     path: '/hr',
+    status: 'active'
+  },
+  {
+    id: 'attendance',
+    title: '⏰ Control de Asistencia',
+    description: 'Fichaje de empleados, dashboard en tiempo real, horarios y reportes de asistencia.',
+    icon: Clock,
+    color: 'text-emerald-600',
+    bgColor: 'bg-emerald-50',
+    path: '/hr/attendance/time-clock',
     status: 'active'
   }
 ];

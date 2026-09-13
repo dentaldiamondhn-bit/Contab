@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     .select('*')
     .eq('tenant_id', companyId)
     .order('employee_id');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json([], { status: 200 });
   return NextResponse.json(data || []);
 }
 

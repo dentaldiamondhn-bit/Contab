@@ -21,7 +21,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const { data, error } = await query.order('date', { ascending: false });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) return NextResponse.json([], { status: 200 });
   return NextResponse.json(data || []);
 }
 

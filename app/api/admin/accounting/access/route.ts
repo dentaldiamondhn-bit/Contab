@@ -3,9 +3,7 @@ import { auth, clerkClient } from '@clerk/nextjs/server';
 import { supabaseAdmin } from '@/lib/supabase';
 
 const ACCOUNTING_BOOKS = [
-  { id: 'ACCOUNTING', name: 'Contabilidad Central', description: 'Libro Diario, Libro Mayor, Asientos' },
-  { id: 'FINANCIAL_STATEMENTS', name: 'Estados Financieros', description: 'Balance General, Estado de Resultados, Flujo de Efectivo' },
-  { id: 'LEGAL_BOOKS', name: 'Libros Legales', description: 'Libros legales y registros fiscales obligatorios' },
+  { id: 'ACCOUNTING', name: 'Contabilidad', description: 'Registro contable, estados financieros, libros legales y reportes' },
 ];
 
 async function checkAuth() {
