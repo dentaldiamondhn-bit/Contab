@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Fragment } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -212,9 +212,8 @@ export default function AccountingAuditPage() {
                       const oldBal = log.old_values?.opening_balance ?? null;
                       const newBal = log.new_values?.opening_balance ?? null;
                       const isExpanded = expandedLog === log.id;
-                      return (
-                        <>
-                          <TableRow key={log.id} className="hover:bg-gray-50">
+                        return (
+                          <Fragment key={log.id}>
                             <TableCell className="text-sm text-gray-600">
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3 text-gray-400" />
@@ -271,7 +270,7 @@ export default function AccountingAuditPage() {
                               </TableCell>
                             </TableRow>
                           )}
-                        </>
+                          </Fragment>
                       );
                     })}
                   </TableBody>
