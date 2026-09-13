@@ -92,6 +92,7 @@ export default function JournalTemplatesPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [previewDuplicates, setPreviewDuplicates] = useState<string[]>([]);
 
   const [form, setForm] = useState({
     name: '',
@@ -265,6 +266,10 @@ export default function JournalTemplatesPage() {
         const ws = wb.Sheets[wb.SheetNames[0]];
         const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
         setUploadPreview(rows.slice(0, 50));
+
+        const namesInFile = [...new Set(rows.map((r: any) => (r.nombre || r.name || r.plantilla || '').toString().trim()).filter(Boolean))];
+        const dupes = namesInFile.filter(n => templates.some(t => t.name.toLowerCase() === n.toLowerCase()));
+        setPreviewDuplicates(dupes);
       } catch (err) {
         console.error('Error leyendo Excel:', err);
         alert('Error al leer el archivo. Verifique que sea un archivo Excel válido.');
@@ -320,10 +325,31 @@ export default function JournalTemplatesPage() {
           }
 
           let created = 0;
+          let skipped = 0;
           let errors = 0;
+          const duplicates: string[] = [];
 
           for (const tpl of Object.values(templatesByName)) {
             if (tpl.lines.length < 2) { errors++; continue; }
+
+            const isDuplicate = templates.some(existing =>
+              existing.name.toLowerCase() === tpl.name.toLowerCase() &&
+              existing.lines.length === tpl.lines.length &&
+              existing.lines.every(el =>
+                tpl.lines.some(tl =>
+                  tl.account_code === el.account_code &&
+                  tl.debit_enabled === el.debit_enabled &&
+                  tl.credit_enabled === el.credit_enabled
+                )
+              )
+            );
+
+            if (isDuplicate) {
+              duplicates.push(tpl.name);
+              skipped++;
+              continue;
+            }
+
             try {
               const res = await fetch(`/api/accounting/journal-templates?tenantId=${companyId}`, {
                 method: 'POST',
@@ -344,7 +370,11 @@ export default function JournalTemplatesPage() {
           setUploadFile(null);
           setUploadPreview([]);
           loadTemplates();
-          alert(`Importación completada: ${created} plantilla(s) creada(s)${errors > 0 ? `, ${errors} con error(es)` : ''}`);
+
+          let msg = `Importación completada: ${created} plantilla(s) creada(s)`;
+          if (skipped > 0) msg += `, ${skipped} duplicada(s) omitida: ${duplicates.join(', ')}`;
+          if (errors > 0) msg += `, ${errors} con error(es)`;
+          alert(msg);
         } catch (err) {
           console.error('Error procesando Excel:', err);
           alert('Error al procesar el archivo.');
@@ -690,6 +720,13 @@ export default function JournalTemplatesPage() {
             {uploadPreview.length > 0 && (
               <div>
                 <Label>Vista previa ({uploadPreview.length} filas)</Label>
+                {previewDuplicates.length > 0 && (
+                  <div className="mt-1 bg-yellow-50 border border-yellow-200 rounded-lg p-2">
+                    <p className="text-xs font-medium text-yellow-800">
+                      ⚠️ {previewDuplicates.length} plantilla(s) duplicada(s) serán omitidas: {previewDuplicates.join(', ')}
+                    </p>
+                  </div>
+                )}
                 <div className="mt-1 border rounded-lg overflow-auto max-h-60">
                   <table className="w-full text-xs">
                     <thead className="bg-gray-50 sticky top-0">
