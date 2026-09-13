@@ -16,7 +16,6 @@ import {
 } from '@/components/ui/table';
 import {
   ArrowLeft,
-  History,
   Search,
   Filter,
   ChevronDown,
@@ -24,6 +23,7 @@ import {
   User,
   FileText,
   Shield,
+  CalendarDays,
 } from 'lucide-react';
 
 interface AuditLog {
@@ -38,6 +38,12 @@ interface AuditLog {
   performed_at: string;
 }
 
+interface DayGroup {
+  date: string;
+  label: string;
+  logs: AuditLog[];
+}
+
 function formatCurrency(amount: number): string {
   return new Intl.NumberFormat('es-HN', {
     style: 'currency',
@@ -46,15 +52,33 @@ function formatCurrency(amount: number): string {
   }).format(amount / 100);
 }
 
-function formatDate(iso: string): string {
-  return new Date(iso).toLocaleString('es-HN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString('es-HN', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
   });
+}
+
+function formatDayLabel(dateStr: string): string {
+  const d = new Date(dateStr + 'T12:00:00');
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+
+  const isToday = d.toDateString() === today.toDateString();
+  const isYesterday = d.toDateString() === yesterday.toDateString();
+
+  const formatted = d.toLocaleDateString('es-HN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  if (isToday) return `Hoy - ${formatted}`;
+  if (isYesterday) return `Ayer - ${formatted}`;
+  return formatted;
 }
 
 const ACTION_LABELS: Record<string, string> = {
@@ -71,6 +95,22 @@ const ACTION_COLORS: Record<string, string> = {
   DELETE: 'bg-red-100 text-red-700 border-red-200',
 };
 
+function groupByDay(logs: AuditLog[]): DayGroup[] {
+  const map = new Map<string, AuditLog[]>();
+  for (const log of logs) {
+    const dateStr = new Date(log.performed_at).toISOString().split('T')[0];
+    if (!map.has(dateStr)) map.set(dateStr, []);
+    map.get(dateStr)!.push(log);
+  }
+  return Array.from(map.entries())
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([date, logs]) => ({
+      date,
+      label: formatDayLabel(date),
+      logs,
+    }));
+}
+
 export default function AccountingAuditPage() {
   const params = useParams();
   const router = useRouter();
@@ -83,7 +123,7 @@ export default function AccountingAuditPage() {
   const [total, setTotal] = useState(0);
   const [searchCode, setSearchCode] = useState('');
   const [filterAction, setFilterAction] = useState('');
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadLogs();
@@ -95,7 +135,7 @@ export default function AccountingAuditPage() {
       const params = new URLSearchParams({
         tenantId: companyId,
         page: page.toString(),
-        limit: '20',
+        limit: '50',
       });
       if (filterAction) params.set('action', filterAction);
       if (searchCode) params.set('accountCode', searchCode);
@@ -109,6 +149,9 @@ export default function AccountingAuditPage() {
         setLogs(data.logs || []);
         setTotalPages(data.totalPages || 1);
         setTotal(data.total || 0);
+
+        const dayGroups = groupByDay(data.logs || []);
+        setExpandedDays(new Set(dayGroups.map(g => g.date)));
       }
     } catch (error) {
       console.error('Error loading audit logs:', error);
@@ -121,17 +164,25 @@ export default function AccountingAuditPage() {
     loadLogs();
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedIds(prev => {
+  const toggleDay = (date: string) => {
+    setExpandedDays(prev => {
       const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
+      if (next.has(date)) next.delete(date);
+      else next.add(date);
       return next;
     });
   };
+
+  const expandAll = () => {
+    const dayGroups = groupByDay(logs);
+    setExpandedDays(new Set(dayGroups.map(g => g.date)));
+  };
+
+  const collapseAll = () => {
+    setExpandedDays(new Set());
+  };
+
+  const dayGroups = groupByDay(logs);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -195,6 +246,14 @@ export default function AccountingAuditPage() {
                 <Filter className="h-4 w-4 mr-2" />
                 Buscar
               </Button>
+              <div className="flex gap-1">
+                <Button variant="ghost" size="sm" onClick={expandAll}>
+                  Expandir todo
+                </Button>
+                <Button variant="ghost" size="sm" onClick={collapseAll}>
+                  Colapsar todo
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -203,7 +262,7 @@ export default function AccountingAuditPage() {
           <CardContent className="p-0">
             {loading ? (
               <div className="p-8 text-center text-gray-500">Cargando historial...</div>
-            ) : logs.length === 0 ? (
+            ) : dayGroups.length === 0 ? (
               <div className="p-8 text-center text-gray-500">
                 <FileText className="h-12 w-12 mx-auto text-gray-300 mb-3" />
                 No hay registros de auditoría
@@ -214,7 +273,7 @@ export default function AccountingAuditPage() {
                   <TableHeader>
                     <TableRow className="bg-gray-50">
                       <TableHead className="w-[50px] px-4"></TableHead>
-                      <TableHead className="w-[200px] px-6">Fecha</TableHead>
+                      <TableHead className="w-[200px] px-6">Hora</TableHead>
                       <TableHead className="w-[260px] px-6">Cuenta</TableHead>
                       <TableHead className="w-[180px] px-6">Acción</TableHead>
                       <TableHead className="w-[160px] px-6">Saldo Anterior</TableHead>
@@ -223,111 +282,86 @@ export default function AccountingAuditPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {logs.map((log) => {
-                      const oldBal = log.old_values?.opening_balance ?? null;
-                      const newBal = log.new_values?.opening_balance ?? null;
-                      const isExpanded = expandedIds.has(log.id);
+                    {dayGroups.map((group) => {
+                      const isDayExpanded = expandedDays.has(group.date);
 
                       return (
-                        <Fragment key={log.id}>
+                        <Fragment key={group.date}>
                           <TableRow
-                            className="hover:bg-gray-50 cursor-pointer select-none"
-                            onClick={() => toggleExpand(log.id)}
+                            className="bg-purple-50 hover:bg-purple-100 cursor-pointer select-none border-t-2 border-purple-200"
+                            onClick={() => toggleDay(group.date)}
                           >
-                            <TableCell className="w-[50px] px-4">
+                            <TableCell className="px-4">
                               <ChevronDown
-                                className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
-                                  isExpanded ? 'rotate-180' : ''
+                                className={`h-5 w-5 text-purple-600 transition-transform duration-200 ${
+                                  isDayExpanded ? 'rotate-180' : ''
                                 }`}
                               />
                             </TableCell>
-                            <TableCell className="w-[200px] px-6 text-sm text-gray-600">
-                              <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-gray-400 shrink-0" />
-                                {formatDate(log.performed_at)}
+                            <TableCell colSpan={2} className="px-6">
+                              <div className="flex items-center gap-2">
+                                <CalendarDays className="h-4 w-4 text-purple-500" />
+                                <span className="font-semibold text-purple-900">{group.label}</span>
                               </div>
                             </TableCell>
-                            <TableCell className="w-[260px] px-6 font-mono text-sm font-medium">
-                              {log.account_code ? (
-                                <div>
-                                  <span className="font-semibold">{log.account_code}</span>
-                                  {log.account_name && (
-                                    <span className="block text-xs text-gray-500 font-normal">{log.account_name}</span>
-                                  )}
-                                </div>
-                              ) : '-'}
-                            </TableCell>
-                            <TableCell className="w-[180px] px-6">
-                              <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
-                                {ACTION_LABELS[log.action] || log.action}
+                            <TableCell className="px-6">
+                              <Badge className="bg-purple-100 text-purple-700">
+                                {group.logs.length} {group.logs.length === 1 ? 'cambio' : 'cambios'}
                               </Badge>
                             </TableCell>
-                            <TableCell className="w-[160px] px-6 text-sm">
-                              {oldBal !== null ? formatCurrency(oldBal) : '-'}
+                            <TableCell className="px-6">
+                              <span className="text-sm text-purple-600">
+                                {formatCurrency(group.logs.reduce((sum, l) => sum + (l.new_values?.opening_balance || 0), 0))}
+                              </span>
                             </TableCell>
-                            <TableCell className="w-[160px] px-6 text-sm font-medium">
-                              {newBal !== null ? formatCurrency(newBal) : '-'}
-                            </TableCell>
-                            <TableCell className="w-[140px] px-6 text-sm text-gray-600">
-                              <div className="flex items-center gap-1">
-                                <User className="h-3 w-3 text-gray-400 shrink-0" />
-                                {log.performed_by || 'Sistema'}
-                              </div>
-                            </TableCell>
+                            <TableCell colSpan={2}></TableCell>
                           </TableRow>
-                          {isExpanded && (
-                            <TableRow>
-                              <TableCell colSpan={7} className="bg-gray-50 p-0">
-                                <div className="px-12 py-4">
-                                  {log.account_code && (
-                                    <div className="mb-3 text-sm">
-                                      <span className="font-semibold text-gray-700">Cuenta:</span>
-                                      <span className="ml-2 font-mono">{log.account_code}</span>
+
+                          {isDayExpanded && group.logs.map((log) => {
+                            const oldBal = log.old_values?.opening_balance ?? null;
+                            const newBal = log.new_values?.opening_balance ?? null;
+
+                            return (
+                              <TableRow key={log.id} className="hover:bg-gray-50">
+                                <TableCell className="px-4">
+                                  <div className="w-2 h-2 rounded-full bg-gray-300 ml-2" />
+                                </TableCell>
+                                <TableCell className="w-[200px] px-6 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1">
+                                    <Clock className="h-3 w-3 text-gray-400 shrink-0" />
+                                    {formatTime(log.performed_at)}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="w-[260px] px-6 font-mono text-sm font-medium">
+                                  {log.account_code ? (
+                                    <div>
+                                      <span className="font-semibold">{log.account_code}</span>
                                       {log.account_name && (
-                                        <span className="ml-2 text-gray-500">- {log.account_name}</span>
+                                        <span className="block text-xs text-gray-500 font-normal">{log.account_name}</span>
                                       )}
                                     </div>
-                                  )}
-                                  <div className="grid grid-cols-2 gap-6">
-                                    <div className="bg-white rounded-lg border p-4">
-                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Anteriores</span>
-                                      <div className="mt-3 space-y-2">
-                                        {log.old_values?.opening_balance != null && (
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Saldo de Apertura</span>
-                                            <span className="text-sm font-medium">{formatCurrency(log.old_values.opening_balance)}</span>
-                                          </div>
-                                        )}
-                                        {log.old_values?.opening_balance_date && (
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Fecha</span>
-                                            <span className="text-sm font-medium">{log.old_values.opening_balance_date}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <div className="bg-white rounded-lg border p-4">
-                                      <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Nuevos</span>
-                                      <div className="mt-3 space-y-2">
-                                        {log.new_values?.opening_balance != null && (
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Saldo de Apertura</span>
-                                            <span className="text-sm font-medium">{formatCurrency(log.new_values.opening_balance)}</span>
-                                          </div>
-                                        )}
-                                        {log.new_values?.opening_balance_date && (
-                                          <div className="flex justify-between items-center">
-                                            <span className="text-sm text-gray-600">Fecha</span>
-                                            <span className="text-sm font-medium">{log.new_values.opening_balance_date}</span>
-                                          </div>
-                                        )}
-                                      </div>
-                                    </div>
+                                  ) : '-'}
+                                </TableCell>
+                                <TableCell className="w-[180px] px-6">
+                                  <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
+                                    {ACTION_LABELS[log.action] || log.action}
+                                  </Badge>
+                                </TableCell>
+                                <TableCell className="w-[160px] px-6 text-sm">
+                                  {oldBal !== null ? formatCurrency(oldBal) : '-'}
+                                </TableCell>
+                                <TableCell className="w-[160px] px-6 text-sm font-medium">
+                                  {newBal !== null ? formatCurrency(newBal) : '-'}
+                                </TableCell>
+                                <TableCell className="w-[140px] px-6 text-sm text-gray-600">
+                                  <div className="flex items-center gap-1">
+                                    <User className="h-3 w-3 text-gray-400 shrink-0" />
+                                    {log.performed_by || 'Sistema'}
                                   </div>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          )}
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })}
                         </Fragment>
                       );
                     })}
