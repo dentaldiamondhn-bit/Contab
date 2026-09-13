@@ -402,12 +402,13 @@ TenantProvider → Envuelve toda la app
 
 ### Detalle por Módulo
 
-#### 8.1 Contabilidad (~72%)
+#### 8.1 Contabilidad (~74%)
 - ✅ Catálogo de cuentas jerárquico (3 plantillas: PYME, Comercial, Servicios)
 - ✅ Tipos de comprobante (INGRESO, EGRESO, DIARIO, AJUSTE)
 - ✅ Libros contables (Diario, Mayor, Balance, Ingresos, Egresos)
 - ✅ Auditoría con middleware Prisma
 - ✅ **Auditoría inmutable de cuentas** — Tabla `account_audit_log` (acción, valores anteriores/nuevos JSONB, usuario, fecha). API `/api/accounting/audit-logs` con paginación y filtros. UI `/accounting/audit` agrupada por día con expand/collapse. Backfill automático de cuentas.
+- ✅ **Validación de integridad del catálogo** — API `/api/accounting/accounts/validate` que verifica 9 tipos de problemas (duplicados, huérfanos, sin código, sin nombre, separadores inconsistentes, desactivadas, tipo inválido, autorreferencia, nombre=código). UI `/accounting/validate-catalog` con cards de resumen y lista expandible.
 - ✅ Estados Financieros: Balance General, Estado de Resultados, Flujo de Efectivo, Balance de Comprobación
 - ✅ Libros Legales: Libro de Compras, Ventas, Retenciones, CAI
 - ✅ Dashboard unificado con acceso a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales)
@@ -904,7 +905,7 @@ RESEND_API_KEY=re_...
 
 | # | Módulo | Completitud | UI Pages | API Routes | DB Tables | Almacenamiento | Estado |
 |---|---|---|---|---|---|---|---|
-| 1 | Contabilidad (Registro + EF + LL) | ~72% | 15 | 24 | 3 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
+| 1 | Contabilidad (Registro + EF + LL) | ~74% | 16 | 25 | 3 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
 | 2 | Control de Asistencia | ~95% | 1 (4 tabs) | 7 | 5 tablas | Supabase | Completo |
 | 3 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
 | 4 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |

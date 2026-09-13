@@ -32,6 +32,7 @@
 - **Performance optimizado** — `loadCompanyData` en `/companies/[id]/accounting` reescrito: fetches de empresa, companies y tenant en paralelo (1 ronda), luego transacciones, cuentas y archivos en paralelo (2da ronda). De 5-6 fetches secuenciales a 2 rondas paralelas.
 - **Balances de Apertura** — Nueva página `/accounting/opening-balances` para gestionar saldos iniciales de cuentas. API `GET/PUT` en `/api/accounting/opening-balances`. Botón "Calcular desde Movimientos" que auto-calcula saldos desde el trial balance existente con matching flexible de códigos (maneja `.` y `-`). SQL migration `ADD_OPENING_BALANCE.sql` agrega columnas `opening_balance` y `opening_balance_date` a `chart_of_accounts`.
 - **Balance de Comprobación (fix)** — Fix crítico: `tenantId` faltante en el fetch del trial balance causaba página en blanco. Fechas por defecto cambiadas a año completo (no solo mes actual). Simplificado para no depender de API de opening balances (bloqueada por Clerk en client-side). Montos convertidos de centavos a lempiras.
+- **Validación de Catálogo** — API `/api/accounting/accounts/validate` verifica 9 tipos de problemas: códigos duplicados, pads huérfanos, sin código, sin nombre, separadores inconsistentes, cuentas desactivadas, tipo no válido, autorreferencia, nombre=código. UI `/accounting/validate-catalog` con cards de resumen y lista expandible. Botón "Validar Catálogo" en dashboard de contabilidad.
 - **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador, acceso directo a `/hr/attendance/time-clock`.
 
 #### HR Module
@@ -130,7 +131,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 15 | 19 | 79% |
+| Contabilidad (Registro + EF + LL) | 16 | 19 | 84% |
 | Facturación y Ventas | 3 | 7 | 43% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
@@ -145,7 +146,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 24 | 26 | 92% |
+| Contabilidad (Registro + EF + LL) | 25 | 26 | 96% |
 | Facturación y Ventas | 12 | 16 | 75% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
@@ -271,6 +272,7 @@ Prioridad 3 (Semanas 12-24):
 | **Autenticación y RBAC sólidos** | Seguridad (Clerk, 7 roles, 30+ permisos) |
 | **Catálogo de cuentas completo** | Contabilidad (3 plantillas, jerárquico, multi-divisa) |
 | **Auditoría inmutable de cuentas** | Contabilidad (`account_audit_log`, agrupado por día, expand/collapse, backfill automático) |
+| **Validación de integridad del catálogo** | Contabilidad (9 checks: duplicados, huérfanos, sin código/nombre, separadores inconsistentes, etc.) |
 | **Centro de reportes robusto** | Reportes (18 reportes, 11 APIs, 5+ charts) |
 | **Gestión CAI con alertas** | Fiscal/Facturación (alertas de rango y vencimiento) |
 | **Retenciones con PDF legal** | Fiscal (recibo A4 con CAI, leyenda SAR) |

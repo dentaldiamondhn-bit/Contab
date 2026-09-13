@@ -44,6 +44,13 @@
 | `app/api/accounting/accounts/route.ts` | API CRUD para cuentas, sub-rutas `check-transactions` y `delete-all` |
 | `lib/accounting-utils.ts` | Utilidades contables: etiquetas/colores, validación doble entrada, cálculo de saldos, formato moneda centavos HNL, balanza de comprobación |
 
+#### Archivos de Validación de Catálogo
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/validate-catalog/page.tsx` | UI de validación: 4 cards de resumen (Total, Errores, Advertencias, Estado), lista expandible de problemas con severidad, tabla de cuentas afectadas |
+| `app/api/accounting/accounts/validate/route.ts` | API GET que verifica 9 tipos de problemas: códigos duplicados, pads huérfanos, sin código, sin nombre, separadores inconsistentes (`.` vs `-`), cuentas desactivadas, tipo no válido, autorreferencia, nombre = código |
+
 #### Archivos de Balances de Apertura
 
 | Archivo | Propósito |
@@ -60,7 +67,7 @@
 
 #### Lo que Falta
 
-- Sin validación de integridad del catálogo (cuentas huérfanas)
+- Sin exportación de validación a PDF/Excel
 
 ---
 
@@ -215,7 +222,7 @@
 
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
-| 4.1 | Validación de integridad del catálogo | `lib/services/account-validation.ts` | Etapa 1 | Validaciones server-side |
+| ~~4.1~~ | ~~Validación de integridad del catálogo~~ | ~~`lib/services/account-validation.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/accounts/validate` + UI `/accounting/validate-catalog` con 9 checks |
 | ~~4.2~~ | ~~Auditoría extendida (todos los modelos contables)~~ | ~~`lib/audit-middleware.ts`~~ | ~~Etapa 1~~ | ✅ Completada |
 | ~~4.3~~ | ~~Dashboard de auditoría contable~~ | ~~`app/accounting/audit/page.tsx`~~ | ~~4.2~~ | ✅ Completada — UI agrupada por día, expand/collapse, valores formateados |
 
