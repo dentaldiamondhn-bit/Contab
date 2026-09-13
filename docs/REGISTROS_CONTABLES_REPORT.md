@@ -90,9 +90,10 @@ _(Ninguna — catálogo validado completamente)_
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/accounting/journal-templates/page.tsx` | UI de gestión de plantillas: lista con preview de líneas, formulario crear/editar, duplicar, eliminar. Selector de cuentas con búsqueda. |
+| `app/companies/[id]/accounting/journal-templates/page.tsx` | UI de gestión de plantillas: lista con preview de líneas, formulario crear/editar, duplicar, eliminar. Selector de cuentas con búsqueda. **Importación masiva desde Excel** con vista previa, detección de duplicados, y descarga de plantilla de ejemplo. |
 | `app/api/accounting/journal-templates/route.ts` | API CRUD (GET/POST/PUT/DELETE) para plantillas y sus líneas |
-| `supabase/JOURNAL_ENTRY_TEMPLATES.sql` | Migración SQL: tablas `journal_entry_templates` y `journal_entry_template_lines` con RLS |
+| `app/components/VercelAnalytics.tsx` | Wrapper seguro para Vercel Analytics/SpeedInsights con lazy loading (evita crash en incognito) |
+| `supabase/JOURNAL_ENTRY_TEMPLATES.sql` | Migración SQL idempotente: tablas `journal_entry_templates` y `journal_entry_template_lines` con RLS (safe to run multiple times) |
 
 #### Tablas de Base de Datos
 
@@ -106,7 +107,6 @@ _(Ninguna — catálogo validado completamente)_
 - **Formulario usa mockAccounts** en lugar de cuentas reales de la API
 - **handleSubmit solo hace console.log**, no guarda realmente
 - `use-accounts.ts` retorna datos mock
-- Sin importación masiva de asientos
 - Sin función de reversión ni asientos recurrentes
 
 ---
@@ -216,8 +216,8 @@ _(Ninguna — catálogo validado completamente)_
 
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
-| ~~2.1~~ | ~~Crear sistema de plantillas de asientos~~ | ~~`lib/services/journal-templates.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/journal-templates` + UI `/accounting/journal-templates` + selector en formulario de póliza |
-| 2.2 | Implementar importación masiva de asientos | `lib/services/excel-import.ts` | Etapa 1 | Importación Excel |
+| ~~2.1~~ | ~~Crear sistema de plantillas de asientos~~ | ~~`lib/services/journal-templates.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/journal-templates` + UI `/accounting/journal-templates` + selector en formulario de póliza + importación Excel + detección de duplicados |
+| ~~2.2~~ | ~~Implementar importación masiva de asientos~~ | ~~`lib/services/excel-import.ts`~~ | ~~Etapa 1~~ | ✅ Completada — Importación masiva de plantillas desde Excel con vista previa, detección de duplicados y descarga de plantilla de ejemplo |
 | 2.3 | Implementar asientos de reversión | `lib/services/journal-reversal.ts` | Etapa 1 | Reversión automática |
 
 ### Etapa 3: Cierre Mensual y Períodos
