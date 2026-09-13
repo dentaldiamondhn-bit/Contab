@@ -41,7 +41,8 @@ import {
   Upload,
   CheckCircle,
   DollarSign,
-  History
+  History,
+  ShieldCheck
 } from "lucide-react";
 
 interface Transaction {
@@ -703,6 +704,10 @@ export default function CompanyAccountingPage() {
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/audit`)}>
               <History className="h-4 w-4 mr-2" />
               Historial
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/validate-catalog`)}>
+              <ShieldCheck className="h-4 w-4 mr-2" />
+              Validar Catálogo
             </Button>
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/voucher-form`)}>
               <Plus className="h-4 w-4 mr-2" />
