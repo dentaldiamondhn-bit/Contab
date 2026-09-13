@@ -74,10 +74,13 @@ export default function ReversalsPage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [uploadPreview, setUploadPreview] = useState<any[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
+  const [showUserSelector, setShowUserSelector] = useState(false);
 
   useEffect(() => {
     loadReversals();
     loadTransactions();
+    loadUsers();
   }, [companyId]);
 
   const loadReversals = async () => {
@@ -98,6 +101,18 @@ export default function ReversalsPage() {
       });
       if (res.ok) setTransactions(await res.json());
     } catch (e) { console.error(e); }
+  };
+
+  const loadUsers = async () => {
+    try {
+      const res = await fetch(`/api/tenant/users?tenantId=${companyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data || []);
+      }
+    } catch (e) {
+      console.error('Error loading users:', e);
+    }
   };
 
   const handleRevert = async (txId?: string, revReason?: string, revBy?: string, revNotes?: string) => {
@@ -416,9 +431,39 @@ export default function ReversalsPage() {
               </div>
 
               <div className="grid grid-cols-2 gap-4">
-                <div>
+                <div className="relative">
                   <Label>Revertido por *</Label>
-                  <Input value={reversedBy} onChange={e => setReversedBy(e.target.value)} placeholder="Nombre del contador" />
+                  <Input
+                    value={reversedBy}
+                    onClick={() => { if (users.length > 0) setShowUserSelector(true); }}
+                    readOnly
+                    placeholder="Seleccionar contador..."
+                    className="cursor-pointer"
+                  />
+                  {showUserSelector && (
+                    <div className="absolute z-50 top-full left-0 mt-1 w-full bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
+                      <div className="flex items-center justify-between px-3 py-2 border-b sticky top-0 bg-white">
+                        <span className="text-xs font-medium text-gray-500">{users.length} usuario(s)</span>
+                        <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => setShowUserSelector(false)}>Cerrar</button>
+                      </div>
+                      {users.map((user: any) => (
+                        <div
+                          key={user.id}
+                          className="px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm border-b last:border-0"
+                          onClick={() => {
+                            setReversedBy(user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email || user.id);
+                            setShowUserSelector(false);
+                          }}
+                        >
+                          <div className="font-medium">{user.firstName} {user.lastName}</div>
+                          <div className="text-xs text-gray-400">{user.email}</div>
+                        </div>
+                      ))}
+                      {users.length === 0 && (
+                        <div className="px-3 py-4 text-center text-gray-400 text-sm">No hay usuarios</div>
+                      )}
+                    </div>
+                  )}
                 </div>
                 <div>
                   <Label>Notas (opcional)</Label>
