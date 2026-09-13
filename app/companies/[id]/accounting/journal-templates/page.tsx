@@ -646,7 +646,7 @@ export default function JournalTemplatesPage() {
 
       {/* Dialog de Importación Excel */}
       <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <FileSpreadsheet className="h-5 w-5 text-green-600" />
