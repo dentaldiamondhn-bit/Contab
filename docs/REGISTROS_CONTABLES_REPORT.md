@@ -73,22 +73,33 @@ _(Ninguna — catálogo validado completamente)_
 
 ### 2.2 Asientos Contables
 
-**Estado: Parcial (~55%)**
+**Estado: Parcial (~65%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `components/accounting/JournalEntryForm.tsx` | Formulario de asientos con tipo de comprobante, entrada múltiple débito/crédito, validación en tiempo real |
+| `app/companies/[id]/accounting/voucher-form/page.tsx` | Formulario de póliza completo con selector de plantillas, duplicar, anular |
 | `app/api/accounting/transactions/route.ts` | API CRUD de transacciones (GET/POST/PUT) |
 | `app/api/accounting/voucher-number/route.ts` | Generación automática de números de comprobante |
 | `lib/voucher-types.ts` | Tipos de comprobante (INGRESO, EGRESO, DIARIO, AJUSTE), numeración automática |
 | `lib/voucher-categorization.ts` | Detección automática del tipo de comprobante |
 
+#### Archivos de Plantillas de Asientos
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/journal-templates/page.tsx` | UI de gestión de plantillas: lista con preview de líneas, formulario crear/editar, duplicar, eliminar. Selector de cuentas con búsqueda. |
+| `app/api/accounting/journal-templates/route.ts` | API CRUD (GET/POST/PUT/DELETE) para plantillas y sus líneas |
+| `supabase/JOURNAL_ENTRY_TEMPLATES.sql` | Migración SQL: tablas `journal_entry_templates` y `journal_entry_template_lines` con RLS |
+
 #### Tablas de Base de Datos
 
 - `Transaction` (Prisma) — Encabezado: id, tenantId, date, description, reference, voucherType, voucherNumber, currency, exchangeRate, totalAmount
 - `JournalEntry` (Prisma) — Líneas: id, transactionId, accountId, amount (BigInt), originalAmount, currency, exchangeRate
+- `journal_entry_templates` (Supabase) — id, tenant_id, name, description, voucher_type, is_active, created_at, updated_at
+- `journal_entry_template_lines` (Supabase) — id, template_id (FK), account_code, account_name, debit_enabled, credit_enabled, default_amount, sort_order
 
 #### Lo que Falta
 
@@ -96,7 +107,6 @@ _(Ninguna — catálogo validado completamente)_
 - **handleSubmit solo hace console.log**, no guarda realmente
 - `use-accounts.ts` retorna datos mock
 - Sin importación masiva de asientos
-- Sin plantillas de asientos contables
 - Sin función de reversión ni asientos recurrentes
 
 ---
@@ -206,7 +216,7 @@ _(Ninguna — catálogo validado completamente)_
 
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
-| 2.1 | Crear sistema de plantillas de asientos | `lib/services/journal-templates.ts` | Etapa 1 | Plantillas reutilizables |
+| ~~2.1~~ | ~~Crear sistema de plantillas de asientos~~ | ~~`lib/services/journal-templates.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/journal-templates` + UI `/accounting/journal-templates` + selector en formulario de póliza |
 | 2.2 | Implementar importación masiva de asientos | `lib/services/excel-import.ts` | Etapa 1 | Importación Excel |
 | 2.3 | Implementar asientos de reversión | `lib/services/journal-reversal.ts` | Etapa 1 | Reversión automática |
 
