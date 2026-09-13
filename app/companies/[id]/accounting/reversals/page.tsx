@@ -67,6 +67,7 @@ export default function ReversalsPage() {
   const [reversedBy, setReversedBy] = useState('');
   const [notes, setNotes] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [showTxList, setShowTxList] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
   const [showUploadDialog, setShowUploadDialog] = useState(false);
@@ -253,8 +254,11 @@ export default function ReversalsPage() {
 
   const filteredTransactions = transactions.filter(t =>
     !reversals.some(r => r.original_transaction_id === t.id && r.status === 'completed') &&
-    (t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-     String(t.voucherNumber).includes(searchTerm))
+    (searchTerm === '' ||
+     t.description?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     String(t.voucherNumber).includes(searchTerm) ||
+     t.voucherType?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+     t.date?.includes(searchTerm))
   );
 
   const formatCurrency = (amount: number) => {
@@ -357,20 +361,25 @@ export default function ReversalsPage() {
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
                   <Input
                     value={searchTerm}
-                    onChange={e => setSearchTerm(e.target.value)}
-                    placeholder="Buscar por descripción o número..."
+                    onChange={e => { setSearchTerm(e.target.value); setShowTxList(true); }}
+                    onFocus={() => setShowTxList(true)}
+                    placeholder="Buscar por descripción, número, tipo o fecha..."
                     className="pl-9"
                   />
                 </div>
               </div>
 
-              {searchTerm && !selectedTx && (
+              {showTxList && !selectedTx && (
                 <div className="border rounded-lg max-h-60 overflow-auto">
-                  {filteredTransactions.slice(0, 10).map(tx => (
+                  <div className="flex items-center justify-between px-4 py-2 bg-gray-50 border-b sticky top-0">
+                    <span className="text-xs font-medium text-gray-500">{filteredTransactions.length} transacción(es) disponible(s)</span>
+                    <button className="text-xs text-gray-400 hover:text-gray-600" onClick={() => { setShowTxList(false); setSearchTerm(''); }}>Cerrar</button>
+                  </div>
+                  {filteredTransactions.slice(0, 20).map(tx => (
                     <div
                       key={tx.id}
                       className="px-4 py-3 hover:bg-gray-50 cursor-pointer border-b last:border-0"
-                      onClick={() => { setSelectedTx(tx); setSearchTerm(''); }}
+                      onClick={() => { setSelectedTx(tx); setShowTxList(false); setSearchTerm(''); }}
                     >
                       <div className="flex justify-between">
                         <span className="font-medium">{tx.description}</span>
