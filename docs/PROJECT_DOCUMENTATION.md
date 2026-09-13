@@ -416,14 +416,13 @@ TenantProvider → Envuelve toda la app
 - ✅ Balances de Apertura — Página CRUD + botón "Calcular desde Movimientos" con matching flexible de códigos
 - ✅ Balance de Comprobación 6 columnas (Saldo Anterior / Movimientos / Saldo Actual)
 - ✅ Performance optimizado (fetches paralelos)
-- ⚠️ Formulario de asientos no conectado a API (usa mock data)
-- ⚠️ Hook use-accounts retorna datos mock
+- ✅ **Estados financieros conectados a API real** — Balance General y Estado de Resultados cargan datos de `/api/accounting/accounts`
 
 #### 8.2 Estados Financieros (~60%)
 - ✅ Balance General con datos Supabase
 - ✅ Estado de Resultados con datos Supabase
 - ✅ Flujo de Efectivo con datos Supabase
-- ⚠️ Componente FinancialStatements usa mock data
+- ✅ **Multi-tenant conectado a API real** — `MultiTenantAccountingManager` carga empresas de `/api/admin/tenants`
 - ❌ Sin exportación Excel/PDF real
 - ❌ Sin dashboard de ratios financieros
 
@@ -974,8 +973,8 @@ PROMEDIO                      ████████████████�
 | 2 | Asistencia, vacaciones y planilla usan localStorage | RRHH | Datos no persistentes | **Crítica** |
 | 3 | Sin DIAT (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
 | 4 | Sin notas de crédito/débito con UI | Facturación | Incumplimiento fiscal | **Crítica** |
-| 5 | JournalEntryForm usa mockData y no guarda | Contabilidad | Función principal rota | **Crítica** |
-| 6 | FinancialStatements usa mockData | Estados Financieros | Componente inutilizable | **Crítica** |
+| 5 | ~~JournalEntryForm usa mockData y no guarda~~ | ~~Contabilidad~~ | ~~Función principal rota~~ | ✅ Resuelta |
+| 6 | ~~FinancialStatements usa mockData~~ | ~~Estados Financieros~~ | ~~Componente inutilizable~~ | ✅ Resuelta |
 | 7 | Sin presupuestos ni centros de costo | Control Financiero | Sin control presupuestario | Alta |
 | 8 | Sin multi-almacén funcional | Inventario | Sin logística | Alta |
 | 9 | Sin generación de PDF profesional | Múltiples | Sin impresión | Alta |

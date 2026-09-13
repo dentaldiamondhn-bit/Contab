@@ -116,8 +116,8 @@ PROMEDIO                      ████████████████�
 | 1 | **Compras usan archivos JSON** en lugar de base de datos | Compras | Datos no persistentes | **Crítica** |
 | 2 | **Sin DIAT** (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
 | 3 | **Sin notas de crédito/débito** con UI | Facturación | Incumplimiento fiscal | **Crítica** |
-| 4 | **JournalEntryForm usa mockData** y no guarda | Contabilidad | Función rota | **Crítica** |
-| 5 | **FinancialStatements usa mockData** | Contabilidad | Componente inutilizable | **Crítica** |
+| 4 | ~~JournalEntryForm usa mockData y no guarda~~ | ~~Contabilidad~~ | ~~Función rota~~ | ✅ Resuelta |
+| 5 | ~~FinancialStatements usa mockData~~ | ~~Contabilidad~~ | ~~Componente inutilizable~~ | ✅ Resuelta |
 | 6 | **Sin presupuestos** | Control Financiero | Sin control presupuestario | Alta |
 | 7 | **Sin multi-almacén funcional** | Inventario | Sin logística | Alta |
 | 8 | **Sin generación de PDF** real | Múltiples | Sin impresión profesional | Alta |
@@ -287,7 +287,7 @@ Prioridad 3 (Semanas 12-24):
 |---|---|
 | **Almacenamiento en archivos JSON** | Compras y Proveedores |
 | **Dual schemas (lowercase/PascalCase)** | Facturación, Inventario |
-| **Componentes con mockData** | Contabilidad |
+| ~~Componentes con mockData~~ | ~~Contabilidad~~ ✅ Resuelta |
 | **0% cobertura de pruebas** | Todos los módulos |
 | **Sin generación PDF real** | Múltiples |
 | **Sin exportación Excel** | Reportes |

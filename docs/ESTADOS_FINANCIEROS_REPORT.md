@@ -115,7 +115,7 @@
 
 #### Lo que Falta
 
-- **Usa datos mock** para Balance General y Estado de Resultados
+- ~~**Usa datos mock** para Balance General y Estado de Resultados~~ ✅ Conectado a API real
 - **Pestaña de Flujo muestra "En Desarrollo"**
 - Sin generación real de PDF
 
@@ -125,7 +125,7 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | FinancialStatements usa mock data | Componente principal inutilizable | Crítica |
+| 1 | ~~FinancialStatements usa mock data~~ | ~~Componente principal inutilizable~~ | ~~Crítica~~ | ✅ Resuelta |
 | 2 | Flujo de Efectivo usa clasificación simplificada | Cálculos inexactos | Alta |
 | 3 | Sin exportación Excel/PDF real | Limitación para uso en producción | Alta |
 | 4 | Sin dashboard de ratios financieros | Sin análisis financiero profundo | Media |

@@ -73,13 +73,16 @@ _(Ninguna — catálogo validado completamente)_
 
 ### 2.2 Asientos Contables
 
-**Estado: Parcial (~65%)**
+**Estado: Completo (~85%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `components/accounting/JournalEntryForm.tsx` | Formulario de asientos con tipo de comprobante, entrada múltiple débito/crédito, validación en tiempo real |
+| `components/accounting/JournalEntryForm.tsx` | Formulario de asientos con tipo de comprobante, entrada múltiple débito/crédito, validación en tiempo real. **Conectado a API real** — carga cuentas de `/api/accounting/accounts`, guarda vía `POST /api/accounting/transactions`. Selector de cuentas con búsqueda por código/nombre. |
+| `components/accounting/FinancialStatements.tsx` | Estados financieros (Balance General, Estado de Resultados). **Conectado a API real** — carga cuentas de `/api/accounting/accounts`, calcula totales por tipo. |
+| `components/accounting/MultiTenantAccountingManager.tsx` | Gestión multi-tenant. **Conectado a API real** — carga empresas de `/api/admin/tenants`. |
+| `hooks/use-accounts.ts` | Hook que carga cuentas reales de `/api/accounting/accounts` (sin datos mock). |
 | `app/companies/[id]/accounting/voucher-form/page.tsx` | Formulario de póliza completo con selector de plantillas, duplicar, anular |
 | `app/api/accounting/transactions/route.ts` | API CRUD de transacciones (GET/POST/PUT) |
 | `app/api/accounting/voucher-number/route.ts` | Generación automática de números de comprobante |
@@ -104,9 +107,6 @@ _(Ninguna — catálogo validado completamente)_
 
 #### Lo que Falta
 
-- **Formulario usa mockAccounts** en lugar de cuentas reales de la API
-- **handleSubmit solo hace console.log**, no guarda realmente
-- `use-accounts.ts` retorna datos mock
 - Sin función de reversión ni asientos recurrentes
 
 ---
