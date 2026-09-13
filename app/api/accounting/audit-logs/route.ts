@@ -45,8 +45,24 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const enrichedLogs = await Promise.all(
+      (logs || []).map(async (log) => {
+        if (!log.account_id) return log;
+        const { data: acct } = await supabaseService
+          .from("Account")
+          .select("code, name")
+          .eq("id", log.account_id)
+          .single();
+        return {
+          ...log,
+          account_code: log.account_code || acct?.code || '',
+          account_name: acct?.name || '',
+        };
+      })
+    );
+
     return NextResponse.json({
-      logs: logs || [],
+      logs: enrichedLogs,
       total: count || 0,
       page,
       limit,

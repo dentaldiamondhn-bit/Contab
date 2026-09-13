@@ -30,6 +30,7 @@ interface AuditLog {
   id: string;
   account_id: string;
   account_code: string;
+  account_name: string;
   action: string;
   old_values: any;
   new_values: any;
@@ -214,7 +215,7 @@ export default function AccountingAuditPage() {
                     <TableRow className="bg-gray-50">
                       <TableHead className="w-[60px]"></TableHead>
                       <TableHead className="w-[160px]">Fecha</TableHead>
-                      <TableHead className="w-[100px]">Código</TableHead>
+                      <TableHead className="w-[200px]">Cuenta</TableHead>
                       <TableHead className="w-[140px]">Acción</TableHead>
                       <TableHead>Saldo Anterior</TableHead>
                       <TableHead>Saldo Nuevo</TableHead>
@@ -247,7 +248,14 @@ export default function AccountingAuditPage() {
                               </div>
                             </TableCell>
                             <TableCell className="font-mono text-sm font-medium">
-                              {log.account_code || '-'}
+                              {log.account_code ? (
+                                <div>
+                                  <span className="font-semibold">{log.account_code}</span>
+                                  {log.account_name && (
+                                    <span className="block text-xs text-gray-500 font-normal">{log.account_name}</span>
+                                  )}
+                                </div>
+                              ) : '-'}
                             </TableCell>
                             <TableCell>
                               <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
@@ -271,6 +279,15 @@ export default function AccountingAuditPage() {
                             <TableRow>
                               <TableCell colSpan={7} className="bg-gray-50 p-0">
                                 <div className="px-12 py-4">
+                                  {log.account_code && (
+                                    <div className="mb-3 text-sm">
+                                      <span className="font-semibold text-gray-700">Cuenta:</span>
+                                      <span className="ml-2 font-mono">{log.account_code}</span>
+                                      {log.account_name && (
+                                        <span className="ml-2 text-gray-500">- {log.account_name}</span>
+                                      )}
+                                    </div>
+                                  )}
                                   <div className="grid grid-cols-2 gap-6">
                                     <div className="bg-white rounded-lg border p-4">
                                       <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Valores Anteriores</span>
