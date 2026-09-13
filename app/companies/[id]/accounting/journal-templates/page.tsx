@@ -361,10 +361,17 @@ export default function JournalTemplatesPage() {
   const downloadTemplate = () => {
     const ws = XLSX.utils.aoa_to_sheet([
       ['nombre', 'descripcion', 'tipo_comprobante', 'cuenta', 'nombre_cuenta', 'debe', 'haber', 'monto'],
-      ['Compra de Mercadería', 'Compra a crédito', 'INGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
-      ['Compra de Mercadería', 'Compra a crédito', 'INGRESO', '2.1.01.001', 'Proveedores', 'X', '', ''],
-      ['Pago de Nómina', 'Pago quincenal', 'EGRESO', '5.1.01.001', 'Sueldos', 'X', '', ''],
-      ['Pago de Nómina', 'Pago quincenal', 'EGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
+      ['Compra de Mercadería', 'Compra a crédito con proveedor', 'INGRESO', '1.1.03.001', 'Inventario de Mercaderías', 'X', '', ''],
+      ['Compra de Mercadería', 'Compra a crédito con proveedor', 'INGRESO', '2.1.01.001', 'Cuentas por Pagar Proveedores', '', 'X', ''],
+      ['Venta de Productos', 'Venta al contado', 'INGRESO', '1.1.01.001', 'Caja', 'X', '', ''],
+      ['Venta de Productos', 'Venta al contado', 'INGRESO', '4.1.01.001', 'Ingresos por Ventas', '', 'X', ''],
+      ['Pago de Nómina Q1', 'Nómina quincenal', 'EGRESO', '5.1.01.001', 'Sueldos y Salarios', 'X', '', ''],
+      ['Pago de Nómina Q1', 'Nómina quincenal', 'EGRESO', '5.1.02.001', 'INJUPEMP', 'X', '', ''],
+      ['Pago de Nómina Q1', 'Nómina quincenal', 'EGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
+      ['Pago de Alquiler', 'Alquiler mensual oficina', 'EGRESO', '5.2.01.001', 'Gastos de Alquiler', 'X', '', ''],
+      ['Pago de Alquiler', 'Alquiler mensual oficina', 'EGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
+      ['Ajuste por Depreciación', 'Depreciación mensual equipo', 'AJUSTE', '5.3.01.001', 'Gastos de Depreciación', 'X', '', ''],
+      ['Ajuste por Depreciación', 'Depreciación mensual equipo', 'AJUSTE', '1.2.02.001', 'Depreciación Acumulada', '', 'X', ''],
     ]);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Plantillas');
@@ -397,6 +404,10 @@ export default function JournalTemplatesPage() {
             </div>
             {!isCreating && (
               <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={downloadTemplate}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar Plantilla
+                </Button>
                 <Button variant="outline" onClick={() => setShowUploadDialog(true)}>
                   <Upload className="h-4 w-4 mr-2" />
                   Importar Excel
