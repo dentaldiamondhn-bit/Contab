@@ -269,16 +269,16 @@ export default function AccountingAuditPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table className="table-fixed w-full min-w-[1100px]">
+                <Table className="w-full">
                   <TableHeader>
                     <TableRow className="bg-gray-50">
-                      <TableHead className="w-[50px] px-4"></TableHead>
-                      <TableHead className="w-[200px] px-6">Hora</TableHead>
-                      <TableHead className="w-[260px] px-6">Cuenta</TableHead>
-                      <TableHead className="w-[180px] px-6">Acción</TableHead>
-                      <TableHead className="w-[160px] px-6">Saldo Anterior</TableHead>
-                      <TableHead className="w-[160px] px-6">Saldo Nuevo</TableHead>
-                      <TableHead className="w-[140px] px-6">Usuario</TableHead>
+                      <TableHead className="w-10 px-3"></TableHead>
+                      <TableHead className="px-6">Hora</TableHead>
+                      <TableHead className="px-6">Cuenta</TableHead>
+                      <TableHead className="px-6">Acción</TableHead>
+                      <TableHead className="px-6 text-right">Saldo Anterior</TableHead>
+                      <TableHead className="px-6 text-right">Saldo Nuevo</TableHead>
+                      <TableHead className="px-6">Usuario</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -291,7 +291,7 @@ export default function AccountingAuditPage() {
                             className="bg-purple-50 hover:bg-purple-100 cursor-pointer select-none border-t-2 border-purple-200"
                             onClick={() => toggleDay(group.date)}
                           >
-                            <TableCell className="px-4">
+                            <TableCell className="w-10 px-3">
                               <ChevronDown
                                 className={`h-5 w-5 text-purple-600 transition-transform duration-200 ${
                                   isDayExpanded ? 'rotate-180' : ''
@@ -302,19 +302,27 @@ export default function AccountingAuditPage() {
                               <div className="flex items-center gap-2">
                                 <CalendarDays className="h-4 w-4 text-purple-500" />
                                 <span className="font-semibold text-purple-900">{group.label}</span>
+                                <Badge className="bg-purple-100 text-purple-700 ml-2">
+                                  {group.logs.length} {group.logs.length === 1 ? 'cambio' : 'cambios'}
+                                </Badge>
                               </div>
                             </TableCell>
-                            <TableCell className="px-6">
-                              <Badge className="bg-purple-100 text-purple-700">
-                                {group.logs.length} {group.logs.length === 1 ? 'cambio' : 'cambios'}
-                              </Badge>
+                            <TableCell className="px-6 text-right text-sm text-purple-700 font-medium">
+                              Total:
                             </TableCell>
-                            <TableCell className="px-6">
-                              <span className="text-sm text-purple-600">
-                                {formatCurrency(group.logs.reduce((sum, l) => sum + (l.new_values?.opening_balance || 0), 0))}
-                              </span>
+                            <TableCell className="px-6 text-right text-sm text-purple-700 font-medium">
+                              {formatCurrency(group.logs.reduce((sum, l) => {
+                                const v = l.old_values?.opening_balance ?? 0;
+                                return sum + v;
+                              }, 0))}
                             </TableCell>
-                            <TableCell colSpan={2}></TableCell>
+                            <TableCell className="px-6 text-right text-sm font-semibold text-purple-900">
+                              {formatCurrency(group.logs.reduce((sum, l) => {
+                                const v = l.new_values?.opening_balance ?? 0;
+                                return sum + v;
+                              }, 0))}
+                            </TableCell>
+                            <TableCell className="px-6"></TableCell>
                           </TableRow>
 
                           {isDayExpanded && group.logs.map((log) => {
@@ -323,16 +331,16 @@ export default function AccountingAuditPage() {
 
                             return (
                               <TableRow key={log.id} className="hover:bg-gray-50">
-                                <TableCell className="px-4">
+                                <TableCell className="w-10 px-3">
                                   <div className="w-2 h-2 rounded-full bg-gray-300 ml-2" />
                                 </TableCell>
-                                <TableCell className="w-[200px] px-6 text-sm text-gray-600">
+                                <TableCell className="px-6 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3 text-gray-400 shrink-0" />
                                     {formatTime(log.performed_at)}
                                   </div>
                                 </TableCell>
-                                <TableCell className="w-[260px] px-6 font-mono text-sm font-medium">
+                                <TableCell className="px-6 font-mono text-sm font-medium">
                                   {log.account_code ? (
                                     <div>
                                       <span className="font-semibold">{log.account_code}</span>
@@ -342,18 +350,18 @@ export default function AccountingAuditPage() {
                                     </div>
                                   ) : '-'}
                                 </TableCell>
-                                <TableCell className="w-[180px] px-6">
+                                <TableCell className="px-6">
                                   <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
                                     {ACTION_LABELS[log.action] || log.action}
                                   </Badge>
                                 </TableCell>
-                                <TableCell className="w-[160px] px-6 text-sm">
+                                <TableCell className="px-6 text-sm text-right">
                                   {oldBal !== null ? formatCurrency(oldBal) : '-'}
                                 </TableCell>
-                                <TableCell className="w-[160px] px-6 text-sm font-medium">
+                                <TableCell className="px-6 text-sm font-medium text-right">
                                   {newBal !== null ? formatCurrency(newBal) : '-'}
                                 </TableCell>
-                                <TableCell className="w-[140px] px-6 text-sm text-gray-600">
+                                <TableCell className="px-6 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">
                                     <User className="h-3 w-3 text-gray-400 shrink-0" />
                                     {log.performed_by || 'Sistema'}
