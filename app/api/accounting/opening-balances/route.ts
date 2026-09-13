@@ -139,6 +139,14 @@ export async function PUT(request: NextRequest) {
     // Si no se actualizó nada en chart_of_accounts, intentar Account table
     if (updated === 0) {
       for (const item of balances) {
+        const { data: currentAcct } = await supabaseService
+          .from("Account")
+          .select("id, code, name, description")
+          .eq("id", item.account_id)
+          .single();
+
+        const oldValue = currentAcct?.description || '';
+
         const { error } = await supabaseService
           .from("Account")
           .update({
@@ -146,7 +154,20 @@ export async function PUT(request: NextRequest) {
           })
           .eq("id", item.account_id);
         
-        if (!error) updated++;
+        if (!error) {
+          updated++;
+          auditLogs.push({
+            id: crypto.randomUUID(),
+            tenant_id: tenantId,
+            account_id: item.account_id,
+            account_code: currentAcct?.code || '',
+            action: 'OPENING_BALANCE_UPDATE',
+            old_values: { description: oldValue },
+            new_values: { description: `opening_balance:${item.opening_balance}|date:${item.opening_balance_date || ''}` },
+            performed_by: request.headers.get("x-user-id") || request.headers.get("x-user-email") || 'system',
+            performed_at: new Date().toISOString()
+          });
+        }
       }
     }
 
