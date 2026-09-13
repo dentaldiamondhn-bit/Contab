@@ -96,25 +96,49 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "balances debe ser un array" }, { status: 400 });
     }
 
-    // Intentar chart_of_accounts primero
     let updated = 0;
+    const auditLogs: any[] = [];
+
     for (const item of balances) {
+      // Obtener valor anterior para auditoría
+      const { data: currentAccount } = await supabaseService
+        .from("chart_of_accounts")
+        .select("id, code, name, opening_balance, opening_balance_date")
+        .eq("id", item.account_id)
+        .single();
+
+      const oldValue = currentAccount?.opening_balance || 0;
+      const newValue = item.opening_balance || 0;
+
       const { error } = await supabaseService
         .from("chart_of_accounts")
         .update({
-          opening_balance: item.opening_balance || 0,
+          opening_balance: newValue,
           opening_balance_date: item.opening_balance_date || null,
           updated_at: new Date().toISOString()
         })
         .eq("id", item.account_id);
       
-      if (!error) updated++;
+      if (!error) {
+        updated++;
+        // Registrar en auditoría
+        auditLogs.push({
+          id: crypto.randomUUID(),
+          tenant_id: tenantId,
+          account_id: item.account_id,
+          account_code: currentAccount?.code || '',
+          action: 'OPENING_BALANCE_UPDATE',
+          old_values: { opening_balance: oldValue, opening_balance_date: currentAccount?.opening_balance_date },
+          new_values: { opening_balance: newValue, opening_balance_date: item.opening_balance_date },
+          performed_by: request.headers.get("x-user-id") || request.headers.get("x-user-email") || 'system',
+          performed_at: new Date().toISOString()
+        });
+      }
     }
 
     // Si no se actualizó nada en chart_of_accounts, intentar Account table
     if (updated === 0) {
       for (const item of balances) {
-        // Intentar actualizar en Account (agregar columna si no existe)
         const { error } = await supabaseService
           .from("Account")
           .update({
@@ -126,7 +150,12 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, updated });
+    // Insertar logs de auditoría en batch
+    if (auditLogs.length > 0) {
+      await supabaseService.from("account_audit_log").insert(auditLogs);
+    }
+
+    return NextResponse.json({ success: true, updated, auditLogged: auditLogs.length });
   } catch (error) {
     console.error("Error in opening-balances PUT:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });

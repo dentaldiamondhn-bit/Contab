@@ -40,7 +40,8 @@ import {
   Printer,
   Upload,
   CheckCircle,
-  DollarSign
+  DollarSign,
+  History
 } from "lucide-react";
 
 interface Transaction {
@@ -698,6 +699,10 @@ export default function CompanyAccountingPage() {
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/opening-balances`)}>
               <DollarSign className="h-4 w-4 mr-2" />
               Balances Apertura
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/audit`)}>
+              <History className="h-4 w-4 mr-2" />
+              Historial
             </Button>
             <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/accounting/voucher-form`)}>
               <Plus className="h-4 w-4 mr-2" />
