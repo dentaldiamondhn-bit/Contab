@@ -1,6 +1,6 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 12 de Septiembre de 2026
+> **Fecha:** 13 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
 > **Versión del Análisis:** 1.2
 
@@ -26,7 +26,8 @@
 
 ### Notas de Actualización (12 Sept 2026)
 
-#### Contabilidad — Módulos Combinados + Balances de Apertura
+#### Contabilidad — Auditoría + Balances de Apertura + Módulos Combinados
+- **Historial de Auditoría** — Tabla `account_audit_log` almacena cambios inmutables de cuentas. API `GET` en `/api/accounting/audit-logs` con paginación, filtros por acción/código/fecha. UI en `/accounting/audit` con logs agrupados por día (expand/collapse por día), columnas de Hora, Cuenta (código + nombre), Acción, Saldo Anterior/Nuevo, Usuario. Valores anteriores/nuevos se muestran formateados (no JSON crudo). Backfill de entradas existentes.
 - **Contabilidad unificada** — "Registro Contable", "Estados Financieros" y "Libros Legales" combinados en un solo módulo "Contabilidad". Las 3 tarjetas en la página de módulos ahora son 1 sola. La página de contabilidad (`/accounting`) muestra acceso directo a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales) desde una tarjeta unificada.
 - **Performance optimizado** — `loadCompanyData` en `/companies/[id]/accounting` reescrito: fetches de empresa, companies y tenant en paralelo (1 ronda), luego transacciones, cuentas y archivos en paralelo (2da ronda). De 5-6 fetches secuenciales a 2 rondas paralelas.
 - **Balances de Apertura** — Nueva página `/accounting/opening-balances` para gestionar saldos iniciales de cuentas. API `GET/PUT` en `/api/accounting/opening-balances`. Botón "Calcular desde Movimientos" que auto-calcula saldos desde el trial balance existente con matching flexible de códigos (maneja `.` y `-`). SQL migration `ADD_OPENING_BALANCE.sql` agrega columnas `opening_balance` y `opening_balance_date` a `chart_of_accounts`.
@@ -129,7 +130,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 14 | 19 | 74% |
+| Contabilidad (Registro + EF + LL) | 15 | 19 | 79% |
 | Facturación y Ventas | 3 | 7 | 43% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
@@ -144,7 +145,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 22 | 26 | 85% |
+| Contabilidad (Registro + EF + LL) | 24 | 26 | 92% |
 | Facturación y Ventas | 12 | 16 | 75% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
@@ -159,7 +160,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
-| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), account_audit_log, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
+| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log** (PK, tenant_id, account_id, account_code, action, old_values JSONB, new_values JSONB, performed_by, performed_at), libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
 | Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
 | Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
 | Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |
@@ -269,6 +270,7 @@ Prioridad 3 (Semanas 12-24):
 |---|---|
 | **Autenticación y RBAC sólidos** | Seguridad (Clerk, 7 roles, 30+ permisos) |
 | **Catálogo de cuentas completo** | Contabilidad (3 plantillas, jerárquico, multi-divisa) |
+| **Auditoría inmutable de cuentas** | Contabilidad (`account_audit_log`, agrupado por día, expand/collapse, backfill automático) |
 | **Centro de reportes robusto** | Reportes (18 reportes, 11 APIs, 5+ charts) |
 | **Gestión CAI con alertas** | Fiscal/Facturación (alertas de rango y vencimiento) |
 | **Retenciones con PDF legal** | Fiscal (recibo A4 con CAI, leyenda SAR) |
