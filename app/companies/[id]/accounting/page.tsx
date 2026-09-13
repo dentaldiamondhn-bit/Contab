@@ -42,8 +42,7 @@ import {
   CheckCircle,
   DollarSign,
   History,
-  ShieldCheck,
-  FileText
+  ShieldCheck
 } from "lucide-react";
 
 interface Transaction {
