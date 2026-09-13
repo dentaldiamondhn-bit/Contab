@@ -48,7 +48,7 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/accounting/validate-catalog/page.tsx` | UI de validación: 4 cards de resumen (Total, Errores, Advertencias, Estado), lista expandible de problemas con severidad, tabla de cuentas afectadas |
+| `app/companies/[id]/accounting/validate-catalog/page.tsx` | UI de validación: 4 cards de resumen (Total, Errores, Advertencias, Estado), lista expandible de problemas con severidad, tabla de cuentas afectadas, botón "Solucionar" por problema, exportación a Excel (XLSX) y PDF (jsPDF) |
 | `app/api/accounting/accounts/validate/route.ts` | API GET que verifica 9 tipos de problemas: códigos duplicados, pads huérfanos, sin código, sin nombre, separadores inconsistentes (`.` vs `-`), cuentas desactivadas, tipo no válido, autorreferencia, nombre = código |
 
 #### Archivos de Balances de Apertura
@@ -67,7 +67,7 @@
 
 #### Lo que Falta
 
-- Sin exportación de validación a PDF/Excel
+_(Ninguna — catálogo validado completamente)_
 
 ---
 
