@@ -210,16 +210,16 @@ export default function AccountingAuditPage() {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="table-fixed w-full min-w-[1100px]">
                   <TableHeader>
                     <TableRow className="bg-gray-50">
-                      <TableHead className="w-[60px]"></TableHead>
-                      <TableHead className="w-[160px]">Fecha</TableHead>
-                      <TableHead className="w-[200px]">Cuenta</TableHead>
-                      <TableHead className="w-[140px]">Acción</TableHead>
-                      <TableHead>Saldo Anterior</TableHead>
-                      <TableHead>Saldo Nuevo</TableHead>
-                      <TableHead className="w-[120px]">Usuario</TableHead>
+                      <TableHead className="w-[50px] px-4"></TableHead>
+                      <TableHead className="w-[200px] px-6">Fecha</TableHead>
+                      <TableHead className="w-[260px] px-6">Cuenta</TableHead>
+                      <TableHead className="w-[180px] px-6">Acción</TableHead>
+                      <TableHead className="w-[160px] px-6">Saldo Anterior</TableHead>
+                      <TableHead className="w-[160px] px-6">Saldo Nuevo</TableHead>
+                      <TableHead className="w-[140px] px-6">Usuario</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -234,20 +234,20 @@ export default function AccountingAuditPage() {
                             className="hover:bg-gray-50 cursor-pointer select-none"
                             onClick={() => toggleExpand(log.id)}
                           >
-                            <TableCell className="w-[60px]">
+                            <TableCell className="w-[50px] px-4">
                               <ChevronDown
                                 className={`h-4 w-4 text-gray-400 transition-transform duration-200 ${
                                   isExpanded ? 'rotate-180' : ''
                                 }`}
                               />
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
+                            <TableCell className="w-[200px] px-6 text-sm text-gray-600">
                               <div className="flex items-center gap-1">
-                                <Clock className="h-3 w-3 text-gray-400" />
+                                <Clock className="h-3 w-3 text-gray-400 shrink-0" />
                                 {formatDate(log.performed_at)}
                               </div>
                             </TableCell>
-                            <TableCell className="font-mono text-sm font-medium">
+                            <TableCell className="w-[260px] px-6 font-mono text-sm font-medium">
                               {log.account_code ? (
                                 <div>
                                   <span className="font-semibold">{log.account_code}</span>
@@ -257,20 +257,20 @@ export default function AccountingAuditPage() {
                                 </div>
                               ) : '-'}
                             </TableCell>
-                            <TableCell>
+                            <TableCell className="w-[180px] px-6">
                               <Badge className={ACTION_COLORS[log.action] || 'bg-gray-100'}>
                                 {ACTION_LABELS[log.action] || log.action}
                               </Badge>
                             </TableCell>
-                            <TableCell className="text-sm">
+                            <TableCell className="w-[160px] px-6 text-sm">
                               {oldBal !== null ? formatCurrency(oldBal) : '-'}
                             </TableCell>
-                            <TableCell className="text-sm font-medium">
+                            <TableCell className="w-[160px] px-6 text-sm font-medium">
                               {newBal !== null ? formatCurrency(newBal) : '-'}
                             </TableCell>
-                            <TableCell className="text-sm text-gray-600">
+                            <TableCell className="w-[140px] px-6 text-sm text-gray-600">
                               <div className="flex items-center gap-1">
-                                <User className="h-3 w-3 text-gray-400" />
+                                <User className="h-3 w-3 text-gray-400 shrink-0" />
                                 {log.performed_by || 'Sistema'}
                               </div>
                             </TableCell>
