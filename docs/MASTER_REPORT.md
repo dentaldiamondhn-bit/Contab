@@ -34,6 +34,8 @@
 - **Balance de Comprobación (fix)** — Fix crítico: `tenantId` faltante en el fetch del trial balance causaba página en blanco. Fechas por defecto cambiadas a año completo (no solo mes actual). Simplificado para no depender de API de opening balances (bloqueada por Clerk en client-side). Montos convertidos de centavos a lempiras.
 - **Validación de Catálogo** — API `/api/accounting/accounts/validate` verifica 9 tipos de problemas: códigos duplicados, pads huérfanos, sin código, sin nombre, separadores inconsistentes, cuentas desactivadas, tipo no válido, autorreferencia, nombre=código. UI `/accounting/validate-catalog` con cards de resumen y lista expandible. Botón "Validar Catálogo" en dashboard de contabilidad.
 - **Plantillas de Asientos** — API CRUD `/api/accounting/journal-templates` con tablas `journal_entry_templates` y `journal_entry_template_lines` (SQL en `supabase/JOURNAL_ENTRY_TEMPLATES.sql`, idempotente). UI `/accounting/journal-templates` para crear/editar/duplicar/eliminar plantillas con selector de cuentas. **Importación masiva desde Excel** con vista previa de filas, detección de duplicados (nombre + líneas), botón "Descargar Plantilla" con ejemplo hondureño. Botón "Plantilla" en formulario de póliza para cargar plantilla rápida.
+- **Reversión de Asientos** — API `/api/accounting/reversals` (GET/POST/PUT). Crea transacción con signos invertidos + JournalEntry invertidos. Registra en `journal_entry_reversals` con trazabilidad completa (original → reversión). UI `/accounting/reversals` con historial y dialog de nueva reversión con búsqueda de transacciones.
+- **Asientos Recurrentes** — API CRUD `/api/accounting/recurring-entries` + `/execute` para ejecución manual. Tablas `recurring_entries` (frecuencia, entries JSONB, next_execution) y `recurring_entry_executions`. UI `/accounting/recurring-entries` con crear/editar/eliminar/ejecutar, selector de cuentas, vista previa de líneas.
 - **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador, acceso directo a `/hr/attendance/time-clock`.
 
 #### HR Module
@@ -162,7 +164,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
-| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log** (PK, tenant_id, account_id, account_code, action, old_values JSONB, new_values JSONB, performed_by, performed_at), **journal_entry_templates**, **journal_entry_template_lines**, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
+| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log**, **journal_entry_templates**, **journal_entry_template_lines**, **journal_entry_reversals**, **recurring_entries**, **recurring_entry_executions**, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
 | Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
 | Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
 | Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |

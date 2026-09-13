@@ -410,6 +410,8 @@ TenantProvider → Envuelve toda la app
 - ✅ **Auditoría inmutable de cuentas** — Tabla `account_audit_log` (acción, valores anteriores/nuevos JSONB, usuario, fecha). API `/api/accounting/audit-logs` con paginación y filtros. UI `/accounting/audit` agrupada por día con expand/collapse. Backfill automático de cuentas.
 - ✅ **Validación de integridad del catálogo** — API `/api/accounting/accounts/validate` que verifica 9 tipos de problemas (duplicados, huérfanos, sin código, sin nombre, separadores inconsistentes, desactivadas, tipo inválido, autorreferencia, nombre=código). UI `/accounting/validate-catalog` con cards de resumen y lista expandible. Exportación a Excel y PDF.
 - ✅ **Plantillas de asientos contables** — API CRUD `/api/accounting/journal-templates`. UI `/accounting/journal-templates` para crear/editar/duplicar/eliminar. Selector de plantillas en formulario de póliza. **Importación masiva desde Excel** con vista previa, detección de duplicados y descarga de plantilla de ejemplo. Tablas `journal_entry_templates` y `journal_entry_template_lines`.
+- ✅ **Reversión de asientos** — API `/api/accounting/reversals`. Crea transacción con signos invertidos. UI `/accounting/reversals` con historial y trazabilidad completa.
+- ✅ **Asientos recurrentes** — API CRUD `/api/accounting/recurring-entries` + ejecución manual. UI `/accounting/recurring-entries` con crear/editar/ejecutar. Tablas `recurring_entries` y `recurring_entry_executions`.
 - ✅ Estados Financieros: Balance General, Estado de Resultados, Flujo de Efectivo, Balance de Comprobación
 - ✅ Libros Legales: Libro de Compras, Ventas, Retenciones, CAI
 - ✅ Dashboard unificado con acceso a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales)

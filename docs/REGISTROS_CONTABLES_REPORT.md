@@ -73,7 +73,7 @@ _(Ninguna — catálogo validado completamente)_
 
 ### 2.2 Asientos Contables
 
-**Estado: Completo (~85%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -107,7 +107,7 @@ _(Ninguna — catálogo validado completamente)_
 
 #### Lo que Falta
 
-- Sin función de reversión ni asientos recurrentes
+_(Ninguna — asientos contables completos)_
 
 ---
 
@@ -218,7 +218,7 @@ _(Ninguna — catálogo validado completamente)_
 |---|---|---|---|---|
 | ~~2.1~~ | ~~Crear sistema de plantillas de asientos~~ | ~~`lib/services/journal-templates.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/journal-templates` + UI `/accounting/journal-templates` + selector en formulario de póliza + importación Excel + detección de duplicados |
 | ~~2.2~~ | ~~Implementar importación masiva de asientos~~ | ~~`lib/services/excel-import.ts`~~ | ~~Etapa 1~~ | ✅ Completada — Importación masiva de plantillas desde Excel con vista previa, detección de duplicados y descarga de plantilla de ejemplo |
-| 2.3 | Implementar asientos de reversión | `lib/services/journal-reversal.ts` | Etapa 1 | Reversión automática |
+| ~~2.3~~ | ~~Implementar asientos de reversión~~ | ~~`lib/services/journal-reversal.ts`~~ | ~~Etapa 1~~ | ✅ Completada — API `/api/accounting/reversals` + UI `/accounting/reversals` con trazabilidad completa (transacción original → reversión) |
 
 ### Etapa 3: Cierre Mensual y Períodos
 
