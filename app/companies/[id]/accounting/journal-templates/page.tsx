@@ -16,6 +16,15 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
+import * as XLSX from 'xlsx';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '@/components/ui/dialog';
 import {
   ArrowLeft,
   Plus,
@@ -27,6 +36,9 @@ import {
   CheckCircle,
   XCircle,
   ChevronDown,
+  Upload,
+  Download,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 interface TemplateLine {
@@ -76,6 +88,10 @@ export default function JournalTemplatesPage() {
   const [accounts, setAccounts] = useState<any[]>([]);
   const [accountSearch, setAccountSearch] = useState('');
   const [showAccountSelector, setShowAccountSelector] = useState<number | null>(null);
+  const [showUploadDialog, setShowUploadDialog] = useState(false);
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
+  const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const [uploading, setUploading] = useState(false);
 
   const [form, setForm] = useState({
     name: '',
@@ -237,6 +253,124 @@ export default function JournalTemplatesPage() {
     a.name?.toLowerCase().includes(accountSearch.toLowerCase())
   );
 
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadFile(file);
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+        setUploadPreview(rows.slice(0, 50));
+      } catch (err) {
+        console.error('Error leyendo Excel:', err);
+        alert('Error al leer el archivo. Verifique que sea un archivo Excel válido.');
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
+
+  const processUpload = async () => {
+    if (!uploadFile) return;
+    setUploading(true);
+
+    try {
+      const reader = new FileReader();
+      reader.onload = async (evt) => {
+        try {
+          const wb = XLSX.read(evt.target?.result, { type: 'binary' });
+          const ws = wb.Sheets[wb.SheetNames[0]];
+          const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+          const templatesByName: Record<string, { name: string; description: string; voucher_type: string; lines: any[] }> = {};
+
+          for (const row of rows) {
+            const r = row as any;
+            const name = (r.nombre || r.name || r.plantilla || '').toString().trim();
+            if (!name) continue;
+
+            if (!templatesByName[name]) {
+              templatesByName[name] = {
+                name,
+                description: (r.descripcion || r.description || '').toString().trim(),
+                voucher_type: (r.tipo || r.voucher_type || r.tipo_comprobante || 'DIARIO').toString().toUpperCase().trim(),
+                lines: [],
+              };
+            }
+
+            const accountCode = (r.cuenta || r.account_code || r.codigo_cuenta || '').toString().trim();
+            if (!accountCode) continue;
+
+            const debit = r.debe || r.debit || r.debito;
+            const credit = r.haber || r.credit || r.credito;
+            const debitEnabled = debit === true || debit === 1 || debit === 'true' || debit === '1' || debit === 'SI' || debit === 'X' || debit === 'x';
+            const creditEnabled = credit === true || credit === 1 || credit === 'true' || credit === '1' || credit === 'SI' || credit === 'X' || credit === 'x';
+
+            templatesByName[name].lines.push({
+              account_code: accountCode,
+              account_name: (r.nombre_cuenta || r.account_name || '').toString().trim(),
+              debit_enabled: debitEnabled,
+              credit_enabled: creditEnabled,
+              default_amount: Number(r.monto || r.amount || r.monto_sugerido || 0),
+              sort_order: templatesByName[name].lines.length,
+            });
+          }
+
+          let created = 0;
+          let errors = 0;
+
+          for (const tpl of Object.values(templatesByName)) {
+            if (tpl.lines.length < 2) { errors++; continue; }
+            try {
+              const res = await fetch(`/api/accounting/journal-templates?tenantId=${companyId}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+                body: JSON.stringify({
+                  name: tpl.name,
+                  description: tpl.description,
+                  voucher_type: tpl.voucher_type,
+                  lines: tpl.lines,
+                }),
+              });
+              if (res.ok) created++;
+              else errors++;
+            } catch { errors++; }
+          }
+
+          setShowUploadDialog(false);
+          setUploadFile(null);
+          setUploadPreview([]);
+          loadTemplates();
+          alert(`Importación completada: ${created} plantilla(s) creada(s)${errors > 0 ? `, ${errors} con error(es)` : ''}`);
+        } catch (err) {
+          console.error('Error procesando Excel:', err);
+          alert('Error al procesar el archivo.');
+        }
+        setUploading(false);
+      };
+      reader.readAsBinaryString(uploadFile);
+    } catch (err) {
+      console.error('Error:', err);
+      setUploading(false);
+    }
+  };
+
+  const downloadTemplate = () => {
+    const ws = XLSX.utils.aoa_to_sheet([
+      ['nombre', 'descripcion', 'tipo_comprobante', 'cuenta', 'nombre_cuenta', 'debe', 'haber', 'monto'],
+      ['Compra de Mercadería', 'Compra a crédito', 'INGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
+      ['Compra de Mercadería', 'Compra a crédito', 'INGRESO', '2.1.01.001', 'Proveedores', 'X', '', ''],
+      ['Pago de Nómina', 'Pago quincenal', 'EGRESO', '5.1.01.001', 'Sueldos', 'X', '', ''],
+      ['Pago de Nómina', 'Pago quincenal', 'EGRESO', '1.1.01.001', 'Caja', '', 'X', ''],
+    ]);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Plantillas');
+    XLSX.writeFile(wb, 'Plantilla_Importacion_Polizas.xlsx');
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="bg-white border-b shadow-sm">
@@ -262,10 +396,16 @@ export default function JournalTemplatesPage() {
               </div>
             </div>
             {!isCreating && (
-              <Button onClick={() => { setIsCreating(true); setEditingTemplate(null); resetForm(); }}>
-                <Plus className="h-4 w-4 mr-2" />
-                Nueva Plantilla
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="outline" onClick={() => setShowUploadDialog(true)}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar Excel
+                </Button>
+                <Button onClick={() => { setIsCreating(true); setEditingTemplate(null); resetForm(); }}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Plantilla
+                </Button>
+              </div>
             )}
           </div>
         </div>
@@ -492,6 +632,97 @@ export default function JournalTemplatesPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Dialog de Importación Excel */}
+      <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <FileSpreadsheet className="h-5 w-5 text-green-600" />
+              Importar Plantillas desde Excel
+            </DialogTitle>
+            <DialogDescription>
+              Suba un archivo Excel (.xlsx) con las plantillas de asientos contables.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+              <p className="text-sm font-medium text-blue-800 mb-1">Formato esperado del Excel:</p>
+              <p className="text-xs text-blue-700">
+                <strong>nombre</strong> (requerido), <strong>descripcion</strong>, <strong>tipo_comprobante</strong> (INGRESO|EGRESO|DIARIO|AJUSTE),
+                <strong> cuenta</strong> (requerido), <strong>nombre_cuenta</strong>,
+                <strong> debe</strong> (X o 1), <strong>haber</strong> (X o 1), <strong>monto</strong>
+              </p>
+              <p className="text-xs text-blue-600 mt-1">
+                Las filas con el mismo &quot;nombre&quot; se agrupan en una sola plantilla.
+              </p>
+              <button
+                onClick={downloadTemplate}
+                className="mt-2 flex items-center gap-1 text-xs font-medium text-blue-700 hover:text-blue-900 underline"
+              >
+                <Download className="h-3 w-3" />
+                Descargar plantilla de ejemplo
+              </button>
+            </div>
+
+            <div>
+              <Label>Archivo Excel</Label>
+              <Input
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileUpload}
+                className="file:mr-2 file:py-1 file:px-3 file:rounded file:border-0 file:text-sm file:font-medium file:bg-green-50 file:text-green-700 hover:file:bg-green-100"
+              />
+            </div>
+
+            {uploadPreview.length > 0 && (
+              <div>
+                <Label>Vista previa ({uploadPreview.length} filas)</Label>
+                <div className="mt-1 border rounded-lg overflow-auto max-h-60">
+                  <table className="w-full text-xs">
+                    <thead className="bg-gray-50 sticky top-0">
+                      <tr>
+                        {Object.keys(uploadPreview[0]).map(key => (
+                          <th key={key} className="px-2 py-1 text-left font-medium text-gray-600">{key}</th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadPreview.map((row, i) => (
+                        <tr key={i} className="border-t">
+                          {Object.values(row).map((val, j) => (
+                            <td key={j} className="px-2 py-1">{String(val)}</td>
+                          ))}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowUploadDialog(false); setUploadFile(null); setUploadPreview([]); }}>
+              Cancelar
+            </Button>
+            <Button onClick={processUpload} disabled={!uploadFile || uploading}>
+              {uploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                  Importando...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  Importar Plantillas
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
