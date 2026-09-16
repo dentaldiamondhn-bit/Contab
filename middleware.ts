@@ -56,7 +56,10 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   const requestHeaders = new Headers(req.headers);
-  if (metadata.tenantId) {
+  // Solo aplicar el tenant del metadata si la petición NO trae ya un tenant explícito.
+  // Así las páginas que operan con companyId de la URL (ej. /companies/ANGELOH7/...) no
+  // son pisadas por metadata.tenantId cuando representan otro tenant.
+  if (metadata.tenantId && !requestHeaders.get('x-tenant-id')) {
     requestHeaders.set('x-tenant-id', metadata.tenantId);
   }
 

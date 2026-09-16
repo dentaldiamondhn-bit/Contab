@@ -33,7 +33,6 @@ const modules = [
   { id: 'legal', label: 'Legal', icon: FileText, href: 'legal' },
   { id: 'sar', label: 'SAR', icon: Scale, href: 'sar' },
   { id: 'cai', label: 'CAI', icon: FileText, href: 'cai' },
-  { id: 'cierre', label: 'Cierre', icon: Lock, href: 'cierre' },
   { id: 'reporte', label: 'Reporte', icon: ClipboardList, href: 'reporte' },
   { id: 'matrix', label: 'Matriz', icon: Calendar, href: 'matrix' },
   { id: 'retenciones', label: 'Retenciones', icon: Percent, href: 'retenciones' },

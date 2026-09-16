@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
+const supabase = getSupabaseServer();
+
 // GET - Obtener ajustes de inventario
 export async function GET(request: NextRequest) {
   try {

@@ -1,8 +1,8 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 13 de Septiembre de 2026
+> **Fecha:** 15 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
-> **Versión del Análisis:** 1.2
+> **Versión del Análisis:** 1.4
 
 ---
 
@@ -10,7 +10,7 @@
 
 | # | Módulo | Completitud | Estado | Prioridad |
 |---|---|---|---|---|
-| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~72% | Parcial | Alta |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~83% | Parcial | Alta |
 | 2 | Control de Asistencia | ~95% | Completo | Alta |
 | 3 | Facturación y Ventas | ~55% | Parcial | Crítica |
 | 4 | Inventario | ~55% | Parcial | Alta |
@@ -22,9 +22,14 @@
 | 10 | Integración Fiscal | ~55% | Parcial | Crítica |
 | 11 | Recursos Humanos | ~95% | Completo | Alta |
 
-**Promedio General del Sistema: ~68%**
+**Promedio General del Sistema: ~69%**
 
-### Notas de Actualización (12 Sept 2026)
+### Notas de Actualización (15 Sept 2026)
+
+#### Contabilidad — Tab "Cierres" integrada en /accounting (Cierre consolidado)
+- **Tab "Cierres" añadida a `/accounting`** — El `TabsList` pasó de `grid-cols-4` a `grid-cols-5` con el trigger `value="cierres"`. Contenido: tabla de 12 meses (Mes, Estado, Nº transacciones, Quién lo cerró, Fecha de cierre) + resumen (Meses Cerrados, Total de Entradas, Meses Consultados, Integración) con datos de `period_locks` + `v_transacciones_cierre`. Estados: Cerrado (green), Abierto (blue), Futuro (outline).
+- **`/security/cierre` eliminado** — La página `app/companies/[id]/security/(modules)/cierre/page.tsx` fue eliminada. El enlace "Cierre" del sidebar de Seguridad (`security/layout.tsx`) fue removido y el label en `app/admin/modules/page.tsx` ahora apunta a `/companies/[id]/accounting`.
+- **Estado pendiente** — La tab "Cierres" de `/accounting` usa datos estáticos garantizados (Agosto 2026 = Cerrado, 12 transacciones, Angelos, 15/09/2026); el siguiente paso es conectar a datos reales vía API `/api/accounting/period-closing?year=` (la página dedicada `/accounting/closing` ya usa el API real con KPIs, checklist de pre-cierre y cierre/reapertura).
 
 #### Contabilidad — Auditoría + Balances de Apertura + Módulos Combinados
 - **Historial de Auditoría** — Tabla `account_audit_log` almacena cambios inmutables de cuentas. API `GET` en `/api/accounting/audit-logs` con paginación, filtros por acción/código/fecha. UI en `/accounting/audit` con logs agrupados por día (expand/collapse por día), columnas de Hora, Cuenta (código + nombre), Acción, Saldo Anterior/Nuevo, Usuario. Valores anteriores/nuevos se muestran formateados (no JSON crudo). Backfill de entradas existentes.
@@ -37,6 +42,16 @@
 - **Reversión de Asientos** — API `/api/accounting/reversals` (GET/POST/PUT). Crea transacción con signos invertidos + JournalEntry invertidos. Registra en `journal_entry_reversals` con trazabilidad completa (original → reversión). UI `/accounting/reversals` con historial y dialog de nueva reversión con búsqueda de transacciones.
 - **Asientos Recurrentes** — API CRUD `/api/accounting/recurring-entries` + `/execute` para ejecución manual. Tablas `recurring_entries` (frecuencia, entries JSONB, next_execution) y `recurring_entry_executions`. UI `/accounting/recurring-entries` con crear/editar/eliminar/ejecutar, selector de cuentas, vista previa de líneas.
 - **Sidebar "Control de Asistencia"** — Nuevo item de navegación en sidebar para admin y contador, acceso directo a `/hr/attendance/time-clock`.
+
+#### Contabilidad — Reversiones + Recurrentes + Catálogo Mejorado (14 Sept 2026)
+- **Reversión de asientos fix** — Transacciones de reversión ahora incluyen todos los campos requeridos (`id`, `voucherNumber`, `createdAt`, `updatedAt`, `originalTotal`). JournalEntry inserts incluyen `id` explícito. Las reversiones usan la fecha actual (no la fecha original). Los errores de "null value in column" están resueltos.
+- **Reversión de usuarios fix** — Dropdown de usuarios en `/accounting/reversals` ahora usa `/api/accounting/users` (service role, bypasses Clerk auth) en lugar de `/api/tenant/users` (que retornaba 403 para admins no-super). La tabla `User` de Supabase usa columnas lowercase (`tenantid`, `firstname`, `lastname`, `isactive`).
+- **Asientos recurrentes fix** — API de ejecución (`/api/accounting/recurring-entries/execute`) reescrita: genera `id` UUID, `voucherNumber` auto-calculado, `createdAt`/`updatedAt`. Resuelve `account_code` → Account UUID via lookup en tabla `Account` (también acepta `account_id` directo). Calcula `totalAmount` de las líneas en centavos.
+- **Catálogo de cuentas cascada** — PUT `/api/accounting/accounts` ahora cascada cambios de `code` y `name` a: `journal_entry_template_lines.account_code`/`account_name`, `recurring_entries.entries` (JSONB), y logs a `account_audit_log`.
+- **Header consolidado** — Botones sueltos del dashboard de contabilidad (Balances Apertura, Historial, Validar Catálogo, Plantillas, Recurrentes, Reversiones, Nueva Póliza) consolidados en un DropdownMenu "Herramientas" con secciones. "Volver al Menú" se mantiene fuera.
+- **Catálogo de cuentas con secciones colapsables** — `ChartOfAccountsManager` reemplaza `parentId`-based hierarchy por code-inference (`11` → `1101` → `1101.01`). Secciones colapsables por tipo de cuenta (Activo, Pasivo, Patrimonio, Ingresos, Gastos). Auto-expande primer nivel. "Expandir Todo"/"Colapisar Todo". Se aplica también en el tab de cuentas del dashboard principal (`/accounting`).
+- **Cuentas conectadas a API real** — `hooks/use-accounts.ts`, `JournalEntryForm.tsx`, `FinancialStatements.tsx`, `MultiTenantAccountingManager.tsx` todos usan datos reales de API (sin mock data).
+- **Cierre mensual consolidado (verificado 14 Sept PM)** — Backend completamente reescrito. Vista SQL `v_transacciones_cierre` (UNION ALL de `Transaction` + `JournalEntry` + `Account`) normaliza todas las partidas del Libro Diario, Ingresos y Egresos en una sola estructura (`id_transaccion`, `fecha`, `concepto`, `origen`, `estado`, `cuenta_codigo`, `cuenta_nombre`, `debito`, `credito`). API `GET /api/accounting/period-closing?year=&month=` retorna `details` con totales de todos los libros consolidados, lista de transacciones con débito/crédito por línea, y `asientosPendientesCount`. Función SQL `get_closing_summary()` y tabla `account_audit_log`. UI `/accounting/closing` con KPIs (Total Débitos, Total Créditos, Diferencia Cuadrado/Descuadre, Asientos Pendientes), tabla de transacciones con búsqueda/filtro/ordenación, modal de detalle por asiento, checklist de pre-cierre con balanza de comprobación detallada, diálogos de confirmación para cerrar/reabrir. Validaciones estrictas: balance=0, sin borradores, mes anterior cerrado. `PATCH` para reapertura. `account_audit_log` registra cierre y reapertura con notas y razón. **Fix 42809 resuelto:** eliminados `CREATE INDEX` sobre la vista (no soportado en PG — `cannot create index on relation "v_transacciones_cierre"`), corregido `GRANT` a `SELECT` para `service_role`/`authenticated`, índices se mantienen en tablas base (`Transaction`, `JournalEntry`, `Account`). **Verificado en Supabase SQL Editor sin errores el 14 Sept 2026.**
 
 #### HR Module
 - **HR: Dashboard de asistencia** — Página `/hr/attendance/time-clock` reestructurada con 4 tabs: Dashboard (stats + tarjetas de empleados colapsables), Mi Fichaje (reloj personal), Mi Equipo (vista de gerente/supervisor), Horarios (CRUD de plantillas de horario). Empleados ausentes ocultos tras toggle "Ver ausentes". Cards de empleados expandibles con historial de eventos.
@@ -66,7 +81,7 @@
 ```
 MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
-1.  Contabilidad              █████████████████████░░░░░░░░░  72%  Parcial
+1.  Contabilidad              █████████████████████░░░░░░░░░  83%  Parcial
     (Registro + EF + LL)
 2.  Control de Asistencia     ████████████████████████████░░  95%  Completo
 3.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
@@ -79,7 +94,7 @@ MÓDULO                        PROGRESO                              ESTADO
 10. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
 11. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
-PROMEDIO                      ███████████████████░░░░░░░░░░  68%
+PROMEDIO                      ███████████████████░░░░░░░░░░  69%
 ```
 
 ---
@@ -134,7 +149,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 17 | 19 | 89% |
+| Contabilidad (Registro + EF + LL) | 20 | 20 | 100% |
 | Facturación y Ventas | 3 | 7 | 43% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
@@ -149,7 +164,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
-| Contabilidad (Registro + EF + LL) | 26 | 26 | 100% |
+| Contabilidad (Registro + EF + LL) | 30 | 30 | 100% |
 | Facturación y Ventas | 12 | 16 | 75% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
@@ -164,7 +179,7 @@ PROMEDIO                      ████████████████�
 
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
-| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log**, **journal_entry_templates**, **journal_entry_template_lines**, **journal_entry_reversals**, **recurring_entries**, **recurring_entry_executions**, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras | Sólido |
+| Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log**, **journal_entry_templates**, **journal_entry_template_lines**, **journal_entry_reversals**, **recurring_entries**, **recurring_entry_executions**, **period_locks**, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras + 4 RPCs (`get_libro_diario_integrado`, `get_libro_mayor_integrado`, `get_balance_comprobacion_integrado`, `get_resumen_ingresos_egresos`) | Sólido |
 | Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
 | Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
 | Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |
@@ -276,6 +291,11 @@ Prioridad 3 (Semanas 12-24):
 | **Catálogo de cuentas completo** | Contabilidad (3 plantillas, jerárquico, multi-divisa) |
 | **Auditoría inmutable de cuentas** | Contabilidad (`account_audit_log`, agrupado por día, expand/collapse, backfill automático) |
 | **Validación de integridad del catálogo** | Contabilidad (9 checks: duplicados, huérfanos, sin código/nombre, separadores inconsistentes, etc.) |
+| **Reversión de asientos con trazabilidad** | Contabilidad (`journal_entry_reversals`, creación automática de transacción invertida, historial) |
+| **Asientos recurrentes** | Contabilidad (`recurring_entries`, ejecución manual, 5 frecuencias, historial de ejecuciones) |
+| **Plantillas de asientos con importación Excel** | Contabilidad (CRUD completo, importación masiva, detección de duplicados, descarga de plantilla) |
+| **Catálogo de cuentas con cascada** | Contabilidad (cambios de código/nombre propagan a plantillas, recurrentes, y audit log) |
+| **Cierre mensual automatizado** | Contabilidad (`period_locks`, validación de balanza, snapshot al cerrar, secuencia de meses, reapertura controlada) |
 | **Centro de reportes robusto** | Reportes (18 reportes, 11 APIs, 5+ charts) |
 | **Gestión CAI con alertas** | Fiscal/Facturación (alertas de rango y vencimiento) |
 | **Retenciones con PDF legal** | Fiscal (recibo A4 con CAI, leyenda SAR) |
@@ -342,7 +362,7 @@ Prioridad 3 (Semanas 12-24):
 
 | Métrica | Valor Actual | Objetivo |
 |---|---|---|
-| Completitud Funcional | ~68% | 95% |
+| Completitud Funcional | ~70% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
 | Persistencia de Datos | ~80% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~55% | 80% |

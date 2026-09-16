@@ -98,9 +98,24 @@ export async function POST(request: NextRequest) {
 
     const today = new Date().toISOString().split("T")[0];
 
+    const reversalTxId = crypto.randomUUID();
+
+    // Obtener siguiente número de comprobante
+    const { data: lastVoucher } = await supabaseService
+      .from("Transaction")
+      .select("voucherNumber")
+      .eq("tenantId", tenantId)
+      .eq("voucherType", originalTx.voucherType || originalTx.voucher_type || "EGRESO")
+      .order("voucherNumber", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    const nextVoucherNumber = ((lastVoucher as any)?.voucherNumber || 0) + 1;
+
     const { data: reversalTx, error: revTxError } = await supabaseService
       .from("Transaction")
       .insert({
+        id: reversalTxId,
+        voucherNumber: nextVoucherNumber,
         description: `REVERSIÓN: ${originalTx.description || originalTx.voucherNumber}`,
         date: today,
         voucherType: originalTx.voucherType || originalTx.voucher_type,
@@ -109,6 +124,9 @@ export async function POST(request: NextRequest) {
         exchangeRate: originalTx.exchangeRate || 24.7,
         totalAmount: originalTx.totalAmount ? -Number(originalTx.totalAmount) : 0,
         functionalAmount: originalTx.totalAmount ? -Number(originalTx.totalAmount) : 0,
+        originalTotal: originalTx.totalAmount ? -Number(originalTx.totalAmount) : 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
       })
       .select()
       .single();
@@ -118,6 +136,7 @@ export async function POST(request: NextRequest) {
     // Crear JournalEntry invertidos
     for (const entry of reversalEntries) {
       await supabaseService.from("JournalEntry").insert({
+        id: crypto.randomUUID(),
         transactionId: reversalTx.id,
         accountId: entry.accountId,
         tenantId: tenantId,

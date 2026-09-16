@@ -238,7 +238,7 @@ const moduleStructure: Record<string, ModuleStructure> = {
       { label: 'Seguridad', path: '/companies/[id]/security' },
       { label: 'Auditoría', path: '/companies/[id]/security/auditoria' },
       { label: 'CAI', path: '/companies/[id]/security/cai' },
-      { label: 'Cierre', path: '/companies/[id]/security/cierre' },
+      { label: 'Cierres', path: '/companies/[id]/accounting' },
       { label: 'Control', path: '/companies/[id]/security/control' },
       { label: 'Digital', path: '/companies/[id]/security/digital' },
       { label: 'Legal', path: '/companies/[id]/security/legal' },

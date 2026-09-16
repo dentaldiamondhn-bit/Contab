@@ -1,8 +1,8 @@
 # Documentación Completa del Proyecto Contab
 
 > **Nombre:** Contab - Sistema Contable Profesional
-> **Versión:** 1.0.0
-> **Plataforma:** Next.js 16 + React 19 + TypeScript
+> **Versión:** 1.1.0
+> **Plataforma:** Next.js 15.5.25 + React 19 + TypeScript
 > **Base de Datos:** PostgreSQL (Supabase) + Prisma ORM
 > **Auth:** Clerk
 > **Deploy:** Vercel
@@ -340,13 +340,13 @@ TenantProvider → Envuelve toda la app
 
 **Facturación:** Invoice, InvoiceItem, cai, talonarios, customer, invoice (lowercase)
 
-**Contabilidad:** chart_of_accounts, account_audit_log, auditlog
+**Contabilidad:** chart_of_accounts, account_audit_log, auditlog, journal_entry_templates, journal_entry_template_lines, journal_entry_reversals, recurring_entries, recurring_entry_executions
 
 **Inventario:** products, warehouses, inventory_movements
 
 **Compras:** Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable
 
-**RRHH:** employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_usage, permission_requests
+**RRHH:** employees, employee_history, employee_hr_documents, departments, positions, permission_types, permission_usage, permission_requests, time_tracking, work_schedules, attendance_holidays, attendance_deduction_config, attendance_schedules, employee_teams, team_members, payroll_config, payroll_closed, payroll_deductions, payroll_uploads, pip_plans, pip_goals, pip_evaluations, pip_evidence, pip_attendance_metrics
 
 **Fiscal:** custom_taxes, withholding
 
@@ -387,7 +387,7 @@ TenantProvider → Envuelve toda la app
 
 | # | Módulo | Completitud | Estado |
 |---|---|---|---|
-| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~72% | Parcial |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~80% | Parcial |
 | 2 | Facturación y Ventas | ~55% | Parcial |
 | 3 | Inventario | ~55% | Parcial |
 | 4 | Compras y Proveedores | ~35% | Básico |
@@ -398,27 +398,32 @@ TenantProvider → Envuelve toda la app
 | 9 | Integración Fiscal | ~55% | Parcial |
 | 10 | Recursos Humanos | ~95% | Completo |
 
-**Promedio General: ~68%**
+**Promedio General: ~69%**
 
 ### Detalle por Módulo
 
-#### 8.1 Contabilidad (~75%)
+#### 8.1 Contabilidad (~80%)
 - ✅ Catálogo de cuentas jerárquico (3 plantillas: PYME, Comercial, Servicios)
+- ✅ **Catálogo de cuentas con secciones colapsables** — Por tipo de cuenta (Activo, Pasivo, Patrimonio, Ingresos, Gastos). Code-inference hierarchy. Expandir/Colapsar todo.
+- ✅ **Catálogo de cuentas con cascada** — Cambios de code/name propagan a template lines, recurring entries, y audit log
 - ✅ Tipos de comprobante (INGRESO, EGRESO, DIARIO, AJUSTE)
-- ✅ Libros contables (Diario, Mayor, Balance, Ingresos, Egresos)
-- ✅ Auditoría con middleware Prisma
-- ✅ **Auditoría inmutable de cuentas** — Tabla `account_audit_log` (acción, valores anteriores/nuevos JSONB, usuario, fecha). API `/api/accounting/audit-logs` con paginación y filtros. UI `/accounting/audit` agrupada por día con expand/collapse. Backfill automático de cuentas.
-- ✅ **Validación de integridad del catálogo** — API `/api/accounting/accounts/validate` que verifica 9 tipos de problemas (duplicados, huérfanos, sin código, sin nombre, separadores inconsistentes, desactivadas, tipo inválido, autorreferencia, nombre=código). UI `/accounting/validate-catalog` con cards de resumen y lista expandible. Exportación a Excel y PDF.
-- ✅ **Plantillas de asientos contables** — API CRUD `/api/accounting/journal-templates`. UI `/accounting/journal-templates` para crear/editar/duplicar/eliminar. Selector de plantillas en formulario de póliza. **Importación masiva desde Excel** con vista previa, detección de duplicados y descarga de plantilla de ejemplo. Tablas `journal_entry_templates` y `journal_entry_template_lines`.
-- ✅ **Reversión de asientos** — API `/api/accounting/reversals`. Crea transacción con signos invertidos. UI `/accounting/reversals` con historial y trazabilidad completa.
-- ✅ **Asientos recurrentes** — API CRUD `/api/accounting/recurring-entries` + ejecución manual. UI `/accounting/recurring-entries` con crear/editar/ejecutar. Tablas `recurring_entries` y `recurring_entry_executions`.
+- ✅ Libros contables (Diario, Mayor, Balance, Ingresos, Egresos) via RPC functions
+- ✅ Auditoría inmutable de cuentas (`account_audit_log`)
+- ✅ Validación de integridad del catálogo (9 checks)
+- ✅ **Plantillas de asientos contables** — CRUD + selector en póliza + importación Excel + detección de duplicados
+- ✅ **Reversión de asientos** — Creación automática de transacción invertida + trazabilidad
+- ✅ **Asientos recurrentes** — CRUD + ejecución manual + 5 frecuencias + historial
 - ✅ Estados Financieros: Balance General, Estado de Resultados, Flujo de Efectivo, Balance de Comprobación
 - ✅ Libros Legales: Libro de Compras, Ventas, Retenciones, CAI
 - ✅ Dashboard unificado con acceso a las 3 áreas (Registro Contable, Estados Financieros, Libros Legales)
-- ✅ Balances de Apertura — Página CRUD + botón "Calcular desde Movimientos" con matching flexible de códigos
+- ✅ **Header "Herramientas" consolidado** — DropdownMenu con secciones para todas las funciones contables
+- ✅ Balances de Apertura — Página CRUD + botón "Calcular desde Movimientos" con matching flexible
 - ✅ Balance de Comprobación 6 columnas (Saldo Anterior / Movimientos / Saldo Actual)
 - ✅ Performance optimizado (fetches paralelos)
-- ✅ **Estados financieros conectados a API real** — Balance General y Estado de Resultados cargan datos de `/api/accounting/accounts`
+- ✅ **Todos los componentes conectados a API real** — JournalEntryForm, FinancialStatements, MultiTenantAccountingManager, use-accounts hook
+- ✅ **User dropdown para reversiones** — Usa `/api/accounting/users` con service role (bypasses Clerk auth)
+- ✅ **Cierre mensual automatizado** — Tabla `period_locks` con validaciones automáticas (mes anterior cerrado, transacciones existentes, balanza cuadrada). API REST con GET/POST/DELETE. UI con grid de 12 meses, progreso anual, y reapertura controlada.
+- ❌ Sin exportación Excel/PDF real
 
 #### 8.2 Estados Financieros (~60%)
 - ✅ Balance General con datos Supabase
@@ -511,14 +516,21 @@ TenantProvider → Envuelve toda la app
 - ❌ Sin impresora fiscal
 - ❌ Sin envío en línea SAR
 
-#### 8.12 Recursos Humanos (~55%)
+#### 8.12 Recursos Humanos (~95%)
 - ✅ Gestión de empleados (CRUD completo)
 - ✅ Departamentos y cargos jerárquicos
 - ✅ Control de asistencia (9 estados)
 - ✅ Gestión de vacaciones y permisos
-- ⚠️ Asistencia, vacaciones, planilla usan localStorage
-- ❌ Sin planilla persistente en BD
-- ❌ Sin Planes de Mejoramiento (PIP)
+- ✅ Dashboard de asistencia (Time Clock con 4 tabs: Dashboard, Mi Fichaje, Mi Equipo, Horarios)
+- ✅ Plantillas de horario con multi-descanso (work_schedules con hasta 3 descansos)
+- ✅ Visibilidad del horario en todos los módulos HR
+- ✅ Reloj de asistencia con roles (Gerente/Supervisor/Empleado)
+- ✅ Asistencia N+1 eliminado (PATCH batch)
+- ✅ PIP completo (5 tablas, 3 APIs, UI con dashboard/crear/detalle/evaluaciones)
+- ✅ Nómina optimizada (API paralelos, bridge contable automático)
+- ✅ Calendario de vacaciones (3 modos: Día/Semana/Mes)
+- ✅ RLS habilitado en 29+ tablas HR
+- ✅ Filtros avanzados y rendimiento en vacaciones/empleados
 
 ---
 
@@ -536,12 +548,18 @@ TenantProvider → Envuelve toda la app
 - `/dashboard` — Dashboard principal
 
 ### Contabilidad
-- `/accounting` — Hub contable
-- `/accounting/accounts` — Catálogo de cuentas
+- `/accounting` — Hub contable unificado (Registro + EF + Libros Legales)
+- `/accounting/accounts` — Catálogo de cuentas (secciones colapsables por tipo)
 - `/accounting/journal` — Asientos contables
-- `/accounting/books` — Libros contables
+- `/accounting/books` — Libros contables (Diario, Mayor, Balance, Ingresos, Egresos)
 - `/accounting/reports` — Reportes contables
 - `/accounting/taxes` — Gestión de impuestos
+- `/accounting/opening-balances` — Balances de apertura
+- `/accounting/audit` — Historial de auditoría (agrupado por día)
+- `/accounting/validate-catalog` — Validación de integridad del catálogo
+- `/accounting/journal-templates` — Plantillas de asientos
+- `/accounting/recurring-entries` — Asientos recurrentes
+- `/accounting/reversals` — Reversión de asientos
 
 ### Reportes
 - `/reports` — Centro de reportes
@@ -650,12 +668,24 @@ TenantProvider → Envuelve toda la app
 ### Endpoints Principales
 
 #### Contabilidad
-- `GET/POST /api/accounting/accounts` — CRUD cuentas
-- `GET/POST /api/accounting/transactions` — CRUD transacciones
-- `GET /api/accounting/integrated-books` — Libros integrados
-- `GET /api/accounting/trial-balance` — Balanza
+- `GET/POST /api/accounting/accounts` — CRUD cuentas (con cascada y audit logging)
+- `PUT/DELETE /api/accounting/accounts` — Actualizar/eliminar cuentas
+- `GET /api/accounting/accounts/validate` — Validación de integridad (9 checks)
+- `GET /api/accounting/accounts/check-transactions` — Verificar transacciones de cuenta
+- `GET /api/accounting/transactions` — CRUD transacciones
+- `POST /api/accounting/transactions` — Crear transacción (requiere id, voucherNumber, tenantId, etc.)
+- `GET /api/accounting/integrated-books` — Libros integrados (diario, mayor, balance, ingresos/egresos via RPC)
+- `GET /api/accounting/trial-balance` — Balanza de comprobación (saldo anterior/movimientos/saldo actual)
 - `GET /api/accounting/general-ledger` — Libro mayor
-- `GET /api/accounting/voucher-number` — Número de comprobante
+- `GET /api/accounting/voucher-number` — Generación de número de comprobante
+- `GET /api/accounting/opening-balances` — Balances de apertura
+- `PUT /api/accounting/opening-balances` — Actualizar saldos de apertura (+ audit log)
+- `GET /api/accounting/audit-logs` — Historial de auditoría (paginación, filtros)
+- `GET/POST/PUT /api/accounting/journal-templates` — CRUD plantillas de asientos
+- `GET/POST/PUT/DELETE /api/accounting/recurring-entries` — CRUD asientos recurrentes
+- `POST /api/accounting/recurring-entries/execute` — Ejecutar asiento recurrente
+- `GET/POST/PUT /api/accounting/reversals` — CRUD reversiones de asientos
+- `GET /api/accounting/users` — Lista de usuarios (service role, bypasses Clerk)
 
 #### Facturación
 - `GET/POST /api/billing/invoices` — CRUD facturas

@@ -345,6 +345,7 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
   const selectedCustomer = customers.find(c => c.id === formData.customerId);
 
   return (
+    <>
     <Card className="w-full max-w-6xl mx-auto">
       <CardHeader>
         <div className="flex items-center space-x-2">
@@ -651,5 +652,6 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
           </div>
         </DialogContent>
       </Dialog>
+    </>
   );
 }

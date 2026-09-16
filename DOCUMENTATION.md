@@ -50,7 +50,7 @@ Contab es un sistema contable completo con soporte multi-tenant que permite a lo
 - **Pólizas contables** (Ingreso, Egreso, Diario, Ajuste)
 - **Balanza de comprobación** automática
 - **Libro mayor** y auxiliares
-- **Cierre de períodos** mensuales/anuales
+- **Cierre de períodos** mensuales/anuales (tab "Cierres" dentro de `/accounting`)
 
 ### 🧾 Documentos Fiscales
 - **Gestión de CAI** (Código de Autorización de Impresión)
@@ -479,6 +479,7 @@ Después de configurar Supabase:
 | `LEGAL_REVISIONES_SCHEMA.sql` | ✅ **FUNCIONAL** | Sistema de revisiones legales |
 | `LEGAL_REVISIONES_PROCEDURES_V2.sql` | ✅ **FUNCIONAL** | Procedimientos almacenados |
 | `SUPABASE_RLS_SETUP.sql` | ✅ **FUNCIONAL** | Seguridad y permisos |
+| `PERIOD_LOCKS.sql` | ✅ **FUNCIONAL — Verificado 14 Sept 2026** | Cierre mensual: tabla `period_locks` + vista `v_transacciones_cierre` (UNION ALL Transaction+JournalEntry+Account) + función `get_closing_summary()` + `account_audit_log` — Fix 42809: sin índices sobre vista, GRANT SELECT corregido, ejecución sin errores. **UI consolidada 15 Sept 2026:** tab "Cierres" en `/accounting` con tabla de 12 meses (Mes, Estado, Nº transacciones, Quién lo cerró, Fecha) + página dedicada `/accounting/closing` con KPIs y cierre/reapertura; página `/security/cierre` eliminada |
 
 #### 🚀 Sistema Completo y Funcional
 
@@ -525,6 +526,14 @@ LEGAL_REVISIONES_PROCEDURES_V2.sql
 **Paso 5**: Seguridad y Permisos
 ```sql
 SUPABASE_RLS_SETUP.sql
+```
+
+**Paso 6**: Cierre Mensual y Control de Períodos (verificado 14 Sept 2026)
+```sql
+PERIOD_LOCKS.sql
+-- Crea: account_audit_log, period_locks, v_transacciones_cierre, get_closing_summary()
+-- Fix: sin CREATE INDEX sobre vista (error 42809), GRANT SELECT para service_role/authenticated
+-- Verificado: ejecución limpia en Supabase SQL Editor
 ```
 
 ---

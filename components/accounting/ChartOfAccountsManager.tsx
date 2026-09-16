@@ -44,6 +44,42 @@ function getLevelFromCode(code: string): number {
   return 4;
 }
 
+function flatCount(accounts: Account[]): number {
+  let count = 0;
+  const walk = (list: Account[]) => {
+    for (const a of list) {
+      count++;
+      if (a.children?.length) walk(a.children);
+    }
+  };
+  walk(accounts);
+  return count;
+}
+
+function countByType(account: Account, type: string): number {
+  let count = 0;
+  if (account.type === type) count++;
+  if (account.children?.length) {
+    for (const child of account.children) count += countByType(child, type);
+  }
+  return count;
+}
+
+function hasChildOfType(account: Account, type: string): boolean {
+  if (account.type === type) return true;
+  if (account.children?.length) {
+    return account.children.some(c => hasChildOfType(c, type));
+  }
+  return false;
+}
+
+function collectByType(account: Account, type: string, set: Set<string>) {
+  if (account.type === type) set.add(account.id);
+  if (account.children?.length) {
+    account.children.forEach(c => collectByType(c, type, set));
+  }
+}
+
 const accountTypes = [
   { value: "ASSET", label: "Activo", color: ACCOUNT_TYPE_COLORS.ASSET },
   { value: "LIABILITY", label: "Pasivo", color: ACCOUNT_TYPE_COLORS.LIABILITY },
@@ -217,8 +253,10 @@ export default function ChartOfAccountsManager() {
   const { currentTenant } = useTenant();
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedType, setSelectedType] = useState<string>("todos");
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set(
+    accountTypes.map(t => t.value)
+  ));
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [editingAccount, setEditingAccount] = useState<Account | null>(null);
   const [formData, setFormData] = useState({
@@ -263,6 +301,12 @@ export default function ChartOfAccountsManager() {
               };
             });
             setAccounts(buildAccountHierarchy(normalized));
+            // Auto-expand first level
+            const rootIds = normalized.filter(a => {
+              const cleanCode = a.code.replace(/[.\-]/g, "");
+              return cleanCode.length <= 2;
+            }).map(a => a.id);
+            setExpandedNodes(new Set(rootIds));
             return;
           }
         }
@@ -273,27 +317,49 @@ export default function ChartOfAccountsManager() {
   }, [currentTenant]);
 
   const buildAccountHierarchy = (flatAccounts: Account[]): Account[] => {
-    const accountMap = new Map<string, Account>();
-    const rootAccounts: Account[] = [];
     const normalized = flatAccounts.map(a => ({
       ...a,
       nature: a.nature || getNatureFromType(a.type),
       level: a.level || getLevelFromCode(a.code),
       isSelectable: a.isSelectable ?? (a.code.length >= 6),
+      children: [] as Account[],
     }));
-    normalized.forEach(account => accountMap.set(account.id, { ...account, children: [] }));
-    normalized.forEach(account => {
-      const node = accountMap.get(account.id)!;
-      if (account.parentId) {
-        const parent = accountMap.get(account.parentId);
-        if (parent) { parent.children = parent.children || []; parent.children.push(node); }
-      } else { rootAccounts.push(node); }
+
+    // Build lookup by id and by clean code (without dots/dashes)
+    const byId = new Map<string, Account>();
+    const byCode = new Map<string, Account>();
+    normalized.forEach(a => {
+      byId.set(a.id, a);
+      byCode.set(a.code.replace(/[.\-]/g, ""), a);
     });
-    return rootAccounts;
+
+    // Infer parent from code structure: strip last segment to find parent
+    const roots: Account[] = [];
+    normalized.forEach(account => {
+      const cleanCode = account.code.replace(/[.\-]/g, "");
+      // Try progressively shorter prefixes to find a parent
+      let found = false;
+      for (let len = cleanCode.length - 1; len >= 1; len--) {
+        const parentCode = cleanCode.substring(0, len);
+        const parent = byCode.get(parentCode);
+        if (parent && parent.id !== account.id) {
+          parent.children.push(account);
+          found = true;
+          break;
+        }
+      }
+      if (!found) roots.push(account);
+    });
+
+    return roots;
   };
 
   const toggleExpand = (id: string) => {
     setExpandedNodes(prev => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+  };
+
+  const toggleSection = (type: string) => {
+    setExpandedSections(prev => { const n = new Set(prev); if (n.has(type)) n.delete(type); else n.add(type); return n; });
   };
 
   const expandAll = () => {
@@ -304,13 +370,6 @@ export default function ChartOfAccountsManager() {
   };
 
   const collapseAll = () => setExpandedNodes(new Set());
-
-  const filteredAccounts = accounts.filter(account => {
-    const match = account.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                  account.code.toLowerCase().includes(searchTerm.toLowerCase());
-    const typeMatch = selectedType === "todos" || account.type === selectedType;
-    return match && typeMatch;
-  });
 
   const getTypeColor = (type: string) => accountTypes.find(t => t.value === type)?.color || "bg-gray-100 text-gray-800";
 
@@ -841,39 +900,62 @@ export default function ChartOfAccountsManager() {
           <CardDescription>Catálogo completo siguiendo principios de partida doble</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex space-x-4 mb-4">
+          <div className="flex items-center space-x-4 mb-4">
             <div className="flex-1">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
                 <Input placeholder="Buscar por código o nombre..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10" />
               </div>
             </div>
-            <Select value={selectedType} onValueChange={setSelectedType}>
-              <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todos">Todos los tipos</SelectItem>
-                {accountTypes.map(t => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="flex gap-2 mb-4">
-            <Button variant="outline" size="sm" onClick={expandAll}><ChevronDown className="h-3 w-3 mr-1" /> Expandir</Button>
-            <Button variant="outline" size="sm" onClick={collapseAll}><ChevronRight className="h-3 w-3 mr-1" /> Colapsar</Button>
-            <span className="text-xs text-gray-400 self-center ml-2">
-              {filteredAccounts.length} cuentas raíz | {accounts.reduce((s, a) => s + (a.children?.length || 0), 0)} subcuentas
-            </span>
           </div>
 
-          <div className="border rounded-lg">
-            {filteredAccounts.length === 0 ? (
-              <div className="text-center py-12">
-                <FolderTree className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <h3 className="text-lg font-medium text-gray-900 mb-2">No se encontraron cuentas</h3>
-                <p className="text-gray-600">{searchTerm || selectedType !== "todos" ? "Ajusta los filtros" : "Crea tu primera cuenta o carga una plantilla"}</p>
-              </div>
-            ) : (
-              filteredAccounts.map((account, i) => <AccountRow key={account.id || `acc-${i}`} account={account} />)
-            )}
+          <div className="flex gap-2 mb-4">
+            <Button variant="outline" size="sm" onClick={() => {
+              const all = new Set<string>();
+              accountTypes.forEach(t => {
+                accounts.forEach(a => collectByType(a, t.value, all));
+              });
+              setExpandedNodes(all);
+            }}><ChevronDown className="h-3 w-3 mr-1" /> Expandir Todo</Button>
+            <Button variant="outline" size="sm" onClick={collapseAll}><ChevronRight className="h-3 w-3 mr-1" /> Colapsar Todo</Button>
+          </div>
+
+          <div className="space-y-2">
+            {accountTypes.map(t => {
+              const typeAccounts = accounts.filter(a =>
+                (a.type === t.value || hasChildOfType(a, t.value)) &&
+                (!searchTerm || a.name.toLowerCase().includes(searchTerm.toLowerCase()) || a.code.toLowerCase().includes(searchTerm.toLowerCase()))
+              );
+              const count = accounts.reduce((s, a) => s + countByType(a, t.value), 0);
+              if (count === 0 && searchTerm) return null;
+              const sectionExpanded = expandedSections.has(t.value);
+              return (
+                <div key={t.value} className="border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => toggleSection(t.value)}
+                    className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-center space-x-3">
+                      {sectionExpanded ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronRight className="h-5 w-5 text-gray-500" />}
+                      <Badge className={t.color}>{t.label}</Badge>
+                      <span className="text-sm text-gray-600">{count} {count === 1 ? 'cuenta' : 'cuentas'}</span>
+                    </div>
+                    <span className="text-xs text-gray-400">{t.value}</span>
+                  </button>
+                  {sectionExpanded && (
+                    <div className="border-t">
+                      {typeAccounts.length === 0 ? (
+                        <p className="p-4 text-sm text-gray-400 text-center">No hay cuentas de este tipo</p>
+                      ) : (
+                        typeAccounts.map((account, i) => (
+                          <AccountRow key={account.id || `type-${i}`} account={account} />
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>

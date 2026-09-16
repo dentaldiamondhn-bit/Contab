@@ -8,23 +8,27 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Catálogo de Cuentas** | Completo | 1 página | 3 rutas | 2 tablas | Supabase + Prisma |
-| **Asientos Contables (Pólizas)** | Parcial | 1 página | 2 rutas | 2 tablas | Prisma |
+| **Catálogo de Cuentas** | Completo | 1 página | 4 rutas | 3 tablas | Supabase + Prisma |
+| **Asientos Contables (Pólizas)** | Completo | 1 página | 2 rutas | 2 tablas | Prisma |
 | **Tipos de Comprobante** | Completo | En AccountingBooks | 1 ruta | — | Lógica en código |
-| **Libros Contables** | Completo | 1 página | 2 rutas | 5 vistas | Supabase |
+| **Libros Contables** | Completo | 1 página | 2 rutas + 3 RPCs | 5 vistas | Supabase |
 | **Cierre de Período** | Parcial | 1 página | 3 rutas | Config en GlobalSettings | Prisma |
 | **Balances de Apertura** | Completo | 1 página | 1 ruta (GET/PUT) | 2 columnas en `chart_of_accounts` | Supabase |
 | **Auditoría** | Completo | `/accounting/audit` | 2 rutas | 1 tabla (`account_audit_log`) | Supabase |
+| **Plantillas de Asientos** | Completo | `/accounting/journal-templates` | 1 ruta (CRUD) | 2 tablas | Supabase |
+| **Reversión de Asientos** | Completo | `/accounting/reversals` | 1 ruta (GET/POST/PUT) | 1 tabla | Supabase |
+| **Asientos Recurrentes** | Completo | `/accounting/recurring-entries` | 2 rutas (CRUD + execute) | 2 tablas | Supabase |
+| **Validación de Catálogo** | Completo | `/accounting/validate-catalog` | 1 ruta | — | Cálculos en código |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~72% | Catálogo y libros completos; balances de apertura; Balance de Comprobación 6 columnas; auditoría inmutable de saldos de apertura |
+| Completitud Funcional | ~80% | Catálogo completo con secciones colapsables y cascada; libros via RPCs; balances de apertura; Balance de Comprobación 6 columnas; auditoría inmutable; plantillas con importación Excel; reversiones con trazabilidad; asientos recurrentes |
 | Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E |
-| Estabilidad y Validaciones | ~65% | Validación de doble entrada implementada; middleware de períodos activo |
-| Persistencia de Datos | ~80% | Supabase + Prisma para la mayoría; hook use-accounts usa mock data |
-| Integración entre Módulos | ~50% | Integración con inventario y facturación parcial |
+| Estabilidad y Validaciones | ~70% | Validación de doble entrada; middleware de períodos; validación de catálogo (9 checks) |
+| Persistencia de Datos | ~90% | Supabase + Prisma para todo; use-accounts conectado a API real; hook sin mock data |
+| Integración entre Módulos | ~55% | Integración con inventario y facturación parcial |
 | Documentación y Tipado | ~40% | Sin tipos TypeScript dedicados para contabilidad |
 
 ---
@@ -33,15 +37,16 @@
 
 ### 2.1 Catálogo de Cuentas
 
-**Estado: Completo (~90%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `components/accounting/ChartOfAccountsManager.tsx` | Gestor completo: vista jerárquica en árbol, CRUD, importación/exportación CSV, 3 plantillas (PYME 37, Comercial 53, Servicios 28), búsqueda/filtrado, auto-asignación de naturaleza, multi-divisa, código fiscal |
+| `components/accounting/ChartOfAccountsManager.tsx` | Gestor completo: **secciones colapsables por tipo** (Activo, Pasivo, Patrimonio, Ingresos, Gastos), CRUD, importación/exportación CSV, 3 plantillas (PYME 37, Comercial 53, Servicios 28), búsqueda/filtrado, auto-asignación de naturaleza, multi-divisa, código fiscal. **Code-inference hierarchy** (reemplaza parentId-based). Expandir/Colapsar todo. |
 | `app/accounting/accounts/page.tsx` | Página de gestión del catálogo |
-| `app/api/accounting/accounts/route.ts` | API CRUD para cuentas, sub-rutas `check-transactions` y `delete-all` |
+| `app/companies/[id]/accounting/page.tsx` | Dashboard de contabilidad con tab de cuentas que usa **secciones colapsables por tipo** (no flat list) |
+| `app/api/accounting/accounts/route.ts` | API CRUD completa para cuentas: GET (fallback chain: tenantId → tenant_id → global), POST (insert con `crypto.randomUUID()`), PUT (con cascada a `journal_entry_template_lines` y `recurring_entries` JSONB + audit log), DELETE. Sub-rutas `check-transactions` y `delete-all` |
 | `lib/accounting-utils.ts` | Utilidades contables: etiquetas/colores, validación doble entrada, cálculo de saldos, formato moneda centavos HNL, balanza de comprobación |
 
 #### Archivos de Validación de Catálogo
@@ -95,8 +100,29 @@ _(Ninguna — catálogo validado completamente)_
 |---|---|
 | `app/companies/[id]/accounting/journal-templates/page.tsx` | UI de gestión de plantillas: lista con preview de líneas, formulario crear/editar, duplicar, eliminar. Selector de cuentas con búsqueda. **Importación masiva desde Excel** con vista previa, detección de duplicados, y descarga de plantilla de ejemplo. |
 | `app/api/accounting/journal-templates/route.ts` | API CRUD (GET/POST/PUT/DELETE) para plantillas y sus líneas |
-| `app/components/VercelAnalytics.tsx` | Wrapper seguro para Vercel Analytics/SpeedInsights con lazy loading (evita crash en incognito) |
 | `supabase/JOURNAL_ENTRY_TEMPLATES.sql` | Migración SQL idempotente: tablas `journal_entry_templates` y `journal_entry_template_lines` con RLS (safe to run multiple times) |
+
+#### Archivos de Reversión de Asientos
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/reversals/page.tsx` | UI de reversiones: historial de reversiones, dialog de nueva reversión con búsqueda de transacciones, upload de Excel para reversiones masivas, dropdown de usuarios (via `/api/accounting/users`). |
+| `app/api/accounting/reversals/route.ts` | API GET/POST/PUT: crea transacción con signos invertidos + JournalEntry invertidos. Registra en `journal_entry_reversals` con trazabilidad completa. Transaction insert incluye todos los campos requeridos (`id`, `voucherNumber`, `tenantId`, `voucherType`, `description`, `date`, `currency`, `exchangeRate`, `totalAmount`, `originalTotal`, `createdAt`, `updatedAt`). JournalEntry insert incluye `id` explícito. |
+| `supabase/REVERSAL_AND_RECURRING.sql` | Migración SQL: tablas `journal_entry_reversals`, `recurring_entries`, `recurring_entry_executions` con RLS |
+
+#### Archivos de Asientos Recurrentes
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/recurring-entries/page.tsx` | UI de CRUD: crear/editar/eliminar/ejecutar asientos recurrentes. Selector de cuentas con `account_id` almacenado. Frecuencias: semanal, quincenal, mensual, trimestral, anual. Vista previa de líneas. |
+| `app/api/accounting/recurring-entries/route.ts` | API GET/POST/PUT/DELETE para asientos recurrentes |
+| `app/api/accounting/recurring-entries/execute/route.ts` | POST: ejecuta asiento recurrente. Genera `id` UUID, `voucherNumber` auto-calculado, `createdAt`/`updatedAt`. Resuelve `account_code` → Account UUID via lookup. Calcula `totalAmount` de líneas en centavos. |
+
+#### Archivos de Usuarios para Reversión
+
+| Archivo | Propósito |
+|---|---|
+| `app/api/accounting/users/route.ts` | GET: lista de usuarios del tenant con service role (bypasses Clerk auth). Tabla `User` con columnas lowercase (`tenantid`, `firstname`, `lastname`, `isactive`). |
 
 #### Tablas de Base de Datos
 
@@ -104,6 +130,9 @@ _(Ninguna — catálogo validado completamente)_
 - `JournalEntry` (Prisma) — Líneas: id, transactionId, accountId, amount (BigInt), originalAmount, currency, exchangeRate
 - `journal_entry_templates` (Supabase) — id, tenant_id, name, description, voucher_type, is_active, created_at, updated_at
 - `journal_entry_template_lines` (Supabase) — id, template_id (FK), account_code, account_name, debit_enabled, credit_enabled, default_amount, sort_order
+- `journal_entry_reversals` (Supabase) — id, tenant_id, original_transaction_id, reversal_transaction_id, reason, reversed_by, reversed_at, status, notes, created_at
+- `recurring_entries` (Supabase) — id, tenant_id, name, description, voucher_type, frequency, next_execution, last_execution, is_active, entries (JSONB), created_at, updated_at
+- `recurring_entry_executions` (Supabase) — id, recurring_entry_id (FK), transaction_id, executed_at, status, error_message, created_at
 
 #### Lo que Falta
 
@@ -190,15 +219,38 @@ _(Ninguna — asientos contables completos)_
 
 ---
 
+### 2.6 Cierre Mensual
+
+**Estado: Completo (~90%)**
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `app/companies/[id]/accounting/closing/page.tsx` | UI de cierre mensual: grid de 12 meses por año, barra de progreso, badges de estado (abierto/cerrado/bloqueado), dialog de cierre con notas, dialog de reapertura con motivo obligatorio, detalle de período. |
+| `app/api/accounting/period-closing/route.ts` | API GET (lista períodos con conteo de transacciones, años disponibles), POST (cierra mes con validaciones), DELETE (reabre mes con validación de meses posteriores). |
+| `supabase/PERIOD_LOCKS.sql` | Migración SQL: tabla `period_locks` + RLS + funciones `validate_month_for_closing`, `close_period`, `reopen_period` + índices. |
+
+#### Tablas de Base de Datos
+
+- `period_locks` (Supabase) — id, tenant_id, year, month, status (open/closed/locked), closed_by, closed_at, locked_by, locked_at, notes, trial_balance_snapshot (JSONB), created_at, updated_at. UNIQUE(tenant_id, year, month).
+
+#### Lo que Falta
+
+- Sin cierre anual automatizado (solo mensual)
+- Sin bloqueo permanente de períodos antiguos (status "locked")
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | JournalEntryForm usa mockAccounts y handleSubmit no guarda | Funcionalidad principal rota | Crítica |
-| 2 | use-accounts.ts retorna datos mock | Hook inútil en producción | Crítica |
+| 1 | ~~JournalEntryForm usa mockAccounts y handleSubmit no guarda~~ | ~~Funcionalidad principal rota~~ | ~~Crítica~~ | ✅ Resuelta |
+| 2 | ~~use-accounts.ts retorna datos mock~~ | ~~Hook inútil en producción~~ | ~~Crítica~~ | ✅ Resuelta |
 | 3 | Sin tipos TypeScript para entidades contables | Errores en runtime | Alta |
-| 4 | Sin cierre mensual automatizado | Riesgo de error humano | Media |
-| 5 | Sin reversión de asientos contables | Correcciones manuales | Media |
+| 4 | ~~Sin cierre mensual automatizado~~ | ~~Riesgo de error humano~~ | ~~Media~~ | ✅ Resuelta |
+| 5 | ~~Sin reversión de asientos contables~~ | ~~Correcciones manuales~~ | ~~Media~~ | ✅ Resuelta |
 
 ---
 

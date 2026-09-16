@@ -19,9 +19,9 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~65% | Balance de Comprobación 6 columnas funcional; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales |
+| Completitud Funcional | ~70% | Balance de Comprobación 6 columnas funcional con RPCs; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales; FinancialStatements conectado a API real |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Estabilidad y Validaciones | ~50% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
+| Estabilidad y Validaciones | ~55% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
 | Exportación | ~40% | Solo CSV; sin exportación Excel ni PDF real |
 | Ratios Financieros | ~20% | Solo margen de utilidad; sin dashboard de ratios |
 
@@ -104,18 +104,17 @@
 
 ### 2.4 FinancialStatements (Componente Combinado)
 
-**Estado: Parcial (~40%)**
+**Estado: Parcial (~50%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `components/accounting/FinancialStatements.tsx` | Pestañas combinadas (Balance, Resultados, Flujo), comparativos de período, análisis de varianza, botones PDF. **Usa MOCK DATA para Balance y Resultados** |
+| `components/accounting/FinancialStatements.tsx` | Pestañas combinadas (Balance, Resultados, Flujo), comparativos de período, análisis de varianza, botones PDF. **Conectado a API real** — carga cuentas de `/api/accounting/accounts`, calcula totales por tipo. |
 | `components/financial/CashFlowManager.tsx` | Gestor de flujos de efectivo |
 
 #### Lo que Falta
 
-- ~~**Usa datos mock** para Balance General y Estado de Resultados~~ ✅ Conectado a API real
 - **Pestaña de Flujo muestra "En Desarrollo"**
 - Sin generación real de PDF
 
@@ -192,7 +191,7 @@ Etapa 1 (Conexión de Datos)
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Conexión | 3 tareas | Alta | 1-2 semanas |
+| Etapa 1: Conexión | 3 tareas | Alta | 1-2 semanas | ✅ 2/3 completas |
 | Etapa 2: Exportación | 3 tareas | Media | 2-3 semanas |
 | Etapa 3: Ratios | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Comparativos | 3 tareas | Alta | 2-3 semanas |

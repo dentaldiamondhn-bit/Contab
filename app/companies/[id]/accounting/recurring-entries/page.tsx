@@ -72,8 +72,8 @@ export default function RecurringEntriesPage() {
     frequency: 'monthly',
     next_execution: new Date().toISOString().split('T')[0],
     entries: [
-      { account_code: '', account_name: '', debit_enabled: true, credit_enabled: false, default_amount: 0, sort_order: 0 },
-      { account_code: '', account_name: '', debit_enabled: false, credit_enabled: true, default_amount: 0, sort_order: 1 },
+      { account_code: '', account_name: '', account_id: '', debit_enabled: true, credit_enabled: false, default_amount: 0, sort_order: 0 },
+      { account_code: '', account_name: '', account_id: '', debit_enabled: false, credit_enabled: true, default_amount: 0, sort_order: 1 },
     ] as any[],
   });
 
@@ -225,6 +225,7 @@ export default function RecurringEntriesPage() {
   const selectAccount = (index: number, account: any) => {
     updateLine(index, 'account_code', account.code);
     updateLine(index, 'account_name', account.name);
+    updateLine(index, 'account_id', account.id);
     setShowAccountSelector(null);
     setAccountSearch('');
   };

@@ -31,7 +31,7 @@ export interface TaxConfigWithAccount {
 
 export class TaxConfigService {
   static async getAllTaxConfigs(): Promise<TaxConfigWithAccount[]> {
-    return await (prisma as any).taxConfig.findMany({
+    return await (getPrisma() as any).taxConfig.findMany({
       include: {
         account: {
           select: {
@@ -49,7 +49,7 @@ export class TaxConfigService {
   }
 
   static async getActiveTaxConfigs(): Promise<TaxConfigWithAccount[]> {
-    return await (prisma as any).taxConfig.findMany({
+    return await (getPrisma() as any).taxConfig.findMany({
       where: {
         isActive: true
       },
@@ -70,7 +70,7 @@ export class TaxConfigService {
   }
 
   static async getTaxConfigById(id: string): Promise<TaxConfigWithAccount | null> {
-    return await (prisma as any).taxConfig.findUnique({
+    return await (getPrisma() as any).taxConfig.findUnique({
       where: { id },
       include: {
         account: {
@@ -99,7 +99,7 @@ export class TaxConfigService {
       throw new Error('Tax configuration must be linked to a liability account');
     }
 
-    return await (prisma as any).taxConfig.create({
+    return await (getPrisma() as any).taxConfig.create({
       data: {
         name: data.name,
         rate: data.rate,
@@ -135,7 +135,7 @@ export class TaxConfigService {
       }
     }
 
-    return await (prisma as any).taxConfig.update({
+    return await (getPrisma() as any).taxConfig.update({
       where: { id },
       data: {
         ...(data.name && { name: data.name }),
@@ -159,7 +159,7 @@ export class TaxConfigService {
   static async deleteTaxConfig(id: string): Promise<void> {
     // Check if tax config is being used in transactions
     // Note: You might want to add foreign key constraints or soft deletes
-    await (prisma as any).taxConfig.delete({
+    await (getPrisma() as any).taxConfig.delete({
       where: { id }
     });
   }

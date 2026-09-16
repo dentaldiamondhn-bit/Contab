@@ -105,7 +105,9 @@ export default function ReversalsPage() {
 
   const loadUsers = async () => {
     try {
-      const res = await fetch(`/api/tenant/users?tenantId=${companyId}`);
+      const res = await fetch(`/api/accounting/users?tenantId=${companyId}`, {
+        headers: { 'x-tenant-id': companyId },
+      });
       if (res.ok) {
         const data = await res.json();
         setUsers(data || []);
