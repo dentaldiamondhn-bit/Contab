@@ -3,6 +3,53 @@
 -- Run this in Supabase SQL Editor
 -- ============================================================
 
+-- ── Deduplicate existing data BEFORE adding constraints ─────
+-- Keep the oldest employee per duplicate id_number per tenant
+DELETE FROM employees
+WHERE id NOT IN (
+  SELECT DISTINCT ON (tenant_id, id_number) id
+  FROM employees
+  WHERE id_number IS NOT NULL AND id_number != ''
+  ORDER BY tenant_id, id_number, created_at ASC NULLS LAST
+)
+AND id_number IS NOT NULL AND id_number != '';
+
+-- Deduplicate employee_code
+DELETE FROM employees
+WHERE id NOT IN (
+  SELECT DISTINCT ON (tenant_id, employee_code) id
+  FROM employees
+  WHERE employee_code IS NOT NULL AND employee_code != ''
+  ORDER BY tenant_id, employee_code, created_at ASC NULLS LAST
+)
+AND employee_code IS NOT NULL AND employee_code != '';
+
+-- Deduplicate email
+DELETE FROM employees
+WHERE id NOT IN (
+  SELECT DISTINCT ON (tenant_id, email) id
+  FROM employees
+  WHERE email IS NOT NULL AND email != ''
+  ORDER BY tenant_id, email, created_at ASC NULLS LAST
+)
+AND email IS NOT NULL AND email != '';
+
+-- Deduplicate departments name per tenant
+DELETE FROM departments
+WHERE id NOT IN (
+  SELECT DISTINCT ON (tenant_id, lower(name)) id
+  FROM departments
+  ORDER BY tenant_id, lower(name), created_at ASC NULLS LAST
+);
+
+-- Deduplicate positions name per tenant
+DELETE FROM positions
+WHERE id NOT IN (
+  SELECT DISTINCT ON (tenant_id, lower(name)) id
+  FROM positions
+  ORDER BY tenant_id, lower(name), created_at ASC NULLS LAST
+);
+
 -- ── Unique Constraints ──────────────────────────────────────
 -- Departments: unique name per tenant
 ALTER TABLE departments ADD CONSTRAINT uq_departments_tenant_name UNIQUE (tenant_id, name);
