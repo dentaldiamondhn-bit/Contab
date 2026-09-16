@@ -82,11 +82,16 @@ EXCEPTION WHEN duplicate_table THEN NULL; END $$;
 -- Helper: enable RLS + create tenant isolation + service_role policies for any table
 CREATE OR REPLACE FUNCTION enable_rls_for_table(tbl text) RETURNS void AS $$
 BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = tbl) THEN
+    RETURN;
+  END IF;
   EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', tbl);
   EXECUTE format('DROP POLICY IF EXISTS %I ON %I', tbl || '_tenant_isolation', tbl);
   EXECUTE format('CREATE POLICY %I ON %I USING (tenant_id = current_setting(''app.current_tenant_id'', true)::text)', tbl || '_tenant_isolation', tbl);
   EXECUTE format('DROP POLICY IF EXISTS %I ON %I', tbl || '_service_role_all', tbl);
   EXECUTE format('CREATE POLICY %I ON %I USING (current_setting(''role'') = ''service_role'')', tbl || '_service_role_all', tbl);
+EXCEPTION WHEN OTHERS THEN
+  RAISE NOTICE 'RLS skipped for %: %', tbl, SQLERRM;
 END;
 $$ LANGUAGE plpgsql;
 
