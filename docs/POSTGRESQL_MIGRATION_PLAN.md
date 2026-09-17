@@ -1,5 +1,13 @@
 # Plan de Migración a PostgreSQL con RLS
 
+> **Estado actual (16 de Septiembre de 2026)**
+>
+> La migración **ya está completada**: la base actual es **Supabase (PostgreSQL)** con RLS activo, accesos vía `DATABASE_URL` y `NEXT_PUBLIC_SUPABASE_URL`. Este documento conserva el plan original (SQLite → PostgreSQL) como referencia histórica y guía de configuración.
+>
+> ⚠️ **Vía de aplicación de DDL:** No hay acceso DDL directo — la conexión directa `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`. **Todo SQL de migración/configuración se aplica con el SQL Editor de Supabase** (https://app.supabase.com → proyecto → SQL Editor → New query → Run). `npx prisma migrate deploy`, `prisma migrate dev` y `psql` contra el host directo **no funcionan** contra Supabase. Prisma se usa sobre todo para **generar el cliente** (`prisma generate`); el schema/funciones/políticas se gestionan vía SQL Editor.
+>
+> Build actual: `pnpm build` = `prisma generate && next build` (EXIT=0, "Compiled successfully"). Stack: Next.js **16.3.5** (Turbopack), React 19, Clerk (`clerkMiddleware`, `auth.protect()` → 404), Supabase (Postgres), Prisma 5.x.
+
 ## 📋 Resumen
 Migrar de SQLite a PostgreSQL para habilitar Row Level Security (RLS) y mejorar la seguridad multi-tenant.
 
@@ -322,7 +330,7 @@ describe('RLS Tenant Isolation', () => {
 ### 7.1 Configurar PostgreSQL en Producción
 ```bash
 # Opciones:
-# 1. Supabase (recomendado - incluye RLS listo)
+# 1. Supabase (EN USO en este proyecto - incluye RLS listo) ✅
 # 2. AWS RDS
 # 3. Railway
 # 4. Neon (serverless PostgreSQL)
@@ -330,7 +338,11 @@ describe('RLS Tenant Isolation', () => {
 
 ### 7.2 Ejecutar Migraciones en Producción
 ```bash
-npx prisma migrate deploy
+# ⚠️ En este proyecto NO se usa `npx prisma migrate deploy` contra Supabase:
+# el host directo db.<ref>.supabase.co:5432 da getaddrinfo ENOTFOUND.
+# La vía es el SQL Editor de Supabase:
+#   1. Copiar el contenido del script SQL (prisma/migrations/*.sql o scripts/migrations/*.sql)
+#   2. Pegarlo en SQL Editor → New query → Run
 ```
 
 ### 7.3 Verificar RLS en Producción

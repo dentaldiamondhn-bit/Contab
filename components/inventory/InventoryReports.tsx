@@ -14,6 +14,7 @@ import {
   PieChart
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { dbToLegacyProducts } from "@/lib/inventory/schema-map";
 
 interface InventoryReportsProps {
   tenantId: string;
@@ -72,14 +73,15 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
 
       // Cargar productos
       const { data, error } = await supabase
-        .from('Product')
+        .from('product')
         .select('*')
-        .eq('isActive', true)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
 
-      const productList = (data || []) as any[];
+      const productList = dbToLegacyProducts(data) as any[];
       setProducts(productList);
 
       // Calcular estadísticas
@@ -149,8 +151,8 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
             product.category,
             product.currentStock.toString(),
             product.minStock.toString(),
-            (product.unitCost / 100).toFixed(2),
-            ((product.currentStock * product.unitCost) / 100).toFixed(2),
+            (product.unitCost).toFixed(2),
+            ((product.currentStock * product.unitCost)).toFixed(2),
             product.currentStock === 0 ? 'Sin Stock' : 
             product.currentStock <= product.minStock ? 'Stock Bajo' : 'Normal'
           ])
@@ -173,7 +175,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
           ...Object.entries(categoryData).map(([category, data]) => [
             category,
             data.count.toString(),
-            (data.value / 100).toFixed(2),
+            (data.value).toFixed(2),
             ((data.value / stats.totalValue) * 100).toFixed(2) + '%'
           ])
         ].join('\n');
@@ -193,8 +195,8 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
             return [
               product.name,
               product.currentStock.toString(),
-              (product.unitCost / 100).toFixed(2),
-              ((product.currentStock * product.unitCost) / 100).toFixed(2),
+              (product.unitCost).toFixed(2),
+              ((product.currentStock * product.unitCost)).toFixed(2),
               turnoverRate.toFixed(2),
               recommendation
             ];
@@ -288,7 +290,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              L. {(stats.totalValue / 100).toFixed(2)}
+              L. {(stats.totalValue).toFixed(2)}
             </div>
             <p className="text-xs text-gray-600">
               Valor total en existencia
@@ -403,7 +405,7 @@ export default function InventoryReports({ tenantId }: InventoryReportsProps) {
                     </div>
                     <div className="text-right">
                       <div className="font-bold text-cyan-600">
-                        L. {(category.value / 100).toFixed(2)}
+                        L. {(category.value).toFixed(2)}
                       </div>
                       <div className="text-sm text-gray-600">
                         {((category.value / stats.totalValue) * 100).toFixed(1)}% del total

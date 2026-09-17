@@ -13,6 +13,7 @@
 | **Impresión/PDF** | Parcial | — | — | — | HTML (placeholder) |
 | **Backup/Restore** | Básico | 0 | 0 | 0 | Scripts |
 | **Configuración** | Básico | 1 página | — | 1 tabla | Prisma |
+| **Notas de Crédito/Débito** | Funcional | 1 página | 2 rutas | 1 tabla (`InvoiceNote`) | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -153,6 +154,27 @@
 - Configuración de moneda, idioma, formato de fechas
 - Gestión de módulos activos/inactivos
 
+### 2.7 Notas de Crédito/Débito (Nuevo, 16 Sept 2026)
+
+**Estado: Funcional (primer despliegue)**
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/notes-service.ts` | Servicio de notas de crédito/débito |
+| `app/api/billing/notes/route.ts` | API de notas: GET (lista) y POST (crear) |
+| `app/api/billing/notes/[id]/route.ts` | API por nota: PATCH (editar) y DELETE |
+| `components/billing/NoteForm.tsx` | Formulario de creación/edición de notas |
+| `components/billing/NotePreview.tsx` | Vista previa de la nota |
+| `app/billing/notes/page.tsx` | Página del módulo |
+
+#### Acceso y Verificación
+
+- GET a la lista **no requiere autenticación**; POST/PATCH **sí requieren auth**.
+- Tabla `InvoiceNote`.
+- Build OK; verificación contra Supabase: INSERT 201 / SELECT 200 / DELETE 204.
+
 ---
 
 ## 3. Problemas Críticos
@@ -224,12 +246,16 @@
 
 ---
 
-## Actualizaciones de Infraestructura (8 Sept 2026)
+## Actualizaciones de Infraestructura (16 Sept 2026)
 
 | Cambio | Detalle |
 |---|---|
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+| Stack validado | Next.js 16.3.5 (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x, Tailwind, shadcn/ui; `output: 'standalone'` |
+| Build | `pnpm build` EXIT=0 (16 Sept 2026) |
+
+*Estado validado al 16 de Septiembre de 2026.*

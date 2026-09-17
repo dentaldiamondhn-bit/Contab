@@ -40,9 +40,10 @@ interface InvoiceStats {
 
 interface InvoiceStatsProps {
   tenantId: string;
+  companyId?: string;
 }
 
-export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
+export default function InvoiceStats({ tenantId, companyId }: InvoiceStatsProps) {
   const [stats, setStats] = useState<InvoiceStats>({
     totalInvoices: 0,
     paidInvoices: 0,
@@ -68,15 +69,18 @@ export default function InvoiceStats({ tenantId }: InvoiceStatsProps) {
 
   useEffect(() => {
     loadInvoiceStats();
-  }, [tenantId, period]);
+  }, [tenantId, companyId, period]);
 
   const loadInvoiceStats = async () => {
     setLoading(true);
     try {
-      console.log('Client: Loading stats for tenant:', tenantId, 'period:', period);
+      console.log('Client: Loading stats for tenant:', tenantId, 'company:', companyId, 'period:', period);
+      
+      const params = new URLSearchParams({ tenantId, period });
+      if (companyId) params.append('companyId', companyId);
       
       const response = await fetch(
-        `/api/dashboard/invoice-stats?tenantId=${tenantId}&period=${period}`
+        `/api/dashboard/invoice-stats?${params.toString()}`
       );
       
       console.log('Client: Response status:', response.status);

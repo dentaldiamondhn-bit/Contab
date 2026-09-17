@@ -5,6 +5,17 @@ import { useRouter, usePathname } from 'next/navigation';
 import { useAuth, useUser } from '@clerk/nextjs';
 import { toast } from 'sonner';
 
+interface Company {
+  id: string;
+  name: string;
+  rtn?: string;
+  email?: string;
+  address?: string;
+  industry?: string;
+  logo_url?: string;
+  business_type?: string;
+}
+
 interface Tenant {
   id: string;
   businessName: string;
@@ -18,6 +29,7 @@ interface Tenant {
   maxStorage?: number;
   isActive?: boolean;
   activeModules?: string[];
+  companies?: Company[];
 }
 
 interface TenantContextType {
@@ -27,8 +39,12 @@ interface TenantContextType {
   loading: boolean;
   refreshTenantData: () => Promise<void>;
   isSuperAdmin: boolean;
-  isImpersonating: boolean; // Añadir estado de impersonación
+  isImpersonating: boolean;
   exitImpersonation: () => void;
+  // Company selection (for accountants with multiple companies per tenant)
+  currentCompany: Company | null;
+  setCompany: (company: Company) => void;
+  companies: Company[];
 }
 
 const IMPERSONATION_COOKIE_NAME = 'impersonated_tenant_id';
@@ -47,6 +63,8 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
   const [loading, setLoading] = useState(true);
   const [hasCheckedInitialAdminState, setHasCheckedInitialAdminState] = useState(false);
   const [isImpersonating, setIsImpersonating] = useState(false); // Nuevo estado para la impersonación
+  const [currentCompany, setCurrentCompanyState] = useState<Company | null>(null);
+  const [companies, setCompanies] = useState<Company[]>([]);
   const { userId, isLoaded: authLoaded } = useAuth();
   const { user } = useUser();
   const router = useRouter();
@@ -162,9 +180,18 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
             return;
           }
 
-          const freshTenant = currentTenant 
-            ? databaseTenants.find((t: any) => t.id === currentTenant.id) || databaseTenants[0]
-            : databaseTenants[0];
+          // Preferir el tenant ya seleccionado (estado, localStorage o metadata) para no
+          // caer en databaseTenants[0], que es arbitrario porque /api/tenants-api
+          // devuelve TODOS los tenants.
+          const savedTenantId = typeof window !== 'undefined' ? localStorage.getItem('tenant_id') : null;
+          const metadataTenantId = (user?.publicMetadata?.tenantId as string)
+            || (user?.unsafeMetadata?.tenantId as string)
+            || ((user as any)?.privateMetadata?.tenantId as string)
+            || null;
+          const desiredTenantId = metadataTenantId || currentTenant?.id || savedTenantId;
+          const freshTenant = (desiredTenantId
+            ? databaseTenants.find((t: any) => t.id === desiredTenantId)
+            : undefined) || databaseTenants[0];
           
           setCurrentTenant(freshTenant); 
           localStorage.setItem('selected_tenant', JSON.stringify(freshTenant));
@@ -250,6 +277,34 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
     }
   };
 
+  // Company selection logic: sync companies from currentTenant
+  useEffect(() => {
+    const tenantCompanies = currentTenant?.companies || [];
+    setCompanies(tenantCompanies);
+    if (tenantCompanies.length > 0) {
+      // Prefer saved company, else first company
+      const savedCompany = typeof window !== 'undefined' ? localStorage.getItem('selected_company') : null;
+      let selected = tenantCompanies[0];
+      if (savedCompany) {
+        try {
+          const parsed = JSON.parse(savedCompany);
+          const match = tenantCompanies.find(c => c.id === parsed.id);
+          if (match) selected = match;
+        } catch {}
+      }
+      setCurrentCompanyState(selected);
+    } else {
+      setCurrentCompanyState(null);
+    }
+  }, [currentTenant]);
+
+  const setCompany = (company: Company) => {
+    setCurrentCompanyState(company);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('selected_company', JSON.stringify(company));
+    }
+  };
+
   // Function to refresh tenant data from database
   const refreshTenantData = async () => {
     try {
@@ -300,7 +355,10 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
     refreshTenantData,
     isSuperAdmin,
     isImpersonating,
-    exitImpersonation
+    exitImpersonation,
+    currentCompany,
+    setCompany,
+    companies,
   };
 
   return (

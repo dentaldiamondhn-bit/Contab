@@ -13,7 +13,8 @@
 | **ISR (Impuesto Sobre Renta)** | Completo | En reportes | 1 ruta | — | Cálculos |
 | **Tax Helper (Asistente)** | Completo | 1 página | 3 rutas | — | Prisma |
 | **Configuración de Impuestos** | Completo | 1 página | 3 rutas | 2 tablas | Prisma + Supabase |
-| **DIAT** | No Iniciado | 0 | 0 | 0 | — |
+| **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (companies, libro_ventas, Purchase) |
+| **Notas de Crédito/Débito (SAR)** | Completo | 1 página | 2 rutas | 1 tabla (`InvoiceNote`) | Supabase |
 | **DIN** | No Iniciado | 0 | 0 | 0 | — |
 | **TCA** | No Iniciado | 0 | 0 | 0 | — |
 | **Impresora Fiscal** | No Iniciado | 0 | 0 | 0 | — |
@@ -25,10 +26,10 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~55% | ISV, retenciones, CAI sólidos; sin DIAT, DIN, TCA, impresora fiscal |
+| Completitud Funcional | ~75% | ISV, retenciones, CAI, DIAT y notas NC/ND sólidos; sin DIN, TCA, impresora fiscal |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Cumplimiento SAR | ~50% | Formulario 221 y DET listos; sin DIAT ni envío en línea |
-| Integración Contable | ~60% | Tax Helper genera asientos; retenciones no generan asiento |
+| Cumplimiento SAR | ~70% | Formulario 221, DET, DIAT y notas NC/ND listos; sin envío en línea |
+| Integración Contable | ~70% | Tax Helper genera asientos; notas NC/ND generan asiento AJUSTE; retenciones no generan asiento |
 | Legislación Honduras | ~70% | ISV 15%/18%, ISR progresivo, retenciones 1%/12.5% implementados |
 
 ---
@@ -180,11 +181,86 @@
 
 ---
 
+### 2.7 DIAT (Declaración Informativa de Actividades)
+
+**Estado: Completo (~70%)**
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/diat-generator.ts` | Generador: período mensual, agrupación por tasa/CAI/proveedor, resumen de liquidación |
+| `app/api/diat/route.ts` | API GET `?companyId=&period=` — retorna `{success, data: {companyId, availablePeriods, report}}` |
+| `components/DIATManager.tsx` | UI: declarante, selector de período, KPIs, tablas de ventas/compras, CSV e impresión |
+| `app/companies/[id]/diat/page.tsx` | Página DIAT por empresa |
+
+#### Fuentes de Datos
+
+- Declarante: `companies` (por `tenant_id`, luego `id` → nombre, RTN, domicilio, régimen)
+- Ventas: `libro_ventas` (fecha, total, CAI) — hoy sin registros cargados
+- Compras: `Purchase` (tenant `1` + `company_id`) — gravado por tasa fiscal (0/15/18/otras), canceladas excluidas
+
+#### Lo que Falta
+
+- Poblar `libro_ventas` para que las ventas reflejen datos reales
+- Envío en línea a SAR
+
+---
+
+### 2.8 Notas de Crédito/Débito (Fiscal SAR)
+
+**Estado: Completo (~90%)**
+
+Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito sin implementar). Detalle completo en `docs/NOTAS_CREDITO_DEBITO_REPORT.md`.
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/notes-service.ts` | `resolveTenantId`, `nextNoteNumber` (series independientes NC-XXXXXXXX / ND-XXXXXXXX por tenant), `listNotes`, `getNote`, `createNote`, `postNoteJournal`, `updateNoteStatus` |
+| `app/api/billing/notes/route.ts` | GET lista (sin auth; filtros `type`/`status`/`from`/`to`) y POST crear (requiere auth Clerk) |
+| `app/api/billing/notes/[id]/route.ts` | GET una nota; PATCH `{status}` para Aplicar/Anular (requiere auth). Next 16: `params` es Promise → `await params` |
+| `components/billing/NoteForm.tsx` | `CreditNoteForm`/`DebitNoteForm`: factura original opcional, fecha, monto, motivo, contra-cuenta (efectivo/crédito), vista previa ISV 15% |
+| `components/billing/NotePreview.tsx` | Documento fiscal imprimible (emisor, cliente, RTN, factura original + CAI, motivo, montos) con `window.print()` |
+| `app/billing/notes/page.tsx` | Stats (Total, Créditos, Débitos, Efecto Neto ISV), filtros tipo/estado, crear/aplicar/anular/ver |
+| `app/billing/page.tsx` | Botón de acceso al submódulo |
+
+#### Esquema de Datos (`InvoiceNote`)
+
+- `id` TEXT PK (`gen_random_uuid()`), `tenantId` FK `Tenant`, `originalInvoiceId` FK `Invoice` (nullable, ON DELETE SET NULL), `noteType` VARCHAR(20) CHECK (`CREDIT`/`DEBIT`), `noteNumber` VARCHAR(50), `reason` TEXT, `amount` DECIMAL(15,2) (Lempiras), `status` VARCHAR(20) CHECK (`PENDING`/`APPLIED`/`CANCELLED`) DEFAULT `PENDING`, `appliedDate` DATE, `createdAt`, `createdBy` FK `User`.
+- RLS por tenant; índices por tenant y por factura original. Migración: `scripts/migrations/005_invoice_tables_consolidated.sql`.
+
+#### Contabilidad (asiento AJUSTE)
+
+- Asiento `voucherType = AJUSTE` **balanceado** (suma 0) contra `/api/accounting/transactions`; ISV 15% incluido: `subTotal = monto / 1.15`, `impuesto = monto - subTotal`.
+- Cuentas: **4101** Ingresos, **2105** ISV por pagar, contra-cuenta **1101** Caja (efectivo) o **1103** Clientes (crédito).
+- **NC:** +sub(4101), +tax(2105), −total(contra). **ND:** +total(contra), −sub(4101), −tax(2105).
+- Asiento **best-effort**: los errores se registran (`console.error`) y NO bloquean la emisión de la nota.
+
+#### Fiscales
+
+- Las notas **NO consumen CAI propio**; referencian el **CAI de la factura original** (normativa SAR-HN). Numeración interna **NC-**/**ND-** por tenant.
+- El documento impreso incluye la leyenda con el CAI de la factura original.
+
+#### Verificación (16 Sept 2026)
+
+- `pnpm build` → **EXIT=0**. Rutas compiladas: `ƒ /api/billing/notes`, `ƒ /api/billing/notes/[id]`, `○ /billing/notes`.
+- Prueba de capa de datos contra Supabase: `InvoiceNote` INSERT 201, SELECT 200, DELETE 204; `Invoice` SELECT 200.
+
+#### Pendientes / Limitaciones
+
+- Impresión por `window.print()` (sin PDF server-side profesional).
+- Anulación permanente sin contra-asiento automático.
+- Serie NC/ND no validada contra rango CAI (depende de la factura original).
+- Sin emisión/sincronización a plataforma SAR.
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Sin DIAT | Incumplimiento SAR obligatorio | **Crítica** |
+| 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR obligatorio~~ | ✅ Implementado (16 Sept 2026) |
 | 2 | Sin DIN | Sin identificación numérica fiscal | Alta |
 | 3 | Sin TCA | Sin control de acceso fiscal | Alta |
 | 4 | Sin impresora fiscal | Imposible emitir comprobantes fiscales | Alta |
@@ -196,13 +272,15 @@
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: DIAT y Compliance SAR
+### Etapa 1: DIAT, Notas NC/ND y Compliance SAR (DIAT ✅, Notas NC/ND ✅, queda validación SAR)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | Generador de DIAT | `lib/services/diat-generator.ts` | Generador |
-| 1.2 | UI de DIAT | `app/diat/page.tsx` | Página |
-| 1.3 | Validación de compliance SAR | `lib/services/sar-compliance.ts` | Validaciones |
+| 1.1 | ~~Generador de DIAT~~ | ~~`lib/services/diat-generator.ts`~~ | ✅ Generador (16 Sept 2026) |
+| 1.2 | ~~UI de DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página + API (16 Sept 2026) |
+| 1.3 | ~~Notas de Crédito/Débito (fiscal SAR)~~ | ~~`lib/services/notes-service.ts` + `app/api/billing/notes[/id]` + `app/billing/notes`~~ | ✅ Notas NC/ND (16 Sept 2026) |
+| 1.4 | ~~Asiento contable de notas~~ | ~~`postNoteJournal` (voucherType AJUSTE, balanceado, ISV 15%)~~ | ✅ Asiento NC/ND (16 Sept 2026) |
+| 1.5 | Validación de compliance SAR | `lib/services/sar-compliance.ts` | Validaciones |
 
 ### Etapa 2: Integración Contable de Retenciones
 
@@ -241,14 +319,28 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: DIAT | 3 tareas | Alta | 3-4 semanas |
+| Etapa 1: DIAT (✅) + Notas NC/ND (✅) + Compliance SAR | 1 tarea | Media | 1 semana |
 | Etapa 2: Contabilidad | 3 tareas | Media | 2-3 semanas |
 | Etapa 3: DIN/TCA/Fiscal | 3 tareas | Alta | 3-4 semanas |
 | Etapa 4: Declaraciones | 3 tareas | Alta | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1-2 semanas |
-| **Total** | **14 tareas** | — | **11-16 semanas** |
+| **Total** | **12 tareas** | — | **9-14 semanas** |
 
 ---
+
+## Actualizaciones de Integración Fiscal (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| DIAT implementado | Generador `lib/services/diat-generator.ts` + API `app/api/diat/route.ts` + UI `/companies/[id]/diat` (`components/DIATManager.tsx`) |
+| Fuentes | companies / libro_ventas / Purchase; período validado `^\d{4}-(0[1-9]\|1[0-2])$` |
+| Exportación | CSV en cliente + impresión (`window.print()`) |
+| E2E | Períodos `["2026-09"]`; reporte ANGELOH7 (2 compras, base 538, ISV 81, total 619); 400s; build EXIT=0 |
+| Notas de Crédito/Débito implementadas | `lib/services/notes-service.ts` + `app/api/billing/notes[/id]` + `components/billing/NoteForm.tsx`/`NotePreview.tsx` + `app/billing/notes` |
+| Asiento AJUSTE de notas | `postNoteJournal`: 4101/2105 + contra 1101/1103, ISV 15% incluido, balanceado, best-effort |
+| Fiscales NC/ND | No consumen CAI propio; referencian CAI de la factura original (SAR-HN); numeración interna NC-/ND- |
+| Verificación notas | Build EXIT=0; rutas `ƒ /api/billing/notes`, `ƒ /api/billing/notes/[id]`, `○ /billing/notes`; INSERT 201 / SELECT 200 / DELETE 204 |
+| Fix env | `app/api/companies/route.ts` usa `NEXT_PUBLIC_SUPABASE_URL` (no `SUPABASE_URL`) |
 
 ## Actualizaciones de Infraestructura (8 Sept 2026)
 
@@ -257,5 +349,5 @@
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |

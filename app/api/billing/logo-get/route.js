@@ -23,8 +23,7 @@ export async function GET(request) {
       
       const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
-        .list('*', {
-          search: `tenantId=eq.${tenantId}`,
+        .list(tenantId, {
           limit: 1
         });
 
@@ -40,18 +39,19 @@ export async function GET(request) {
 
       if (data && data.length > 0) {
         const logoFile = data[0];
+        const logoPath = `${tenantId}/${logoFile.name}`;
         
-        const { data: publicUrlData } = getSupabaseServer().storage
+        const { data: signedUrlData } = await getSupabaseServer().storage
           .from('company-logos')
-          .getPublicUrl(logoFile.name);
+          .createSignedUrl(logoPath, 3600);
 
         console.log('Logo encontrado en Supabase Storage');
-        console.log('Nombre del archivo:', logoFile.name);
-        console.log('URL publico:', publicUrlData.publicUrl);
+        console.log('Logo path:', logoPath);
 
         return NextResponse.json({
           success: true,
-          logoUrl: publicUrlData.publicUrl,
+          logoPath: logoPath,
+          logoUrl: signedUrlData?.signedUrl || null,
           fileName: logoFile.name,
           fileSize: logoFile.metadata?.size,
           fileType: logoFile.metadata?.contentType,

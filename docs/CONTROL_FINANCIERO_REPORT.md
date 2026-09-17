@@ -190,5 +190,15 @@
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Control Financiero (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Asientos desde Facturación | Las notas de crédito/débito (`lib/services/notes-service.ts`) publican asientos `AJUSTE` vía `POST /api/accounting/transactions` (cuentas 4101/2105/1101/1103, header `x-tenant-id`, ISV 15% incluido) — alimentan la contabilidad y la conciliación del control financiero |
+| Middleware Clerk | Rutas protegidas: `auth.protect()` → HTTP 404 sin sesión; inyecta `x-tenant-id`. Públicas acotadas (`/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`) |
+| Fix env `SUPABASE_URL` | `app/api/companies/route.ts`: `SUPABASE_URL` (inexistente → 500) reemplazado por `NEXT_PUBLIC_SUPABASE_URL` |
+| Build | `pnpm build` → `EXIT=0` (Next.js 16.3.5 + Turbopack, `output: 'standalone'`) |
+| DDL | Sin acceso DDL directo (`DATABASE_URL` → ENOTFOUND); DDL vía SQL Editor de Supabase |

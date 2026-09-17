@@ -1,39 +1,8 @@
 import { NextResponse } from 'next/server';
-import { readFileSync, existsSync } from 'fs';
-import { join } from 'path';
 import * as XLSX from 'xlsx';
 
-import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
-const DATA_FILE = join(process.cwd(), 'purchases-data.json');
-
-interface Purchase {
-  id: string;
-  [key: string]: any;
-  invoice_number?: string;
-  invoice_date?: string;
-  supplier_name?: string;
-  total?: number;
-  status?: string;
-  cai?: string;
-  items?: any[];
-  created_at?: string;
-  subtotal?: number;
-  tax_amount?: number;
-}
-
-const loadPurchases = (): Purchase[] => {
-  try {
-    if (existsSync(DATA_FILE)) {
-      const data = readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    } else {
-      return [];
-    }
-  } catch (error) {
-    console.error('Error loading purchases data:', error);
-    return [];
-  }
-};
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { fetchPurchases } from '@/lib/purchase-db';
 
 export async function GET(request: Request) {
   try {
@@ -43,19 +12,23 @@ export async function GET(request: Request) {
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    // Load all purchases
-    const purchases = loadPurchases();
-    
+    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), { companyId });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json({ error: 'Failed to fetch purchases' }, { status: 500 });
+    }
+
     // Filter by date range if provided
-    let filteredPurchases = purchases;
+    let filteredPurchases = purchases || [];
     if (startDate && endDate) {
-      filteredPurchases = purchases.filter((purchase: Purchase) => {
+      filteredPurchases = filteredPurchases.filter((purchase: any) => {
         const purchaseDate = new Date(purchase.invoice_date || purchase.created_at || '');
         return purchaseDate >= new Date(startDate) && purchaseDate <= new Date(endDate);
       });
     }
 
-    const dateRange = startDate && endDate 
+    const dateRange = startDate && endDate
       ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
       : 'Todas las fechas';
 
@@ -66,10 +39,10 @@ export async function GET(request: Request) {
   }
 }
 
-function generateExcelReport(purchases: Purchase[], companyName: string, dateRange: string) {
+function generateExcelReport(purchases: any[], companyName: string, dateRange: string) {
   // Create workbook
   const wb = XLSX.utils.book_new();
-  
+
   // Prepare data for Excel
   const excelData = purchases.map(p => ({
     'Factura': p.invoice_number || 'N/A',
@@ -82,7 +55,7 @@ function generateExcelReport(purchases: Purchase[], companyName: string, dateRan
     'Total': p.total || 0,
     'Items': p.items ? p.items.length : 0,
   }));
-  
+
   // Add summary row
   const total = purchases.reduce((sum, p) => sum + (p.total || 0), 0);
   excelData.push({
@@ -96,10 +69,10 @@ function generateExcelReport(purchases: Purchase[], companyName: string, dateRan
     'Total': total,
     'Items': 0,
   });
-  
+
   // Create worksheet
   const ws = XLSX.utils.json_to_sheet(excelData);
-  
+
   // Set column widths
   const colWidths = [
     { wch: 15 }, // Factura
@@ -113,13 +86,13 @@ function generateExcelReport(purchases: Purchase[], companyName: string, dateRan
     { wch: 8 },  // Items
   ];
   ws['!cols'] = colWidths;
-  
+
   // Add worksheet to workbook
   XLSX.utils.book_append_sheet(wb, ws, 'Reporte de Compras');
-  
+
   // Generate buffer
   const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
-  
+
   // Return file
   return new NextResponse(excelBuffer, {
     headers: {

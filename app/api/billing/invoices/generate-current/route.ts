@@ -36,7 +36,7 @@ export async function POST(req: NextRequest) {
     } as any);
 
     // Retornar la factura recién creada (inmutable)
-    const { data: invoice } = await supabase.from('invoice').select('*').eq('id', invoiceId).single();
+    const { data: invoice } = await supabase.from('Invoice').select('*').eq('id', invoiceId).single();
 
     return NextResponse.json({ success: true, invoice });
   } catch (error: any) {

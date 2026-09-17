@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield, Eye } from "lucide-react";
+import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield, Eye, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useUser } from "@clerk/nextjs";
@@ -21,7 +21,7 @@ interface TenantHeaderProps {
 }
 
 export function TenantHeader({ tenants }: TenantHeaderProps) {
-  const { currentTenant, tenants: contextTenants, isSuperAdmin, isImpersonating, exitImpersonation } = useTenant();
+  const { currentTenant, tenants: contextTenants, isSuperAdmin, isImpersonating, exitImpersonation, companies, currentCompany, setCompany } = useTenant();
   const { user } = useUser();
   const { signOut } = useClerk();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -117,23 +117,54 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
             <span className="font-semibold text-lg text-white">Diamond Accounting</span>
           </div>
 
-          {/* Info del Tenant Actual */}
-          <div className="flex items-center gap-4">
-            {currentTenant && (
-              <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-cyan-600/50 rounded-lg">
-                <div className="text-sm">
-                  <div className="font-medium text-white">{currentTenant.businessName}</div>
-                  {currentTenant.businessRTN && (
-                    <div className="text-xs text-cyan-200">RTN: {currentTenant.businessRTN}</div>
+{/* Info del Tenant/Empresa Actual */}
+            <div className="flex items-center gap-4">
+              {currentTenant && (
+                <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-cyan-600/50 rounded-lg">
+                  <div className="text-sm">
+                    {companies.length > 1 && currentCompany ? (
+                      <>
+                        <div className="font-medium text-white">{currentCompany.name}</div>
+                        <div className="text-xs text-cyan-200">{currentTenant.businessName} · RTN: {currentCompany.rtn || currentTenant.businessRTN}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-medium text-white">{currentTenant.businessName}</div>
+                        {currentTenant.businessRTN && (
+                          <div className="text-xs text-cyan-200">RTN: {currentTenant.businessRTN}</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {(currentTenant as any).subscriptionType && (
+                    <Badge variant="secondary" className="text-xs bg-cyan-600 text-cyan-100 border-cyan-500">
+                      {(currentTenant as any).subscriptionType}
+                    </Badge>
                   )}
                 </div>
-                {(currentTenant as any).subscriptionType && (
-                  <Badge variant="secondary" className="text-xs bg-cyan-600 text-cyan-100 border-cyan-500">
-                    {(currentTenant as any).subscriptionType}
-                  </Badge>
-                )}
-              </div>
-            )}
+              )}
+
+              {/* Selector de Empresa (si hay >1 empresa en el tenant) */}
+              {companies.length > 1 && currentCompany && (
+                <div className="hidden md:block">
+                  <label htmlFor="company-selector" className="sr-only">Cambiar empresa</label>
+                  <select
+                    id="company-selector"
+                    value={currentCompany.id}
+                    onChange={(e) => {
+                      const found = companies.find(c => c.id === e.target.value);
+                      if (found) setCompany(found);
+                    }}
+                    className="h-9 px-3 py-1.5 bg-cyan-600/50 border-cyan-500/50 text-white text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 appearance-none pr-8 bg-[url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22m6 9 6 6 6-6%22/%3E%3C/svg%3E')] bg-right-2 bg-no-repeat"
+                  >
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
             {/* Acciones del Usuario */}
             <div className="flex items-center gap-2">

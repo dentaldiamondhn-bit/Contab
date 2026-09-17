@@ -28,7 +28,7 @@ export default function LoginPage() {
             router.replace('/admin/dashboard');
           } else if (dbRole === 'SUPPORT') {
             router.replace('/support');
-          } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER') {
+          } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER' || dbRole === 'ACCOUNTANT') {
             router.replace('/tenant-admin/dashboard');
           } else {
             router.replace('/dashboard');

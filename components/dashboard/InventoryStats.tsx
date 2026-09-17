@@ -49,9 +49,10 @@ interface InventoryStats {
 
 interface InventoryStatsProps {
   tenantId: string;
+  companyId?: string;
 }
 
-export default function InventoryStats({ tenantId }: InventoryStatsProps) {
+export default function InventoryStats({ tenantId, companyId }: InventoryStatsProps) {
   const [stats, setStats] = useState<InventoryStats>({
     totalProducts: 0,
     activeProducts: 0,
@@ -72,15 +73,18 @@ export default function InventoryStats({ tenantId }: InventoryStatsProps) {
 
   useEffect(() => {
     loadInventoryStats();
-  }, [tenantId, period]);
+  }, [tenantId, companyId, period]);
 
   const loadInventoryStats = async () => {
     setLoading(true);
     try {
-      console.log('Client: Loading inventory stats for tenant:', tenantId, 'period:', period);
+      console.log('Client: Loading inventory stats for tenant:', tenantId, 'company:', companyId, 'period:', period);
+      
+      const params = new URLSearchParams({ tenantId, period });
+      if (companyId) params.append('companyId', companyId);
       
       const response = await fetch(
-        `/api/dashboard/inventory-stats?tenantId=${tenantId}&period=${period}`
+        `/api/dashboard/inventory-stats?${params.toString()}`
       );
       
       console.log('Client: Inventory response status:', response.status);

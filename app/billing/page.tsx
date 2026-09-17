@@ -18,6 +18,7 @@ import {
   Receipt,
   CreditCard as CardIcon,
   ShoppingCart,
+  FilePenLine,
   Plus
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -132,6 +133,10 @@ export default function BillingPage() {
             <Button variant="outline" onClick={() => router.push('/billing/expenses')} className="flex items-center gap-2">
               <ShoppingCart className="w-4 h-4" />
               Facturas Recibidas
+            </Button>
+            <Button variant="outline" onClick={() => router.push('/billing/notes')} className="flex items-center gap-2">
+              <FilePenLine className="w-4 h-4" />
+              Notas de Crédito/Débito
             </Button>
           </div>
         </div>

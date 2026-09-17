@@ -1,8 +1,19 @@
-import { db } from '@/lib/db';
+import { randomUUID } from 'node:crypto';
+import { supabase } from '@/lib/supabase-db';
 
 interface PlanWithQuantity {
   code: string;
   quantity: number;
+}
+
+interface TenantInput {
+  tenant_id?: string;
+  id?: string;
+  tenant_code?: string;
+  business_name?: string;
+  businessname?: string;
+  subscription_plan?: string;
+  subscriptionplan?: string;
 }
 
 export class InvoiceGenerator {
@@ -10,45 +21,39 @@ export class InvoiceGenerator {
    * Generate monthly invoices for all active tenants
    */
   static async generateMonthlyInvoices(): Promise<{ success: number; errors: string[] }> {
-    const results = { success: 0, errors: [] };
+    const results: { success: number; errors: string[] } = { success: 0, errors: [] };
 
     try {
-      // Get all active tenants using the tenant_plan_summary view
-      const tenants = await (db as any).tenantPlanSummary.findMany({
-        where: { is_active: true },
-        select: {
-          tenant_id: true,
-          business_name: true,
-          tenant_code: true,
-          subscription_plan: true,
-          monthly_cost: true,
-          max_users: true,
-          active_users: true,
-          total_users: true
-        }
-      });
+      const { data: tenants, error } = await (supabase as any)
+        .from('Tenant')
+        .select('id,businessname,tenant_code,subscriptionplan,isactive')
+        .eq('isactive', true);
 
-      for (const tenant of tenants) {
+      if (error) {
+        results.errors.push(`System error: ${error.message}`);
+        return results;
+      }
+
+      for (const tenant of tenants || []) {
         try {
-          // Check if tenant already has a pending invoice for this month
-          const hasPendingInvoice = await this.hasPendingInvoiceForMonth(tenant.tenant_id);
-          if (hasPendingInvoice) {
-            continue;
-          }
+          const tenantId = tenant.id;
+          const hasPendingInvoice = await this.hasPendingInvoiceForMonth(tenantId);
+          if (hasPendingInvoice) continue;
 
-          // Generate invoice for this tenant
-          await this.generateInvoiceForTenant(tenant);
+          await this.generateInvoiceForTenant({
+            tenant_id: tenantId,
+            tenant_code: tenant.tenant_code || tenantId,
+            business_name: tenant.businessname,
+            subscription_plan: tenant.subscriptionplan,
+          });
           results.success++;
         } catch (error) {
-          const errorMessage = `Error generating invoice for tenant ${tenant.business_name}: ${error}`;
-          console.error(errorMessage);
-          results.errors.push(errorMessage);
+          results.errors.push(`Error generating invoice for tenant ${tenant.businessname}: ${error}`);
         }
       }
 
       return results;
     } catch (error) {
-      console.error('Error in generateMonthlyInvoices:', error);
       results.errors.push(`System error: ${error}`);
       return results;
     }
@@ -57,113 +62,117 @@ export class InvoiceGenerator {
   /**
    * Generate invoice for a specific tenant
    */
-  static async generateInvoiceForTenant(tenant: any): Promise<string> {
+  static async generateInvoiceForTenant(tenant: TenantInput): Promise<string> {
+    const tenantId = tenant.tenant_id || tenant.id;
+    if (!tenantId) throw new Error('tenant_id requerido');
+
     const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1); // First day of current month
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Last day of current month
-    const dueDate = new Date(now.getFullYear(), now.getMonth(), 15); // Due on 15th of current month
+    const dueDate = new Date(now.getFullYear(), now.getMonth(), 15);
 
-    // Parse tenant's subscription plans
-    const subscriptionPlans: PlanWithQuantity[] = tenant.subscription_plan 
-      ? JSON.parse(tenant.subscription_plan) 
-      : [{ code: 'BASIC', quantity: 1 }];
+    const rawPlan = tenant.subscription_plan || tenant.subscriptionplan;
+    let subscriptionPlans: PlanWithQuantity[];
+    try {
+      subscriptionPlans = rawPlan ? JSON.parse(rawPlan) : [{ code: 'BASIC', quantity: 1 }];
+      if (!Array.isArray(subscriptionPlans)) subscriptionPlans = [{ code: 'BASIC', quantity: 1 }];
+    } catch {
+      subscriptionPlans = [{ code: String(rawPlan), quantity: 1 }];
+    }
 
-    // Get plan details
-    const planCodes = subscriptionPlans.map((p: any) => p.code);
-    const plans = await (db as any).plan.findMany({
-      where: { 
-        code: { in: planCodes },
-        isActive: true 
-      }
-    });
+    const planCodes = subscriptionPlans.map((p) => p.code);
+    const { data: plans } = await (supabase as any)
+      .from('Plan')
+      .select('id,name,code,price')
+      .in('code', planCodes)
+      .eq('is_active', true);
 
-    // Calculate invoice items
-    const invoiceItems = [];
+    const invoiceItems: Array<{
+      planId?: string;
+      planName: string;
+      planCode: string;
+      quantity: number;
+      unitPrice: number;
+      subtotal: number;
+    }> = [];
     let subtotal = 0;
 
     for (const subscriptionPlan of subscriptionPlans) {
-      const plan = plans.find((p: any) => p.code === subscriptionPlan.code);
+      const plan = (plans || []).find((p: any) => p.code === subscriptionPlan.code);
       if (!plan) continue;
 
-      const quantity = subscriptionPlan.quantity;
-      const unitPrice = plan.price;
+      const quantity = subscriptionPlan.quantity || 1;
+      const unitPrice = Number(plan.price) || 0;
       const itemSubtotal = unitPrice * quantity;
 
       invoiceItems.push({
         planId: plan.id,
         planName: plan.name,
+        planCode: plan.code,
         quantity,
         unitPrice,
-        subtotal: itemSubtotal
+        subtotal: itemSubtotal,
       });
 
       subtotal += itemSubtotal;
     }
 
-    // Calculate tax (15% in Honduras)
-    const taxRate = 0.15;
-    const tax = Math.round(subtotal * taxRate);
+    const taxRate = 15;
+    const tax = Math.round(subtotal * (taxRate / 100) * 100) / 100;
     const total = subtotal + tax;
 
-    // Generate invoice number
-    const invoiceNumber = await this.generateInvoiceNumber(tenant.tenant_code);
+    const invoiceNumber = await this.generateInvoiceNumber(tenant.tenant_code || tenantId);
+    const id = randomUUID();
 
-    // Create invoice - usar nombres Prisma correctos
-    const invoice = await (db as any).invoice.create({
-      data: {
-        tenantId: tenant.tenant_id,
-        invoiceNumber,
-        invoiceDate: now.toISOString().split('T')[0],
-        dueDate: dueDate.toISOString().split('T')[0],
-        invoiceType: 'SUBSCRIPTION',
-        customerId: tenant.tenant_id,
-        customerRTN: '00000000000000',
-        customerName: tenant.business_name || 'Cliente',
-        customerAddress: '',
-        issuerRTN: '00000000000000',
-        issuerName: 'Diamond Accounting',
-        issuerAddress: 'Tegucigalpa, Honduras',
-        cai: '00000000000000',
-        rangeStart: 1,
-        rangeEnd: 1000,
-        items: JSON.stringify(invoiceItems),
-        subtotal,
-        tax,
-        totalTax: tax,
-        total,
-        currency: 'HNL',
-        status: 'PENDING',
-        notes: JSON.stringify({
-          subscriptionPlans,
-          plans: plans.map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            code: p.code,
-            price: p.price
-          }))
-        })
-      }
+    const { error: invoiceError } = await (supabase as any).from('Invoice').insert({
+      id,
+      tenantId,
+      invoiceNumber,
+      invoiceType: 'SUBSCRIPTION',
+      status: 'PENDING',
+      customerName: tenant.business_name || 'Cliente',
+      customerRTN: '00000000000000',
+      customerEmail: null,
+      customerAddress: '',
+      issuerName: 'Diamond Accounting',
+      issuerRTN: '00000000000000',
+      issuerAddress: 'Tegucigalpa, Honduras',
+      issueDate: now.toISOString().split('T')[0],
+      dueDate: dueDate.toISOString().split('T')[0],
+      cai: null,
+      subtotal,
+      tax,
+      total,
+      currency: 'HNL',
+      taxRate,
+      notes: JSON.stringify({
+        subscriptionPlans,
+        plans: (plans || []).map((p: any) => ({ id: p.id, name: p.name, code: p.code, price: p.price })),
+      }),
+      createdAt: now.toISOString(),
+      updatedAt: now.toISOString(),
     });
 
-    // Create invoice items - nombres Prisma correctos
+    if (invoiceError) throw new Error(invoiceError.message);
+
     for (const item of invoiceItems) {
-      await (db as any).invoiceItem.create({
-        data: {
-          invoiceId: invoice.id,
-          planId: item.planId,
-          planName: item.planName,
-          description: item.planName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.subtotal,
-          taxRate: 0.15,
-          taxAmount: Math.round(item.unitPrice * item.quantity * 0.15),
-          total: item.subtotal + Math.round(item.unitPrice * item.quantity * 0.15),
-        }
+      const { error: itemError } = await (supabase as any).from('InvoiceItem').insert({
+        id: randomUUID(),
+        invoiceId: id,
+        description: item.planName,
+        quantity: item.quantity,
+        unitPrice: item.unitPrice,
+        total: item.subtotal + Math.round(item.unitPrice * item.quantity * (taxRate / 100) * 100) / 100,
+        taxRate,
+        taxAmount: Math.round(item.unitPrice * item.quantity * (taxRate / 100) * 100) / 100,
+        isTaxable: true,
+        productCode: item.planCode,
+        serviceCode: null,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
       });
+      if (itemError) throw new Error(itemError.message);
     }
 
-    return invoice.id;
+    return id;
   }
 
   /**
@@ -171,21 +180,19 @@ export class InvoiceGenerator {
    */
   static async hasPendingInvoiceForMonth(tenantId: string): Promise<boolean> {
     const now = new Date();
-    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
+    const periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
 
-    const existingInvoice = await (db as any).invoice.findFirst({
-      where: {
-        tenantId,
-        status: 'PENDING',
-        createdAt: {
-          gte: periodStart,
-          lte: periodEnd
-        }
-      }
-    });
+    const { data } = await (supabase as any)
+      .from('Invoice')
+      .select('id')
+      .eq('tenantId', tenantId)
+      .eq('status', 'PENDING')
+      .gte('createdAt', periodStart)
+      .lte('createdAt', periodEnd)
+      .limit(1);
 
-    return !!existingInvoice;
+    return !!(data && data.length > 0);
   }
 
   /**
@@ -195,86 +202,60 @@ export class InvoiceGenerator {
     const now = new Date();
     const year = now.getFullYear();
     const month = String(now.getMonth() + 1).padStart(2, '0');
-    
-    // Get count of invoices for this tenant and month (usar createdAt, tenantId via invoiceNumber prefix)
-    const count = await (db as any).invoice.count({
-      where: {
-        invoiceNumber: { startsWith: `INV-${tenantCode}-${year}${month}` }
-      }
-    });
+    const prefix = `INV-${tenantCode}-${year}${month}`;
 
-    const sequence = String(count + 1).padStart(3, '0');
-    return `INV-${tenantCode}-${year}${month}-${sequence}`;
+    const { count } = await (supabase as any)
+      .from('Invoice')
+      .select('id', { count: 'exact', head: true })
+      .ilike('invoiceNumber', `${prefix}%`);
+
+    const sequence = String((count || 0) + 1).padStart(3, '0');
+    return `${prefix}-${sequence}`;
   }
 
   /**
    * Get invoice details with items
    */
   static async getInvoiceDetails(invoiceId: string) {
-    return await (db as any).invoice.findUnique({
-      where: { id: invoiceId },
-      include: {
-        tenant: {
-          select: {
-            businessName: true,
-            businessEmail: true,
-            businessRTN: true,
-            businessAddress: true,
-            phoneNumber: true
-          }
-        },
-        invoiceItems: {
-          include: {
-            plan: {
-              select: {
-                name: true,
-                code: true,
-                features: true,
-                modules: true
-              }
-            }
-          }
-        }
-      }
-    });
+    const { data: invoice } = await (supabase as any)
+      .from('Invoice')
+      .select('*')
+      .eq('id', invoiceId)
+      .maybeSingle();
+
+    if (!invoice) return null;
+
+    const { data: invoiceItems } = await (supabase as any)
+      .from('InvoiceItem')
+      .select('*')
+      .eq('invoiceId', invoiceId);
+
+    return { ...invoice, invoiceItems: invoiceItems || [] };
   }
 
   /**
    * Get invoices for a tenant
    */
   static async getTenantInvoices(tenantId: string, page = 1, limit = 10) {
-    const skip = (page - 1) * limit;
+    const from = (page - 1) * limit;
+    const to = from + limit - 1;
 
-    const [invoices, totalCount] = await Promise.all([
-      (db as any).invoice.findMany({
-        where: { tenantId },
-        orderBy: { issueDate: 'desc' },
-        skip,
-        take: limit,
-        include: {
-          invoiceItems: {
-            include: {
-              plan: {
-                select: {
-                  name: true,
-                  code: true
-                }
-              }
-            }
-          }
-        }
-      }),
-      (db as any).invoice.count({ where: { tenantId } })
-    ]);
+    const { data: invoices, count } = await (supabase as any)
+      .from('Invoice')
+      .select('*', { count: 'exact' })
+      .eq('tenantId', tenantId)
+      .order('issueDate', { ascending: false })
+      .range(from, to);
 
+    const total = count || 0;
     return {
-      invoices,
+      invoices: invoices || [],
       pagination: {
         page,
         limit,
-        total: totalCount,
-        pages: Math.ceil(totalCount / limit)
-      }
+        total,
+        pages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -282,9 +263,12 @@ export class InvoiceGenerator {
    * Update invoice status
    */
   static async updateInvoiceStatus(invoiceId: string, status: string) {
-    return await (db as any).invoice.update({
-      where: { id: invoiceId },
-      data: { status }
-    });
+    const { data } = await (supabase as any)
+      .from('Invoice')
+      .update({ status, updatedAt: new Date().toISOString() })
+      .eq('id', invoiceId)
+      .select()
+      .single();
+    return data;
   }
 }

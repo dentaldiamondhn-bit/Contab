@@ -14,7 +14,7 @@ import {
 import {
   ArrowLeft, Calendar, CheckCircle2, XCircle, Lock, Unlock,
   AlertTriangle, Loader2, FileText, TrendingUp, TrendingDown,
-  Clock, ChevronLeft, ChevronRight, ChevronDown, ChevronRight,
+  Clock, ChevronLeft, ChevronRight, ChevronDown,
   Search, Filter, Eye, BookOpen, Receipt, Scale, ShieldCheck,
   Upload, Download, Plus, RefreshCw, RotateCcw, X, Check,
   ArrowDownAZ, ArrowUpAZ, DollarSign, Activity,

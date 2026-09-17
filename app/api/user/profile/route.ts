@@ -4,13 +4,16 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 export async function GET() {
   try {
     let userId: string | null = null;
-    try {
-      const { auth } = await import('@clerk/nextjs/server');
-      const authResult = await auth();
-      userId = authResult.userId;
-    } catch (authErr: any) {
-      return NextResponse.json({ error: 'Auth not available', detail: authErr?.message }, { status: 401 });
-    }
+    const clerkUser = await (async () => {
+      try {
+        const { auth, currentUser } = await import('@clerk/nextjs/server');
+        const authResult = await auth();
+        userId = authResult.userId;
+        return userId ? currentUser() : null;
+      } catch {
+        return null;
+      }
+    })();
 
     if (!userId) {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
@@ -32,17 +35,21 @@ export async function GET() {
       .single();
 
     if (error) {
-      await getSupabaseServer()
+      const primaryEmail = clerkUser?.primaryEmailAddress?.emailAddress || '';
+      const { data: inserted, error: insertError } = await getSupabaseServer()
         .from('users')
         .insert({
           auth_id: userId,
-          role: 'USER',
+          email: primaryEmail,
+          first_name: clerkUser?.firstName || '',
+          last_name: clerkUser?.lastName || '',
+          role: (clerkUser?.publicMetadata?.role as string) || 'USER',
           is_active: true,
           timezone: 'America/Tegucigalpa',
           language: 'es',
         })
-        .then(() => {})
-        .catch(() => {});
+        .select()
+        .maybeSingle();
 
       const { data: reFetched, error: reFetchErr } = await getSupabaseServer()
         .from('users')
@@ -50,11 +57,12 @@ export async function GET() {
         .eq('auth_id', userId)
         .single();
 
-      if (reFetchErr) {
-        return NextResponse.json({ error: 'Usuario no encontrado', detail: reFetchErr.message }, { status: 404 });
+      if (reFetchErr || (!inserted && !reFetched)) {
+        console.error('❌ Usuario no encontrado/creado en users:', { reFetchErr, insertError });
+        return NextResponse.json({ error: 'Usuario no encontrado', detail: reFetchErr?.message || insertError?.message }, { status: 404 });
       }
 
-      data = reFetched;
+      data = inserted || reFetched;
     }
 
     return NextResponse.json({

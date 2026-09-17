@@ -40,9 +40,17 @@
 | `lib/auth-utils.ts` | Resolución de permisos client-side: publicMetadata, unsafeMetadata, privateMetadata |
 | `hooks/use-auth-session.ts` | Hook client con Clerk useUser() + resolución de permisos |
 | `components/auth/SignOutButton.tsx` | Botón de cerrar sesión |
-| `types/auth.ts` | Tipo UserRole: SUPER_ADMIN, ADMIN, MANAGER, USER, VIEWER, SUPPORT, TENANT_ADMIN |
+| `types/auth.ts` | Tipo UserRole: SUPER_ADMIN, ADMIN, MANAGER, USER, ~~VIEWER, TENANT_ADMIN~~ (roles activos: SUPER_ADMIN, SUPPORT, ADMIN, MANAGER, contador/ACCOUNTANT, USER) |
 
 **Proveedor:** Clerk (`@clerk/nextjs`) como auth principal
+
+#### Middleware de Protección (16 Sept 2026)
+
+- `middleware.ts` usa `clerkMiddleware`.
+- TODA ruta no pública ejecuta `await auth.protect()`.
+- Las rutas protegidas devuelven **HTTP 404** (no redirect) a requests no autenticados.
+- El middleware inyecta el header `x-tenant-id` desde metadata de Clerk cuando la petición no lo trae.
+- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`.
 
 ---
 
@@ -68,7 +76,9 @@
 | 50 | MANAGER | Gestión de equipo |
 | 40 | ACCOUNTANT | Contabilidad y reportes |
 | 20 | USER | Operaciones básicas |
-| 10 | VIEWER | Solo lectura |
+| ~~10~~ | ~~VIEWER~~ | ~~Solo lectura (no activo)~~ |
+
+> Roles activos en producción: `SUPER_ADMIN`, `SUPPORT`, `ADMIN`, `MANAGER`, `ACCOUNTANT` (contador) y `USER`. `VIEWER` y `TENANT_ADMIN` no están activos. `SUPER_ADMIN` también se resuelve por email: `sucachi.123@gmail.com`. Rutas `/admin` y `/api/admin/*` restringidas.
 
 ---
 
@@ -116,7 +126,7 @@
 |---|---|
 | `lib/tenant-utils.ts` | Extracción de tenant (x-tenant-id header, query param), validación de acceso |
 | `components/dashboard/CompanySwitcher.tsx` | UI de cambio de empresa |
-| `middleware.ts` | Tenant resolution en middleware |
+| `middleware.ts` | `clerkMiddleware` + `auth.protect()` en toda ruta no pública (HTTP 404 a no autenticados); inyecta header `x-tenant-id` desde metadata de Clerk |
 
 #### Modelo
 
@@ -217,12 +227,21 @@
 
 ---
 
-## Actualizaciones de Infraestructura (8 Sept 2026)
+## Actualizaciones de Infraestructura (16 Sept 2026)
 
 | Cambio | Detalle |
 |---|---|
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+| Stack validado | Next.js 16.3.5 (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x, Tailwind, shadcn/ui; `output: 'standalone'` |
+| Build | `pnpm build` EXIT=0 (16 Sept 2026) |
+
+#### Fix `app/api/companies/route.ts` (16 Sept 2026)
+
+- La ruta usaba `process.env.SUPABASE_URL!` (undefined → 500); ahora usa `process.env.NEXT_PUBLIC_SUPABASE_URL!` en GET y PUT.
+- Env real en `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (conexión directa), Clerk keys. **No existe `SUPABASE_URL`.**
+
+*Estado validado al 16 de Septiembre de 2026.*

@@ -134,6 +134,10 @@ _(Ninguna — catálogo validado completamente)_
 - `recurring_entries` (Supabase) — id, tenant_id, name, description, voucher_type, frequency, next_execution, last_execution, is_active, entries (JSONB), created_at, updated_at
 - `recurring_entry_executions` (Supabase) — id, recurring_entry_id (FK), transaction_id, executed_at, status, error_message, created_at
 
+#### Notas de Crédito/Débito → Asiento AJUSTE (16 Sept 2026)
+
+El módulo de Notas de Crédito/Débito genera asientos automáticos de tipo **AJUSTE** (best-effort) contra `/api/accounting/transactions`. ISV 15% incluido: `subTotal = monto / 1.15`, `impuesto = monto - subTotal`. Cuentas: 4101 Ingresos, 2105 ISV por pagar, contra-cuenta 1101 Caja (efectivo) o 1103 Clientes (crédito). **NC:** +sub(4101), +tax(2105), −total(contra). **ND:** +total(contra), −sub(4101), −tax(2105). El asiento es balanceado (suma 0); los errores se registran y NO bloquean la emisión de la nota (ver `docs/NOTAS_CREDITO_DEBITO_REPORT.md`).
+
 #### Lo que Falta
 
 _(Ninguna — asientos contables completos)_
@@ -330,5 +334,13 @@ Etapa 1 (Conexión API)
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Registros Contables (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Asientos AJUSTE de Notas de Crédito/Débito | `postNoteJournal` (`lib/services/notes-service.ts`) emite asiento AJUSTE balanceado (4101 Ingresos, 2105 ISV por pagar, contra 1101 Caja / 1103 Clientes) con ISV 15% incluido; best-effort, no bloquea la emisión |
+| Fix API de empresas | `app/api/companies/route.ts` usaba `SUPABASE_URL` (undefined → HTTP 500); corregido a `NEXT_PUBLIC_SUPABASE_URL` |
+| Variables de entorno | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`; NO existe `SUPABASE_URL` |

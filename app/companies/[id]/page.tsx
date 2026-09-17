@@ -4,7 +4,6 @@ import { useParams } from 'next/navigation';
 import { Card, CardContent, Link as LinkCard } from '@/components/ui/card';
 import { 
   Building2, 
-  FileText, 
   TrendingUp, 
   TrendingDown,
   DollarSign,
@@ -15,6 +14,7 @@ import {
   ShoppingCart,
   Receipt,
   Calculator,
+  Landmark,
   Shield,
   Briefcase,
   ArrowRight
@@ -98,6 +98,16 @@ export default function TenantDashboard() {
                 <Receipt className="h-12 w-12 text-orange-600 mx-auto mb-4" />
                 <h3 className="font-semibold text-lg mb-2">Facturación</h3>
                 <p className="text-sm text-gray-600">Punto de venta y facturación</p>
+              </CardContent>
+            </Link>
+          </Card>
+
+          <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+            <Link href={`/companies/${companyId}/diat`}>
+              <CardContent className="p-6 text-center">
+                <Landmark className="h-12 w-12 text-cyan-600 mx-auto mb-4" />
+                <h3 className="font-semibold text-lg mb-2">DIAT</h3>
+                <p className="text-sm text-gray-600">Declaración informativa por período</p>
               </CardContent>
             </Link>
           </Card>

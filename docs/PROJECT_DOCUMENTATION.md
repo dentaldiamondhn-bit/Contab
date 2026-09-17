@@ -1,8 +1,8 @@
 # Documentación Completa del Proyecto Contab
 
 > **Nombre:** Contab - Sistema Contable Profesional
-> **Versión:** 1.1.0
-> **Plataforma:** Next.js 15.5.25 + React 19 + TypeScript
+> **Versión:** 1.2.0
+> **Plataforma:** Next.js 16.3.5 + React 19 + TypeScript
 > **Base de Datos:** PostgreSQL (Supabase) + Prisma ORM
 > **Auth:** Clerk
 > **Deploy:** Vercel
@@ -86,7 +86,7 @@
 ### Frontend
 | Tecnología | Versión | Uso |
 |---|---|---|
-| Next.js | 16.2.9 | Framework React con App Router |
+| Next.js | 16.3.5 | Framework React con App Router |
 | React | 19.2.6 | UI Library |
 | TypeScript | 5.7.3 | Tipado estático |
 | Tailwind CSS | — | Estilos utility-first |
@@ -267,6 +267,12 @@ contab/
 - Bloqueo: 30 minutos después de exceder límite
 - Almacenamiento: In-memory (requiere Redis para producción)
 
+### Middleware de Autenticación (clerkMiddleware)
+
+- `middleware.ts` usa `clerkMiddleware`; para toda ruta NO pública ejecuta `await auth.protect()`, que devuelve HTTP **404** (no redirect) a requests no autenticados.
+- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`.
+- Inyecta el header `x-tenant-id` desde la metadata de Clerk.
+
 ---
 
 ## 6. Multi-Tenancy
@@ -338,11 +344,11 @@ TenantProvider → Envuelve toda la app
 
 **Core:** Tenant, Plan, User, Account, Transaction, JournalEntry
 
-**Facturación:** Invoice, InvoiceItem, cai, talonarios, customer, invoice (lowercase)
+**Facturación:** Invoice, InvoiceItem, InvoiceNote, cai, talonarios, customer (esquema único; legacy lowercase eliminado en migración 007, 16 Sept 2026) 
 
 **Contabilidad:** chart_of_accounts, account_audit_log, auditlog, journal_entry_templates, journal_entry_template_lines, journal_entry_reversals, recurring_entries, recurring_entry_executions
 
-**Inventario:** products, warehouses, inventory_movements
+**Inventario:** product (canónico), inventory_movement, warehouses (legacy `Product`/`Products`/`products`/`InventoryMovement` eliminados en migración 008, 16 Sept 2026)
 
 **Compras:** Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable
 
@@ -388,14 +394,14 @@ TenantProvider → Envuelve toda la app
 | # | Módulo | Completitud | Estado |
 |---|---|---|---|
 | 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~80% | Parcial |
-| 2 | Facturación y Ventas | ~55% | Parcial |
+| 2 | Facturación y Ventas | ~70% | Parcial |
 | 3 | Inventario | ~55% | Parcial |
-| 4 | Compras y Proveedores | ~35% | Básico |
+| 4 | Compras y Proveedores | ~60% | Parcial |
 | 5 | Control Financiero | ~35% | Parcial |
 | 6 | Reportes y Análisis | ~75% | Completo |
 | 7 | Seguridad y Control | ~80% | Completo |
 | 8 | Otras Características | ~35% | Básico |
-| 9 | Integración Fiscal | ~55% | Parcial |
+| 9 | Integración Fiscal | ~75% | Parcial |
 | 10 | Recursos Humanos | ~95% | Completo |
 
 **Promedio General: ~69%**
@@ -438,34 +444,34 @@ TenantProvider → Envuelve toda la app
 - ✅ Formulario SAR 221 (ISV)
 - ✅ Exportación DET (archivo .txt formato SAR)
 - ✅ Retenciones con recibo PDF (1% y 12.5%)
-- ❌ Sin DIAT
+- ✅ DIAT (declaración mensual de ventas/compras por empresa, exportación CSV e impresión)
 - ❌ Sin declaraciones anuales
 
-#### 8.4 Facturación y Ventas (~55%)
+#### 8.4 Facturación y Ventas (~70%)
 - ✅ CRUD de facturas con ISV
 - ✅ Gestión de clientes con RTN
 - ✅ Gestión CAI con alertas
 - ✅ Dashboard de ventas
-- ⚠️ Dual schema (invoice lowercase + Invoice PascalCase)
-- ❌ Sin notas de crédito/débito
+- ✅ Esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026)
+- ✅ Notas de crédito/débito (fiscal SAR) — `lib/services/notes-service.ts`, `app/api/billing/notes[/[id]]`, `app/billing/notes`, `NoteForm`/`NotePreview`; numeración NC-/ND-, asiento AJUSTE best-effort con ISV 15%
 - ❌ Sin cotizaciones/proformas
 - ❌ Sin generación de PDF
 
 #### 8.5 Inventario (~55%)
 - ✅ CRUD de productos con categorías
-- ✅ Movimientos (IN/OUT/ADJUSTMENT) con trigger automático
+- ✅ Movimientos (IN/OUT/ADJUSTMENT); el stock se actualiza en la aplicación (sin trigger)
 - ✅ Importación CSV/Excel
 - ✅ Reportes de inventario
-- ⚠️ Dual schema (Product PascalCase + product lowercase)
+- ✅ Esquema único `product`/`inventory_movement` (migración 008, 16 Sept 2026)
 - ❌ Sin multi-almacén funcional
 - ❌ Sin valoración FIFO/promedio
 - ❌ Sin inventario físico
 
-#### 8.6 Compras y Proveedores (~35%)
+#### 8.6 Compras y Proveedores (~60%)
 - ✅ Dashboard de compras con charts
 - ✅ Libro de compras legal
-- ⚠️ API de compras usa JSON files (no DB)
-- ⚠️ API de proveedores usa JSON files
+- ✅ Compras y proveedores en Supabase (`lib/purchase-db.ts`, tablas `Supplier`/`Purchase`/`PurchaseItem`/`SupplierPayment`)
+- ✅ Pagos a proveedores en Supabase con recompute de saldo/estado
 - ❌ Sin formulario de órdenes de compra
 - ❌ Sin devoluciones
 - ❌ Sin matching 3 vías
@@ -505,13 +511,14 @@ TenantProvider → Envuelve toda la app
 - ❌ Sin backup/restore
 - ❌ PDF es placeholder
 
-#### 8.11 Integración Fiscal (~55%)
+#### 8.11 Integración Fiscal (~75%)
 - ✅ ISV 15%/18% con auto-categorización
 - ✅ Retenciones 1%/12.5% con PDF legal
 - ✅ CAI con alertas de rango/vencimiento
 - ✅ Declaraciones mensuales SAR
 - ✅ ISR con escalas progresivas Honduras
-- ❌ Sin DIAT
+- ✅ DIAT (generador + API + UI por empresa, período mensual)
+- ✅ Notas de crédito/débito (NC-/ND- por tenant, tabla `InvoiceNote`, asiento AJUSTE con ISV 15%)
 - ❌ Sin DIN ni TCA
 - ❌ Sin impresora fiscal
 - ❌ Sin envío en línea SAR
@@ -577,6 +584,8 @@ TenantProvider → Envuelve toda la app
 - `/billing/[id]` — Detalle de factura
 - `/billing/generate-invoice` — Generar factura
 - `/billing/config` — Configuración
+- `/billing/notes` — Notas de crédito/débito
+- `/billing/subscriptions` — Suscripciones
 
 ### Inventario
 - `/inventory` — Gestión de inventario
@@ -616,6 +625,7 @@ TenantProvider → Envuelve toda la app
 - `/companies/[id]/purchases` — Compras
 - `/companies/[id]/inventory` — Inventario
 - `/companies/[id]/security` — Seguridad
+- `/companies/[id]/diat` — DIAT (Declaración Informativa de Actividades)
 
 ### Admin
 - `/admin` — Panel de administración
@@ -689,6 +699,8 @@ TenantProvider → Envuelve toda la app
 
 #### Facturación
 - `GET/POST /api/billing/invoices` — CRUD facturas
+- `GET/POST /api/billing/notes` — Notas de crédito/débito (GET lista sin auth; POST crear con auth)
+- `GET/PATCH /api/billing/notes/[id]` — Detalle y cambio de estado (PENDING/APPLIED/CANCELLED)
 - `GET/POST /api/billing/customers` — CRUD clientes
 - `GET /api/billing/cai` — Gestión CAI
 - `GET/POST /api/billing/products` — Productos
@@ -712,6 +724,7 @@ TenantProvider → Envuelve toda la app
 - `GET /api/isv/summary` — Resumen ISV
 - `GET/POST /api/withholding` — Retenciones
 - `GET/POST /api/det` — DET
+- `GET /api/diat` — Reporte DIAT por empresa/período (`companyId`, `period`)
 
 #### Inventario
 - `GET/POST /api/inventory/products` — Productos
@@ -720,6 +733,11 @@ TenantProvider → Envuelve toda la app
 
 #### Compras
 - `GET/POST /api/purchases` — Compras
+- `GET/PUT/DELETE /api/purchases/[id]` — Compra individual
+- `GET/POST /api/purchases/payments` — Pagos a proveedores
+- `GET /api/purchases/reports` — Reportes
+- `GET /api/purchases/export` — Exportación
+- `GET /api/purchase-book` — Libro de compras legal
 - `GET/POST /api/purchase-orders` — Órdenes
 - `GET/POST /api/suppliers` — Proveedores
 
@@ -735,7 +753,7 @@ TenantProvider → Envuelve toda la app
 | Categoría | Componentes | Cantidad |
 |---|---|---|
 | **Accounting** | ChartOfAccountsManager, JournalEntryForm, AccountingBooks, FinancialStatements, SARForm221, TransactionFormSimple | 12 |
-| **Billing** | InvoiceForm, CustomerManager, AccountsReceivableManager, SalesDashboard, InvoicePreview, PaymentLinkGenerator | 8 |
+| **Billing** | InvoiceForm, CustomerManager, AccountsReceivableManager, SalesDashboard, InvoicePreview, PaymentLinkGenerator, NoteForm (Credit/Debit), NotePreview | 10 |
 | **Dashboard** | AuditFeed, BreakEvenChart, BurnRateChart, CAIDashboard, CashFlowProjectionChart, CompanySwitcher, InventoryStats, InvoiceStats, PurchasesStats, WithholdingDashboard | 14 |
 | **Financial** | BankAccountManager, BankReconciliation, CashFlowManager | 3 |
 | **Financial Statements** | BalanceSheet, CashFlowStatement, IncomeStatement | 3 |
@@ -766,6 +784,7 @@ TenantProvider → Envuelve toda la app
 | Banco Mapper | `bank-excel-mapper.ts` | Detección de 9 bancos hondureños |
 | ISV | `isv-service.ts` | Cálculo de impuesto sobre ventas |
 | Retenciones | `withholding-service.ts` | CRUD y cálculo de retenciones |
+| Notas crédito/débito | `notes-service.ts` | Numeración NC-/ND- por tenant, CRUD, asiento AJUSTE best-effort, cambio de estado |
 | Impuestos | `tax-config.ts`, `tax-helper.ts`, `tax-reporting.ts` | Configuración y reportes fiscales |
 | PDF Export | `pdf-export.ts` | Generación HTML para PDF |
 | OCR | `ocr-service.ts` | Procesamiento de imágenes |
@@ -853,10 +872,9 @@ NEXT_PUBLIC_CLERK_AFTER_SIGN_OUT_URL=/auth/login
 NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
-POSTGRES_SCHEMA=public
-DATABASE_POOL_MIN=2
-DATABASE_POOL_MAX=10
 ```
+
+> **Nota:** No existe la variable `SUPABASE_URL`; `app/api/companies/route.ts` fue corregido para usar `NEXT_PUBLIC_SUPABASE_URL` (GET y PUT).
 
 ### Opcionales
 
@@ -939,26 +957,28 @@ RESEND_API_KEY=re_...
 |---|---|---|---|---|---|---|---|
 | 1 | Contabilidad (Registro + EF + LL) | ~75% | 17 | 26 | 5 tablas + 5 vistas + 4 tablas legales | Supabase + Prisma | Parcial |
 | 2 | Control de Asistencia | ~95% | 1 (4 tabs) | 7 | 5 tablas | Supabase | Completo |
-| 3 | Facturación y Ventas | ~55% | 3 | 12 | 6 tablas (dual schema) | Supabase + Prisma | Parcial |
-| 4 | Inventario | ~55% | 1 | 5 | 4 tablas (dual schema) | Supabase | Parcial |
-| 5 | Compras y Proveedores | ~35% | 2 | 6 | 4 tablas | **JSON files** | **Básico** |
+| 3 | Facturación y Ventas | ~70% | 4 | 14 | 6 tablas (esquema único) | Supabase + Prisma | Parcial |
+| 4 | Inventario | ~55% | 1 | 5 | 2 tablas (`product`/`inventory_movement`) | Supabase | Parcial |
+| 5 | Compras y Proveedores | ~60% | 2 | 9 | 6 tablas | Supabase | Parcial |
 | 6 | Control Financiero | ~35% | 1 | 3 | 1 tabla | Supabase + Prisma | Parcial |
 | 7 | Reportes y Análisis | ~75% | 9 | 11 | 15 vistas | Supabase | Completo |
 | 8 | Seguridad y Control | ~80% | 1 | 2 | 4 tablas | Supabase + Prisma | Completo |
 | 9 | Otras Características | ~35% | 1 | 2 | 6 tablas (Prisma) | Supabase Storage | Básico |
-| 10 | Integración Fiscal | ~55% | 5 | 14 | 4 tablas + 2 vistas | Supabase + Prisma | Parcial |
+| 10 | Integración Fiscal | ~75% | 5 | 15 | 4 tablas + 2 vistas | Supabase + Prisma | Parcial |
 | 11 | Recursos Humanos | ~95% | 5 | 16 | 29 tablas | Supabase | Completo |
+
+> **Build:** `pnpm build` EXIT=0 ("Compiled successfully") con **errores TS preexistentes** que no bloquean (no introducidos en esta iteración): `.next/types/validator.ts`, `app/billing/generate-invoice/page.tsx`, `app/billing/subscriptions/page.tsx`, `lib/billing/invoice-generator.ts`. Stack en Next.js 16.3.5 (Turbopack) con `output: 'standalone'`. No hay acceso DDL directo a la DB (`DATABASE_URL` da ENOTFOUND); las tablas se crean desde el SQL Editor de Supabase.
 
 ### 16.2 Métricas de Madurez
 
 | Métrica | Valor Actual | Objetivo | Brecha |
 |---|---|---|---|
-| Completitud Funcional | ~67% | 95% | -28% |
+| Completitud Funcional | ~70% | 95% | -25% |
 | Cobertura de Pruebas | 0% | 70% | -70% |
-| Persistencia de Datos | ~80% | 100% | -20% |
+| Persistencia de Datos | ~100% | 100% | ✅ |
 | Integración entre Módulos | ~55% | 80% | -25% |
 | Exportación (PDF/Excel) | ~30% | 90% | -60% |
-| Cumplimiento Fiscal Honduras | ~50% | 95% | -45% |
+| Cumplimiento Fiscal Honduras | ~75% | 95% | -20% |
 | Documentación y Tipado | ~20% | 70% | -50% |
 
 ### 16.3 Visualización de Progreso
@@ -968,14 +988,14 @@ MÓDULO                        PROGRESO                              ESTADO
 ─────────────────────────────────────────────────────────────────────────────
 1.  Contabilidad              █████████████████████░░░░░░░░░  72%  Parcial
     (Registro + EF + LL)
-2.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+2.  Facturación y Ventas      ████████████████████████░░░░░░░░░░  70%  Parcial
 3.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-4.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+4.  Compras y Proveedores     ██████████████████░░░░░░░░░░░░  60%  Parcial
 5.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
 6.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
 7.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 8.  Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-9.  Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+9.  Integración Fiscal        ████████████████████████████░░░░░░  75%  Parcial
 10. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
 PROMEDIO                      ███████████████████░░░░░░░░░░  68%
@@ -989,7 +1009,7 @@ PROMEDIO                      ████████████████�
 | Control de Asistencia | ✅ | — | — | — | ✅ Correcto |
 | Facturación y Ventas | ✅ | ✅ | — | — | ⚠️ Dual schema |
 | Inventario | ✅ | — | — | — | ⚠️ Dual schema |
-| Compras y Proveedores | Parcial | — | — | **⚠️ JSON** | ❌ Crítico |
+| Compras y Proveedores | ✅ | — | — | — | ✅ Correcto |
 | Control Financiero | ✅ | ✅ | — | — | ✅ Correcto |
 | Reportes y Análisis | ✅ | — | — | — | ✅ Correcto |
 | Seguridad y Control | ✅ | ✅ | — | — | ✅ Correcto |
@@ -1001,10 +1021,10 @@ PROMEDIO                      ████████████████�
 
 | # | Problema | Módulos | Impacto | Prioridad |
 |---|---|---|---|---|
-| 1 | Compras y pagos almacenan en archivos JSON | Compras | Datos no persistentes | **Crítica** |
-| 2 | Asistencia, vacaciones y planilla usan localStorage | RRHH | Datos no persistentes | **Crítica** |
-| 3 | Sin DIAT (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
-| 4 | Sin notas de crédito/débito con UI | Facturación | Incumplimiento fiscal | **Crítica** |
+| 1 | ~~Compras y pagos almacenan en archivos JSON~~ | ~~Compras~~ | ~~Datos no persistentes~~ | ✅ Resuelta (Supabase) |
+| 2 | ~~Asistencia, vacaciones y planilla usan localStorage~~ | ~~RRHH~~ | ~~Datos no persistentes~~ | ✅ Resuelta (Supabase) |
+| 3 | ~~Sin DIAT (Declaración Informativa de Actividades)~~ | ~~Fiscal, Libros~~ | ~~Incumplimiento SAR~~ | ✅ Resuelta (16 Sept 2026) |
+| 4 | ~~Sin notas de crédito/débito con UI~~ | ~~Facturación~~ | ~~Incumplimiento fiscal~~ | ✅ Resuelta (16 Sept 2026) |
 | 5 | ~~JournalEntryForm usa mockData y no guarda~~ | ~~Contabilidad~~ | ~~Función principal rota~~ | ✅ Resuelta |
 | 6 | ~~FinancialStatements usa mockData~~ | ~~Estados Financieros~~ | ~~Componente inutilizable~~ | ✅ Resuelta |
 | 7 | Sin presupuestos ni centros de costo | Control Financiero | Sin control presupuestario | Alta |
@@ -1023,6 +1043,7 @@ PROMEDIO                      ████████████████�
 | Retenciones con recibo PDF A4 legal | Fiscal |
 | Importación bancaria para 9 bancos hondureños | Otras |
 | Proyección de flujo de caja 30 días ponderada | Control Financiero |
+| Notas de crédito/débito fiscales (NC-/ND- por tenant) | Facturación/Fiscal |
 | Cálculos ISV 15%/18%, ISR progresivo, retenciones | Fiscal |
 
 ---
@@ -1061,7 +1082,7 @@ PROMEDIO                      ████████████████�
 
 ### 17.2 Etapa 1: Consolidación de Datos y Conectividad (Semanas 1-6)
 
-**Objetivo:** Eliminar localStorage/JSON, consolidar dual schemas, conectar componentes a API real.
+**Objetivo:** Eliminar localStorage/JSON, consolidar dual schemas (✅ 007 + 008, 16 Sept 2026), conectar componentes a API real.
 
 | # | Tarea | Módulo | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|---|
@@ -1071,12 +1092,12 @@ PROMEDIO                      ████████████████�
 | 1.4 | Crear APIs para asistencia HR | RRHH | `api/.../hr/attendance/route.ts` | 1.1 | API funcional |
 | 1.5 | Crear APIs para planilla HR | RRHH | `api/.../hr/payroll/route.ts` | 1.2 | API funcional |
 | 1.6 | Crear APIs para permisos HR | RRHH | `api/.../hr/permissions/route.ts` | 1.3 | API funcional |
-| 1.7 | Migrar proveedores de JSON a Supabase | Compras | `api/suppliers/route.ts` | Ninguna | API con BD |
-| 1.8 | Migrar compras de JSON a Supabase | Compras | `api/purchases/route.ts` | Ninguna | API con BD |
-| 1.9 | Migrar pagos de JSON a Supabase | Compras | `api/supplier-payments/route.ts` | Ninguna | API con BD |
-| 1.10 | Script de migración de datos JSON | Compras | `scripts/migrate-json-to-supabase.ts` | 1.7-1.9 | Migración |
-| 1.11 | Consolidar schema de factura (lowercase vs PascalCase) | Facturación | Migraciones SQL | Ninguna | Schema único |
-| 1.12 | Consolidar schema de producto (lowercase vs PascalCase) | Inventario | Migraciones SQL | Ninguna | Schema único |
+| 1.7 | ~~Migrar proveedores de JSON a Supabase~~ | Compras | ~~`api/suppliers/route.ts`~~ | Ninguna | ✅ API con BD |
+| 1.8 | ~~Migrar compras de JSON a Supabase~~ | Compras | ~~`api/purchases/route.ts`~~ | Ninguna | ✅ API con BD |
+| 1.9 | ~~Migrar pagos de JSON a Supabase~~ | Compras | ~~`api/purchases/payments/route.ts`~~ | Ninguna | ✅ API con BD |
+| 1.10 | ~~Script de migración de datos JSON~~ | Compras | ~~`scripts/migrate-json-to-supabase.ts`~~ (`migrate-purchases-db.mjs`) | 1.7-1.9 | ✅ Migración |
+| 1.11 | ~~Consolidar schema de factura (lowercase vs PascalCase)~~ | Facturación | `scripts/migrations/007_consolidate_invoice_schema.sql` | Ninguna | ✅ Schema único (16 Sept 2026) |
+| 1.12 | ~~Consolidar schema de producto (lowercase vs PascalCase)~~ | Inventario | `scripts/migrations/008_consolidate_inventory_schema.sql` | Ninguna | ✅ Schema único (16 Sept 2026) |
 | 1.13 | Conectar JournalEntryForm a API real | Contabilidad | `JournalEntryForm.tsx`, `use-accounts.ts` | Ninguna | Formulario funcional |
 | 1.14 | Implementar guardado real en handleSubmit | Contabilidad | `JournalEntryForm.tsx` | 1.13 | Asientos guardados |
 | 1.15 | Conectar FinancialStatements a datos reales | Estados Financieros | `FinancialStatements.tsx` | Ninguna | Componente funcional |
@@ -1087,7 +1108,7 @@ PROMEDIO                      ████████████████�
 
 ### 17.3 Etapa 2: Funcionalidad Core y Cumplimiento Fiscal (Semanas 4-12)
 
-**Objetivo:** Implementar DIAT, notas de crédito/débito, plantillas de asientos, validaciones.
+**Objetivo:** Implementar notas de crédito/débito ✅ (16 Sept 2026), plantillas de asientos y validaciones (DIAT ✅ 16 Sept 2026).
 
 | # | Tarea | Módulo | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|---|
@@ -1095,12 +1116,12 @@ PROMEDIO                      ████████████████�
 | 2.2 | Implementar detección de horas extra y faltas | RRHH | `lib/services/attendance-service.ts` | 2.1 | Servicio |
 | 2.3 | Implementar reglas de validación de asistencia | RRHH | `lib/services/attendance-service.ts` | 2.2 | Validaciones |
 | 2.4 | Crear endpoint de consolidación diaria | RRHH | `api/.../daily-consolidation/route.ts` | 2.1-2.3 | Endpoint |
-| 2.5 | Crear generador de DIAT | Fiscal | `lib/services/diat-generator.ts` | Etapa 1 | Generador |
-| 2.6 | UI de DIAT | Fiscal | `app/diat/page.tsx` | 2.5 | Página |
-| 2.7 | Crear notas de crédito | Facturación | `components/sales/CreditNoteForm.tsx` | Etapa 1 | Formulario |
-| 2.8 | Crear notas de débito | Facturación | `components/sales/DebitNoteForm.tsx` | Etapa 1 | Formulario |
-| 2.9 | API de notas de crédito/débito | Facturación | `api/billing/notes/route.ts` | 2.7-2.8 | API CRUD |
-| 2.10 | Integrar notas con facturas y contabilidad | Facturación | `lib/services/notes-service.ts` | 2.9 | Integración |
+| 2.5 | ~~Crear generador de DIAT~~ | Fiscal | `lib/services/diat-generator.ts` | Etapa 1 | ✅ Generador (16 Sept 2026) |
+| 2.6 | ~~UI de DIAT~~ | Fiscal | `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | 2.5 | ✅ Página + API (16 Sept 2026) |
+| 2.7 | ~~Crear notas de crédito~~ | Facturación | ~~`components/sales/CreditNoteForm.tsx`~~ → `components/billing/NoteForm.tsx` | Etapa 1 | ✅ CreditNoteForm (16 Sept 2026) |
+| 2.8 | ~~Crear notas de débito~~ | Facturación | ~~`components/sales/DebitNoteForm.tsx`~~ → `components/billing/NoteForm.tsx` | Etapa 1 | ✅ DebitNoteForm (16 Sept 2026) |
+| 2.9 | ~~API de notas de crédito/débito~~ | Facturación | `app/api/billing/notes/route.ts` + `app/api/billing/notes/[id]/route.ts` | 2.7-2.8 | ✅ API CRUD (16 Sept 2026) |
+| 2.10 | ~~Integrar notas con facturas y contabilidad~~ | Facturación | `lib/services/notes-service.ts` | 2.9 | ✅ Integración + asiento AJUSTE (16 Sept 2026) |
 | 2.11 | Crear sistema de plantillas de asientos | Contabilidad | `lib/services/journal-templates.ts` | Etapa 1 | Plantillas |
 | 2.12 | Implementar importación masiva de asientos | Contabilidad | `lib/services/excel-import.ts` | Etapa 1 | Importación |
 | 2.13 | Implementar asientos de reversión | Contabilidad | `lib/services/journal-reversal.ts` | Etapa 1 | Reversión |
@@ -1112,7 +1133,7 @@ PROMEDIO                      ████████████████�
 | 2.19 | Crear API para PIP | RRHH | `api/.../hr/pip/route.ts` | 2.18 | API CRUD |
 | 2.20 | Crear UI de PIP | RRHH | `app/.../hr/pip/page.tsx` | 2.19 | Página |
 
-**Entregable Etapa 2:** DIAT funcional, notas de crédito/débito, asientos contables automáticos, PIP básico.
+**Entregable Etapa 2:** DIAT funcional ✅ (16 Sept 2026), notas de crédito/débito ✅ (16 Sept 2026), asientos contables automáticos, PIP básico.
 
 ### 17.4 Etapa 3: Exportación y Reporting (Semanas 8-16)
 
@@ -1246,8 +1267,8 @@ ETAPA 1 ████████████         │         │         │
   Conectar componentes       │         │         │         │
         │         │         │         │         │         │
 ETAPA 2     ████████████████████      │         │         │
-  DIAT                          │         │         │         │
-  Notas crédito/débito          │         │         │         │
+  DIAT ✅                       │         │         │         │
+  Notas crédito/débito ✅       │         │         │         │
   Asientos automáticos          │         │         │         │
   PIP RRHH                      │         │         │         │
         │         │         │         │         │         │
@@ -1286,14 +1307,14 @@ ETAPA 6                                 █████████████�
 ### 17.11 Priorización por Impacto
 
 **PRIORIDAD 1 — Estabilidad de Datos (Semanas 1-6):**
-- Migrar Compras de JSON a Supabase
-- Migrar HR de localStorage a Supabase
-- Consolidar dual schemas (Facturación, Inventario)
+- ~~Migrar Compras de JSON a Supabase~~ ✅
+- ~~Migrar HR de localStorage a Supabase~~ ✅
+- ~~Consolidar dual schemas (Facturación, Inventario)~~ ✅ (007 + 008, 16 Sept 2026)
 - Conectar JournalEntryForm y FinancialStatements a API real
 
 **PRIORIDAD 2 — Cumplimiento Fiscal (Semanas 4-12):**
-- Implementar DIAT
-- Crear notas de crédito/débito
+- ~~Implementar DIAT~~ ✅ (16 Sept 2026)
+- ~~Crear notas de crédito/débito~~ ✅ (16 Sept 2026)
 - Integrar retenciones con asientos contables
 
 **PRIORIDAD 3 — Funcionalidad Core (Semanas 8-20):**

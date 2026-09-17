@@ -27,8 +27,8 @@ const TABLES_TO_SCAN = [
   { name: 'Account', select: 'id,tenantid' },
   { name: 'Transaction', select: 'id,tenantid,description,reference,voucher_type,voucher_number,currency' },
   { name: 'JournalEntry', select: 'id,tenantid,description' },
-  { name: 'Product', select: 'id,tenantid,name,sku,description,category' },
-  { name: 'InventoryMovement', select: 'id,tenantid,type,quantity,reason,reference' },
+  { name: 'product', select: 'id,tenant_id,name,code,description,category' },
+  { name: 'inventory_movement', select: 'id,tenant_id,movement_type,quantity,movement_reason,reference_number' },
   { name: 'Invoice', select: 'id,tenantid,description' },
   { name: 'InvoiceItem', select: 'id,tenantid,description' },
   { name: 'File', select: 'id,tenantid,original_name,file_name' },
@@ -56,7 +56,7 @@ export async function GET() {
     for (const table of TABLES_TO_SCAN) {
       const { data: rows } = await supabaseAdmin.from(table.name).select(table.select);
       for (const row of rows || []) {
-        const tid = (row as any).tenantid;
+        const tid = (row as any).tenantid ?? (row as any).tenant_id ?? (row as any).tenantId;
         if (!tid || !tenantStorage[tid]) continue;
         const bytes = estimateRowBytes(row as Record<string, any>);
         tenantStorage[tid].bytes += bytes;

@@ -47,9 +47,10 @@ export async function GET(request: NextRequest) {
     
     // Obtener el último número de factura usado
     const { data: invoices } = await (supabase as any)
-      .from("invoice")
-      .select("invoice_number")
-      .order("created_at", { ascending: false })
+      .from("Invoice")
+      .select("invoiceNumber")
+      .eq("tenantId", tenantId)
+      .order("createdAt", { ascending: false })
       .limit(100);
     
     let currentNumber = cai.start_number;
@@ -58,7 +59,7 @@ export async function GET(request: NextRequest) {
     if (invoices && invoices.length > 0) {
       const numbers = invoices
         .map((inv: any) => {
-          const parts = inv.invoice_number?.split('-');
+          const parts = inv.invoiceNumber?.split('-');
           return parts && parts.length === 4 ? parseInt(parts[3]) : 0;
         })
         .filter((n: any) => !isNaN(n) && n > 0);

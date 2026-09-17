@@ -70,11 +70,28 @@ export async function POST(request: Request) {
           cleanupResults.summary.errors.push(`Accounts deletion error: ${accountsError.message}`);
         }
         
-        // Delete invoices
+        // Delete invoices (InvoiceItem first, then Invoice)
+        const { data: invoicesToDelete } = await (supabase as any)
+          .from('Invoice')
+          .select('id')
+          .in('tenantId', tenantIds);
+
+        const invoiceIds = (invoicesToDelete || []).map((r: any) => r.id);
+
+        if (invoiceIds.length > 0) {
+          const { error: invoiceItemsError } = await (supabase as any)
+            .from('InvoiceItem')
+            .delete()
+            .in('invoiceId', invoiceIds);
+          if (invoiceItemsError) {
+            cleanupResults.summary.errors.push(`Invoice items deletion error: ${invoiceItemsError.message}`);
+          }
+        }
+
         const { error: invoicesError } = await (supabase as any)
-          .from('invoices')
+          .from('Invoice')
           .delete()
-          .in('tenant_id', tenantIds);
+          .in('tenantId', tenantIds);
         
         if (invoicesError) {
           cleanupResults.summary.errors.push(`Invoices deletion error: ${invoicesError.message}`);

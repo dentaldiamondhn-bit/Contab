@@ -18,6 +18,7 @@ import {
   Calculator
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { dbToLegacyProducts, dbToLegacyMovements, legacyProductToDb, legacyMovementToDb } from "@/lib/inventory/schema-map";
 
 interface InventoryManagerProps {
   tenantId: string;
@@ -98,14 +99,15 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
 
       // Cargar productos
       const { data, error } = await supabase
-        .from('Product')
+        .from('product')
         .select('*')
-        .eq('isActive', true)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
 
-      setProducts(data || []);
+      setProducts(dbToLegacyProducts(data));
     } catch (error: any) {
       console.error("Error loading inventory:", error);
       alert("Error al cargar el inventario");
@@ -118,17 +120,31 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
     try {
       // Cargar transacciones de inventario
       const { data, error } = await supabase
-        .from('InventoryTransaction')
-        .select(`
-          *,
-          Product:product(id, name, code, unit)
-        `)
-        .order('createdAt', { ascending: false })
+        .from('inventory_movement')
+        .select('*')
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) throw error;
 
-      setTransactions(data || []);
+      const rows = dbToLegacyMovements(data);
+      const ids = Array.from(new Set(rows.map((r: any) => r.productid).filter(Boolean)));
+      const prodMap: Record<string, any> = {};
+      if (ids.length > 0) {
+        const { data: prods } = await supabase
+          .from('product')
+          .select('id, name, code, unit')
+          .in('id', ids);
+        (prods || []).forEach((p: any) => { prodMap[p.id] = p; });
+      }
+
+      setTransactions(rows.map((r: any) => ({
+        ...r,
+        Product: prodMap[r.productid]
+          ? { id: prodMap[r.productid].id, name: prodMap[r.productid].name, code: prodMap[r.productid].code, unit: prodMap[r.productid].unit }
+          : null,
+      })));
     } catch (error: any) {
       console.error("Error loading transactions:", error);
     }
@@ -141,25 +157,25 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
         return;
       }
 
-      const productData = {
-        tenantId,
+      const productData = legacyProductToDb({
+        tenant_id: tenantId,
         code: productForm.code,
         name: productForm.name,
         description: productForm.description,
         category: productForm.category,
         unit: productForm.unit,
-        currentStock: productForm.currentStock,
-        minStock: productForm.minStock,
-        maxStock: productForm.maxStock,
-        unitCost: Math.round(productForm.unitCost * 100), // Convertir a centavos
-        unitPrice: Math.round(productForm.unitPrice * 100),
-        isActive: true
-      };
+        current_stock: productForm.currentStock,
+        min_stock: productForm.minStock,
+        max_stock: productForm.maxStock,
+        current_cost: productForm.unitCost,
+        unit_price: productForm.unitPrice,
+        is_active: true
+      });
 
       if (editingProduct) {
         // Actualizar producto existente
         const { error } = await (supabase as any)
-          .from('Product')
+          .from('product')
           .update(productData)
           .eq('id', editingProduct.id);
 
@@ -168,7 +184,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
       } else {
         // Crear nuevo producto
         const { error } = await (supabase as any)
-          .from('Product')
+          .from('product')
           .insert(productData);
 
         if (error) throw error;
@@ -207,21 +223,22 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
       const product = products.find(p => p.id === transactionForm.productId);
       if (!product) return;
 
-      const totalCost = Math.round(transactionForm.quantity * transactionForm.unitCost * 100);
+      const totalCost = transactionForm.quantity * transactionForm.unitCost;
       
       // Crear transacción de inventario
       const { error: transactionError } = await (supabase as any)
-        .from('InventoryTransaction')
-        .insert({
-          tenantId,
-          productId: transactionForm.productId,
-          transactionType: transactionForm.transactionType,
+        .from('inventory_movement')
+        .insert(legacyMovementToDb({
+          tenant_id: tenantId,
+          product_id: transactionForm.productId,
+          movement_type: transactionForm.transactionType,
           quantity: transactionForm.quantity,
-          unitCost: Math.round(transactionForm.unitCost * 100),
-          totalCost,
-          reference: transactionForm.reference,
-          notes: transactionForm.notes
-        });
+          unit_cost: transactionForm.unitCost,
+          total_cost: totalCost,
+          reference_number: transactionForm.reference,
+          notes: transactionForm.notes,
+          created_by: 'current_user'
+        }));
 
       if (transactionError) throw transactionError;
 
@@ -231,8 +248,8 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
         : product.currentStock - transactionForm.quantity;
 
       const { error: stockError } = await (supabase as any)
-        .from('Product')
-        .update({ currentStock: newStock })
+        .from('product')
+        .update({ current_stock: newStock, stock_quantity: newStock })
         .eq('id', transactionForm.productId);
 
       if (stockError) throw stockError;
@@ -380,7 +397,7 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold text-green-600">
-              L. {(calculateInventoryValue() / 100).toFixed(2)}
+              L. {(calculateInventoryValue()).toFixed(2)}
             </div>
             <p className="text-xs text-gray-600">
               Valor total en existencia
@@ -522,10 +539,10 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
                           {product.minStock} {product.unit}
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-right">
-                          L. {(product.unitCost / 100).toFixed(2)}
+                          L. {(product.unitCost).toFixed(2)}
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-right font-medium">
-                          L. {(totalValue / 100).toFixed(2)}
+                          L. {(totalValue).toFixed(2)}
                         </td>
                         <td className="border border-gray-200 px-4 py-3 text-sm text-center">
                           <Badge className={`${stockStatus.bg} ${stockStatus.color}`}>
@@ -548,8 +565,8 @@ export default function InventoryManager({ tenantId }: InventoryManagerProps) {
                                   currentStock: product.currentStock,
                                   minStock: product.minStock,
                                   maxStock: product.maxStock,
-                                  unitCost: product.unitCost / 100,
-                                  unitPrice: product.unitPrice / 100
+                                  unitCost: product.unitCost,
+                                  unitPrice: product.unitPrice
                                 });
                                 setShowProductForm(true);
                               }}

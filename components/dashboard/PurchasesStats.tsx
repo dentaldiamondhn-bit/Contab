@@ -29,9 +29,10 @@ interface PurchaseStats {
 
 interface PurchasesStatsProps {
   tenantId: string;
+  companyId?: string;
 }
 
-export default function PurchasesStats({ tenantId }: PurchasesStatsProps) {
+export default function PurchasesStats({ tenantId, companyId }: PurchasesStatsProps) {
   const [stats, setStats] = useState<PurchaseStats>({
     totalPurchases: 0,
     completedPurchases: 0,
@@ -48,12 +49,14 @@ export default function PurchasesStats({ tenantId }: PurchasesStatsProps) {
 
   useEffect(() => {
     loadPurchaseStats();
-  }, [tenantId]);
+  }, [tenantId, companyId]);
 
   const loadPurchaseStats = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`/api/dashboard/purchase-stats?tenantId=${tenantId}`);
+      const params = new URLSearchParams({ tenantId });
+      if (companyId) params.append('companyId', companyId);
+      const response = await fetch(`/api/dashboard/purchase-stats?${params.toString()}`);
       if (response.ok) {
         const data = await response.json();
         setStats(data);

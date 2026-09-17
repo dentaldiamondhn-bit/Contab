@@ -6,14 +6,14 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Productos** | Completo | 1 página (1537+ líneas) | 1 ruta | 2 tablas (dual) | Supabase |
+| **Gestión de Productos** | Completo | 1 página (1537+ líneas) | 1 ruta | 1 tabla (`product`) | Supabase |
 | **Control de Stock** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Movimientos de Inventario** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Alertas de Stock** | Parcial | En página | 1 ruta | — | Cálculos en código |
 | **Reportes de Inventario** | Completo | 1 componente | 1 ruta | — | Supabase |
 | **Categorías y Paquetes** | Parcial | En página | 0 rutas | — | Supabase |
 | **Importación Masiva** | Completo | En página | — | — | Excel/CSV |
-| **Almacenes** | Básico | 0 páginas | 1 ruta | 1 tabla | Supabase |
+| **Almacenes** | **No funcional** | 0 páginas | 1 ruta | 1 tabla | Supabase |
 | **Tracking por Lote** | No Iniciado | 0 | 0 | 0 | — |
 | **Inventario Físico** | No Iniciado | 0 | 0 | 0 | — |
 | **Valoración FIFO/Promedio** | No Iniciado | 0 | 0 | — | Columna existe sin lógica |
@@ -24,7 +24,7 @@
 |---|---|---|
 | Completitud Funcional | ~55% | CRUD y movimientos fuertes; sin multi-almacén, lotes, FIFO |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Persistencia | ~60% | Dual schema (PascalCase + lowercase); sin consolidar |
+| Persistencia | ~60% | Esquema único canónico (`product`/`inventory_movement`); consolidado el 16 Sept 2026 |
 | Integración Contable | ~50% | Integración con asientos contables existe pero parcial |
 | Importación | ~80% | CSV y Excel funcionales |
 
@@ -43,15 +43,19 @@
 | `app/inventory/page.tsx` | Página completa (1537+ líneas): CRUD de productos, movimientos, categorías, paquetes, promociones, importación CSV/Excel, gestión de descuentos, vinculación con proveedores, multi-vista (tarjetas/tabla/lista), validación, filtro de stock |
 | `components/inventory/InventoryManager.tsx` | Gestor: CRUD productos, movimientos (IN/OUT), estado de stock, valoración, integración contable |
 | `app/api/inventory/products/route.ts` | API CRUD de productos |
+| `lib/purchase-db.ts` | Upsert best-effort de producto (stock/costo) desde Compras |
 
 #### Tablas de Base de Datos
 
-- `Product` (PascalCase) — id, tenantid, sku, name, description, category, unit, cost, price, stock, minstock, maxstock, isActive, tags, expirationDate, discountPrice, isDiscount, promotionStartDate, promotionEndDate
-- `product` (lowercase) — id, code, name, description, unit_price, current_cost, tax_rate, is_service, is_active, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, tenant_id
+- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id
+
+> Las tablas legacy `Product` (PascalCase) y `products` (plural) y la **vista** `Products` fueron eliminadas en la migración 008 (16 Sept 2026). Backups: `_backup_product_008`, `_backup_products_008`.
+
+> **Esquema consolidado** ✅ — `product` es la única tabla de productos desde la migración 008 (16 Sept 2026).
 
 #### Lo que Falta
 
-- **Dual schema inconsistente**
+- **Multi-almacén NO funcional** (stock por almacén, transferencias e inventario físico pendientes)
 - Sin imágenes de producto
 - Sin conversión de unidades de medida
 - Sin códigos de barras
@@ -68,16 +72,17 @@
 |---|---|
 | `app/api/inventory/movements/route.ts` | API de movimientos |
 | `lib/actions/accounting.ts` | Integración contable (asiento automático por movimiento) |
-| `scripts/migrations/CREATE_INVENTORY_TABLES.sql` | Trigger de auto-actualización de stock |
+| `scripts/migrations/008_consolidate_inventory_schema.sql` | Consolidación a `product`/`inventory_movement` (trigger legacy de stock eliminado) |
 
 #### Tablas
 
-- `InventoryMovement` (PascalCase) — id, tenantid, productid, type (IN/OUT/ADJUSTMENT), quantity, unitCost, totalCost, reference, notes
-- `inventory_movement` (lowercase) — id, product_id, movement_type, quantity, unit_cost, total_cost, reference, description, warehouse_id, tenant_id
+- `inventory_movement` (canónico, snake_case) — id, tenant_id, product_id, warehouse_id, movement_type (IN/OUT/ADJUSTMENT), movement_reason, quantity, unit_cost, total_cost, stock_before, stock_after, reference_number, notes, created_by
+
+> La tabla legacy `InventoryMovement` (PascalCase) y `InventoryTransaction` fueron eliminadas en la migración 008 (16 Sept 2026). Backups: `_backup_inventorymovement_008`, `_backup_inventorytransaction_008`.
 
 #### Funcionalidad
 
-- Movimientos IN, OUT, AJUSTE con trigger automático de stock
+- Movimientos IN, OUT, AJUSTE; el stock (`product.current_stock`/`stock_quantity`) se actualiza en la aplicación (sin trigger)
 - Integración con asientos contables
 - Referencia y notas por movimiento
 
@@ -113,7 +118,7 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Dual schema de productos | Confusión, inconsistencia | Crítica |
+| 1 | ~~Dual schema de productos~~ | Resuelto: esquema único `product` (migración 008, 16 Sept 2026) | — |
 | 2 | Sin multi-almacén funcional | Imposible para empresas con múltiples ubicaciones | Alta |
 | 3 | Sin valoración FIFO/promedio | Costos de inventario inexactos | Alta |
 | 4 | Sin inventario físico | Sin control real de stock | Alta |
@@ -123,13 +128,13 @@
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Consolidación de Esquema
+### Etapa 1: Consolidación de Esquema — ✅ Completada (16 Sept 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | Consolidar esquemas de producto en uno solo | Migraciones SQL | Esquema único |
-| 1.2 | Migrar datos entre esquemas | Script de migración | Datos migrados |
-| 1.3 | Actualizar API y UI para esquema único | `inventory/page.tsx`, API routes | Código actualizado |
+| 1.1 | Consolidar esquemas de producto en uno solo | Migraciones SQL | ✅ Esquema único `product` |
+| 1.2 | Migrar datos entre esquemas | Script de migración | ✅ Datos migrados (backups `_backup_*_008`) |
+| 1.3 | Actualizar API y UI para esquema único | `inventory/page.tsx`, API routes | ✅ Código actualizado |
 
 ### Etapa 2: Multi-Almacén
 
@@ -168,21 +173,26 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Consolidación | 3 tareas | Alta | 2-3 semanas |
+| Etapa 1: Consolidación | 3 tareas | Alta | ✅ Completada (16 Sept 2026) |
 | Etapa 2: Multi-Almacén | 3 tareas | Alta | 2-3 semanas |
 | Etapa 3: Valoración | 3 tareas | Alta | 3-4 semanas |
 | Etapa 4: Físico/Lotes | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total** | **14 tareas** | — | **10-14 semanas** |
+| **Total restante** | **11 tareas** | — | **8-11 semanas** |
 
 ---
 
-## Actualizaciones de Infraestructura (8 Sept 2026)
+## Actualizaciones de Infraestructura (16 Sept 2026)
 
 | Cambio | Detalle |
 |---|---|
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+| Stack validado | Next.js 16.3.5 (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x, Tailwind, shadcn/ui; `output: 'standalone'` |
+| Build | `pnpm build` EXIT=0 (16 Sept 2026) |
+| Consolidación BD | Inventario unificado a `product`/`inventory_movement`; legacy eliminado (migración 008, verificado 16 Sept 2026) |
+
+*Estado validado al 16 de Septiembre de 2026.*

@@ -1,6 +1,6 @@
 # Reporte de Estado: Control de Asistencia
 
-> **Fecha de actualización:** 12 de Septiembre de 2026
+> **Fecha de actualización:** 16 de Septiembre de 2026
 > **Ruta:** `/companies/[id]/hr/attendance/time-clock`
 > **Módulo independiente:** Sí (accesible desde grid de módulos)
 

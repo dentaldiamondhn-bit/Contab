@@ -48,6 +48,7 @@ import {
 } from '@/lib/date-utils';
 import { supabase } from '@/lib/supabase/standard-client';
 import { useTenant } from '@/lib/contexts/TenantContext';
+import { dbToLegacyProducts, dbToLegacyMovements, legacyProductToDb, legacyMovementToDb } from '@/lib/inventory/schema-map';
 
 interface Product {
   id: string;
@@ -221,7 +222,7 @@ export default function InventoryPage() {
       const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
         const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
         const { data: products } = await supabase
-          .from('Product')
+          .from('product')
           .select('id, name')
           .in('id', productIds);
         
@@ -587,9 +588,8 @@ export default function InventoryPage() {
       }
       // Fallback directo Supabase con variaciones de columna
       const tryCols = [
-        () => supabase.from('Supplier').select('id, name').eq('tenantid', tenantId).eq('isActive', true) as any,
-        () => supabase.from('Supplier').select('id, name').eq('tenantid', tenantId) as any,
-        () => supabase.from('Supplier').select('id, name').eq('tenantId', tenantId) as any,
+        () => supabase.from('Supplier').select('id, name').eq('tenant_id', tenantId).eq('is_active', true) as any,
+        () => supabase.from('Supplier').select('id, name').eq('tenant_id', tenantId) as any,
         () => supabase.from('Supplier').select('id, name').limit(20) as any,
       ];
       for (const fn of tryCols) {
@@ -615,14 +615,14 @@ export default function InventoryPage() {
   const loadProducts = async () => {
     try {
       const { data, error } = await supabase
-        .from('Product')
+        .from('product')
         .select('*')
-        .eq('tenantid', tenantId)
-        .eq('isActive', true)
-        .order('createdat', { ascending: false });
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setProducts(data || []);
+      setProducts(dbToLegacyProducts(data));
     } catch (error) {
       console.error('Error loading products:', error);
       setMessage({ type: 'error', text: 'Error al cargar productos' });
@@ -632,14 +632,14 @@ export default function InventoryPage() {
   const loadMovements = async () => {
     try {
       const { data, error } = await supabase
-        .from('InventoryMovement')
+        .from('inventory_movement')
         .select('*')
-        .eq('tenantid', tenantId)
-        .order('createdat', { ascending: false });
+        .eq('tenant_id', tenantId)
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
       console.log('Movimientos cargados:', data);
-      setMovements(data || []);
+      setMovements(dbToLegacyMovements(data));
     } catch (error) {
       console.error('Error loading movements:', error);
     }
@@ -759,8 +759,8 @@ export default function InventoryPage() {
         console.log('Actualizando producto existente...');
         // Update existing product
         const { data, error } = await supabase
-          .from('Product')
-          .update(productData)
+          .from('product')
+          .update(legacyProductToDb(productData))
           .eq('id', editingProduct.id)
           .select()
           .single();
@@ -772,8 +772,8 @@ export default function InventoryPage() {
         console.log('Creando nuevo producto...');
         // Create new product
         const { data, error } = await supabase
-          .from('Product')
-          .insert(productData)
+          .from('product')
+          .insert(legacyProductToDb(productData))
           .select()
           .single();
 
@@ -785,8 +785,8 @@ export default function InventoryPage() {
         if (parseInt(formData.nuevoStock) > 0) {
           console.log('Agregando movimiento inicial...');
           const movementResult = await supabase
-            .from('InventoryMovement')
-            .insert({
+            .from('inventory_movement')
+            .insert(legacyMovementToDb({
               tenantid: formData.tenantid,
               productid: data.id,
               type: 'IN',
@@ -794,7 +794,7 @@ export default function InventoryPage() {
               reason: 'Stock inicial',
               reference: 'CREACIÓN',
               createdby: 'system'
-            });
+            }));
           console.log('Resultado movimiento:', movementResult);
         }
       }
@@ -860,7 +860,14 @@ export default function InventoryPage() {
         return;
       }
 
-      // Create movement record (trigger will update stock automatically)
+      // El esquema canónico (inventory_movement) no tiene trigger: actualizamos
+      // el stock del producto manualmente, igual que /api/inventory/movements.
+      const currentStock = Number(selectedProduct.stock) || 0;
+      let newStock = currentStock;
+      if (movementData.type === 'IN') newStock = currentStock + quantity;
+      else if (movementData.type === 'OUT') newStock = currentStock - quantity;
+      else if (movementData.type === 'ADJUSTMENT') newStock = quantity;
+
       const movementRecord = {
         tenantid: tenantId,
         productid: selectedProduct.id,
@@ -868,14 +875,27 @@ export default function InventoryPage() {
         quantity: quantity,
         reason: movementData.reason,
         reference: movementData.reference,
-        createdby: 'current_user'
+        createdby: 'current_user',
+        stock_before: currentStock,
+        stock_after: newStock
       };
 
       const { error } = await supabase
-        .from('InventoryMovement')
-        .insert(movementRecord);
+        .from('inventory_movement')
+        .insert(legacyMovementToDb(movementRecord));
 
       if (error) throw error;
+
+      const { error: stockError } = await supabase
+        .from('product')
+        .update({
+          current_stock: newStock,
+          stock_quantity: newStock,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', selectedProduct.id);
+
+      if (stockError) throw stockError;
 
       setMessage({ type: 'success', text: 'Movimiento registrado exitosamente' });
       setShowMovementDialog(false);
@@ -939,8 +959,8 @@ export default function InventoryPage() {
     try {
       // Soft delete by setting isActive to false
       const { error } = await supabase
-        .from('Product')
-        .update({ isActive: false })
+        .from('product')
+        .update({ is_active: false })
         .eq('id', id);
 
       if (error) throw error;
@@ -1123,17 +1143,17 @@ export default function InventoryPage() {
 
             // Create product
             const { error: productError } = await supabase
-              .from('Products')
-              .insert([{
+              .from('product')
+              .insert(legacyProductToDb({
+                tenant_id: tenantId,
                 name: product.name,
                 category: product.category,
-                categoryid: categoryId,
                 price: product.price,
                 cost: product.cost,
                 stock: product.stock,
                 description: product.description,
-                isactive: true
-              }]);
+                is_active: true
+              }));
 
             if (productError) {
               console.error('Error creating product:', productError);
@@ -1356,7 +1376,7 @@ export default function InventoryPage() {
       const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
         const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
         const { data: products } = await supabase
-          .from('Product')
+          .from('product')
           .select('id, name')
           .in('id', productIds);
         
@@ -1405,8 +1425,8 @@ export default function InventoryPage() {
 
         console.log('Guardando promoción de producto:', updateData);
         const { error } = await supabase
-          .from('Product')
-          .update(updateData)
+          .from('product')
+          .update(legacyProductToDb(updateData))
           .eq('id', selectedPromotionProduct!.id);
 
         if (error) throw error;
@@ -1507,7 +1527,7 @@ export default function InventoryPage() {
       const enrichedPackages = await Promise.all((data || []).map(async (pkg) => {
         const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
         const { data: products } = await supabase
-          .from('Product')
+          .from('product')
           .select('id, name')
           .in('id', productIds);
         
@@ -1649,7 +1669,7 @@ export default function InventoryPage() {
       const enrichedPackages = await Promise.all((packagesData || []).map(async (pkg) => {
         const productIds = pkg.PackageProducts.map((pp: any) => pp.productid);
         const { data: products } = await supabase
-          .from('Product')
+          .from('product')
           .select('id, name')
           .in('id', productIds);
         

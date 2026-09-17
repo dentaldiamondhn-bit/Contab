@@ -38,8 +38,9 @@ const RETRY_DELAY = 2000;
 export default function TenantAdminDashboard() {
   const router = useRouter();
   const { user, isLoaded } = useUser();
-  const { currentTenant } = useTenant();
+  const { currentTenant, currentCompany } = useTenant();
   const tenantId = currentTenant?.id;
+  const companyId = currentCompany?.id;
 
   const [kpis, setKpis] = useState({
     cashBalance: 0,
@@ -60,7 +61,9 @@ export default function TenantAdminDashboard() {
     if (!tenantId) return;
     setLoading(true);
     try {
-      const res = await fetch(`/api/tenant-admin/dashboard?tenantId=${tenantId}`);
+      const params = new URLSearchParams({ tenantId });
+      if (companyId) params.append('companyId', companyId);
+      const res = await fetch(`/api/tenant-admin/dashboard?${params.toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.kpis) setKpis(data.kpis);
@@ -77,7 +80,7 @@ export default function TenantAdminDashboard() {
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, companyId]);
 
   useEffect(() => {
     fetchDashboard();

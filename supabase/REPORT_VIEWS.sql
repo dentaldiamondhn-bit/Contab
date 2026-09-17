@@ -120,20 +120,20 @@ ORDER BY code;
 CREATE OR REPLACE VIEW libro_ventas AS
 SELECT
   i.id,
-  i.invoicenumber AS invoice_number,
-  i.invoicedate AS invoice_date,
-  i.customername AS customer_name,
-  i.customerrtn AS customer_rtn,
+  i."invoiceNumber" AS invoice_number,
+  i."issueDate" AS invoice_date,
+  i."customerName" AS customer_name,
+  i."customerRTN" AS customer_rtn,
   i.subtotal,
   i.tax AS tax_amount,
   i.total,
   i.status,
-  i.tenantid AS tenant_id,
+  i."tenantId" AS tenant_id,
   i.cai
 FROM "Invoice" i
-WHERE i.invoicetype = 'CUSTOMER'
+WHERE i."invoiceType" = 'CUSTOMER'
   AND i.status != 'CANCELLED'
-ORDER BY i.invoicedate DESC;
+ORDER BY i."issueDate" DESC;
 
 
 -- =============================================
@@ -142,20 +142,20 @@ ORDER BY i.invoicedate DESC;
 CREATE OR REPLACE VIEW libro_compras AS
 SELECT
   i.id,
-  i.invoicenumber AS invoice_number,
-  i.invoicedate AS invoice_date,
-  i.customername AS supplier_name,
-  i.customerrtn AS supplier_rtn,
+  i."invoiceNumber" AS invoice_number,
+  i."issueDate" AS invoice_date,
+  i."customerName" AS supplier_name,
+  i."customerRTN" AS supplier_rtn,
   i.subtotal,
   i.tax AS tax_amount,
   i.total,
   i.status,
-  i.tenantid AS tenant_id,
+  i."tenantId" AS tenant_id,
   i.cai
 FROM "Invoice" i
-WHERE i.invoicetype = 'EXPENSE'
+WHERE i."invoiceType" = 'EXPENSE'
   AND i.status != 'CANCELLED'
-ORDER BY i.invoicedate DESC;
+ORDER BY i."issueDate" DESC;
 
 
 -- =============================================
@@ -163,18 +163,18 @@ ORDER BY i.invoicedate DESC;
 -- =============================================
 CREATE OR REPLACE VIEW resumen_isv AS
 SELECT
-  i.tenantid AS tenant_id,
-  DATE_TRUNC('month', TO_DATE(i.invoicedate, 'YYYY-MM-DD')) AS mes,
-  SUM(CASE WHEN i.taxrate = 15 THEN i.subtotal ELSE 0 END) AS base_gravada_15,
-  SUM(CASE WHEN i.taxrate = 15 THEN i.tax ELSE 0 END) AS isv_15,
-  SUM(CASE WHEN i.taxrate = 18 THEN i.subtotal ELSE 0 END) AS base_gravada_18,
-  SUM(CASE WHEN i.taxrate = 18 THEN i.tax ELSE 0 END) AS isv_18,
+  i."tenantId" AS tenant_id,
+  DATE_TRUNC('month', i."issueDate") AS mes,
+  SUM(CASE WHEN i."taxRate" = 15 THEN i.subtotal ELSE 0 END) AS base_gravada_15,
+  SUM(CASE WHEN i."taxRate" = 15 THEN i.tax ELSE 0 END) AS isv_15,
+  SUM(CASE WHEN i."taxRate" = 18 THEN i.subtotal ELSE 0 END) AS base_gravada_18,
+  SUM(CASE WHEN i."taxRate" = 18 THEN i.tax ELSE 0 END) AS isv_18,
   SUM(i.subtotal) AS base_total,
   SUM(i.tax) AS isv_total,
   COUNT(*) AS facturas
 FROM "Invoice" i
 WHERE i.status != 'CANCELLED'
-GROUP BY i.tenantid, DATE_TRUNC('month', TO_DATE(i.invoicedate, 'YYYY-MM-DD'))
+GROUP BY i."tenantId", DATE_TRUNC('month', i."issueDate")
 ORDER BY mes DESC;
 
 
@@ -183,21 +183,21 @@ ORDER BY mes DESC;
 -- =============================================
 CREATE OR REPLACE VIEW declaracion_mensual AS
 SELECT
-  i.tenantid AS tenant_id,
-  DATE_TRUNC('month', TO_DATE(i.invoicedate, 'YYYY-MM-DD')) AS mes,
-  SUM(CASE WHEN i.invoicetype = 'CUSTOMER' THEN i.subtotal ELSE 0 END) AS ventas_base,
-  SUM(CASE WHEN i.invoicetype = 'CUSTOMER' THEN i.tax ELSE 0 END) AS ventas_isv,
-  SUM(CASE WHEN i.invoicetype = 'CUSTOMER' THEN i.total ELSE 0 END) AS ventas_total,
-  COUNT(CASE WHEN i.invoicetype = 'CUSTOMER' THEN 1 END) AS num_ventas,
-  SUM(CASE WHEN i.invoicetype = 'EXPENSE' THEN i.subtotal ELSE 0 END) AS compras_base,
-  SUM(CASE WHEN i.invoicetype = 'EXPENSE' THEN i.tax ELSE 0 END) AS compras_isv,
-  SUM(CASE WHEN i.invoicetype = 'EXPENSE' THEN i.total ELSE 0 END) AS compras_total,
-  COUNT(CASE WHEN i.invoicetype = 'EXPENSE' THEN 1 END) AS num_compras,
-  SUM(CASE WHEN i.invoicetype = 'CUSTOMER' THEN i.tax ELSE 0 END) -
-  SUM(CASE WHEN i.invoicetype = 'EXPENSE' THEN i.tax ELSE 0 END) AS isv_a_pagar
+  i."tenantId" AS tenant_id,
+  DATE_TRUNC('month', i."issueDate") AS mes,
+  SUM(CASE WHEN i."invoiceType" = 'CUSTOMER' THEN i.subtotal ELSE 0 END) AS ventas_base,
+  SUM(CASE WHEN i."invoiceType" = 'CUSTOMER' THEN i.tax ELSE 0 END) AS ventas_isv,
+  SUM(CASE WHEN i."invoiceType" = 'CUSTOMER' THEN i.total ELSE 0 END) AS ventas_total,
+  COUNT(CASE WHEN i."invoiceType" = 'CUSTOMER' THEN 1 END) AS num_ventas,
+  SUM(CASE WHEN i."invoiceType" = 'EXPENSE' THEN i.subtotal ELSE 0 END) AS compras_base,
+  SUM(CASE WHEN i."invoiceType" = 'EXPENSE' THEN i.tax ELSE 0 END) AS compras_isv,
+  SUM(CASE WHEN i."invoiceType" = 'EXPENSE' THEN i.total ELSE 0 END) AS compras_total,
+  COUNT(CASE WHEN i."invoiceType" = 'EXPENSE' THEN 1 END) AS num_compras,
+  SUM(CASE WHEN i."invoiceType" = 'CUSTOMER' THEN i.tax ELSE 0 END) -
+  SUM(CASE WHEN i."invoiceType" = 'EXPENSE' THEN i.tax ELSE 0 END) AS isv_a_pagar
 FROM "Invoice" i
 WHERE i.status != 'CANCELLED'
-GROUP BY i.tenantid, DATE_TRUNC('month', TO_DATE(i.invoicedate, 'YYYY-MM-DD'))
+GROUP BY i."tenantId", DATE_TRUNC('month', i."issueDate")
 ORDER BY mes DESC;
 
 
@@ -206,20 +206,20 @@ ORDER BY mes DESC;
 -- =============================================
 CREATE OR REPLACE VIEW top_clientes AS
 SELECT
-  i.tenantid AS tenant_id,
-  i.customername AS client_name,
-  i.customerrtn AS client_rtn,
-  i.customeremail AS client_email,
+  i."tenantId" AS tenant_id,
+  i."customerName" AS client_name,
+  i."customerRTN" AS client_rtn,
+  i."customerEmail" AS client_email,
   COUNT(*) AS num_facturas,
   SUM(i.subtotal) AS total_base,
   SUM(i.tax) AS total_isv,
   SUM(i.total) AS total_ventas,
-  MIN(i.invoicedate) AS primera_venta,
-  MAX(i.invoicedate) AS ultima_venta
+  MIN(i."issueDate") AS primera_venta,
+  MAX(i."issueDate") AS ultima_venta
 FROM "Invoice" i
-WHERE i.invoicetype = 'CUSTOMER'
+WHERE i."invoiceType" = 'CUSTOMER'
   AND i.status != 'CANCELLED'
-GROUP BY i.tenantid, i.customername, i.customerrtn, i.customeremail
+GROUP BY i."tenantId", i."customerName", i."customerRTN", i."customerEmail"
 ORDER BY total_ventas DESC;
 
 
@@ -264,28 +264,28 @@ GROUP BY tenant_id;
 -- =============================================
 CREATE OR REPLACE VIEW cuentas_por_cobrar AS
 SELECT
-  i.tenantid AS tenant_id,
-  i.customername AS client_name,
-  i.customerrtn AS client_rtn,
-  i.invoicenumber AS invoice_number,
-  i.invoicedate AS invoice_date,
-  i.duedate AS due_date,
+  i."tenantId" AS tenant_id,
+  i."customerName" AS client_name,
+  i."customerRTN" AS client_rtn,
+  i."invoiceNumber" AS invoice_number,
+  i."issueDate" AS invoice_date,
+  i."dueDate" AS due_date,
   i.total,
   i.status,
   CASE
-    WHEN i.duedate IS NULL THEN 'SIN_FECHA'
-    WHEN TO_DATE(i.duedate, 'YYYY-MM-DD') >= CURRENT_DATE THEN 'VIGENTE'
+    WHEN i."dueDate" IS NULL THEN 'SIN_FECHA'
+    WHEN i."dueDate" >= CURRENT_DATE THEN 'VIGENTE'
     ELSE 'VENCIDA'
   END AS estado_cobro,
   CASE
-    WHEN i.duedate IS NULL THEN 0
-    WHEN TO_DATE(i.duedate, 'YYYY-MM-DD') >= CURRENT_DATE THEN 0
-    ELSE CURRENT_DATE - TO_DATE(i.duedate, 'YYYY-MM-DD')
+    WHEN i."dueDate" IS NULL THEN 0
+    WHEN i."dueDate" >= CURRENT_DATE THEN 0
+    ELSE CURRENT_DATE - i."dueDate"
   END AS dias_vencido
 FROM "Invoice" i
-WHERE i.invoicetype = 'CUSTOMER'
+WHERE i."invoiceType" = 'CUSTOMER'
   AND i.status IN ('ACTIVE', 'PENDING', 'SENT')
-ORDER BY i.invoicedate;
+ORDER BY i."issueDate";
 
 
 -- =============================================
@@ -293,28 +293,28 @@ ORDER BY i.invoicedate;
 -- =============================================
 CREATE OR REPLACE VIEW cuentas_por_pagar AS
 SELECT
-  i.tenantid AS tenant_id,
-  i.customername AS supplier_name,
-  i.customerrtn AS supplier_rtn,
-  i.invoicenumber AS invoice_number,
-  i.invoicedate AS invoice_date,
-  i.duedate AS due_date,
+  i."tenantId" AS tenant_id,
+  i."customerName" AS supplier_name,
+  i."customerRTN" AS supplier_rtn,
+  i."invoiceNumber" AS invoice_number,
+  i."issueDate" AS invoice_date,
+  i."dueDate" AS due_date,
   i.total,
   i.status,
   CASE
-    WHEN i.duedate IS NULL THEN 'SIN_FECHA'
-    WHEN TO_DATE(i.duedate, 'YYYY-MM-DD') >= CURRENT_DATE THEN 'VIGENTE'
+    WHEN i."dueDate" IS NULL THEN 'SIN_FECHA'
+    WHEN i."dueDate" >= CURRENT_DATE THEN 'VIGENTE'
     ELSE 'VENCIDA'
   END AS estado_pago,
   CASE
-    WHEN i.duedate IS NULL THEN 0
-    WHEN TO_DATE(i.duedate, 'YYYY-MM-DD') >= CURRENT_DATE THEN 0
-    ELSE CURRENT_DATE - TO_DATE(i.duedate, 'YYYY-MM-DD')
+    WHEN i."dueDate" IS NULL THEN 0
+    WHEN i."dueDate" >= CURRENT_DATE THEN 0
+    ELSE CURRENT_DATE - i."dueDate"
   END AS dias_vencido
 FROM "Invoice" i
-WHERE i.invoicetype = 'EXPENSE'
+WHERE i."invoiceType" = 'EXPENSE'
   AND i.status IN ('ACTIVE', 'PENDING', 'SENT')
-ORDER BY i.invoicedate;
+ORDER BY i."issueDate";
 
 
 -- =============================================

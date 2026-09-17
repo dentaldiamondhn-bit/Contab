@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     const tenantId = '1';
 
     // Build the query
-    let query = supabase
+    let query = getSupabaseServer()
       .from('Purchase')
       .select(`
         id,

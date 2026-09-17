@@ -6,11 +6,11 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Facturación** | Parcial | 1 componente | 3 rutas | 2 tablas (dual schema) | Supabase + Prisma |
+| **Facturación** | Parcial | 1 componente | 3 rutas | `Invoice` + `InvoiceItem` | Supabase + Prisma |
 | **Gestión de Clientes** | Completo | 1 componente | 1 ruta | 1 tabla | Supabase |
 | **Cuentas por Cobrar** | Parcial | 1 componente | — | 1 tabla | Supabase |
 | **Gestión CAI** | Completo | 1 dashboard | 6 rutas | 2 tablas | Supabase + Prisma |
-| **Notas de Crédito/Débito** | No Iniciado | 0 | 0 | Schema existe | — |
+| **Notas de Crédito/Débito** | **Implementado** | 1 página + 2 componentes | 2 rutas | 1 tabla (`InvoiceNote`) | Supabase |
 | **Cotizaciones/Proformas** | No Iniciado | 0 | 0 | 0 | — |
 | **Órdenes de Venta** | No Iniciado | 0 | 0 | 0 | — |
 | **Dashboard de Ventas** | Completo | 1 dashboard | 1 ruta | — | Supabase |
@@ -20,11 +20,11 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~55% | Facturación y clientes base; sin notas, cotizaciones, órdenes |
+| Completitud Funcional | ~70% | Facturación y clientes base + notas de crédito/débito (fiscal SAR); sin cotizaciones ni órdenes |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Persistencia | ~70% | Supabase para la mayoría; dual schema (invoice lowercase + Invoice PascalCase) |
-| Cumplimiento Fiscal | ~60% | CAI y campos fiscales en factura; sin notaspdf |
-| Integración | ~40% | Facturación no genera asiento contable automáticamente |
+| Persistencia | ~80% | Esquema único `Invoice`/`InvoiceItem`; consolidado el 16 Sept 2026 (migración 007) |
+| Cumplimiento Fiscal | ~70% | CAI, campos fiscales en factura y notas NC-/ND- con numeración consecutiva por tenant |
+| Integración | ~45% | La factura no genera asiento; las notas de crédito/débito sí (voucherType AJUSTE, best-effort) |
 
 ---
 
@@ -32,29 +32,34 @@
 
 ### 2.1 Facturación
 
-**Estado: Parcial (~55%)**
+**Estado: Parcial (~70%)** — Esquema único consolidado (migración 007, 16 Sept 2026)
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `components/sales/InvoiceForm.tsx` | Formulario de creación: selección de cliente, líneas de detalle, cálculo de impuestos, productos de inventario, numeración automática |
-| `app/api/billing/invoices/route.ts` | API POST: crea facturas (tabla `invoice` lowercase, centavos) |
-| `app/api/billing/invoices/simple/route.ts` | API simplificada de facturación |
+| `app/api/billing/invoices/route.ts` | API POST: crea facturas (tabla canónica `Invoice`) |
+| `app/api/billing/invoices/generate-current/route.ts` | Generación de facturación actual/recurrente |
+| `app/api/admin/billing/invoices/route.ts` | API del módulo Facturación (tabla canónica `Invoice`) |
+| `app/api/billing/fiscal-info/route.ts` | Información fiscal de la empresa |
+| `app/api/billing/bank-accounts/route.ts` | Cuentas bancarias del módulo Facturación |
+| `app/api/billing/products/route.ts` | Productos del módulo Facturación |
+| `app/api/billing/customers/route.ts` | Clientes del módulo Facturación |
 | `lib/billing/invoice-generator.ts` | Generador server-side de facturas de suscripción (automático mensual para tenants) |
 
 #### Tablas de Base de Datos
 
-- `invoice` (lowercase, Supabase) — id, invoice_number, cai, customer_rtn, customer_name, subtotal, tax_15, tax_18, total, payment_method, status, date, tenant_id
-- `invoiceitem` (lowercase, Supabase) — id, invoice_id, product_code, product_name, quantity, unit_price, tax_rate, discount, subtotal, tax_amount, total
-- `Invoice` (PascalCase, Prisma) — Esquema completo con CAI, fechas, tipo, ítems JSON, impuestos
-- `InvoiceItem` (PascalCase, Prisma) — Líneas con taxrate, taxamount
+- `Invoice` (canónico, PascalCase) — id, tenantId, invoiceNumber, invoiceType, status, customerName/RTN/Email/Address, issuerName/RTN/Address, issueDate, dueDate, cai, rangeStart, rangeEnd, expiryDate, subtotal, tax, total, currency, taxRate, invoiceImage, invoicePdf, notes, createdBy, updatedBy
+- `InvoiceItem` (canónico, PascalCase) — id, invoiceId, description, quantity, unitPrice, total, taxRate, taxAmount, isTaxable, productCode, serviceCode
+- `InvoiceNote` (Supabase) — Notas de crédito/débito (ver sección 2.6)
+
+> Las tablas legacy `invoice`, `invoiceitem`, `invoices`, `invoice_items` fueron eliminadas en la migración 007 (16 Sept 2026); los modelos Prisma `Invoice`/`InvoiceItem` se realinearon con estas columnas.
 
 #### Lo que Falta
 
-- **Dual schema inconsistente** (dos tablas de factura paralelas)
-- Sin generación de PDF de factura
-- Sin impresión de factura
+- ~~Dual schema inconsistente~~ ✅ Resuelto: esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026)
+- Sin generación de PDF de factura (impresión aún manual/HTML)
 - Sin envío por correo
 - Sin facturación recurrente para clientes finales
 
@@ -139,36 +144,81 @@
 
 ---
 
+### 2.6 Notas de Crédito/Débito — ✅ IMPLEMENTADO (16 Sept 2026)
+
+**Estado: Implementado (~85%)** — Resuelve el ítem crítico fiscal "Sin notas de crédito/débito" (SAR Honduras).
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/notes-service.ts` | Servicio central (396 líneas): numeración consecutiva NC-/ND- por tenant, CRUD, resolución de tenant, asiento contable best-effort |
+| `app/api/billing/notes/route.ts` | API listado (`GET` sin auth, filtros) + creación (`POST` con auth, `401` sin sesión) |
+| `app/api/billing/notes/[id]/route.ts` | API por nota: `GET` detalle + `PATCH` estado (`APPLIED`/`CANCELLED`); Next 16: `await params` |
+| `components/billing/NoteForm.tsx` | `CreditNoteForm` / `DebitNoteForm`: selector de factura original (vía `/api/admin/billing/invoices`), fecha, motivo, monto, método de pago (efectivo/crédito) |
+| `components/billing/NotePreview.tsx` | Vista imprimible del documento (datos del tenant y de la factura referenciada, `window.print()`) |
+| `app/billing/notes/page.tsx` | Página de gestión: stats, filtros (tipo/estado/búsqueda), crear, aplicar, anular, ver documento |
+| `app/billing/page.tsx` | Botón "Notas de Crédito/Débito" → `/billing/notes` |
+
+#### Tabla `InvoiceNote` (Supabase)
+
+`id`, `tenantId`, `originalInvoiceId`, `noteType` (`CREDIT`|`DEBIT`), `noteNumber`, `reason`, `amount`, `status` (`PENDING`|`APPLIED`|`CANCELLED`), `appliedDate`, `createdAt`, `createdBy`.
+
+#### Series de Numeración
+
+- Formato `NC-XXXXXXXX` (crédito) y `ND-XXXXXXXX` (débito), consecutivos **por tenant** (8 dígitos, `nextNoteNumber`).
+- Si se referencia una factura inexistente, el vínculo `originalInvoiceId` se omite (evita violación de FK).
+
+#### Asiento Contable (best-effort, no bloquea la emisión)
+
+- Se publica vía `POST /api/accounting/transactions` con header `x-tenant-id`.
+- **voucherType:** `AJUSTE`.
+- ISV **15% incluido**: `subTotal = monto / 1.15`, `impuesto = monto − subTotal`.
+- Cuentas: `4101` Ingresos, `2105` ISV por pagar, contra `1101` Caja (efectivo) / `1103` Clientes (crédito).
+- **NC:** +subTotal, +impuesto, −total. **ND:** +total, −subTotal, −impuesto.
+
+#### Flujo de Estados
+
+`PENDING` (creada) → `APPLIED` (aplicada, fija `appliedDate`) | `CANCELLED` (anulada, permanente, con confirmación en UI). Filtros por tipo (`type`), estado (`status`) y rango de fecha (`from`/`to`).
+
+#### Verificación (E2E / build)
+
+- `pnpm build` → `EXIT=0`; rutas: `ƒ /api/billing/notes`, `ƒ /api/billing/notes/[id]`, `○ /billing/notes`.
+- Supabase: INSERT `201`, SELECT `200`, DELETE `204`.
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Dual schema de facturas (lowercase + PascalCase) | Confusión, duplicación | Crítica |
+| 1 | ~~Dual schema de facturas~~ | Resuelto: esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026) | — |
 | 2 | Sin generación de PDF de factura | Imposible entregar facturas | Crítica |
-| 3 | Sin notas de crédito/débito | Incumplimiento fiscal | Crítica |
+| 3 | ~~Sin notas de crédito/débito~~ — **IMPLEMENTADO ✅** (ver §2.6) | Incumplimiento fiscal | ~~Crítica~~ Resuelta |
 | 4 | Sin cotizaciones/proformas | Sin proceso de ventas | Alta |
-| 5 | Facturación sin integración contable | Doble registro | Alta |
+| 5 | Factura sin integración contable (las notas NC/ND ya generan asiento AJUSTE) | Doble registro | Alta |
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Consolidación de Esquema y PDF
+### Etapa 1: Consolidación de Esquema ✅ + PDF
 
-| # | Tarea | Archivos | Entregable |
-|---|---|---|---|
-| 1.1 | Consolidar esquemas de factura en uno solo | Migraciones SQL, modelos | Esquema único |
-| 1.2 | Generación de PDF de factura | `lib/services/invoice-pdf.ts` | PDF funcional |
-| 1.3 | Plantilla HTML de factura | `templates/invoice.html` | Plantilla profesional |
+| # | Tarea | Archivos | Entregable | Estado |
+|---|---|---|---|---|
+| 1.1 | Consolidar esquemas de factura en uno solo | `scripts/migrations/007_consolidate_invoice_schema.sql`, `prisma/schema.prisma` | Esquema único `Invoice`/`InvoiceItem` | ✅ (16 Sept 2026) |
+| 1.2 | Generación de PDF de factura | `lib/services/invoice-pdf.ts` | PDF funcional | Pendiente |
+| 1.3 | Plantilla HTML de factura | `templates/invoice.html` | Plantilla profesional | Pendiente |
 
-### Etapa 2: Notas de Crédito/Débito
+### Etapa 2: Notas de Crédito/Débito — ✅ Completada (16 Sept 2026)
 
-| # | Tarea | Archivos | Entregable |
-|---|---|---|---|
-| 2.1 | UI de notas de crédito | `components/sales/CreditNoteForm.tsx` | Formulario funcional |
-| 2.2 | UI de notas de débito | `components/sales/DebitNoteForm.tsx` | Formulario funcional |
-| 2.3 | API de notas | `app/api/billing/notes/route.ts` | API CRUD |
-| 2.4 | Integración con facturas y contabilidad | `lib/services/notes-service.ts` | Integración |
+| # | Tarea | Archivos | Entregable | Estado |
+|---|---|---|---|---|
+| 2.1 | UI de notas de crédito/débito | `components/billing/NoteForm.tsx` (`CreditNoteForm`/`DebitNoteForm`) | Formularios funcionales | ✅ |
+| 2.2 | Vista imprimible de nota | `components/billing/NotePreview.tsx` | Documento imprimible | ✅ |
+| 2.3 | API de notas | `app/api/billing/notes/route.ts`, `app/api/billing/notes/[id]/route.ts` | API CRUD + cambio de estado | ✅ |
+| 2.4 | Servicio + integración con contabilidad | `lib/services/notes-service.ts` | Numeración NC-/ND- por tenant, asiento AJUSTE best-effort | ✅ |
+| 2.5 | Página de gestión | `app/billing/notes/page.tsx` + botón en `app/billing/page.tsx` | Stats, filtros, aplicar/anular/ver | ✅ |
 
 ### Etapa 3: Cotizaciones y Órdenes
 
@@ -199,7 +249,7 @@
 
 ```
 Etapa 1 (Consolidación + PDF)
-    ├── Etapa 2 (Notas de Crédito/Débito)
+    ├── ~~Etapa 2 (Notas de Crédito/Débito)~~ ✅ Completada
     ├── Etapa 3 (Cotizaciones + Órdenes)
     └── Etapa 4 (Integración Contable)
             └── Etapa 5 (QA)
@@ -211,12 +261,12 @@ Etapa 1 (Consolidación + PDF)
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Consolidación | 3 tareas | Alta | 2-3 semanas |
-| Etapa 2: Notas | 4 tareas | Alta | 2-3 semanas |
+| Etapa 1: Consolidación | 3 tareas | Alta | ✅ 1.1 completada; 1.2-1.3 pendientes (~1-2 semanas) |
+| ~~Etapa 2: Notas~~ | ~~4 tareas~~ | ~~Alta~~ | ✅ Completada (16 Sept 2026) |
 | Etapa 3: Cotizaciones | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Integración | 3 tareas | Alta | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total** | **15 tareas** | — | **9-13 semanas** |
+| **Total (pendiente)** | **11 tareas** | — | **7-10 semanas** |
 
 ---
 
@@ -227,5 +277,17 @@ Etapa 1 (Consolidación + PDF)
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Facturación (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Notas de crédito/débito | `lib/services/notes-service.ts` + `app/api/billing/notes/*` + `NoteForm`/`NotePreview` + página `app/billing/notes`; numeración `NC-`/`ND-` por tenant, tabla `InvoiceNote`, asiento `AJUSTE` best-effort (cuentas 4101/2105/1101/1103) |
+| Rutas verificadas | `ƒ /api/billing/notes` (POST 201), `ƒ /api/billing/notes/[id]` (GET/PATCH), `○ /billing/notes`; `pnpm build` → `EXIT=0` |
+| Páginas del módulo Facturación | `app/billing/*`: `[id]`, `subscriptions`, `page`, `notes`, `generate-invoice`, `expenses`, `expenses/new` |
+| APIs del módulo Facturación | `app/api/billing/*`: `products`, `payment-receipts`, `payment-links`, `notes`, `notes/[id]`, `invoices`, `invoices/generate-current`, `fiscal-info`, `customers`, `cai` (`route`/`[id]`/`tenant`/`list`/`debug`), `bank-accounts` |
+| Fix env `SUPABASE_URL` | `app/api/companies/route.ts` usaba `SUPABASE_URL` (inexistente → 500); ahora usa `NEXT_PUBLIC_SUPABASE_URL`. No existe `SUPABASE_URL` |
+| Consolidación esquema | Migración 007: `invoice`/`invoiceitem`/`invoices`/`invoice_items` eliminadas; canónico `Invoice`/`InvoiceItem` (DECIMAL). Prisma realineado |
+| Middleware Clerk | Rutas no públicas ejecutan `auth.protect()` → HTTP 404 a no autenticados; inyecta `x-tenant-id`. Públicas: `/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance` |

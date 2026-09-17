@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase-db';
 
 export async function PUT(
   request: NextRequest,
@@ -152,13 +153,12 @@ export async function DELETE(
     }
 
     // Verificar que no hay facturas asociadas a este CAI
-    const invoicesCount = await (db as any).invoice.count({
-      where: { 
-        caiId: id 
-      }
-    });
+    const { count: invoicesCount } = await (supabase as any)
+      .from('Invoice')
+      .select('id', { count: 'exact', head: true })
+      .eq('cai', existingCai.cai);
 
-    if (invoicesCount > 0) {
+    if ((invoicesCount || 0) > 0) {
       return NextResponse.json({ 
         error: 'No se puede eliminar un CAI que tiene facturas asociadas' 
       }, { status: 400 });

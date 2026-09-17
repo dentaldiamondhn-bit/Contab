@@ -6,10 +6,10 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Proveedores** | Parcial | 1 componente | 1 ruta | 1 tabla | Supabase + JSON |
+| **Gestión de Proveedores** | Completo | 1 componente | 1 ruta | 1 tabla (`Supplier`) | Supabase |
 | **Órdenes de Compra** | Básico | 1 componente (listado) | 1 ruta | 2 tablas | Supabase |
-| **Registro de Compras** | Parcial | 1 página (1630 líneas) | 2 rutas | — | **JSON files** |
-| **Pagos a Proveedores** | Parcial | 1 componente | 1 ruta | — | **JSON files** |
+| **Registro de Compras** | Completo | 1 página | 4 rutas | 2 tablas | Supabase |
+| **Pagos a Proveedores** | Completo | 1 componente | 1 ruta | 1 tabla | Supabase |
 | **Cuentas por Pagar** | Parcial | En SupplierManager | — | 1 tabla | Supabase |
 | **Devoluciones** | No Iniciado | 0 | 0 | 0 | — |
 | **Listas de Precios** | No Iniciado | 0 | 0 | 0 | — |
@@ -20,11 +20,20 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~35% | Proveedores y dashboard funcionan; compras usan JSON files |
-| Cobertura de Pruebas | 0% | No existen pruebas |
-| Persistencia | ~25% | **CRÍTICO: Compras y pagos usan archivos JSON, no base de datos** |
-| Integración Contable | ~20% | Compras no generan asiento contable automático |
+| Completitud Funcional | ~60% | Núcleo de proveedores, compras y pagos completo en Supabase |
+| Cobertura de Pruebas | E2E | Flujo compra (contado/crédito) + pagos verificado por E2E sobre HTTP |
+| Persistencia | ~100% | Compras, pagos y proveedores persistidos en Supabase (ya no JSON) |
+| Integración Contable | ~30% | Asiento contable best-effort al registrar compra (no bloquea) |
 | Workflow de Compra | ~15% | Sin aprobación, recepción parcial, matching 3 vías |
+
+### 1.3 Migración JSON → Supabase (16 Sept 2026)
+
+- Proveedores, compras y pagos ahora se leen/escriben en Supabase (`Supplier`, `Purchase`, `PurchaseItem`, `SupplierPayment`).
+- Migraciones aplicadas: `company_id` como texto, RTN ampliado a 20 caracteres, 4 claves foráneas entre las tablas.
+- Datos migrados e importados (1 proveedor, 2 compras, 3 ítems, 2 pagos).
+- Estados de compra normalizados en mayúsculas: `PENDING`, `PARTIAL`, `PAID`, `CANCELLED`.
+- Recompute de saldos/estado en cada operación de pago; `issue` de `PARTIAL` cuando queda saldo (incluso en compras convertidas a contado).
+- Legacy: `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan en el código (candidatos a eliminar).
 
 ---
 
@@ -32,23 +41,22 @@
 
 ### 2.1 Gestión de Proveedores
 
-**Estado: Parcial (~50%)**
+**Estado: Completo**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `components/purchasing/SupplierManager.tsx` | CRUD de proveedores + Cuentas por Pagar: seguimiento de pagables, procesamiento de pagos, exportación CSV |
-| `app/api/suppliers/route.ts` | API CRUD — **LEE/ESCRIBE `suppliers-data.json`** (NO base de datos) |
+| `app/api/suppliers/route.ts` | API CRUD sobre Supabase (`GET`/`POST`/`PATCH`/`DELETE`), filtros por `companyId` y `search`, insert de columnas comerciales |
 | `app/companies/[id]/suppliers/page.tsx` | Página de proveedores por empresa |
 
 #### Tabla de Base de Datos
 
-- `Supplier` (referenced, Supabase) — id, rtn, name, email, phone, address, creditLimit, currentBalance, isActive, tenantId
+- `Supplier` (Supabase) — `rtn`, `name`, `commercial_name`, `email`, `phone`, `mobile`, `address`, `city`, `country`, `supplier_type`, `category`, `payment_terms`, `payment_method`, `bank_name`, `bank_account`, `account_type`, `is_active`, `is_preferred`, `tenant_id`, `company_id`, `created_at`, `updated_at`
 
 #### Lo que Falta
 
-- **API usa archivo JSON** en lugar de Supabase (inconsistente con el componente)
 - Sin historial de precios por proveedor
 - Sin calificación de proveedores
 - Sin condiciones de pago configurables
@@ -68,8 +76,8 @@
 
 #### Tablas
 
-- `PurchaseOrder` (referenced) — id, orderNumber, status, totalAmount, tenant_id, supplier_id, order_date, expected_date, subtotal, tax_amount, total, notes
-- `PurchaseOrderItem` (referenced) — purchaseOrderId, product_id, product_name, quantity, unit_price, total
+- `PurchaseOrder` — id, orderNumber, status, totalAmount, tenant_id, supplier_id, order_date, expected_date, subtotal, tax_amount, total, notes
+- `PurchaseOrderItem` — purchaseOrderId, product_id, product_name, quantity, unit_price, total
 
 #### Lo que Falta
 
@@ -82,22 +90,37 @@
 
 ### 2.3 Registro de Compras
 
-**Estado: Parcial (~40%)**
+**Estado: Completo (~85%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `app/companies/[id]/purchases/page.tsx` | Página completa (1630 líneas): CRUD de compras con ítems, proveedores, CAI, cálculo de impuestos, integración con PaymentManager |
-| `app/api/purchases/route.ts` | API — **LEE/ESCRIBE `purchases-data.json`** + actualiza stock en Supabase |
-| `app/api/purchases/[id]/route.ts` | API individual |
+| `app/companies/[id]/purchases/page.tsx` | Página completa: CRUD de compras con ítems, proveedores, CAI, cálculo de impuestos, integración con PaymentManager |
+| `lib/purchase-db.ts` | Lógica compartida: `transformPurchase`, `fetchPurchases`, `createPurchase`, `updatePurchase`, `recomputePurchase`, `deletePurchase`, asiento contable best-effort, upsert de producto |
+| `app/api/purchases/route.ts` | API `GET`/`POST` sobre Supabase (tabla `Purchase` + ítems) |
+| `app/api/purchases/[id]/route.ts` | API individual (`GET`/`PUT`/`DELETE`) |
 | `app/api/purchases/reports/route.ts` | Reportes: resumen, mensual, por categoría, por proveedor |
 | `app/api/purchases/export/route.ts` | Exportación de datos |
+| `app/api/purchase-book/route.ts` | Libro de compras legal |
+
+#### Tablas
+
+- `Purchase` — `id`, `supplier_id`, `invoice_number`, `cai`, `invoice_date`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `purchase_type`, `expense_category`, `document_url`, `is_credit`, `due_date`, `status`, `amount_paid`, `balance_due`, `journal_entry_id`, `tenant_id`, `company_id`, `created_at`, `updated_at`
+- `PurchaseItem` — `purchase_id`, `product_id`, `product_code`, `product_name`, `description`, `quantity`, `unit_price`, `discount_percentage`, `discount_amount`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `tenant_id`, `created_at`
+
+#### Regla de Estado (recompute)
+
+`paid` = suma de `SupplierPayment.amount` (si hay pagos) o conserva `amount_paid` (contado sin pagos registrados); `balance` = `total - paid`; estado: `balance <= 0 → PAID`, `paid > 0 → PARTIAL`, crédito sin pagos → `PENDING`, contado sin pagos → `PARTIAL`.
+
+#### Efectos Laterales
+
+- Upsert best-effort del producto en la tabla `product` (stock y costo).
+- Asiento contable best-effort (no bloquea la operación, guarda `journal_entry_id`).
 
 #### Lo que Falta
 
-- **ALMACENAMIENTO EN ARCHIVO JSON** — datos se pierden, no hay respaldo, no escalable
-- Sin integración contable automática
+- Sin integración contable obligatoria (asiento opcional)
 - Sin matching con órdenes de compra
 - Sin workflow de aprobación
 
@@ -105,19 +128,25 @@
 
 ### 2.4 Pagos a Proveedores
 
-**Estado: Parcial (~35%)**
+**Estado: Completo (~85%)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
 | `components/purchases/PaymentManager.tsx` | CRUD de pagos: métodos de pago (efectivo, transferencia, cheque, tarjeta), seguimiento de saldo |
-| `app/api/supplier-payments/route.ts` | API — **LEE/ESCRIBE `supplier-payments.json`** |
-| `app/api/purchases/payments/route.ts` | API de pagos de compras |
+| `app/api/purchases/payments/route.ts` | API `GET`/`POST`/`PUT`/`DELETE` sobre Supabase (tabla `SupplierPayment`) con recálculo automático de saldo/estado |
+
+#### Tablas
+
+- `SupplierPayment` — `id`, `supplier_id`, `purchase_id`, `company_id`, `amount`, `payment_date`, `payment_method`, `reference_number`, `notes`, `is_reconciled`, `tenant_id`, `created_at`, `updated_at`
+
+#### Nota sobre Legacy
+
+- `app/api/supplier-payments/route.ts` sigue en el repo pero escribe en `supplier-payments.json`/`purchases-data.json` (mecanismo anterior). El código actual usa `app/api/purchases/payments/route.ts`; los archivos JSON ya no se referencian.
 
 #### Lo que Falta
 
-- **ALMACENAMIENTO EN ARCHIVO JSON**
 - Sin generación de asiento contable por pago
 - Sin conciliación bancaria de pagos
 
@@ -141,24 +170,24 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Compras, proveedores y pagos usan archivos JSON | Datos no persistentes, no escalable, sin respaldo | **Crítica** |
-| 2 | Sin formulario de creación de órdenes de compra | Funcionalidad incompleta | Crítica |
-| 3 | Sin integración contable de compras | Doble registro manual | Alta |
-| 4 | Sin devoluciones a proveedores | Sin control de calidad | Alta |
+| 1 | Sin formulario de creación de órdenes de compra | Funcionalidad incompleta | Crítica |
+| 2 | Sin integración contable completa (asiento best-effort) | Doble registro manual | Alta |
+| 3 | Sin devoluciones a proveedores | Sin control de calidad | Alta |
+| 4 | Código legacy JSON (route `supplier-payments` + 3 archivos) en repo | Código muerto, riesgo de confusión | Media |
 | 5 | Sin matching 3 vías | Sin control de compras | Media |
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Migración a Base de Datos
+### Etapa 1: Migración a Base de Datos — ✅ Completada (16 Sept 2026)
 
-| # | Tarea | Archivos | Entregable |
-|---|---|---|---|
-| 1.1 | Migrar proveedores de JSON a Supabase | `app/api/suppliers/route.ts` | API con Supabase |
-| 1.2 | Migrar compras de JSON a Supabase | `app/api/purchases/route.ts` | API con Supabase |
-| 1.3 | Migrar pagos de JSON a Supabase | `app/api/supplier-payments/route.ts` | API con Supabase |
-| 1.4 | Script de migración de datos JSON existentes | `scripts/migrate-json-to-supabase.ts` | Migración |
+| # | Tarea | Archivos | Entregable | Estado |
+|---|---|---|---|---|
+| 1.1 | Migrar proveedores de JSON a Supabase | `app/api/suppliers/route.ts` | API con Supabase | ✅ |
+| 1.2 | Migrar compras de JSON a Supabase | `app/api/purchases/route.ts`, `lib/purchase-db.ts` | API con Supabase | ✅ |
+| 1.3 | Migrar pagos de JSON a Supabase | `app/api/purchases/payments/route.ts` | API con Supabase | ✅ |
+| 1.4 | Script de migración de datos JSON existentes | `migrate-purchases-db.mjs` | Migración | ✅ |
 
 ### Etapa 2: Workflow de Compras
 
@@ -172,7 +201,7 @@
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 3.1 | Generar asiento contable por compra | `lib/services/purchase-accounting.ts` | Asiento automático |
+| 3.1 | Generar asiento contable por compra (obligatorio) | `lib/services/purchase-accounting.ts` | Asiento automático |
 | 3.2 | Generar asiento contable por pago | `lib/services/payment-accounting.ts` | Asiento automático |
 | 3.3 | Integración con libro de compras legal | `lib/services/legal-books.ts` | Auto-generación |
 
@@ -188,8 +217,8 @@
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 5.1 | Pruebas de compras y pagos | `__tests__/purchasing/` | Pruebas unitarias |
-| 5.2 | Pruebas E2E de flujo de compras | `__tests__/e2e/purchasing/` | Pruebas E2E |
+| 5.1 | Pruebas automatizadas de compras y pagos | `__tests__/purchasing/` | Pruebas unitarias |
+| 5.2 | Eliminar legacy JSON (route + archivos) | `app/api/supplier-payments/`, `*.json` | Limpieza |
 
 ---
 
@@ -197,12 +226,12 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Migración BD | 4 tareas | Alta | 2-3 semanas |
+| ~~Etapa 1: Migración BD~~ | ~~4 tareas~~ | ~~Alta~~ | ✅ Completada |
 | Etapa 2: Workflow | 3 tareas | Alta | 3-4 semanas |
 | Etapa 3: Contabilidad | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Devoluciones | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total** | **15 tareas** | — | **10-14 semanas** |
+| **Total** | **11 tareas** | — | **8-11 semanas** |
 
 ---
 
@@ -213,5 +242,21 @@
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Compras (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Proveedores en Supabase | `app/api/suppliers/route.ts` (GET/POST/PATCH/DELETE) sobre tabla `Supplier` |
+| Compras en Supabase | `app/api/purchases/*` sobre `Purchase` + `PurchaseItem`, vía `lib/purchase-db.ts` |
+| Pagos en Supabase | `app/api/purchases/payments` sobre `SupplierPayment` con recompute de saldo/estado |
+| Estados normalizados | `PENDING` / `PARTIAL` / `PAID` / `CANCELLED` (mayúsculas en GET) |
+| Recompute PARTIAL | Saldo pendiente tras borrar/editar pago → `PARTIAL` (incl. compras convertidas a contado) |
+| Migraciones SQL | `company_id` texto, RTN 20, 4 FKs — aplicadas en Supabase |
+| Datos migrados | 1 proveedor, 2 compras, 3 ítems, 2 pagos |
+| E2E | 37+ casos PASS sobre HTTP (dev server, Supabase real) |
+| Middleware Clerk | `/api/suppliers`, `/api/purchases/*` y `/api/purchases/payments` son rutas **protegidas**: `auth.protect()` → HTTP 404 sin sesión; se propaga `x-tenant-id` |
+| DDL vía SQL Editor | Sin acceso DDL directo (`DATABASE_URL` → ENOTFOUND); tablas nuevas y migraciones se aplican en el SQL Editor de Supabase |
+| DIAT | El reporte DIAT (`lib/services/diat-generator.ts`, ver `docs/DIAT_REPORT.md`) consume `Purchase` + proveedor para las compras del período |

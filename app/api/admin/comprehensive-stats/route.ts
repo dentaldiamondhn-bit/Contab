@@ -45,8 +45,8 @@ export async function GET(req: NextRequest) {
       supabase.from('Tenant').select('*', { count: 'exact', head: true }).eq('isactive', false),
       supabase.from('User').select('*', { count: 'exact', head: true }),
       supabase.from('User').select('*', { count: 'exact', head: true }).eq('isactive', true),
-      supabase.from('Invoice').select('id, total, status, invoicetype, createdat').gte('createdat', startOfMonth.toISOString()),
-      supabase.from('Invoice').select('id, total, status, createdat').gte('createdat', startOfLastMonth.toISOString()).lte('createdat', endOfLastMonth.toISOString()),
+      supabase.from('Invoice').select('id, total, status, invoiceType, createdAt').gte('createdAt', startOfMonth.toISOString()),
+      supabase.from('Invoice').select('id, total, status, createdAt').gte('createdAt', startOfLastMonth.toISOString()).lte('createdAt', endOfLastMonth.toISOString()),
       supabase.from('Transaction').select('id, totalamount, date, currency').gte('date', startOfMonth.toISOString()),
       supabase.from('SupportTicket').select('id, status, priority, createdat'),
       supabase.from('SupportTicket').select('*', { count: 'exact', head: true }).in('status', ['OPEN', 'IN_PROGRESS']),
@@ -76,9 +76,9 @@ export async function GET(req: NextRequest) {
     const mrr = totalRevenue;
     const revenueGrowth = lastMonthRevenue > 0 ? ((totalRevenue - lastMonthRevenue) / lastMonthRevenue) * 100 : 0;
 
-    const subscriptionInvoices = invoicesResult.data?.filter(i => i.invoicetype === 'SUBSCRIPTION') || [];
-    const customerInvoices = invoicesResult.data?.filter(i => i.invoicetype === 'CUSTOMER') || [];
-    const expenseInvoices = invoicesResult.data?.filter(i => i.invoicetype === 'EXPENSE') || [];
+    const subscriptionInvoices = invoicesResult.data?.filter(i => i.invoiceType === 'SUBSCRIPTION') || [];
+    const customerInvoices = invoicesResult.data?.filter(i => i.invoiceType === 'CUSTOMER') || [];
+    const expenseInvoices = invoicesResult.data?.filter(i => i.invoiceType === 'EXPENSE') || [];
 
     const totalTransactions = transactionsResult.data?.length || 0;
     const totalTransactionVolume = transactionsResult.data?.reduce((sum, t) => sum + (t.totalamount || 0), 0) || 0;
@@ -118,8 +118,8 @@ export async function GET(req: NextRequest) {
       const { data: monthInvoices } = await supabase
         .from('Invoice')
         .select('total, status')
-        .gte('createdat', monthStart.toISOString())
-        .lte('createdat', monthEnd.toISOString());
+        .gte('createdAt', monthStart.toISOString())
+        .lte('createdAt', monthEnd.toISOString());
       const monthRevenue = monthInvoices?.reduce((sum, inv) => {
         if (inv.status === 'ACTIVE' || inv.status === 'PAID') return sum + (inv.total || 0);
         return sum;

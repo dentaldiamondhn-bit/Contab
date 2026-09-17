@@ -207,5 +207,12 @@ Etapa 1 (Conexión de Datos)
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Estados Financieros (16 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Asientos AJUSTE de Notas de Crédito/Débito | NC/ND generan asientos AJUSTE en `/api/accounting/transactions` (4101 Ingresos, 2105 ISV por pagar, contra 1101 Caja / 1103 Clientes; ISV 15% incluido). Impactan el Estado de Resultados (4101) y el Balance General (1101/1103/2105) |
+| Fix API de empresas | `app/api/companies/route.ts` corregido: `SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL` (elimina el HTTP 500) |

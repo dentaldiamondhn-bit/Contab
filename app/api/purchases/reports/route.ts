@@ -1,58 +1,31 @@
 import { NextResponse } from 'next/server';
-import { readFileSync } from 'fs';
-import { join } from 'path';
-
-const DATA_FILE = join(process.cwd(), 'purchases-data.json');
-
-interface Purchase {
-  id: string;
-  [key: string]: any;
-  created_at?: string;
-  invoice_date?: string;
-  total?: number;
-  expense_category?: string;
-  supplier_name?: string;
-  status?: string;
-}
-
-const loadPurchases = (): Purchase[] => {
-  try {
-    if (require('fs').existsSync(DATA_FILE)) {
-      const data = readFileSync(DATA_FILE, 'utf8');
-      return JSON.parse(data);
-    } else {
-      return [];
-    }
-  } catch (error) {
-    console.error('Error loading purchases data:', error);
-    return [];
-  }
-};
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { fetchPurchases } from '@/lib/purchase-db';
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
     const reportType = searchParams.get('type') || 'summary';
-    
-    const purchases = loadPurchases();
-    
-    // Filter by company
-    const filteredPurchases = companyId 
-      ? purchases.filter(p => p.companyId === companyId)
-      : purchases;
-    
+
+    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), { companyId });
+
+    if (error) {
+      console.error('Supabase error:', error);
+      return NextResponse.json({ error: 'Failed to fetch purchases' }, { status: 500 });
+    }
+
     switch (reportType) {
       case 'summary':
-        return generateSummaryReport(filteredPurchases);
+        return generateSummaryReport(purchases || []);
       case 'monthly':
-        return generateMonthlyReport(filteredPurchases);
+        return generateMonthlyReport(purchases || []);
       case 'category':
-        return generateCategoryReport(filteredPurchases);
+        return generateCategoryReport(purchases || []);
       case 'supplier':
-        return generateSupplierReport(filteredPurchases);
+        return generateSupplierReport(purchases || []);
       default:
-        return generateSummaryReport(filteredPurchases);
+        return generateSummaryReport(purchases || []);
     }
   } catch (error) {
     console.error('Error generating report:', error);
@@ -60,14 +33,14 @@ export async function GET(request: Request) {
   }
 }
 
-function generateSummaryReport(purchases: Purchase[]) {
+function generateSummaryReport(purchases: any[]) {
   const total = purchases.reduce((sum, p) => sum + (p.total || 0), 0);
-  const pending = purchases.filter(p => p.status === 'pending').length;
-  const completed = purchases.filter(p => p.status === 'completed').length;
+  const pending = purchases.filter(p => p.status === 'PENDING' || p.status === 'PARTIAL').length;
+  const completed = purchases.filter(p => p.status === 'PAID').length;
   const thisMonth = purchases.filter(p => {
     const purchaseDate = new Date(p.invoice_date || p.created_at || '');
     const now = new Date();
-    return purchaseDate.getMonth() === now.getMonth() && 
+    return purchaseDate.getMonth() === now.getMonth() &&
            purchaseDate.getFullYear() === now.getFullYear();
   }).reduce((sum, p) => sum + (p.total || 0), 0);
 
@@ -81,17 +54,17 @@ function generateSummaryReport(purchases: Purchase[]) {
   });
 }
 
-function generateMonthlyReport(purchases: Purchase[]) {
+function generateMonthlyReport(purchases: any[]) {
   const monthlyData: { [key: string]: { count: number; total: number } } = {};
-  
+
   purchases.forEach(purchase => {
     const date = new Date(purchase.invoice_date || purchase.created_at || '');
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-    
+
     if (!monthlyData[monthKey]) {
       monthlyData[monthKey] = { count: 0, total: 0 };
     }
-    
+
     monthlyData[monthKey].count++;
     monthlyData[monthKey].total += purchase.total || 0;
   });
@@ -107,16 +80,16 @@ function generateMonthlyReport(purchases: Purchase[]) {
   return NextResponse.json(monthlyReport);
 }
 
-function generateCategoryReport(purchases: Purchase[]) {
+function generateCategoryReport(purchases: any[]) {
   const categoryData: { [key: string]: { count: number; total: number } } = {};
-  
+
   purchases.forEach(purchase => {
     const category = purchase.expense_category || 'Sin categoría';
-    
+
     if (!categoryData[category]) {
       categoryData[category] = { count: 0, total: 0 };
     }
-    
+
     categoryData[category].count++;
     categoryData[category].total += purchase.total || 0;
   });
@@ -131,16 +104,16 @@ function generateCategoryReport(purchases: Purchase[]) {
   return NextResponse.json(categoryReport);
 }
 
-function generateSupplierReport(purchases: Purchase[]) {
+function generateSupplierReport(purchases: any[]) {
   const supplierData: { [key: string]: { count: number; total: number; name: string } } = {};
-  
+
   purchases.forEach(purchase => {
     const supplier = purchase.supplier_name || 'Proveedor desconocido';
-    
+
     if (!supplierData[supplier]) {
       supplierData[supplier] = { count: 0, total: 0, name: supplier };
     }
-    
+
     supplierData[supplier].count++;
     supplierData[supplier].total += purchase.total || 0;
   });

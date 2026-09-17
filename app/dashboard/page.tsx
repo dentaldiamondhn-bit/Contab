@@ -30,7 +30,7 @@ import InvoiceStats from "@/components/dashboard/InvoiceStats";
 import InventoryStats from "@/components/dashboard/InventoryStats";
 
 export default function DashboardPage() {
-  const { currentTenant } = useTenant();
+  const { currentTenant, currentCompany } = useTenant();
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -97,12 +97,12 @@ export default function DashboardPage() {
 
       {/* Estadísticas de Facturación */}
       {currentTenant && (
-        <InvoiceStats tenantId={currentTenant.id} />
+        <InvoiceStats tenantId={currentTenant.id} companyId={currentCompany?.id} />
       )}
 
       {/* Estadísticas de Inventario */}
       {currentTenant && (
-        <InventoryStats tenantId={currentTenant.id} />
+        <InventoryStats tenantId={currentTenant.id} companyId={currentCompany?.id} />
       )}
 
       

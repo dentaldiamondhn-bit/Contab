@@ -38,7 +38,7 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
   }
 
-  if (isAdminRoute(req)) {
+  if (isAdminRoute(req) && !isPublicRoute(req)) {
     if (!userId) {
       return NextResponse.redirect(new URL("/auth/login", req.url));
     }
@@ -49,10 +49,9 @@ export default clerkMiddleware(async (auth, req) => {
   }
 
   const isDashboardRoute = pathname === '/dashboard' || pathname.startsWith('/dashboard/');
-  if (isDashboardRoute && !isPublicRoute(req)) {
-    if (isSuperAdmin) {
-      return NextResponse.redirect(new URL("/admin/dashboard", req.url));
-    }
+  const hasImpersonationCookie = !!req.cookies.get('impersonated_tenant_id')?.value;
+  if (isDashboardRoute && !isPublicRoute(req) && isSuperAdmin && !hasImpersonationCookie) {
+    return NextResponse.redirect(new URL("/admin/dashboard", req.url));
   }
 
   const requestHeaders = new Headers(req.headers);

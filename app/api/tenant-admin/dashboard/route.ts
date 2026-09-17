@@ -8,6 +8,8 @@ export async function GET(req: NextRequest) {
     if (!userId) return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
 
     const tenantId = req.nextUrl.searchParams.get('tenantId');
+    const companyId = req.nextUrl.searchParams.get('companyId');
+    console.log('DEBUG API tenant-admin/dashboard:', { tenantId, companyId });
     if (!tenantId) return NextResponse.json({ error: 'tenantId requerido' }, { status: 400 });
 
     const supabase = createServiceRoleClient();
@@ -16,19 +18,24 @@ export async function GET(req: NextRequest) {
     const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString();
     const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString();
 
-    // 1. Invoices (ventas del mes)
-    const { data: currentInvoices } = await supabase
-      .from('Invoice')
-      .select('id,total,status,createdAt,customername')
-      .eq('tenantid', tenantId)
-      .gte('createdAt', currentMonthStart);
+    // Helper para agregar filtro de company_id (snake_case en BD)
+    const withCompany = (query: any) => companyId ? query.eq('company_id', companyId) : query;
 
-    const { data: prevInvoices } = await supabase
-      .from('Invoice')
-      .select('id,total,status,createdAt')
-      .eq('tenantid', tenantId)
-      .gte('createdAt', prevMonthStart)
-      .lte('createdAt', prevMonthEnd);
+    // 1. Invoices (ventas del mes)
+    const { data: currentInvoices } = await withCompany(
+      supabase.from('Invoice')
+        .select('id,total,status,createdAt,customerName')
+        .eq('tenantId', tenantId)
+        .gte('createdAt', currentMonthStart)
+    );
+
+    const { data: prevInvoices } = await withCompany(
+      supabase.from('Invoice')
+        .select('id,total,status,createdAt')
+        .eq('tenantId', tenantId)
+        .gte('createdAt', prevMonthStart)
+        .lte('createdAt', prevMonthEnd)
+    );
 
     const currentSales = (currentInvoices || [])
       .filter((i: any) => i.status !== 'CANCELLED')
@@ -38,11 +45,12 @@ export async function GET(req: NextRequest) {
       .reduce((sum: number, i: any) => sum + (Number(i.total) || 0), 0);
 
     // 2. Cuentas por cobrar (pending invoices)
-    const { data: pendingInvoices } = await supabase
-      .from('Invoice')
-      .select('id,total,status,createdAt')
-      .eq('tenantid', tenantId)
-      .in('status', ['PENDING', 'ACTIVE', 'SENT']);
+    const { data: pendingInvoices } = await withCompany(
+      supabase.from('Invoice')
+        .select('id,total,status,createdAt')
+        .eq('tenantId', tenantId)
+        .in('status', ['PENDING', 'ACTIVE', 'SENT'])
+    );
 
     const accountsReceivable = (pendingInvoices || [])
       .reduce((sum: number, i: any) => sum + (Number(i.total) || 0), 0);
@@ -59,10 +67,11 @@ export async function GET(req: NextRequest) {
     });
 
     // 4. Accounts payable (from accounting EGRESO transactions without matching payment)
-    const { data: accounts } = await supabase
-      .from('Account')
-      .select('id,code,name,type')
-      .eq('tenantid', tenantId);
+    const { data: accounts } = await withCompany(
+      supabase.from('Account')
+        .select('id,code,name,type')
+        .eq('tenantId', tenantId)
+    );
 
     const payableAccountIds = (accounts || [])
       .filter((a: any) => a.code?.startsWith('2.1') || a.type === 'LIABILITY')
@@ -102,21 +111,23 @@ export async function GET(req: NextRequest) {
       const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59).toISOString();
       const monthLabel = new Date(now.getFullYear(), now.getMonth() - i, 1).toLocaleDateString('es-HN', { month: 'short' });
 
-      const { data: monthIncomes } = await supabase
-        .from('Invoice')
-        .select('total')
-        .eq('tenantid', tenantId)
-        .gte('createdAt', monthStart)
-        .lte('createdAt', monthEnd)
-        .neq('status', 'CANCELLED');
+      const { data: monthIncomes } = await withCompany(
+        supabase.from('Invoice')
+          .select('total')
+          .eq('tenantId', tenantId)
+          .gte('createdAt', monthStart)
+          .lte('createdAt', monthEnd)
+          .neq('status', 'CANCELLED')
+      );
 
-      const { data: monthExpenses } = await supabase
-        .from('Transaction')
-        .select('totalamount')
-        .eq('tenantid', tenantId)
-        .eq('type', 'EGRESO')
-        .gte('date', monthStart)
-        .lte('date', monthEnd);
+      const { data: monthExpenses } = await withCompany(
+        supabase.from('Transaction')
+          .select('totalamount')
+          .eq('tenantid', tenantId)
+          .eq('type', 'EGRESO')
+          .gte('date', monthStart)
+          .lte('date', monthEnd)
+      );
 
       const ingresos = (monthIncomes || []).reduce((s: number, i: any) => s + (Number(i.total) || 0), 0);
       const egresos = (monthExpenses || []).reduce((s: number, e: any) => s + (Math.abs(Number(e.totalamount)) || 0), 0);
@@ -127,7 +138,7 @@ export async function GET(req: NextRequest) {
     // 7. Top clients
     const clientMap: Record<string, { name: string, total: number, count: number }> = {};
     (currentInvoices || []).forEach((inv: any) => {
-      const name = inv.customername || 'Sin nombre';
+      const name = inv.customerName || 'Sin nombre';
       if (!clientMap[name]) clientMap[name] = { name, total: 0, count: 0 };
       clientMap[name].total += Number(inv.total) || 0;
       clientMap[name].count++;
@@ -137,10 +148,11 @@ export async function GET(req: NextRequest) {
       .slice(0, 5);
 
     // 8. Users count
-    const { count: totalUsers } = await supabase
-      .from('User')
-      .select('*', { count: 'exact', head: true })
-      .eq('tenantid', tenantId);
+    const { count: totalUsers } = await withCompany(
+      supabase.from('User')
+        .select('*', { count: 'exact', head: true })
+        .eq('tenantid', tenantId)
+    );
 
     // 9. Tax alerts (simplified - next ISV declaration dates)
     const taxAlerts = [];

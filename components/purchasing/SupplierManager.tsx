@@ -20,6 +20,7 @@ import {
   Download
 } from "lucide-react";
 import { createSupabaseClient } from "@/lib/supabase/client";
+import { dbToLegacySuppliers, legacySupplierToDb } from "@/lib/inventory/schema-map";
 
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 interface SupplierManagerProps {
@@ -100,12 +101,13 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
       const { data, error } = await supabase
         .from('Supplier')
         .select('*')
-        .eq('isActive', true)
+        .eq('tenant_id', tenantId)
+        .eq('is_active', true)
         .order('name');
 
       if (error) throw error;
 
-      setSuppliers(data || []);
+      setSuppliers(dbToLegacySuppliers(data));
     } catch (error: any) {
       console.error("Error loading suppliers:", error);
       alert("Error al cargar los proveedores");
@@ -142,15 +144,15 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
         return;
       }
 
-      const supplierData = {
-        tenantId,
+      const supplierData = legacySupplierToDb({
+        tenant_id: tenantId,
         rtn: supplierForm.rtn,
         name: supplierForm.name,
         email: supplierForm.email || null,
         phone: supplierForm.phone || null,
         address: supplierForm.address || null,
-        creditLimit: supplierForm.creditLimit * 100 // Convertir a centavos
-      };
+        credit_limit: supplierForm.creditLimit * 100 // Convertir a centavos
+      });
 
       if (editingSupplier) {
         // Actualizar proveedor existente

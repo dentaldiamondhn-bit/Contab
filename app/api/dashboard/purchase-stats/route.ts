@@ -6,6 +6,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId');
+    const companyId = searchParams.get('companyId');
 
     if (!tenantId) {
       return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
@@ -23,7 +24,12 @@ export async function GET(request: Request) {
     }
 
     // Filter by tenant
-    const tenantPurchases = purchases.filter(p => p.companyId === tenantId);
+    let tenantPurchases = purchases.filter(p => p.companyId === tenantId);
+
+    // Filter by company if provided
+    if (companyId) {
+      tenantPurchases = tenantPurchases.filter(p => p.companyId === companyId);
+    }
 
     const now = new Date();
     const currentMonth = now.getMonth();

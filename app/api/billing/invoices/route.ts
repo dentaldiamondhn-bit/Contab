@@ -1,189 +1,251 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { randomUUID } from "node:crypto";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { resolveAccountId, ACCOUNT_PREFIXES } from "@/lib/accounting/resolve-account";
+
+const LEGACY_STATUS: Record<string, string> = {
+  PAID: "PAGADA",
+  PENDING: "PENDIENTE",
+  CANCELLED: "ANULADA",
+  OVERDUE: "VENCIDA",
+};
+
+const CANONICAL_STATUS: Record<string, string> = {
+  PAGADA: "PAID",
+  PENDIENTE: "PENDING",
+  ANULADA: "CANCELLED",
+  VENCIDA: "OVERDUE",
+};
+
+async function getAuthTenantId(): Promise<string | null> {
+  try {
+    const { auth } = await import("@clerk/nextjs/server");
+    const { userId } = await auth();
+    if (!userId) return null;
+    const { data } = await (supabaseService as any)
+      .from("User")
+      .select("tenantid")
+      .eq("authid", userId)
+      .maybeSingle();
+    if (data?.tenantid) return data.tenantid;
+    const { data: u2 } = await (supabaseService as any)
+      .from("users")
+      .select("tenant_id")
+      .eq("auth_id", userId)
+      .maybeSingle();
+    return (u2 as any)?.tenant_id || null;
+  } catch {
+    return null;
+  }
+}
+
+async function postSalesJournal(params: {
+  tenantId: string;
+  invoiceNumber: string;
+  date: string;
+  customerName: string;
+  paymentMethod: string;
+  subtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+}) {
+  const { tenantId, invoiceNumber, date, customerName, paymentMethod, subtotalCents, taxCents, totalCents } = params;
+
+  const counterPrefixes = paymentMethod === "cash" ? ACCOUNT_PREFIXES.cash : ACCOUNT_PREFIXES.receivable;
+  const [counter, sales, tax] = await Promise.all([
+    resolveAccountId(tenantId, counterPrefixes),
+    resolveAccountId(tenantId, ACCOUNT_PREFIXES.sales),
+    resolveAccountId(tenantId, ACCOUNT_PREFIXES.isv),
+  ]);
+
+  if (!counter || !sales) {
+    console.warn(
+      `[billing/invoices] Cuentas contables no encontradas para tenant ${tenantId} (counter=${counterPrefixes[0]}, sales=${ACCOUNT_PREFIXES.sales[0]}). Asiento omitido.`
+    );
+    return;
+  }
+
+  const entries: Array<{ accountId: string; amount: number; isDebit: boolean }> = [
+    { accountId: counter, amount: totalCents, isDebit: true },
+  ];
+
+  if (taxCents !== 0 && tax) {
+    entries.push({ accountId: tax, amount: -taxCents, isDebit: false });
+    entries.push({ accountId: sales, amount: -subtotalCents, isDebit: false });
+  } else {
+    entries.push({ accountId: sales, amount: -(subtotalCents + taxCents), isDebit: false });
+  }
+
+  const balance = entries.reduce((sum, e) => sum + e.amount, 0);
+  if (balance !== 0) {
+    console.warn(`[billing/invoices] Asiento desbalanceado (${balance}); se omite.`);
+    return;
+  }
+
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+  try {
+    const response = await fetch(`${baseUrl}/api/accounting/transactions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
+      body: JSON.stringify({
+        description: `Factura ${invoiceNumber} - ${customerName}`,
+        currency: "HNL",
+        date,
+        voucherType: "INGRESO",
+        entries,
+      }),
+    });
+    if (!response.ok) {
+      console.error("[billing/invoices] Error asiento contable:", await response.text());
+    }
+  } catch (error: any) {
+    console.error("[billing/invoices] Error de red en asiento contable:", error?.message);
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
     const invoiceData = await request.json();
-    
-    console.log("INVOICE DATA RECEIVED:", JSON.stringify(invoiceData, null, 2));
-    
-    const supabase = createSupabaseClient();
-    
-    // Determinar tenantId (viene del POS, o del auth)
-    let tenantIdForInvoice: string | null = invoiceData.tenantId || null;
-    if (!tenantIdForInvoice) {
-      try {
-        const { auth } = await import('@clerk/nextjs/server');
-        const { userId } = await auth();
-        if (userId) {
-          const { createClient } = await import('@supabase/supabase-js');
-          const supaSrv = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-          const { data: u } = await supaSrv.from('User').select('tenantid').eq('authid', userId).maybeSingle();
-          if (u?.tenantid) tenantIdForInvoice = u.tenantid;
-        }
-      } catch {}
-    }
-    if (!tenantIdForInvoice) tenantIdForInvoice = '1';
 
-    // Si el invoiceNumber ya existe (global unique), generar uno nuevo incrementando globalmente
-    let invoiceNumberToUse = invoiceData.invoiceNumber;
-    if (invoiceNumberToUse) {
-      const { data: existing } = await supabase.from("invoice").select("id").eq("invoice_number", invoiceNumberToUse).maybeSingle() as any;
-      if (existing) {
-        const base = invoiceNumberToUse.split('-').slice(0,3).join('-');
-        const { data: maxRows } = await supabase.from("invoice").select("invoice_number").ilike("invoice_number", `${base}-%`).order("invoice_number", {ascending:false}).limit(1) as any;
-        const last = maxRows?.[0]?.invoice_number;
-        let nextSeq = 1;
-        if (last) {
-          const parts = last.split('-');
-          const lastNum = parseInt(parts[3] || "0");
-          nextSeq = lastNum + 1;
-        }
-        invoiceNumberToUse = `${base}-${String(nextSeq).padStart(8,'0')}`;
+    let tenantId: string | null = invoiceData.tenantId || null;
+    if (!tenantId) tenantId = await getAuthTenantId();
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "tenantId requerido", details: "No se pudo determinar el tenant de la factura" },
+        { status: 400 }
+      );
+    }
+
+    const { data: tenant } = await (supabaseService as any)
+      .from("Tenant")
+      .select("businessname,businessrtn,businessaddress")
+      .eq("id", tenantId)
+      .maybeSingle();
+
+    // Número de factura: si ya existe (global unique), generar el siguiente de la serie
+    let invoiceNumber: string = invoiceData.invoiceNumber || `FAC-${Date.now()}`;
+    const { data: existing } = await (supabaseService as any)
+      .from("Invoice")
+      .select("id")
+      .eq("invoiceNumber", invoiceNumber)
+      .maybeSingle();
+    if (existing) {
+      const parts = invoiceNumber.split("-");
+      const base = parts.slice(0, 3).join("-");
+      const { data: maxRows } = await (supabaseService as any)
+        .from("Invoice")
+        .select("invoiceNumber")
+        .ilike("invoiceNumber", `${base}-%`)
+        .order("invoiceNumber", { ascending: false })
+        .limit(1);
+      const last = maxRows?.[0]?.invoiceNumber as string | undefined;
+      let nextSeq = 1;
+      if (last) {
+        nextSeq = parseInt(last.split("-")[3] || "0", 10) + 1;
       }
+      invoiceNumber = `${base}-${String(nextSeq).padStart(8, "0")}`;
     }
 
-    // Crear la factura — usar service_role para bypass RLS
+    const now = new Date();
+    const issueDate = (invoiceData.date ? new Date(invoiceData.date) : now).toISOString().slice(0, 10);
+    const subtotal = Number(invoiceData.totals?.subtotal || 0);
+    const tax = Number(invoiceData.totals?.tax15 || 0) + Number(invoiceData.totals?.tax18 || 0);
+    const total = Number(invoiceData.totals?.total || 0);
+    const id = randomUUID();
+
     const { data: invoice, error: invoiceError } = await (supabaseService as any)
-      .from("invoice")
+      .from("Invoice")
       .insert({
-        invoice_number: invoiceNumberToUse,
-        cai: invoiceData.cai,
-        customer_rtn: invoiceData.customer.rtn,
-        customer_name: invoiceData.customer.name,
-        subtotal: invoiceData.totals.subtotal * 100, // Convertir a centavos
-        tax_15: invoiceData.totals.tax15 * 100,
-        tax_18: invoiceData.totals.tax18 * 100,
-        total: invoiceData.totals.total * 100,
-        payment_method: invoiceData.paymentMethod,
-        payment_reference: invoiceData.paymentReference,
-        status: 'PAGADA',
-        date: invoiceData.date,
-        tenant_id: tenantIdForInvoice
+        id,
+        tenantId,
+        invoiceNumber,
+        invoiceType: "CUSTOMER",
+        status: "PAID",
+        customerName: invoiceData.customer?.name || "Consumidor Final",
+        customerRTN: String(invoiceData.customer?.rtn || "").slice(0, 20),
+        customerEmail: null,
+        customerAddress: null,
+        issuerName: tenant?.businessname || "Emisor",
+        issuerRTN: String(tenant?.businessrtn || "").slice(0, 20),
+        issuerAddress: tenant?.businessaddress || null,
+        issueDate,
+        dueDate: issueDate,
+        cai: invoiceData.cai || null,
+        subtotal,
+        tax,
+        total,
+        currency: "HNL",
+        taxRate: 15,
+        notes: invoiceData.paymentReference || null,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
       })
       .select()
       .single();
-    
+
     if (invoiceError) {
       console.error("Error creating invoice:", invoiceError);
       return NextResponse.json(
-        { 
-          error: "Error creating invoice", 
-          details: invoiceError.message,
-          code: invoiceError.code,
-          hint: invoiceError.hint
-        },
+        { error: "Error creating invoice", details: invoiceError.message, code: invoiceError.code, hint: invoiceError.hint },
         { status: 500 }
       );
     }
-    
-    // Crear los items de la factura
-    const invoiceItems = invoiceData.items.map((item: any) => ({
-      invoice_id: invoice.id,
-      product_code: item.code,
-      product_name: item.name,
-      quantity: item.quantity,
-      unit_price: item.unitPrice * 100,
-      tax_rate: item.taxRate,
-      discount: item.discount,
-      subtotal: item.subtotal * 100,
-      tax_amount: item.taxAmount * 100,
-      total: item.total * 100
-    }));
-    
-    const { error: itemsError } = await supabaseService
-      .from("invoiceitem")
-      .insert(invoiceItems);
-    
-    if (itemsError) {
-      console.error("Error creating invoice items:", JSON.stringify(itemsError, null, 2));
-      console.error("invoiceItems payload:", JSON.stringify(invoiceItems, null, 2));
-      return NextResponse.json(
-        { error: "Error creating invoice items", details: itemsError.message, code: (itemsError as any).code, hint: (itemsError as any).hint },
-        { status: 500 }
-      );
+
+    const itemsPayload = (invoiceData.items || [])
+      .filter((item: any) => item && (item.name || item.code))
+      .map((item: any) => ({
+        id: randomUUID(),
+        invoiceId: id,
+        description: item.name || item.code || "Item",
+        quantity: Number(item.quantity || 1),
+        unitPrice: Number(item.unitPrice || 0),
+        total: Number(item.total || 0),
+        taxRate: Number(item.taxRate ?? 15),
+        taxAmount: Number(item.taxAmount || 0),
+        isTaxable: (item.taxRate ?? 15) > 0,
+        productCode: item.code || null,
+        serviceCode: null,
+        createdAt: now.toISOString(),
+        updatedAt: now.toISOString(),
+      }));
+
+    if (itemsPayload.length > 0) {
+      const { error: itemsError } = await (supabaseService as any).from("InvoiceItem").insert(itemsPayload);
+      if (itemsError) {
+        console.error("Error creating invoice items:", itemsError);
+        await (supabaseService as any).from("Invoice").delete().eq("id", id);
+        return NextResponse.json(
+          { error: "Error creating invoice items", details: itemsError.message, code: itemsError.code, hint: itemsError.hint },
+          { status: 500 }
+        );
+      }
     }
-    
-    // Actualizar el número del CAI (por tenant)
-    const nextNumber = parseInt(invoiceNumberToUse.split('-')[3]) + 1;
-    let caiQ = (supabase as any).from("cai").update({ current_number: nextNumber }).eq("cai", invoiceData.cai);
-    if (tenantIdForInvoice) caiQ = caiQ.eq("tenant_id", tenantIdForInvoice);
-    await caiQ;
-    
-    // Generar asiento contable automático
-    const journalEntries = [];
-    
-    // Cuenta de Clientes (si es crédito) o Caja (si es efectivo)
-    if (invoiceData.paymentMethod === 'cash') {
-      journalEntries.push({
-        accountId: '1101', // Caja
-        amount: invoiceData.totals.total * 100,
-        type: 'DEBIT'
-      });
-    } else {
-      journalEntries.push({
-        accountId: '1103', // Clientes
-        amount: invoiceData.totals.total * 100,
-        type: 'DEBIT'
-      });
+
+    // Actualizar el correlativo del CAI (por tenant)
+    if (invoiceData.cai) {
+      const nextNumber = parseInt(invoiceNumber.split("-")[3] || "0", 10) + 1;
+      await (supabaseService as any)
+        .from("cai")
+        .update({ current_number: nextNumber })
+        .eq("cai", invoiceData.cai)
+        .eq("tenant_id", tenantId);
     }
-    
-    // Ventas (Haber)
-    journalEntries.push({
-      accountId: '4101', // Ventas
-      amount: invoiceData.totals.subtotal * 100,
-      type: 'CREDIT'
+
+    // Asiento contable automático (best-effort, no bloquea la emisión)
+    await postSalesJournal({
+      tenantId,
+      invoiceNumber,
+      date: issueDate,
+      customerName: invoiceData.customer?.name || "Consumidor Final",
+      paymentMethod: invoiceData.paymentMethod || "cash",
+      subtotalCents: Math.round(subtotal * 100),
+      taxCents: Math.round(tax * 100),
+      totalCents: Math.round(total * 100),
     });
-    
-    // ISV por Pagar (Haber)
-    if (invoiceData.totals.tax15 > 0) {
-      journalEntries.push({
-        accountId: '2105', // ISV por Pagar 15%
-        amount: invoiceData.totals.tax15 * 100,
-        type: 'CREDIT'
-      });
-    }
-    
-    if (invoiceData.totals.tax18 > 0) {
-      journalEntries.push({
-        accountId: '2106', // ISV por Pagar 18%
-        amount: invoiceData.totals.tax18 * 100,
-        type: 'CREDIT'
-      });
-    }
-    
-    // Llamar a la función RPC existente - usar URL base del request
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-    const transactionResponse = await fetch(`${baseUrl}/api/accounting/transactions`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-tenant-id': tenantIdForInvoice || '' },
-      body: JSON.stringify({
-        tenant_id: tenantIdForInvoice,
-        voucherType: 'INGRESO',
-        voucherNumber: `FAC-${invoiceNumberToUse}`,
-        date: invoiceData.date,
-        description: `Factura ${invoiceNumberToUse} - ${invoiceData.customer.name}`,
-        reference: invoiceData.paymentReference,
-        journalEntries
-      })
-    });
-    
-    if (!transactionResponse.ok) {
-      console.error("Error creating accounting entry:", await transactionResponse.text());
-    }
-    
-    return NextResponse.json({ 
-      success: true, 
-      invoice,
-      message: "Factura emitida exitosamente" 
-    });
-    
+
+    return NextResponse.json({ success: true, invoice, message: "Factura emitida exitosamente" });
   } catch (error: any) {
-    console.error("=== ERROR IN INVOICE POST ===");
-    console.error("Error message:", error?.message);
-    console.error("Error stack:", error?.stack);
-    console.error("Full error:", JSON.stringify(error, null, 2));
+    console.error("=== ERROR IN INVOICE POST ===", error?.message);
     return NextResponse.json(
       { error: "Internal server error", details: error?.message },
       { status: 500 }
@@ -196,87 +258,76 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const startDate = searchParams.get("startDate");
     const endDate = searchParams.get("endDate");
-    const status = searchParams.get("status");
-    
-    const supabase = createSupabaseClient();
-    
-    // Obtener tenant del usuario autenticado (no hardcodear "1")
-    let tenantId: string | null = null;
-    try {
-      const { auth } = await import('@clerk/nextjs/server');
-      const { userId } = await auth();
-      if (userId) {
-        const { createClient } = await import('@supabase/supabase-js');
-        const supaSrv = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!);
-        const { data: u } = await supaSrv.from('User').select('tenantid').eq('authid', userId).maybeSingle();
-        if (u?.tenantid) tenantId = u.tenantid;
-        else {
-          const { data: u2 } = await supaSrv.from('users').select('tenant_id').eq('auth_id', userId).maybeSingle();
-          if ((u2 as any)?.tenant_id) tenantId = (u2 as any).tenant_id;
-        }
-      }
-    } catch {}
+    const statusParam = searchParams.get("status");
+    const typeParam = searchParams.get("type");
+    const limitParam = searchParams.get("limit");
 
-    let query = supabase
-      .from("invoice")
-      .select(`
-        *,
-        InvoiceItem (
-          product_code,
-          product_name,
-          quantity,
-          unit_price,
-          tax_rate,
-          discount,
-          subtotal,
-          tax_amount,
-          total
-        )
-      `)
-      .order("date", { ascending: false });
+    const tenantId = searchParams.get("tenantId") || (await getAuthTenantId());
+    if (!tenantId) return NextResponse.json([]);
 
-    if (tenantId) {
-      query = query.eq("tenant_id", tenantId);
-    } else {
-      // Sin tenant, devolver vacío en vez de 500 para que el frontend no rompa
-      return NextResponse.json([]);
-    }
-    
-    if (startDate) {
-      query = query.gte("date", startDate);
-    }
-    if (endDate) {
-      query = query.lte("date", endDate);
-    }
-    if (status) {
-      query = query.eq("status", status);
-    }
-    
+    let query = (supabaseService as any)
+      .from("Invoice")
+      .select("*")
+      .eq("tenantId", tenantId)
+      .order("issueDate", { ascending: false });
+
+    if (typeParam) query = query.eq("invoiceType", typeParam);
+    if (startDate) query = query.gte("issueDate", startDate);
+    if (endDate) query = query.lte("issueDate", endDate);
+    if (statusParam) query = query.eq("status", CANONICAL_STATUS[statusParam] || statusParam);
+    if (limitParam) query = query.limit(parseInt(limitParam, 10));
+
     const { data: invoices, error } = await query;
-    
     if (error) {
       console.error("Error fetching invoices:", error);
       return NextResponse.json([]);
     }
-    
-    // Convertir centavos a lempiras
-    const formattedInvoices = invoices?.map((invoice: any) => ({
-      ...invoice,
-      subtotal: invoice.subtotal / 100,
-      tax_15: invoice.tax_15 / 100,
-      tax_18: invoice.tax_18 / 100,
-      total: invoice.total / 100,
-      InvoiceItem: invoice.InvoiceItem?.map((item: any) => ({
-        ...item,
-        unit_price: item.unit_price / 100,
-        subtotal: item.subtotal / 100,
-        tax_amount: item.tax_amount / 100,
-        total: item.total / 100
-      }))
-    }));
-    
-    return NextResponse.json(formattedInvoices);
-    
+
+    const ids = (invoices || []).map((i: any) => i.id);
+    let items: any[] = [];
+    if (ids.length > 0) {
+      const { data: itemsData } = await (supabaseService as any)
+        .from("InvoiceItem")
+        .select("*")
+        .in("invoiceId", ids);
+      items = itemsData || [];
+    }
+
+    const formatted = (invoices || []).map((inv: any) => {
+      const invoiceItems = items
+        .filter((it) => it.invoiceId === inv.id)
+        .map((it) => ({
+          ...it,
+          product_code: it.productCode,
+          product_name: it.description,
+          unit_price: it.unitPrice,
+          tax_rate: it.taxRate,
+          tax_amount: it.taxAmount,
+          subtotal: it.total,
+        }));
+
+      const status =
+        inv.invoiceType === "CUSTOMER"
+          ? LEGACY_STATUS[inv.status] || inv.status
+          : inv.status;
+
+      return {
+        ...inv,
+        invoice_number: inv.invoiceNumber,
+        customer_name: inv.customerName,
+        customer_rtn: inv.customerRTN,
+        customer_email: inv.customerEmail,
+        date: inv.issueDate,
+        due_date: inv.dueDate,
+        tax_15: inv.tax,
+        tax_18: 0,
+        status_code: inv.status,
+        status,
+        InvoiceItem: invoiceItems,
+      };
+    });
+
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error("Error in invoice GET route:", error);
     return NextResponse.json([]);

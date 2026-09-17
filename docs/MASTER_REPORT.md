@@ -1,8 +1,8 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 15 de Septiembre de 2026
+> **Fecha:** 16 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
-> **Versión del Análisis:** 1.4
+> **Versión del Análisis:** 1.7
 
 ---
 
@@ -12,19 +12,55 @@
 |---|---|---|---|---|
 | 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~83% | Parcial | Alta |
 | 2 | Control de Asistencia | ~95% | Completo | Alta |
-| 3 | Facturación y Ventas | ~55% | Parcial | Crítica |
+| 3 | Facturación y Ventas | ~70% | Parcial | Crítica |
 | 4 | Inventario | ~55% | Parcial | Alta |
-| 5 | Compras y Proveedores | ~35% | **Básico** | **Crítica** |
+| 5 | Compras y Proveedores | ~60% | Parcial | Alta |
 | 6 | Control Financiero | ~35% | Parcial | Alta |
 | 7 | Reportes y Análisis | ~75% | Completo | Media |
 | 8 | Seguridad y Control | ~80% | Completo | Media |
 | 9 | Otras Características | ~35% | Básico | Media |
-| 10 | Integración Fiscal | ~55% | Parcial | Crítica |
+| 10 | Integración Fiscal | ~75% | Parcial | Crítica |
 | 11 | Recursos Humanos | ~95% | Completo | Alta |
 
 **Promedio General del Sistema: ~69%**
 
-### Notas de Actualización (15 Sept 2026)
+### Notas de Actualización (16 Sept 2026)
+
+#### Consolidación de Esquema de Datos — Migraciones 007 + 008 (16 Sept 2026)
+- **Objetivo** — Eliminar el esquema dual (duplicados PascalCase/lowercase) dejando una única fuente de verdad por entidad. Ambas migraciones se ejecutaron y verificaron en Supabase el 16 Sept 2026.
+- **007 — Facturas** (`scripts/migrations/007_consolidate_invoice_schema.sql`) — Tablas canónicas **`Invoice` / `InvoiceItem` / `InvoicePayment` / `InvoiceNote`** (PascalCase, DECIMAL). Se migró el POS legacy y se eliminaron `invoice`, `invoiceitem`, `invoices`, `invoice_items`. Vistas fiscales recreadas: `libro_ventas`, `libro_compras`, `resumen_isv`, `declaracion_mensual`, `top_clientes`, `cuentas_por_cobrar`, `cuentas_por_pagar`, `"InvoiceSummary"`. Code repointed: `app/api/billing/invoices/route.ts`, `.../generate-current/route.ts`, `lib/billing/invoice-generator.ts`, `lib/services/notes-service.ts`, vistas de stats de dashboard/admin, `supabase/REPORT_VIEWS.sql`.
+- **008 — Inventario** (`scripts/migrations/008_consolidate_inventory_schema.sql`) — Tablas canónicas **`product` / `inventory_movement`** (snake_case). Se migraron `"Product"`, `"Products"` y `products`; se eliminaron además `"InventoryMovement"` y `"InventoryTransaction"`. **`"Products"` era una VISTA** sobre `"Product"` (no una tabla) y se borró con `DROP VIEW`. La vista `"PackageDetails"` (dependía de `"Product"`) se recreó sobre `product`. FKs repuntadas a `product`/`inventory_movement` (recreadas `NOT VALID` por huérfanos de paquetes). Backups: `_backup_product_008`, `_backup_products_008`, `_backup_inventorymovement_008`, `_backup_inventorytransaction_008`.
+- **Columnas añadidas a `product`** — `tags` (jsonb), `is_discount`, `discount_price`, `promotion_start_date`, `promotion_end_date`, `created_by`, `supplier_id`.
+- **Trigger de stock** — El trigger legacy `movement_update_stock` se eliminó junto con `"InventoryMovement"`; en el esquema canónico el stock (`product.current_stock`/`stock_quantity`) lo actualiza la aplicación (`app/inventory/page.tsx`, `app/api/inventory/movements/route.ts`), sin recrear trigger para evitar doble conteo.
+- **Verificación** (`scripts/migrations/VERIFY_007_008.sql`, solo lectura) — 0 movimientos huérfanos, 0 duplicados `(tenant_id, code)`, `product`=11 filas (ANGELOH7=5 + tenant huérfano `1`=6), `Supplier.tenant_id` normalizado, `"PackageDetails"` legible, FK `PackageProducts.productid → product(id)` activa.
+- **Prisma** — `model Invoice` / `model InvoiceItem` de `prisma/schema.prisma` realineados con las columnas reales de `"Invoice"`/`"InvoiceItem"`; cliente regenerado (`prisma validate` OK, `prisma generate` OK) y `next build` EXIT=0.
+
+#### Integración Fiscal — DIAT (16 Sept 2026)
+- **DIAT implementado** — Reporte mensual de ventas/compras por empresa con generador (`lib/services/diat-generator.ts`), API `GET /api/diat?companyId=&period=` y UI en `/companies/[id]/diat` (`components/DIATManager.tsx`).
+- **Fuentes de datos** — Declarante resuelto desde `companies` (por `tenant_id` o `id`); ventas desde `libro_ventas`; compras desde `Purchase` (tenant `1` + `company_id`), filtradas por `tax_rate` (0/15/18/otras) con canceladas excluidas.
+- **Exportación** — CSV generado en cliente e impresión vía `window.print()`. Período validado con regex `^\d{4}-(0[1-9]|1[0-2])$` (400 ante período inválido).
+- **E2E verificado** — Períodos disponibles `["2026-09"]`; reporte real de compras para ANGELOH7 (2 compras, base 538, ISV 81, total 619); casos 400/fecha inválida/periodo vacío; página 200; build EXIT=0. Limitación conocida: `libro_ventas` aún sin registros (ventas = 0).
+
+#### Compras y Proveedores — Migración a Supabase (16 Sept 2026)
+- **Proveedores en Supabase** — `app/api/suppliers/route.ts` (`GET`/`POST`/`PATCH`/`DELETE`) sobre la tabla `Supplier` con filtros por `companyId` y `search`. Ya no usa `suppliers-data.json`.
+- **Compras en Supabase** — `app/api/purchases/route.ts` y `app/api/purchases/[id]/route.ts` vía lógica compartida en `lib/purchase-db.ts` (tablas `Purchase` + `PurchaseItem`). Cada compra hace upsert best-effort del producto (stock/costo) y un asiento contable best-effort (`journal_entry_id`).
+- **Pagos en Supabase** — `app/api/purchases/payments/route.ts` (`GET`/`POST`/`PUT`/`DELETE`) sobre la tabla `SupplierPayment` con **recompute automático de saldo/estado** en cada operación.
+- **Estados normalizados** — `PENDING`/`PARTIAL`/`PAID`/`CANCELLED` (mayúsculas en GET). Un saldo pendiente (inclusive tras borrar/reducir un pago en compra convertida a contado) produce `PARTIAL`.
+- **Migraciones SQL aplicadas** — `company_id` como texto, RTN ampliado a 20, 4 claves foráneas entre `Supplier`/`Purchase`/`PurchaseItem`/`SupplierPayment`. Datos importados: 1 proveedor, 2 compras, 3 ítems, 2 pagos (`migrate-purchases-db.mjs`).
+- **E2E verificado** — Flujo compra contado/crédito + pagos + flip a contado + borrado de pago: 37+ casos PASS sobre HTTP con Supabase real.
+- **Legacy** — `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan; candidatos a eliminación.
+- **Next.js en 16.3.5** — `next@^16.3.5` (Turbopack). El downgrade a 15.5.25 del 8 Sept fue revertido; build `pnpm build` EXIT=0 ("Compiled successfully").
+
+#### Módulo Nuevo — Notas de Crédito/Débito (fiscal SAR) (16 Sept 2026)
+- **Servicio** — `lib/services/notes-service.ts`: numeración NC-/ND- por tenant, CRUD, asiento contable best-effort y cambio de estado (PENDING → APPLIED / CANCELLED).
+- **APIs** — `GET /api/billing/notes` (lista sin auth) + `POST` (crear con auth); `GET/PATCH /api/billing/notes/[id]` (detalle y cambio de estado; en Next 16 `params` es Promise → `await params`).
+- **UI** — `components/billing/NoteForm.tsx` (CreditNoteForm/DebitNoteForm), `components/billing/NotePreview.tsx` (previsualización imprimible), `app/billing/notes/page.tsx` (listado, stats, filtros, crear/aplicar/anular/ver) + botón de acceso en `app/billing/page.tsx`.
+- **Tabla `InvoiceNote`** — `id, tenantId, originalInvoiceId, noteType (CREDIT|DEBIT), noteNumber, reason, amount, status (PENDING|APPLIED|CANCELLED), appliedDate, createdAt, createdBy`.
+- **Asiento** — voucherType AJUSTE, ISV 15% incluido (subTotal = monto / 1.15); cuentas 4101 Ingresos, 2105 ISV por pagar, contra 1101 Caja / 1103 Clientes; best-effort (no bloquea). NC: +sub +tax −total; ND: +total −sub −tax.
+- **Verificado** — build EXIT=0; rutas `ƒ /api/billing/notes`, `ƒ /api/billing/notes/[id]`, `○ /billing/notes`; capa de datos Supabase INSERT 201 / SELECT 200 / DELETE 204.
+
+#### Fix — `/api/companies` (16 Sept 2026)
+- **Variable de entorno corregida** — `app/api/companies/route.ts` leía `process.env.SUPABASE_URL!` (undefined → 500); ahora usa `process.env.NEXT_PUBLIC_SUPABASE_URL!` en GET y PUT. En `.env.local` **no** existe `SUPABASE_URL` (solo `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` y claves Clerk).
 
 #### Contabilidad — Tab "Cierres" integrada en /accounting (Cierre consolidado)
 - **Tab "Cierres" añadida a `/accounting`** — El `TabsList` pasó de `grid-cols-4` a `grid-cols-5` con el trigger `value="cierres"`. Contenido: tabla de 12 meses (Mes, Estado, Nº transacciones, Quién lo cerró, Fecha de cierre) + resumen (Meses Cerrados, Total de Entradas, Meses Consultados, Integración) con datos de `period_locks` + `v_transacciones_cierre`. Estados: Cerrado (green), Abierto (blue), Futuro (outline).
@@ -65,13 +101,13 @@
 - **HR: Validaciones y seguridad completas** — RLS habilitado en las 28+ tablas HR. API input validation. Employee_code collision-safe.
 
 #### Infraestructura y Despliegue
-- **Middleware simplificado** — `middleware.ts` optimizado para Vercel edge runtime (sin llamadas DB ni Clerk API). Auth + routing básico.
+- **Middleware con Clerk** — `middleware.ts` usa `clerkMiddleware`; para toda ruta NO pública ejecuta `await auth.protect()`, que devuelve HTTP **404** (no redirect) a requests no autenticados. Rutas públicas: /auth/login, /auth/register, /auth/sign-in, /auth/sign-up, /auth/callback, /auth/reset-password, /api/auth/check-email, /api/auth/check-username, /api/admin/plans-public, /api/paypal/*, /api/webhooks/*, /api/accounting/uploaded-files, /api/accounting/excel-upload, /api/accounting/trial-balance, /. Inyecta el header `x-tenant-id` desde la metadata de Clerk.
 - **API `/api/user/profile`** — Ruta para obtener perfil de usuario desde Supabase por `auth_id` (Clerk userId). Auto-crea registro si no existe. Archivo duplicado `route.js` eliminado, `route.ts` creado.
 - **Vercel env vars fix** — Clerk `publishableKey` y `secret key` agregadas a Vercel para resolver `MIDDLEWARE_INVOCATION_FAILED`.
 - **Vercel SpeedInsights + Analytics** — `<SpeedInsights />` y `<Analytics />` integrados en `app/layout.tsx` para monitoreo de rendimiento.
 - **@clerk/clerk-sdk-node eliminado** — Paquete deprecado reemplazado por `lib/clerk-api.ts` (helper REST API directo). 7 scripts y 6 API routes migrados. 0 vulnerabilidades restantes.
 - **Supabase lazy init** — `lib/supabase.ts` y `lib/supabase-db.ts` migrados a inicialización lazy (Proxy) para evitar errores de build en Vercel donde `NEXT_PUBLIC_SUPABASE_URL` no está disponible.
-- **Next.js downgrade a 15.5.25** — Next.js 16 usa Turbopack por defecto para builds, que no genera `.nft.json` en el entorno Linux de Vercel, causando error `ENOENT` en `onBuildComplete`. Next.js 15 usa webpack y genera el archivo correctamente.
+- **~~Next.js downgrade a 15.5.25~~ (revertido)** — El intento de bajar a 15.5.25 (webpack) por el error `ENOENT` en `onBuildComplete` de Vercel fue revertido: el proyecto quedó definitivamente en **Next.js 16.3.5 con Turbopack**, verificándose `pnpm build` EXIT=0 localmente.
 - **next.config.js simplificado** — Removido `turbopack: { root }` (dev-only) y restaurado `output: 'standalone'` para serverless en Vercel.
 
 ---
@@ -84,14 +120,14 @@ MÓDULO                        PROGRESO                              ESTADO
 1.  Contabilidad              █████████████████████░░░░░░░░░  83%  Parcial
     (Registro + EF + LL)
 2.  Control de Asistencia     ████████████████████████████░░  95%  Completo
-3.  Facturación y Ventas      ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+3.  Facturación y Ventas      ████████████████████████░░░░░░░░░░  70%  Parcial
 4.  Inventario                ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
-5.  Compras y Proveedores     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
+5.  Compras y Proveedores     ██████████████████░░░░░░░░░░░░  60%  Parcial
 6.  Control Financiero        █████████░░░░░░░░░░░░░░░░░░░░░  35%  Parcial
 7.  Reportes y Análisis       ████████████████████░░░░░░░░░░  75%  Completo
 8.  Seguridad y Control       █████████████████████░░░░░░░░░  80%  Completo
 9.  Otras Características     █████████░░░░░░░░░░░░░░░░░░░░░  35%  Básico
-10. Integración Fiscal        ██████████████░░░░░░░░░░░░░░░░  55%  Parcial
+10. Integración Fiscal        ████████████████████████████░░░░░░  75%  Parcial
 11. Recursos Humanos          ███████████████████████░░░░░░░  95%  Completo
 ─────────────────────────────────────────────────────────────────────────────
 PROMEDIO                      ███████████████████░░░░░░░░░░  69%
@@ -108,7 +144,7 @@ PROMEDIO                      ████████████████�
 | Contabilidad (Registro + EF + LL) | ✅ | ✅ | — | — |
 | Facturación y Ventas | ✅ | ✅ | — | — |
 | Inventario | ✅ | — | — | — |
-| Compras y Proveedores | Parcial | — | — | **⚠️ JSON** |
+| Compras y Proveedores | ✅ | — | — | — |
 | Control Financiero | ✅ | ✅ | — | — |
 | Reportes y Análisis | ✅ | — | — | — |
 | Seguridad y Control | ✅ | ✅ | — | — |
@@ -120,7 +156,7 @@ PROMEDIO                      ████████████████�
 
 | # | Problema | Módulo | Impacto |
 |---|---|---|---|
-| 1 | Compras y pagos almacenan en archivos JSON | Compras y Proveedores | Datos no persistentes, no escalable |
+| ~~1~~ | ~~Compras y pagos almacenan en archivos JSON~~ | ~~Compras y Proveedores~~ | ✅ Resuelto (Supabase) |
 | 2 | Dual schema en facturas (lowercase + PascalCase) | Facturación | Inconsistencia de datos |
 | 3 | Dual schema en productos (lowercase + PascalCase) | Inventario | Inconsistencia de datos |
 
@@ -130,9 +166,9 @@ PROMEDIO                      ████████████████�
 
 | # | Problema | Módulos Afectados | Impacto | Prioridad |
 |---|---|---|---|---|
-| 1 | **Compras usan archivos JSON** en lugar de base de datos | Compras | Datos no persistentes | **Crítica** |
-| 2 | **Sin DIAT** (Declaración Informativa de Actividades) | Fiscal, Libros | Incumplimiento SAR | **Crítica** |
-| 3 | **Sin notas de crédito/débito** con UI | Facturación | Incumplimiento fiscal | **Crítica** |
+| 1 | ~~**Compras usan archivos JSON** en lugar de base de datos~~ | ~~Compras~~ | ~~Datos no persistentes~~ | ✅ Resuelta |
+| 2 | ~~**Sin DIAT** (Declaración Informativa de Actividades)~~ | ~~Fiscal, Libros~~ | ~~Incumplimiento SAR~~ | ✅ Resuelta (16 Sept 2026) |
+| 3 | ~~**Sin notas de crédito/débito** con UI~~ | ~~Facturación~~ | ~~Incumplimiento fiscal~~ | ✅ Resuelta (16 Sept 2026) |
 | 4 | ~~JournalEntryForm usa mockData y no guarda~~ | ~~Contabilidad~~ | ~~Función rota~~ | ✅ Resuelta |
 | 5 | ~~FinancialStatements usa mockData~~ | ~~Contabilidad~~ | ~~Componente inutilizable~~ | ✅ Resuelta |
 | 6 | **Sin presupuestos** | Control Financiero | Sin control presupuestario | Alta |
@@ -150,14 +186,14 @@ PROMEDIO                      ████████████████�
 | Módulo | Páginas Existentes | Páginas Necesarias | Cobertura |
 |---|---|---|---|
 | Contabilidad (Registro + EF + LL) | 20 | 20 | 100% |
-| Facturación y Ventas | 3 | 7 | 43% |
+| Facturación y Ventas | 4 | 7 | 57% |
 | Inventario | 1 | 4 | 25% |
 | Compras y Proveedores | 2 | 5 | 40% |
 | Control Financiero | 1 | 4 | 25% |
 | Reportes y Análisis | 9 | 10 | 90% |
 | Seguridad y Control | 1 | 3 | 33% |
 | Otras Características | 1 | 4 | 25% |
-| Integración Fiscal | 5 | 8 | 63% |
+| Integración Fiscal | 6 | 8 | 75% |
 | Recursos Humanos | 12 | 12 | 100% |
 
 ### 5.2 API Routes
@@ -165,14 +201,14 @@ PROMEDIO                      ████████████████�
 | Módulo | APIs Existentes | APIs Necesarias | Cobertura |
 |---|---|---|---|
 | Contabilidad (Registro + EF + LL) | 30 | 30 | 100% |
-| Facturación y Ventas | 12 | 16 | 75% |
+| Facturación y Ventas | 14 | 16 | 88% |
 | Inventario | 5 | 8 | 63% |
 | Compras y Proveedores | 6 | 10 | 60% |
 | Control Financiero | 3 | 6 | 50% |
 | Reportes y Análisis | 11 | 12 | 92% |
 | Seguridad y Control | 2 | 4 | 50% |
 | Otras Características | 2 | 5 | 40% |
-| Integración Fiscal | 14 | 18 | 78% |
+| Integración Fiscal | 15 | 18 | 83% |
 | Recursos Humanos | 23 | 23 | 100% |
 
 ### 5.3 Base de Datos (Tablas/Vistas Supabase + Prisma)
@@ -180,9 +216,9 @@ PROMEDIO                      ████████████████�
 | Módulo | Tablas/Vistas | Estado |
 |---|---|---|
 | Contabilidad (Registro + EF + LL) | Account, Transaction, JournalEntry, chart_of_accounts (con `opening_balance`, `opening_balance_date`), **account_audit_log**, **journal_entry_templates**, **journal_entry_template_lines**, **journal_entry_reversals**, **recurring_entries**, **recurring_entry_executions**, **period_locks**, libro_ventas, libro_compras, resumen_isv, declaracion_mensual, Withholding, cai + 5 vistas financieras + 4 RPCs (`get_libro_diario_integrado`, `get_libro_mayor_integrado`, `get_balance_comprobacion_integrado`, `get_resumen_ingresos_egresos`) | Sólido |
-| Facturación y Ventas | invoice, invoiceitem, Invoice, InvoiceItem, customer, cai, talonarios | Dual schema |
-| Inventario | Product, product, InventoryMovement, inventory_movement, warehouse | Dual schema |
-| Compras y Proveedores | Supplier, PurchaseOrder, PurchaseOrderItem, AccountPayable | JSON files |
+| Facturación y Ventas | Invoice, InvoiceItem, InvoicePayment, InvoiceNote, customer, cai, talonarios + vistas fiscales | Esquema único (007) |
+| Inventario | product, inventory_movement, warehouse, Supplier, SupplierPayment, inventory_adjustment, inventory_transfer | Esquema único canónico (008) |
+| Compras y Proveedores | Supplier, Purchase, PurchaseItem, SupplierPayment, PurchaseOrder, PurchaseOrderItem, AccountPayable | Supabase |
 | Control Financiero | Reconciliation, Transaction (multi-divisa) | Parcial |
 | Reportes y Análisis | Vistas existentes | Sólido |
 | Seguridad y Control | User, Tenant, auditlog, account_audit_log | Sólido |
@@ -229,13 +265,13 @@ Prioridad 1 (Semanas 1-8):
 ├── ~~HR: Crear API de búsqueda de empleados~~ ✅
 ├── ~~HR: Migrar fotos/docs a Supabase Storage~~ ✅
 ├── ~~HR: Dashboard de reportes de asistencia~~ ✅
-├── Migrar Compras de JSON a Supabase
+├── ~~Migrar Compras de JSON a Supabase~~ ✅
 ├── Conectar JournalEntryForm a API real
 ├── Conectar FinancialStatements a datos reales
-└── Crear notas de crédito/débito
+└── ~~Crear notas de crédito/débito~~ ✅ (16 Sept 2026)
 
 Prioridad 2 (Semanas 4-16):
-├── Implementar DIAT
+├── ~~Implementar DIAT~~ ✅ (16 Sept 2026)
 ├── Presupuestos y Centros de Costo
 ├── Multi-almacén para Inventario
 ├── Generación de PDF profesional
@@ -288,6 +324,7 @@ Prioridad 3 (Semanas 12-24):
 | Fortaleza | Módulos |
 |---|---|
 | **Autenticación y RBAC sólidos** | Seguridad (Clerk, 7 roles, 30+ permisos) |
+| **Middleware con Clerk** | Seguridad (`clerkMiddleware` + `auth.protect()` → 404 + inyección de `x-tenant-id`) |
 | **Catálogo de cuentas completo** | Contabilidad (3 plantillas, jerárquico, multi-divisa) |
 | **Auditoría inmutable de cuentas** | Contabilidad (`account_audit_log`, agrupado por día, expand/collapse, backfill automático) |
 | **Validación de integridad del catálogo** | Contabilidad (9 checks: duplicados, huérfanos, sin código/nombre, separadores inconsistentes, etc.) |
@@ -299,6 +336,8 @@ Prioridad 3 (Semanas 12-24):
 | **Centro de reportes robusto** | Reportes (18 reportes, 11 APIs, 5+ charts) |
 | **Gestión CAI con alertas** | Fiscal/Facturación (alertas de rango y vencimiento) |
 | **Retenciones con PDF legal** | Fiscal (recibo A4 con CAI, leyenda SAR) |
+| **Notas de crédito/débito fiscales** | Facturación/Fiscal (NC-/ND- por tenant, asiento AJUSTE con ISV 15%, UI + preview imprimible) |
+| **Configuración de entorno saneada** | Infraestructura (fix `/api/companies` usa `NEXT_PUBLIC_SUPABASE_URL`; sin variable `SUPABASE_URL` no resuelta) |
 | **Importación bancaria** | Otras (9 bancos hondureños detectados automáticamente) |
 | **Proyección de flujo de caja** | Control Financiero (30 días, ponderado por probabilidad) |
 | **Cálculos fiscales Honduras** | Fiscal (ISV 15%/18%, ISR progresivo, retenciones) |
@@ -307,13 +346,13 @@ Prioridad 3 (Semanas 12-24):
 
 | Debilidad | Módulos Afectados |
 |---|---|
-| **Almacenamiento en archivos JSON** | Compras y Proveedores |
+| ~~**Almacenamiento en archivos JSON**~~ | ~~Compras y Proveedores~~ ✅ Resuelta |
 | **Dual schemas (lowercase/PascalCase)** | Facturación, Inventario |
 | ~~Componentes con mockData~~ | ~~Contabilidad~~ ✅ Resuelta |
 | **0% cobertura de pruebas** | Todos los módulos |
 | **Sin generación PDF real** | Múltiples |
 | **Sin exportación Excel** | Reportes |
-| **Sin DIAT** | Fiscal |
+| ~~**Sin DIAT**~~ | ~~Fiscal~~ ✅ Resuelta (16 Sept 2026) |
 
 ---
 
@@ -328,13 +367,13 @@ Prioridad 3 (Semanas 12-24):
 6. ~~HR: Nómina optimizada (Excel, horas extras por turno, bridge contable)~~ ✅ Completada
 7. ~~HR: Filtros avanzados vacaciones + rendimiento empleados/vacaciones/PIP~~ ✅ Completada
 8. ~~HR: Asistencia N+1 eliminado (PATCH batch, schedules batch, compacto con departamentos)~~ ✅ Completada
-9. Migrar Compras de JSON a Supabase
-9. Consolidar dual schemas (Facturación, Inventario)
+9. ~~Migrar Compras de JSON a Supabase~~ ✅ Completada
+9. ~~Consolidar dual schemas (Facturación, Inventario)~~ ✅ Completada (migraciones 007/008, 16 Sept 2026)
 10. Conectar JournalEntryForm y FinancialStatements a API real
 
 ### Fase 2: Cumplimiento Fiscal (Semanas 4-12)
-5. Implementar DIAT
-6. Crear notas de crédito/débito
+5. ~~Implementar DIAT~~ ✅ (16 Sept 2026)
+6. ~~Crear notas de crédito/débito~~ ✅ (16 Sept 2026)
 7. Integrar retenciones con asientos contables
 8. Generación de PDF profesional
 
@@ -364,17 +403,19 @@ Prioridad 3 (Semanas 12-24):
 |---|---|---|
 | Completitud Funcional | ~70% | 95% |
 | Cobertura de Pruebas | 0% | 70% |
-| Persistencia de Datos | ~80% | 100% (sin JSON/localStorage) |
+| Persistencia de Datos | ~100% | 100% (sin JSON/localStorage) |
 | Integración entre Módulos | ~55% | 80% |
 | Exportación (PDF/Excel) | ~30% | 90% |
-| Cumplimiento Fiscal Honduras | ~50% | 95% |
-| Documentación | ~25% | 70% |
+| Cumplimiento Fiscal Honduras | ~70% | 95% |
+| Documentación | ~85% | 70% |
 
-### 10.1 Estado de Infraestructura (8 Sept 2026)
+### 10.1 Estado de Infraestructura (16 Sept 2026)
 
 | Componente | Estado | Notas |
 |---|---|---|
-| Next.js | 15.5.25 | Downgraded desde 16 (Turbopack bug en Vercel) |
+| Next.js | 16.3.5 | Turbopack; `pnpm build` EXIT=0 ("Compiled successfully") |
+| Errores TypeScript | Preexistentes | No introducidos ahora: `.next/types/validator.ts`, `app/billing/generate-invoice/page.tsx`, `app/billing/subscriptions/page.tsx`, `lib/billing/invoice-generator.ts` |
+| Middleware | clerkMiddleware | `auth.protect()` → 404 en rutas no autenticadas; inyecta `x-tenant-id` |
 | React | 19.x | — |
 | Clerk Auth | @clerk/nextjs | @clerk/clerk-sdk-node eliminado (deprecado) |
 | Supabase Client | Lazy init | Proxy-based, evita errores de build |
@@ -400,5 +441,7 @@ Prioridad 3 (Semanas 12-24):
 > - `SEGURIDAD_CONTROL_REPORT.md`
 > - `OTRAS_CARACTERISTICAS_REPORT.md`
 > - `INTEGRACION_FISCAL_REPORT.md`
+> - `DIAT_REPORT.md` — Reporte de la Declaración Informativa de Actividades (DIAT)
+> - `NOTAS_CREDITO_DEBITO_REPORT.md` — Reporte del submódulo de Notas de Crédito/Débito
 > - `HR_MODULE_REPORT.md`
-> - `HR_MODULE_REPORT.md`
+> - `HR_WORKFLOWS.md`

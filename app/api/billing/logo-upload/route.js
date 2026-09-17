@@ -40,7 +40,7 @@ export async function POST(request) {
       console.log('Tipo:', file.type);
 
       const fileExt = file.name.split('.').pop();
-      const uniqueFileName = `${tenantId}-logo-${Date.now()}.${fileExt}`;
+      const uniqueFileName = `${tenantId}/logo-${Date.now()}.${fileExt}`;
 
       const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
@@ -63,19 +63,20 @@ export async function POST(request) {
         });
       }
 
-      const { data: publicUrlData } = getSupabaseServer().storage
+      // El bucket es privado: se devuelve una URL firmada y el path para persistir en la BD
+      const { data: signedUrlData } = await getSupabaseServer().storage
         .from('company-logos')
-        .getPublicUrl(uniqueFileName);
+        .createSignedUrl(uniqueFileName, 3600);
 
       console.log('Logo subido exitosamente a Supabase Storage');
       console.log('ID del registro:', data.id);
       console.log('Nombre unico:', uniqueFileName);
-      console.log('URL publico:', publicUrlData.publicUrl);
 
       return NextResponse.json({
         success: true,
         message: 'Logo subido y guardado correctamente en Supabase Storage',
-        logoUrl: publicUrlData.publicUrl,
+        logoPath: uniqueFileName,
+        logoUrl: signedUrlData?.signedUrl || null,
         fileName: uniqueFileName,
         fileSize: file.size,
         recordId: data.id

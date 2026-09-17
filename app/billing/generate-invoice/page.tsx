@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useTenant } from '@/lib/contexts/TenantContext';
 import { createSupabaseClient } from '@/lib/supabase/client';
+import { dbToLegacyProducts } from '@/lib/inventory/schema-map';
 
 interface InvoiceItem {
   id: string;
@@ -210,16 +211,17 @@ export default function GenerateInvoicePage() {
 
       // Cargar productos activos
       const { data, error } = await supabase
-        .from('Product')
+        .from('product')
         .select('*')
-        .eq('isActive', true)
-        .gt('stock', 0)
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true)
+        .gt('current_stock', 0)
         .order('name');
 
       if (error) {
         console.error('Error loading inventory:', error);
       } else {
-        setProducts(data || []);
+        setProducts(dbToLegacyProducts(data));
       }
     } catch (error) {
       console.error('Error loading inventory:', error);

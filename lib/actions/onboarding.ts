@@ -21,6 +21,9 @@ interface SalesConfig {
   caiEnabled: boolean;
   caiCode: string;
   caiType: 'auto_impresion' | 'imprenta';
+  caiExpirationDate?: string;
+  caiRangeFrom?: string;
+  caiRangeTo?: string;
   taxes: Tax[];
   invoicePrefix: string;
 }
@@ -29,6 +32,9 @@ interface CompanyData {
   name: string;
   rtn: string;
   address: string;
+  department?: string;
+  municipality?: string;
+  logoUrl?: string;
   contactPhone: string;
   email: string;
   industry: string;
@@ -52,13 +58,25 @@ interface Plan {
   isActive: boolean;
 }
 
+interface SelectedAccount {
+  code: string;
+  name: string;
+  type: string;
+}
+
 interface OnboardingData {
   companyData: CompanyData;
+  companies?: CompanyData[];
   bankAccounts: BankAccount[];
   salesConfig: SalesConfig;
+  salesConfigs?: SalesConfig[];
   businessType: string;
   selectedPlans: Plan[];
   selectedPaymentMethod?: string;
+  selectedAccounts?: SelectedAccount[];
+  selectedAccountsList?: SelectedAccount[][];
+  hasAccountant?: boolean;
+  mode?: 'accountant' | 'business';
 }
 
 interface OnboardingResult {
@@ -67,6 +85,26 @@ interface OnboardingResult {
   tenantId?: string;
   error?: string;
 }
+
+// Mapeo de tipos de cuenta UI → tipos de la tabla chart_of_accounts
+const ACCOUNT_TYPE_MAP: Record<string, string> = {
+  activo: 'ASSET',
+  pasivo: 'LIABILITY',
+  patrimonio: 'EQUITY',
+  ingreso: 'REVENUE',
+  gasto: 'EXPENSE',
+};
+
+// Mapeo de tipos de impuesto UI → CHECK constraint de la tabla Taxes (IVA/ISR/ISV/OTRO)
+const TAX_TYPE_MAP: Record<string, string> = {
+  ISV: 'ISV',
+  IT: 'OTRO',
+  IVA: 'IVA',
+  ISR: 'ISR',
+  Exento: 'OTRO',
+  Otro: 'OTRO',
+  otro: 'OTRO',
+};
 
 // Helper function to generate tenant codes
 function generateTenantCode(businessName: string): string {
@@ -119,11 +157,15 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
                          sessionClaims?.firstName || 
                          '';
                          
-    const userLastName = user?.lastName || 
-                        sessionClaims?.lastName || 
-                        '';
+const userLastName = user?.lastName || 
+                         sessionClaims?.lastName || 
+                         '';
     
-    console.log('📊 Clerk user data:', { 
+    // Rol según el modo: el contador administra varias empresas → rol ACCOUNTANT
+    const isAccountantMode = data.mode === 'accountant' || data.businessType === 'Contador';
+    const userRole = isAccountantMode ? 'ACCOUNTANT' : 'ADMIN';
+    
+    console.log('📊 Clerk user data:', {
       userId, 
       userEmail, 
       userFirstName, 
@@ -192,7 +234,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         monthly_cost: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        logo_url: null,
+        logo_url: data.companyData.logoUrl || null,
         phone_number: onboardingPhone,
         modules: 'ACCOUNTING,BILLING,REPORTS'
       };
@@ -223,7 +265,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         passwordhash: passwordHash,
         firstname: userFirstName || 'Usuario',
         lastname: userLastName || 'Nuevo',
-        role: 'ADMIN',
+        role: userRole,
         isactive: true,
         authid: userId
       };
@@ -236,11 +278,12 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         const clerk = await clerkClient();
         await clerk.users.updateUser(userId, {
           publicMetadata: {
-            role: 'ADMIN',
+            role: userRole,
             tenantId: newTenant.id,
             tenantCode: newTenant.id,
-            permissions: ['admin', 'tenant_admin'],
+            permissions: isAccountantMode ? ['accountant', 'tenant_admin'] : ['admin', 'tenant_admin'],
             paymentMethod: data.selectedPaymentMethod || 'card',
+            hasAccountant: data.hasAccountant || false,
             isolation: {
               tenantId: newTenant.id,
               mode: 'strict'
@@ -249,7 +292,8 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
           privateMetadata: {
             onboardingCompleted: true,
             tenantId: newTenant.id,
-            companyId: null // Se actualizará después
+            companyId: null, // Se actualizará después
+            hasAccountant: data.hasAccountant || false
           }
         });
         console.log('✅ Metadata de Clerk actualizada exitosamente');
@@ -331,7 +375,7 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         monthly_cost: 0,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        logo_url: null,
+        logo_url: data.companyData.logoUrl || null,
         phone_number: onboardingPhone2,
         modules: 'ACCOUNTING,BILLING,REPORTS'
       };
@@ -386,11 +430,12 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         const clerk = await clerkClient();
         await clerk.users.updateUser(userId, {
           publicMetadata: {
-            role: 'ADMIN',
+            role: userRole,
             tenantId: newTenant.id,
             tenantCode: newTenant.id,
-            permissions: ['admin', 'tenant_admin'],
+            permissions: isAccountantMode ? ['accountant', 'tenant_admin'] : ['admin', 'tenant_admin'],
             paymentMethod: data.selectedPaymentMethod || 'card',
+            hasAccountant: data.hasAccountant || false,
             isolation: {
               tenantId: newTenant.id,
               mode: 'strict'
@@ -399,7 +444,8 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
           privateMetadata: {
             onboardingCompleted: true,
             tenantId: newTenant.id,
-            companyId: null // Se actualizará después
+            companyId: null, // Se actualizará después
+            hasAccountant: data.hasAccountant || false
           }
         });
         console.log('✅ Metadata de Clerk actualizada para usuario existente');
@@ -416,6 +462,41 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
     }
     
     console.log('📊 Trabajando con tenant ID:', tenantId);
+    
+    const companiesToCreate = (data.companies && data.companies.length > 0) ? data.companies : [data.companyData];
+
+    // Mover los logos del onboarding (carpeta onboarding/{userId}) a la carpeta del tenant
+    // para aislarlos por tenant. logo_url guarda el PATH en storage, no una URL.
+    // Cada empresa puede tener su propio logo.
+    const moveLogoToTenant = async (logoPath?: string | null): Promise<string | null> => {
+      if (!logoPath) return null;
+      try {
+        const logoFileName = logoPath.split('/').pop();
+        const tenantLogoPath = `${tenantId}/${logoFileName}`;
+        const { error: moveError } = await supabase.storage
+          .from('company-logos')
+          .move(logoPath, tenantLogoPath);
+        if (moveError) {
+          console.error('❌ Error moviendo logo a carpeta del tenant:', moveError);
+          return logoPath;
+        }
+        console.log('✅ Logo movido a carpeta del tenant:', tenantLogoPath);
+        return tenantLogoPath;
+      } catch (moveErr) {
+        console.error('❌ Error moviendo logo en storage (onboarding):', moveErr);
+        return logoPath;
+      }
+    };
+
+    const tenantLogoPaths = await Promise.all(
+      companiesToCreate.map((company) => moveLogoToTenant(company.logoUrl))
+    );
+
+    // El logo de la empresa principal también se guarda en el Tenant
+    const primaryLogoPath = tenantLogoPaths[0] ?? null;
+    if (primaryLogoPath) {
+      await supabase.from('Tenant').update({ logo_url: primaryLogoPath }).eq('id', tenantId);
+    }
     
     // Configurar contexto de tenant para RLS
     await setTenantContext(tenantId);
@@ -435,49 +516,112 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
     
     console.log('✅ Tenant verified in database:', tenantCheck.id);
 
-    // Create company usando Supabase
-    console.log('🔄 Creando company con datos:', {
-      tenant_id: tenantId,
-      name: data.companyData.name,
-      business_type: data.businessType,
-      rtn: data.companyData.rtn,
-      email: data.companyData.email,
-      industry: data.companyData.industry
-    });
+    let companyId: string | null = null;
 
-    const { data: companyResult, error: companyError } = await supabase
-      .from('companies')
-      .insert([{
-        id: randomUUID(),
+    for (const [companyIndex, company] of companiesToCreate.entries()) {
+      // Create company usando Supabase
+      console.log('🔄 Creando company con datos:', {
         tenant_id: tenantId,
-        name: data.companyData.name,
+        name: company.name,
         business_type: data.businessType,
-        rtn: data.companyData.rtn,
-        email: data.companyData.email,
-        address: data.companyData.address,
-        industry: data.companyData.industry,
-        company_phone: data.companyData.companyPhone || null,
-        client_phone: data.companyData.clientPhone || null,
-        contact_phone: data.companyData.contactPhone || null,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }])
-      .select()
-      .single();
+        rtn: company.rtn,
+        email: company.email,
+        industry: company.industry
+      });
 
-    if (companyError || !companyResult) {
-      console.error("❌ Error creating company:", companyError);
-      console.error("❌ Company error details:", JSON.stringify(companyError, null, 2));
-      console.error("❌ Missing column message:", companyError?.message);
-      throw new Error(`Failed to create company: ${companyError?.message || 'Unknown error'}`);
+      const { data: companyResult, error: companyError } = await supabase
+        .from('companies')
+        .insert([{
+          id: randomUUID(),
+          tenant_id: tenantId,
+          name: company.name,
+          business_type: data.businessType,
+          rtn: company.rtn,
+          email: company.email,
+          address: company.address,
+          department: company.department || null,
+          municipality: company.municipality || null,
+          logo_url: tenantLogoPaths[companyIndex] ?? null,
+          industry: company.industry,
+          company_phone: company.companyPhone || null,
+          client_phone: company.clientPhone || null,
+          contact_phone: company.contactPhone || null,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }])
+        .select()
+        .single();
+
+      if (companyError || !companyResult) {
+        console.error("❌ Error creating company:", companyError);
+        console.error("❌ Company error details:", JSON.stringify(companyError, null, 2));
+        console.error("❌ Missing column message:", companyError?.message);
+        throw new Error(`Failed to create company: ${companyError?.message || 'Unknown error'}`);
+      }
+
+      if (!companyId) companyId = companyResult.id;
+      console.log('✅ Company creada exitosamente:', {
+        id: companyResult.id,
+        name: companyResult.name,
+        tenant_id: companyResult.tenant_id
+      });
+
+      // Guardar referencia en onboarding_companies por empresa
+      const { error: onboardError } = await supabase
+        .from('onboarding_companies')
+        .insert([{
+          user_id: userId,
+          company_name: company.name,
+          rtn: company.rtn,
+          address: company.address,
+          email: company.email,
+          industry: company.industry,
+          business_type: data.businessType,
+          setup_completed: true,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
+
+      if (onboardError) {
+        console.error("❌ Error saving onboarding reference:", onboardError);
+      }
+
+      // Crear catálogo de cuentas por empresa: usa el catálogo individual del contador cuando existe
+      try {
+        await createDefaultChartOfAccounts(companyResult.id, data.selectedAccountsList?.[companyIndex] ?? data.selectedAccounts);
+      } catch (chartError) {
+        console.error("Error creating chart of accounts:", chartError);
+        // No fallar el proceso si el catálogo falla
+      }
+
+      // Guardar configuración de ventas por empresa (CAI, impuestos, prefijo)
+      const companySales = data.salesConfigs?.[companyIndex] ?? data.salesConfig;
+      const companyPrimaryTax = companySales.taxes[0];
+      const { error: salesError } = await supabase
+        .from('sales_configuration')
+        .insert([{
+          company_id: companyResult.id,
+          cai_enabled: companySales.caiEnabled,
+          cai_type: companySales.caiType || null,
+          cai_code: companySales.caiCode || null,
+          cai_range_start: companySales.caiRangeFrom || null,
+          cai_range_end: companySales.caiRangeTo || null,
+          cai_expiry_date: companySales.caiExpirationDate || null,
+          tax_rate: companyPrimaryTax?.rate || 15,
+          invoice_prefix: companySales.invoicePrefix,
+          current_invoice_number: 1,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }]);
+
+      if (salesError) {
+        console.error("Error saving sales config:", salesError);
+      }
     }
 
-    const companyId = companyResult.id;
-    console.log('✅ Company creada exitosamente:', {
-      id: companyId,
-      name: companyResult.name,
-      tenant_id: companyResult.tenant_id
-    });
+    if (!companyId) {
+      throw new Error("No se pudo crear ninguna empresa");
+    }
 
     // Actualizar metadata de Clerk con companyId
     try {
@@ -487,7 +631,8 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
         privateMetadata: {
           onboardingCompleted: true,
           tenantId: tenantId,
-          companyId: companyId
+          companyId: companyId,
+          hasAccountant: data.hasAccountant || false
         }
       });
       console.log('✅ Clerk metadata actualizada con companyId');
@@ -515,22 +660,39 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       }
     }
 
-    // Save sales configuration (solo columnas que existen)
-    const primaryTax = data.salesConfig.taxes[0];
-    const { error: salesError } = await supabase
-      .from('sales_configuration')
-      .insert([{
-        company_id: companyId,
-        cai_enabled: data.salesConfig.caiEnabled,
-        tax_rate: primaryTax?.rate || 15,
-        invoice_prefix: data.salesConfig.invoicePrefix,
-        current_invoice_number: 1,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
+    // Impuestos: la tabla Taxes es a nivel tenant, así que se agregan los impuestos
+    // de todas las empresas sin duplicar (tipo + tasa).
+    const allSalesConfigs = (data.salesConfigs && data.salesConfigs.length > 0)
+      ? data.salesConfigs
+      : [data.salesConfig];
+    const uniqueTaxes: Tax[] = [];
+    for (const cfg of allSalesConfigs) {
+      for (const tax of (cfg?.taxes || [])) {
+        if (!tax || typeof tax.rate !== 'number' || tax.rate <= 0) continue;
+        if (!uniqueTaxes.some(t => t.type === tax.type && t.rate === tax.rate)) {
+          uniqueTaxes.push(tax);
+        }
+      }
+    }
 
-    if (salesError) {
-      console.error("Error saving sales config:", salesError);
+    for (const tax of uniqueTaxes) {
+      const dbTaxType = TAX_TYPE_MAP[tax.type] || 'OTRO';
+      const { error: taxError } = await supabase
+        .from('Taxes')
+        .insert([{
+          tenantid: tenantId,
+          name: `${tax.type} ${tax.rate}%`,
+          type: dbTaxType,
+          rate: tax.rate,
+          description: `Impuesto ${tax.type} configurado durante el onboarding`,
+          isactive: true,
+          createdat: new Date().toISOString(),
+          updatedat: new Date().toISOString()
+        }]);
+
+      if (taxError) {
+        console.error(`Error saving tax ${tax.type}:`, taxError);
+      }
     }
 
     // Validate that at least one plan is selected
@@ -566,44 +728,6 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
       throw new Error("Failed to save selected plans");
     }
 
-    // Also save to onboarding_companies for reference
-    console.log('🔄 Guardando en onboarding_companies con datos:', {
-      user_id: userId,
-      company_name: data.companyData.name,
-      rtn: data.companyData.rtn,
-      email: data.companyData.email,
-      business_type: data.businessType
-    });
-
-    const { error: onboardError } = await supabase
-      .from('onboarding_companies')
-      .insert([{
-        user_id: userId,
-        company_name: data.companyData.name,
-        rtn: data.companyData.rtn,
-        address: data.companyData.address,
-        email: data.companyData.email,
-        industry: data.companyData.industry,
-        business_type: data.businessType,
-        setup_completed: true,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }]);
-
-    if (onboardError) {
-      console.error("❌ Error saving onboarding reference:", onboardError);
-    } else {
-      console.log('✅ Onboarding_companies guardado exitosamente');
-    }
-
-    // Crear catálogo de cuentas por defecto
-    try {
-      await createDefaultChartOfAccounts(companyId);
-    } catch (chartError) {
-      console.error("Error creating chart of accounts:", chartError);
-      // No fallar el proceso si el catálogo falla
-    }
-
     console.log(`✅ Onboarding completado para tenant ${tenantId}, company ${companyId}`);
     
     return { success: true, companyId, tenantId };
@@ -615,8 +739,8 @@ export async function saveOnboardingData(data: OnboardingData): Promise<Onboardi
   }
 }
 
-// Función para crear catálogo de cuentas por defecto
-async function createDefaultChartOfAccounts(companyId: string) {
+// Función para crear catálogo de cuentas (usa la selección del usuario si viene, si no usa el catálogo HN/SAR)
+async function createDefaultChartOfAccounts(companyId: string, selectedAccounts?: SelectedAccount[]) {
   try {
     // Configurar contexto
     const { data: company, error: companyError } = await supabase
@@ -631,41 +755,59 @@ async function createDefaultChartOfAccounts(companyId: string) {
 
     await setTenantContext(company.tenant_id);
 
-    // Insertar cuentas por defecto (estructura simplificada)
-    const defaultAccounts = [
-      // ACTIVOS
-      { code: '11', name: 'Activo Corriente', type: 'ASSET', is_default: true },
-      { code: '1101', name: 'Caja y Bancos', type: 'ASSET', is_default: true },
-      { code: '110101', name: 'Caja General', type: 'ASSET', is_default: true },
-      { code: '110102', name: 'Bancos', type: 'ASSET', is_default: true },
-      { code: '1102', name: 'Cuentas por Cobrar', type: 'ASSET', is_default: true },
-      { code: '110201', name: 'Clientes Locales', type: 'ASSET', is_default: true },
-      
-      // PASIVOS
-      { code: '21', name: 'Pasivo Corriente', type: 'LIABILITY', is_default: true },
-      { code: '2101', name: 'Cuentas por Pagar Comerciales', type: 'LIABILITY', is_default: true },
-      { code: '210101', name: 'Proveedores Locales', type: 'LIABILITY', is_default: true },
-      { code: '2102', name: 'Obligaciones Fiscales (SAR)', type: 'LIABILITY', is_default: true },
-      { code: '210201', name: 'ISV 15% por Pagar', type: 'LIABILITY', is_default: true },
-      
-      // PATRIMONIO
-      { code: '3', name: 'Patrimonio', type: 'EQUITY', is_default: true },
-      { code: '31', name: 'Capital Social', type: 'EQUITY', is_default: true },
-      { code: '3101', name: 'Capital Pagado', type: 'EQUITY', is_default: true },
-      
-      // INGRESOS
-      { code: '4', name: 'Ingresos', type: 'REVENUE', is_default: true },
-      { code: '41', name: 'Ingresos Operativos', type: 'REVENUE', is_default: true },
-      { code: '4101', name: 'Prestación de Servicios', type: 'REVENUE', is_default: true },
-      
-      // GASTOS
-      { code: '5', name: 'Gastos', type: 'EXPENSE', is_default: true },
-      { code: '51', name: 'Gastos de Operación', type: 'EXPENSE', is_default: true },
-      { code: '5101', name: 'Gastos de Personal', type: 'EXPENSE', is_default: true },
-      { code: '510101', name: 'Sueldos y Salarios', type: 'EXPENSE', is_default: true }
-    ];
+    // Si el usuario seleccionó cuentas en el wizard (paso 3) se respetan esas selecciones
+    let accountsToInsert: Array<{ code: string; name: string; type: string; is_default: boolean }>;
 
-    for (const account of defaultAccounts) {
+    if (selectedAccounts && selectedAccounts.length > 0) {
+      accountsToInsert = selectedAccounts.map(account => ({
+        code: account.code,
+        name: account.name,
+        type: ACCOUNT_TYPE_MAP[account.type] || 'ASSET',
+        is_default: true
+      }));
+    } else {
+      // Catálogo por defecto (estructura HN/SAR) — códigos consistentes con los de la UI del wizard
+      const defaultAccounts = [
+        // ACTIVOS
+        { code: '110101', name: 'Caja General', type: 'ASSET', is_default: true },
+        { code: '110102', name: 'Bancos', type: 'ASSET', is_default: true },
+        { code: '110103', name: 'Inversiones Temporales', type: 'ASSET', is_default: true },
+        { code: '110201', name: 'Clientes', type: 'ASSET', is_default: true },
+        { code: '110202', name: 'Documentos por Cobrar', type: 'ASSET', is_default: true },
+        { code: '110301', name: 'Inventario de Mercadería', type: 'ASSET', is_default: true },
+        { code: '120101', name: 'Mobiliario y Equipo', type: 'ASSET', is_default: true },
+        { code: '120102', name: 'Equipo de Computación', type: 'ASSET', is_default: true },
+        { code: '120103', name: 'Vehículos', type: 'ASSET', is_default: true },
+
+        // PASIVOS
+        { code: '210101', name: 'Proveedores', type: 'LIABILITY', is_default: true },
+        { code: '210102', name: 'Documentos por Pagar', type: 'LIABILITY', is_default: true },
+        { code: '210103', name: 'Préstamos Bancarios', type: 'LIABILITY', is_default: true },
+        { code: '210201', name: 'Impuestos por Pagar', type: 'LIABILITY', is_default: true },
+        { code: '210202', name: 'Sueldos por Pagar', type: 'LIABILITY', is_default: true },
+
+        // PATRIMONIO
+        { code: '310101', name: 'Capital Social', type: 'EQUITY', is_default: true },
+        { code: '310102', name: 'Utilidades Retenidas', type: 'EQUITY', is_default: true },
+
+        // INGRESOS
+        { code: '410101', name: 'Ventas de Mercadería', type: 'REVENUE', is_default: true },
+        { code: '410102', name: 'Servicios Prestados', type: 'REVENUE', is_default: true },
+        { code: '410103', name: 'Intereses Ganados', type: 'REVENUE', is_default: true },
+
+        // GASTOS
+        { code: '510101', name: 'Costo de Ventas', type: 'EXPENSE', is_default: true },
+        { code: '510201', name: 'Sueldos y Salarios', type: 'EXPENSE', is_default: true },
+        { code: '510202', name: 'Alquileres', type: 'EXPENSE', is_default: true },
+        { code: '510203', name: 'Servicios Públicos', type: 'EXPENSE', is_default: true },
+        { code: '510204', name: 'Depreciación', type: 'EXPENSE', is_default: true },
+        { code: '510301', name: 'Gastos de Ventas', type: 'EXPENSE', is_default: true },
+        { code: '510302', name: 'Gastos Administrativos', type: 'EXPENSE', is_default: true }
+      ];
+      accountsToInsert = defaultAccounts;
+    }
+
+    for (const account of accountsToInsert) {
       const { error } = await supabase
         .from('chart_of_accounts')
         .insert([{
@@ -685,7 +827,7 @@ async function createDefaultChartOfAccounts(companyId: string) {
       }
     }
 
-    console.log(`✅ Catálogo de cuentas creado para company ${companyId}`);
+    console.log(`✅ Catálogo de cuentas creado para company ${companyId} (${accountsToInsert.length} cuentas)`);
   } catch (error) {
     console.error("Error creating default chart of accounts:", error);
     throw error;

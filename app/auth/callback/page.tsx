@@ -30,7 +30,7 @@ export default function AuthCallbackPage() {
           redirectUrl = '/admin/dashboard';
         } else if (dbRole === 'SUPPORT') {
           redirectUrl = '/support';
-        } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER') {
+        } else if (dbRole === 'ADMIN' || dbRole === 'MANAGER' || dbRole === 'ACCOUNTANT') {
           redirectUrl = '/tenant-admin/dashboard';
         }
 

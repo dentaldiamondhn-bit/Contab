@@ -1,5 +1,17 @@
 # Reporte de Archivos Duplicados en migrations/
 
+> ## ✅ Estado actual (16 de Septiembre de 2026)
+>
+> Este reporte es histórico (listaba duplicados y recomendaba limpieza). Estado real de la carpeta `scripts/migrations/`:
+>
+> - ✅ **Paso 1 completado:** los 6 duplicados confirmados **ya no existen** (eliminados): `FINAL_ISACTIVE_FIX.sql`, `QUICK_FIX_ISACTIVE.sql`, `SIMPLE_ISACTIVE_FIX.sql`, `CUSTOMER_TABLE.sql`, `CUSTOMER_TABLE_UPDATED.sql`, `UPDATE_STOCK_FROM_MOVEMENTS_FIXED.sql`.
+> - ✅ **Archivos de verificación consolidados:** existe `VERIFY_COLUMNS_CONSOLIDATED.sql` (absorbió las varias versiones de `VERIFY_*`); también `VERIFY_AND_ADD_ISACTIVE.sql` y `VERIFY_AND_CREATE_TABLES.sql`.
+> - ✅ **Persisten los operativos:** `UPDATE_STOCK_FROM_MOVEMENTS.sql`, `ISACTIVE_MANAGEMENT_CONSOLIDATED.sql`, `ADD_DISCOUNT_TO_PRODUCTS.sql`, `ADD_EXPIRATION_DATE.sql`, `ADD_PROMOTION_FIELD.sql`, `CREATE_CAI_TABLE.sql`, `CREATE_INVENTORY_TABLES.sql`, `INSERT_SAMPLE_DATA.sql`, `REMOVE_DUPLICATE_COLUMN.sql`, `RE_ENABLE_RLS.sql`, `LEGAL_REVISIONES_SCHEMA.sql`, `LEGAL_REVISIONES_PROCEDURES_V2.sql`, `LOGIN_SETUP.sql`, `ONBOARDING_SETUP.sql`, `PACKAGES_SYSTEM_COMPLETE.sql`, `SUPABASE_COMPLETE.sql`, `CREATE_TABLES.sql`.
+> - ⚠️ **No están los que el reporte marcaba "a mantener":** `RENAME_ISACTIVE_COLUMN.sql` y los `check_account_structure.sql` / `check_constraints.sql` / `check_user_structure.sql` ya no existen (la gestión de `isActive` quedó consolidada en `ISACTIVE_MANAGEMENT_CONSOLIDATED.sql`).
+> - ⚠️ **Paso 2 y 3 pendientes:** no se crearon los archivos "consolidados" de los grupos `FIX_*`, `FIX_RLS_*`, `FIX_CUSTOMER_*`, `FIX_TAXES_*`, ni las carpetas `setup/`, `fixes/`, `verification/`, `data/` (los archivos referidos como `FIX_*` ya no existen en la carpeta).
+> - **Cómo ejecutar estos scripts:** DDL vía **SQL Editor de Supabase** (la conexión directa `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`; `psql`/`prisma migrate` no aplican DDL contra Supabase).
+> - ✅ **Consolidación de esquema (007/008) completada:** `007_consolidate_invoice_schema.sql` (facturación → `Invoice`/`InvoiceItem`) y `008_consolidate_inventory_schema.sql` (inventario → `product`/`inventory_movement`) se aplicaron el 16 Sept 2026 y eliminaron el dual schema; los scripts legacy sobre `Product`/`isActive` quedan obsoletos.
+
 ## Archivos Identificados como Duplicados
 
 ### 1. Correcciones de isActive (4 archivos duplicados)

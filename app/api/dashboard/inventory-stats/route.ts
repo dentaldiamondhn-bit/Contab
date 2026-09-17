@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId');
+    const companyId = searchParams.get('companyId');
     const period = searchParams.get('period') || 'month';
 
     if (!tenantId) {
@@ -14,10 +15,16 @@ export async function GET(request: Request) {
     }
 
     // Get products from Supabase (lowercase table)
-    const { data: products, error } = await getSupabaseServer()
+    let query = getSupabaseServer()
       .from('product')
       .select('*')
       .eq('tenant_id', tenantId);
+
+    if (companyId) {
+      query = query.eq('company_id', companyId);
+    }
+
+    const { data: products, error } = await query;
 
     if (error) {
       console.error('Error fetching products:', error);

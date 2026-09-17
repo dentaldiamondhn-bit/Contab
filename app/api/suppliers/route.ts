@@ -1,8 +1,46 @@
 import { NextResponse } from 'next/server';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { TENANT_ID } from '@/lib/purchase-db';
 
-const DATA_FILE = join(process.cwd(), 'suppliers-data.json');
+const SUPPLIER_COLUMNS = [
+  'rtn',
+  'name',
+  'commercial_name',
+  'email',
+  'phone',
+  'mobile',
+  'address',
+  'city',
+  'country',
+  'supplier_type',
+  'category',
+  'payment_terms',
+  'payment_method',
+  'bank_name',
+  'bank_account',
+  'account_type',
+  'is_active',
+  'is_preferred',
+];
+
+function buildInsert(body: any) {
+  const row: any = {
+    tenant_id: TENANT_ID,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  for (const col of SUPPLIER_COLUMNS) {
+    if (body[col] !== undefined) row[col] = body[col];
+  }
+
+  if (body.companyId) row.company_id = body.companyId;
+  else if (body.company_id) row.company_id = body.company_id;
+
+  if (row.is_active === undefined) row.is_active = true;
+
+  return row;
+}
 
 export async function GET(request: Request) {
   try {
@@ -10,34 +48,30 @@ export async function GET(request: Request) {
     const companyId = searchParams.get('companyId') || searchParams.get('tenantId');
     const search = searchParams.get('search');
 
-    let suppliers: any[] = [];
-    try {
-      const data = readFileSync(DATA_FILE, 'utf8');
-      suppliers = JSON.parse(data);
-    } catch { suppliers = []; }
-    
-    console.log('SIMPLE ROUTE - Total suppliers:', suppliers.length);
+    let query = getSupabaseServer()
+      .from('Supplier')
+      .select('*')
+      .eq('tenant_id', TENANT_ID);
 
-    let filtered = suppliers;
-    
     if (companyId) {
-      filtered = filtered.filter((s: any) => s.company_id === companyId || s.companyId === companyId || s.tenantId === companyId || s.tenant_id === companyId);
+      query = query.eq('company_id', companyId);
     }
 
     if (search) {
       const term = search.toLowerCase();
-      filtered = filtered.filter((s: any) =>
-        s.name.toLowerCase().includes(term) ||
-        s.rtn.toLowerCase().includes(term) ||
-        s.commercial_name?.toLowerCase().includes(term)
-      );
+      query = query.or(`name.ilike.%${term}%,rtn.ilike.%${term}%,commercial_name.ilike.%${term}%`);
     }
 
-    console.log('SIMPLE ROUTE - Filtered suppliers:', filtered.length);
+    const { data, error } = await query.order('created_at', { ascending: false });
 
-    return NextResponse.json(filtered);
+    if (error) {
+      console.error('Error fetching suppliers:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data || []);
   } catch (error) {
-    console.error('SIMPLE ROUTE - Error:', error);
+    console.error('Error fetching suppliers:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -45,28 +79,21 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    console.log('SIMPLE ROUTE - Creating supplier:', body);
-    
-    let suppliers: any[] = [];
-    try {
-      const data = readFileSync(DATA_FILE, 'utf8');
-      suppliers = JSON.parse(data);
-    } catch { suppliers = []; }
-    
-    const newSupplier = {
-      id: Math.random().toString(36).substring(2, 9),
-      ...body,
-      created_at: new Date().toISOString(),
-    };
 
-    suppliers.push(newSupplier);
-    writeFileSync(DATA_FILE, JSON.stringify(suppliers, null, 2), 'utf8');
-    
-    console.log('SIMPLE ROUTE - Total suppliers after creation:', suppliers.length);
+    const { data, error } = await getSupabaseServer()
+      .from('Supplier')
+      .insert(buildInsert(body))
+      .select()
+      .single();
 
-    return NextResponse.json(newSupplier, { status: 201 });
+    if (error) {
+      console.error('Error creating supplier:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
-    console.error('SIMPLE ROUTE - Error creating supplier:', error);
+    console.error('Error creating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -74,20 +101,32 @@ export async function POST(request: Request) {
 export async function PATCH(request: Request) {
   try {
     const body = await request.json();
-    const { id, ...updates } = body;
-    if (!id) return NextResponse.json({ error: 'id requerido' }, { status: 400 });
-    let suppliers: any[] = [];
-    try {
-      const data = readFileSync(DATA_FILE, 'utf8');
-      suppliers = JSON.parse(data);
-    } catch { return NextResponse.json({ error: 'No hay proveedores' }, { status: 404 }); }
-    const idx = suppliers.findIndex((s:any)=> s.id===id);
-    if (idx===-1) return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
-    suppliers[idx] = { ...suppliers[idx], ...updates, updated_at: new Date().toISOString() };
-    writeFileSync(DATA_FILE, JSON.stringify(suppliers, null, 2), 'utf8');
-    return NextResponse.json(suppliers[idx]);
+    const { id } = body;
+    if (!id) {
+      return NextResponse.json({ error: 'id requerido' }, { status: 400 });
+    }
+
+    const updates: any = {};
+    for (const col of SUPPLIER_COLUMNS) {
+      if (body[col] !== undefined) updates[col] = body[col];
+    }
+    updates.updated_at = new Date().toISOString();
+
+    const { data, error } = await getSupabaseServer()
+      .from('Supplier')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error updating supplier:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    return NextResponse.json(data);
   } catch (error) {
-    console.error('SIMPLE ROUTE - Error patching supplier:', error);
+    console.error('Error updating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
@@ -96,25 +135,21 @@ export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    
-    console.log('SIMPLE ROUTE - Deleting supplier:', id);
-    
-    const data = readFileSync(DATA_FILE, 'utf8');
-    let suppliers = JSON.parse(data);
-    
-    const index = suppliers.findIndex((s: any) => s.id === id);
-    if (index === -1) {
-      return NextResponse.json({ error: 'Supplier not found' }, { status: 404 });
+
+    if (!id) {
+      return NextResponse.json({ error: 'id requerido' }, { status: 400 });
     }
 
-    suppliers.splice(index, 1);
-    writeFileSync(DATA_FILE, JSON.stringify(suppliers, null, 2), 'utf8');
-    
-    console.log('SIMPLE ROUTE - Total suppliers after deletion:', suppliers.length);
+    const { error } = await getSupabaseServer().from('Supplier').delete().eq('id', id);
+
+    if (error) {
+      console.error('Error deleting supplier:', error);
+      return NextResponse.json({ error: 'No se puede eliminar: tiene compras o pagos asociados' }, { status: 400 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {
-    console.error('SIMPLE ROUTE - Error deleting supplier:', error);
+    console.error('Error deleting supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

@@ -7,6 +7,7 @@ export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = searchParams.get('tenantId');
+    const companyId = searchParams.get('companyId');
     const period = searchParams.get('period') || 'month';
 
     if (!tenantId) {
@@ -14,10 +15,16 @@ export async function GET(request: Request) {
     }
 
     // Get invoices from Supabase
-    const { data: invoices, error } = await getSupabaseServer()
+    let query = getSupabaseServer()
       .from('Invoice')
       .select('*')
-      .eq('tenantid', tenantId);
+      .eq('tenantId', tenantId);
+
+    if (companyId) {
+      query = query.eq('companyId', companyId);
+    }
+
+    const { data: invoices, error } = await query;
 
     if (error) {
       console.error('Error fetching invoices:', error);
@@ -62,11 +69,11 @@ export async function GET(request: Request) {
 
     // Monthly stats
     const currentMonthInvoices = invoices?.filter(i => {
-      const d = new Date(i.date || i.created_at);
+      const d = new Date(i.issueDate || i.date || i.createdAt || i.created_at);
       return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
     }) || [];
     const lastMonthInvoices = invoices?.filter(i => {
-      const d = new Date(i.date || i.created_at);
+      const d = new Date(i.issueDate || i.date || i.createdAt || i.created_at);
       return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
     }) || [];
 

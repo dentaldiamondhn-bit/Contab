@@ -1,5 +1,9 @@
 # Documentación Completa del Sistema Multi-Tenant
 
+> **Actualizado:** 16 de Septiembre de 2026
+>
+> Nota de entorno actual: el proyecto corre sobre Next.js **16.3.5** (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x y `output: 'standalone'`. **No hay acceso DDL directo** a Supabase (la conexión `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`): **todo SQL se aplica vía el SQL Editor de Supabase**, y Prisma se usa para generar el cliente (`pnpm.cmd prisma generate`). Las rutas no públicas usan `auth.protect()` (devuelve **404** sin sesión). Node portable: `C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64\node.exe`; en Windows usa `pnpm.cmd` (el `.ps1` está bloqueado).
+
 Este documento contiene toda la información necesaria para configurar, implementar y mantener el sistema multi-tenant con aislamiento de roles.
 
 ---
@@ -115,9 +119,11 @@ Los roles se gestionan a través del campo `role` en public metadata:
 ### 4. Configurar Webhooks
 Asegúrate que el webhook esté configurado en **Webhooks** > **Endpoints**:
 
-- URL: `https://tu-dominio.com/api/webhook/clerk`
+- URL: `https://tu-dominio.com/api/webhook/clerk` (handler real en `app/api/webhook/clerk/route.ts`)
 - Eventos: `user.created`, `user.updated`, `user.deleted`
 - Secret: Configurado en `CLERK_WEBHOOK_SECRET`
+
+> ⚠️ **Verifica que el endpoint del webhook quede accesible sin sesión:** el middleware protege las rutas no públicas con `auth.protect()` (404). La lista pública del middleware incluye `/api/webhooks/*`; si Clerk cae en `/api/webhook/clerk`, revisa que el handler no requiera sesión o que la ruta esté contemplada, de lo contrario el payload devolverá 404.
 
 ### 5. Asignar Roles Manualmente (para usuarios existentes)
 
@@ -138,17 +144,33 @@ Para usuarios existentes, actualiza su metadata:
 ### 6. Probar la Configuración
 
 #### Verificar Middleware
-El middleware ya está configurado para verificar roles:
+El middleware ya está configurado para verificar roles y tenant:
 
 ```typescript
-// Para rutas de admin
-if (isAdminRoute(req)) {
-  const role = (sessionClaims?.metadata as any)?.role;
-  if (!['SUPER_ADMIN', 'ADMIN'].includes(role as string)) {
-    return NextResponse.redirect(new URL('/dashboard', req.url));
+// middleware.ts real del proyecto (resumen)
+export default clerkMiddleware(async (auth, req) => {
+  const { userId, sessionClaims } = await auth();
+  const metadata = (sessionClaims?.metadata as any) || {};
+  const roleFromMetadata = metadata.role || "USER";
+
+  // Rutas no públicas → auth.protect() devuelve HTTP 404 (no redirect)
+  if (!isPublicRoute(req)) {
+    await auth.protect();
   }
-}
+
+  // Rutas de admin → login o restricción de rol
+  if (isAdminRoute(req)) {
+    if (!userId) return NextResponse.redirect(new URL("/auth/login", req.url));
+    const isAuthorized =
+      isSuperAdmin || ['SUPER_ADMIN', 'SUPPORT', 'ADMIN', 'MANAGER'].includes(roleFromMetadata);
+    if (!isAuthorized) return NextResponse.redirect(new URL("/dashboard", req.url));
+  }
+
+  // Inyecta x-tenant-id desde la metadata (si la petición no trae un tenant explícito)
+});
 ```
+
+> ⚠️ **Rutas protegidas devuelven 404 sin sesión.** `clerkMiddleware` + `auth.protect()` responden HTTP **404** (no redirect) a usuarios no autenticados en rutas que no están en la lista de rutas públicas (`/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`). Para probar rutas protegidas inicia sesión en el navegador.
 
 #### Verificar Webhook
 El webhook sincroniza los roles con la base de datos:
@@ -175,12 +197,12 @@ const role = public_metadata?.role || 'USER';
 ## Comandos Útiles
 
 ### Verificar configuración actual:
-```bash
-# Revisar variables de entorno
-cat .env.clerk
+```powershell
+# Revisar variables de entorno (Windows)
+Get-Content .env.clerk
 
-# Verificar webhook
-curl -X POST https://tu-dominio.com/api/webhook/clerk
+# Verificar webhook (debe poder llegar sin sesión; si el middleware lo protege dará 404)
+# Invoke-WebRequest -Method POST https://tu-dominio.com/api/webhook/clerk
 ```
 
 ### Actualizar usuarios existentes:
@@ -359,12 +381,13 @@ Usa el script de actualización masiva o actualiza manualmente desde Clerk Dashb
 4. Click **Save**
 
 ### Método 2: Script Masivo
-```bash
-# Verificar usuarios existentes
-CLERK_SECRET_KEY=sk_test_xxx node scripts/clerk-bulk-import.js check
+```powershell
+# Verificar usuarios existentes (Windows PowerShell: usa $env:)
+$env:CLERK_SECRET_KEY = "sk_test_xxx"
+node scripts/clerk-bulk-import.js check
 
 # Importar usuarios nuevos
-CLERK_SECRET_KEY=sk_test_xxx node scripts/clerk-bulk-import.js import
+node scripts/clerk-bulk-import.js import
 ```
 
 ### Método 3: API Directa
@@ -400,12 +423,13 @@ WHERE is_active = true;
 ## Validación
 
 ### Verificar Configuración
-```bash
-# Ejecutar script de validación SQL
-psql -t tu_database < scripts/role-validation.sql
+```powershell
+# Ejecutar el script de validación SQL en el SQL Editor de Supabase
+# (no hay acceso DDL directo; pegar el contenido de scripts/role-validation.sql)
 
 # Verificar usuarios en Clerk
-CLERK_SECRET_KEY=sk_test_xxx node scripts/clerk-bulk-import.js check
+$env:CLERK_SECRET_KEY = "sk_test_xxx"
+node scripts/clerk-bulk-import.js check
 ```
 
 ### Errores Comunes
@@ -952,17 +976,19 @@ SUPER_ADMIN
 
 ### Ejecutar Migration
 ```bash
-# 1. Ejecutar migration SQL completa
-psql -t tu_database < scripts/complete-setup.sql
+# 1. Aplicar el SQL en el SQL Editor de Supabase (no hay DDL directo; pestaña SQL Editor → New query → Run)
+#    scripts/complete-setup.sql
 
 # 2. Generar Prisma Client
-npx prisma generate
+pnpm.cmd prisma generate
 
-# 3. Aplicar cambios a BD
-npx prisma db push
+# 3. Aplicar cambios de schema (si hay conexión directa; contra Supabase aplicar el SQL manualmente vía SQL Editor)
+pnpm.cmd prisma db push
 ```
 
 ### Verificar Configuración
+> Las consultas siguientes se ejecutan en el **SQL Editor de Supabase** (`db.<ref>.supabase.co` directo NO responde: `getaddrinfo ENOTFOUND`).
+
 ```sql
 -- Verificar tenantCode agregado
 SELECT column_name FROM information_schema.columns 
@@ -981,11 +1007,16 @@ ORDER BY tenant_code;
 
 ### Variables de Entorno
 ```bash
-# .env.local
+# .env.local (16 Sept 2026)
 CLERK_SECRET_KEY=sk_test_xxx
 CLERK_WEBHOOK_SECRET=whsec_xxx
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
+DATABASE_URL=postgresql://...            # conexión directa a Supabase/Postgres
+NEXT_PUBLIC_SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...
+NEXT_PUBLIC_APP_URL=https://tudominio.com
 ```
+> ⚠️ No existe `SUPABASE_URL` (usar solo `NEXT_PUBLIC_SUPABASE_URL`), ver fix en `app/api/companies/route.ts`.
 
 ### Webhook Configuration
 - URL: `https://tudominio.com/api/webhook/clerk`
@@ -1021,16 +1052,19 @@ NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_xxx
 
 ## Validación y Pruebas
 
+> Nota: los comandos `psql` de esta sección suponen una instancia con acceso directo. Contra Supabase, copia el SQL y ejecútalo en el **SQL Editor**. Los scripts TS se ejecutan con `pnpm.cmd tsx` (o `npx ts-node` con Node portable).
+
 ### Probar Aislamiento
 ```bash
-# 1. Crear tenant de prueba
-CLERK_SECRET_KEY=xxx npx ts-node scripts/create-isolated-tenant-users.ts create
+# 1. Crear tenant de prueba (Windows PowerShell)
+$env:CLERK_SECRET_KEY = "xxx"
+pnpm.cmd tsx scripts/create-isolated-tenant-users.ts create
 
-# 2. Verificar tenants
-psql -t tu_database -c "SELECT tenant_code, business_name FROM Tenant;"
+# 2. Verificar tenants (SQL Editor de Supabase)
+SELECT tenant_code, business_name FROM Tenant;
 
-# 3. Verificar usuarios aislados
-psql -t tu_database -c "SELECT email, role, tenant_id FROM users WHERE role NOT IN ('SUPER_ADMIN', 'SUPPORT');"
+# 3. Verificar usuarios aislados (SQL Editor de Supabase)
+SELECT email, role, tenant_id FROM users WHERE role NOT IN ('SUPER_ADMIN', 'SUPPORT');
 ```
 
 ### Probar Acceso Cruzado
@@ -1047,16 +1081,16 @@ psql -t tu_database -c "SELECT email, role, tenant_id FROM users WHERE role NOT 
 4. **Acceso cruzado**: Revisar middleware
 
 ### Debug
-```bash
+```powershell
 # Verificar metadata de usuario en Clerk
-curl -H "Authorization: Bearer $CLERK_SECRET_KEY" \
-  "https://api.clerk.dev/v1/users"
+$env:CLERK_SECRET_KEY = "sk_test_xxx"
+Invoke-RestMethod -Headers @{ Authorization = "Bearer $env:CLERK_SECRET_KEY" } https://api.clerk.dev/v1/users
 
-# Verificar tenants en BD
-psql -t tu_database -c "SELECT * FROM Tenant;"
+# Verificar tenants en BD (SQL Editor de Supabase)
+SELECT * FROM Tenant;
 
-# Verificar usuarios con metadata
-psql -t tu_database -c "SELECT email, role, tenant_id FROM users;"
+# Verificar usuarios con metadata (SQL Editor de Supabase)
+SELECT email, role, tenant_id FROM users;
 ```
 
 ## Resumen de Características
@@ -1099,8 +1133,12 @@ psql -t tu_database -c "SELECT email, role, tenant_id FROM users;"
 
 ## Ejecutar Setup Completo
 
+Aplicar en el **SQL Editor de Supabase** (no hay acceso DDL directo):
+
 ```bash
-# Ejecutar todo el setup SQL
+# 1. Copiar el contenido de scripts/complete-setup.sql
+# 2. Pega en Supabase → SQL Editor → New query → Run
+# Alternativa local (solo con una instancia que tenga acceso directo):
 psql -t tu_database < scripts/complete-setup.sql
 ```
 
@@ -1178,16 +1216,17 @@ HAVING COUNT(*) > 1;
 ```
 
 ### Validar Permisos en Clerk
-```bash
-# Verificar metadata de usuarios
-CLERK_SECRET_KEY=sk_test_xxx node scripts/clerk-bulk-import.js check
+```powershell
+# Verificar metadata de usuarios (Windows PowerShell)
+$env:CLERK_SECRET_KEY = "sk_test_xxx"
+node scripts/clerk-bulk-import.js check
 ```
 
 ## Errores Comunes y Soluciones
 
 ### Error: tenantCode no existe
 **Causa**: Columna no agregada a la base de datos
-**Solución**: Ejecutar `psql -t tu_database < scripts/complete-setup.sql`
+**Solución**: Ejecutar `scripts/complete-setup.sql` en el **SQL Editor de Supabase** (no hay acceso DDL directo)
 
 ### Error: Permisos denegados
 **Causa**: Metadata incorrecta en Clerk

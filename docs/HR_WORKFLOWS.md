@@ -1,6 +1,6 @@
 # Workflows del Módulo de Recursos Humanos
 
-> **Fecha:** 7 de Septiembre de 2026
+> **Fecha:** 16 de Septiembre de 2026
 > **Sistema:** Diamond Accounting — Módulo RRHH
 > **Tenant:** ANGELOH7 (Angelos)
 

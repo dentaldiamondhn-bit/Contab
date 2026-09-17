@@ -1,11 +1,12 @@
 # Reporte de Estado y Plan de Ejecución: Módulo de Recursos Humanos
 
-> **Fecha de actualización:** 12 de Septiembre de 2026
+> **Fecha de actualización:** 16 de Septiembre de 2026
 
 ## 0. Últimos Cambios
 
 | Fecha | Cambio | Archivos |
 |---|---|---|
+| 16 Sep | **Fix env Supabase + middleware Clerk** — `app/api/companies/route.ts` usaba `SUPABASE_URL` (no definida → 500); ahora `NEXT_PUBLIC_SUPABASE_URL`. Middleware Clerk con `auth.protect()` (HTTP 404 a no autenticados) e inyección del header `x-tenant-id`. Build `pnpm build` EXIT=0 (Next.js 16.3.5 Turbopack, `output: 'standalone'`). | `app/api/companies/route.ts`, `middleware.ts` |
 | 12 Sep | **Dashboard de asistencia** — Página reestructurada con 4 tabs: Dashboard (stats + tarjetas colapsables), Mi Fichaje, Mi Equipo, Horarios. Empleados ausentes ocultos tras toggle. Cards expandibles con historial. | `time-clock/page.tsx` |
 | 12 Sep | **Plantillas de horario con multi-descanso** — Tabla `work_schedules` con hasta 3 descansos. CRUD completo en tab Horarios. Asignación a empleados. | `work-schedules/route.ts`, `ADD_MULTI_BREAKS.sql` |
 | 12 Sep | **Visibilidad del horario en todos los módulos** — Nombre del horario visible en empleados (card y detalle), nómina (columna), asistencia (dropdown), búsqueda. | `employees/route.ts`, `employees/search/route.ts`, `payroll/employees/route.ts` |
@@ -446,7 +447,7 @@
 1. **Almacenamiento consolidado al 100% en Supabase**: Toda la data del módulo HR (empleados, asistencia, planilla, permisos) persiste en Supabase via API routes con service_role key. **localStorage eliminado completamente.**
 2. **23 API routes para HR**: 4 de personal (employees CRUD + search, departments, positions) + 1 storage + 6 de asistencia (attendance, holidays, config, schedules, reports, **time-tracking**) + 5 de planilla (config, closed, deductions, employees, uploads) + 3 de permisos (types, requests, used) + 3 de PIP (plans, evaluations, metrics) + **1 de equipos (teams)**.
 3. **12 UI pages para HR**: employees, departments, hierarchy, org-chart, dashboard, attendance, **attendance time-clock**, attendance reports, payroll, vacations, **vacations calendar**, reports hub.
-4. **28 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. **Campo `role`** (gerente/supervisor/empleado) para control de asistencia. **Tabla `time_tracking`** para fichajes por timestamps. **Tablas `employee_teams` y `team_members`** para sub-equipos por departamento. Tabla `payroll_uploads` para datos de Excel. Tablas de asistencia (`attendance_schedules`, `attendance_deduction_config`, `attendance_holidays`, `employee_history`) creadas con RLS.
+4. **29 tablas + 2 buckets en Supabase**: Todas desplegadas y funcionales con RLS habilitado. Columna `reports_to` para jerarquía de empleados. **Campo `role`** (gerente/supervisor/empleado) para control de asistencia. **Tabla `time_tracking`** para fichajes por timestamps. **Tablas `employee_teams` y `team_members`** para sub-equipos por departamento. Tabla `payroll_uploads` para datos de Excel. Tablas de asistencia (`attendance_schedules`, `attendance_deduction_config`, `attendance_holidays`, `employee_history`) creadas con RLS.
 5. **Fotos y documentos migrados**: Almacenamiento en Supabase Storage con URLs persistentes en DB (reemplaza base64 en localStorage).
 6. **Tipos TypeScript y hooks HR implementados**: `types/hr.ts` con 50+ interfaces y `hooks/use-hr.ts` con 3 hooks CRUD (useEmployees, useDepartments, usePositions) — cada uno con loading, error, refetch automático y optimistic updates.
 7. ~~Sin tipos TypeScript HR~~ ✅ `types/hr.ts` con 50+ interfaces.
@@ -455,7 +456,7 @@
 10. **11 estados de asistencia**: Presente, Ausente, Tardanza, Vacaciones, HE, Permiso Sin Sueldo, Permiso Con Pago, Suspensión sin Goce, Incapacidad, Feriado, Día Libre. Tarjetas de stats clickeables (11) con filtro especial para HE.
 11. **3 vistas de asistencia**: Diaria (con botones), Quincenal (tabla 2 semanas), **Compacta** (empleados agrupados por departamento con secciones colapsables por defecto, indicador de registro por depto).
 12. **Carga Excel persistente**: Datos subidos por Excel se guardan en tabla `payroll_uploads` y se cargan automáticamente al abrir la nómina. Matching por código de empleado (primario) o nombre normalizado (unicode).
-13. **Validaciones y seguridad completas**: RLS en las 28 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
+13. **Validaciones y seguridad completas**: RLS en las 29 tablas HR, UNIQUE constraints (employee_code, departments, positions, payroll_closed), API input validation (nombre requerido, salario >= 0, salarios coherentes), employee_code collision-safe con random, prevención de cierre duplicado de nómina, tenant_id check en PIP DELETE.
 14. **Permisos parciales**: Permiso Sin Pago y Permiso Con Pago soportan horas y minutos parciales (modal con selector de horas/minutos). Horas almacenadas en columna `hours` (DECIMAL 5,2) de la tabla attendance.
 
 ---
@@ -609,12 +610,14 @@ Etapa 1 (Supabase + API) ✅
 
 ---
 
-## Actualizaciones de Infraestructura (8 Sept 2026)
+## Actualizaciones de Infraestructura (actualizado: 16 Sept 2026)
 
 | Cambio | Detalle |
 |---|---|
 | Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raíz |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
-| Next.js 15.5.25 | Downgraded desde 16.x (bug de Turbopack con .nft.json en Vercel) |
+| Middleware Clerk | Rutas no públicas → `auth.protect()` (HTTP 404 a no autenticados); inyecta header `x-tenant-id` |
+| Env Supabase corregido | `app/api/companies/route.ts` usaba `SUPABASE_URL` (undefined → 500); ahora `NEXT_PUBLIC_SUPABASE_URL`. Variables vigentes: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`. **`SUPABASE_URL` no existe.** |
+| Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026); `pnpm build` EXIT=0 (Turbopack, `output: 'standalone'`) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |

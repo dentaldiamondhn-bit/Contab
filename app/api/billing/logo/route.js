@@ -23,8 +23,7 @@ export async function GET(request) {
       
       const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
-        .list('*', {
-          search: `tenantId=eq.${tenantId}`,
+        .list(tenantId, {
           limit: 1
         });
 
@@ -40,18 +39,19 @@ export async function GET(request) {
 
       if (data && data.length > 0) {
         const logoFile = data[0];
+        const logoPath = `${tenantId}/${logoFile.name}`;
         
-        const { data: publicUrlData } = getSupabaseServer().storage
+        const { data: signedUrlData } = await getSupabaseServer().storage
           .from('company-logos')
-          .getPublicUrl(logoFile.name);
+          .createSignedUrl(logoPath, 3600);
 
         console.log('Logo encontrado en Supabase Storage');
-        console.log('Nombre del archivo:', logoFile.name);
-        console.log('URL publico:', publicUrlData.publicUrl);
+        console.log('Logo path:', logoPath);
 
         return NextResponse.json({
           success: true,
-          logoUrl: publicUrlData.publicUrl,
+          logoPath: logoPath,
+          logoUrl: signedUrlData?.signedUrl || null,
           fileName: logoFile.name,
           fileSize: logoFile.metadata?.size,
           fileType: logoFile.metadata?.contentType,
@@ -123,7 +123,7 @@ export async function POST(request) {
       console.log('Tipo:', file.type);
 
       const fileExt = file.name.split('.').pop();
-      const uniqueFileName = `${tenantId}-logo-${Date.now()}.${fileExt}`;
+      const uniqueFileName = `${tenantId}/logo-${Date.now()}.${fileExt}`;
 
       const { data, error } = await getSupabaseServer().storage
         .from('company-logos')
@@ -146,19 +146,19 @@ export async function POST(request) {
         });
       }
 
-      const { data: publicUrlData } = getSupabaseServer().storage
+      const { data: signedUrlData } = await getSupabaseServer().storage
         .from('company-logos')
-        .getPublicUrl(uniqueFileName);
+        .createSignedUrl(uniqueFileName, 3600);
 
       console.log('Logo subido exitosamente a Supabase Storage');
       console.log('ID del registro:', data.id);
       console.log('Nombre unico:', uniqueFileName);
-      console.log('URL publico:', publicUrlData.publicUrl);
 
       return NextResponse.json({
         success: true,
         message: 'Logo subido y guardado correctamente en Supabase Storage',
-        logoUrl: publicUrlData.publicUrl,
+        logoPath: uniqueFileName,
+        logoUrl: signedUrlData?.signedUrl || null,
         fileName: uniqueFileName,
         fileSize: file.size,
         recordId: data.id

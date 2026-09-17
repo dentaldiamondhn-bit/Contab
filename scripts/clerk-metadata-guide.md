@@ -1,5 +1,9 @@
 # Guía de Metadata para Clerk - Estructura Completa
 
+> **Actualizado:** 16 de Septiembre de 2026
+>
+> La estructura de metadata (`role`, `tenantId`, `tenantCode`, `permissions`, `isolation`) sigue vigente. `middleware.ts` lee esta metadata (campos en `sessionClaims.metadata`) e inyecta `x-tenant-id` en las peticiones. Recuerda: las rutas no públicas usan `auth.protect()` → **404** sin sesión.
+
 ## Cómo Agregar Metadata a Usuarios en Clerk
 
 ### Método 1: Desde Clerk Dashboard (Recomendado para pocos usuarios)
@@ -14,17 +18,20 @@
 
 ### Método 2: Usando el Script de Actualización (Para múltiples usuarios)
 
-```bash
+En Windows PowerShell usa `$env:` para la variable:
+
+```powershell
 # Configurar la variable de entorno
-export CLERK_SECRET_KEY=sk_test_tu_clave_secreta
+$env:CLERK_SECRET_KEY = "sk_test_tu_clave_secreta"
 
 # Ejecutar el script para verificar usuarios actuales
-node scripts/clerk-bulk-import.js check
+& "C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64\node.exe" scripts\clerk-bulk-import.js check
 
-# Ejecutar el script para actualizar metadata
-# (necesitas crear el script de actualización primero)
-node scripts/clerk-update-metadata.js
+# Actualizar metadata masiva (script TypeScript real del repo)
+pnpm.cmd tsx scripts\update-clerk-metadata.ts
 ```
+
+> Nota: `scripts/clerk-update-metadata.js` **no existe**; el script de actualización real es `scripts/update-clerk-metadata.ts` (junto con `scripts/clerk-bulk-import.js`). Ejecuta el JS con el `node.exe` portable y los TS con `pnpm tsx`/`pnpm.cmd tsx`.
 
 ---
 
@@ -415,9 +422,10 @@ Antes de guardar la metadata en Clerk, verifica:
 
 ```bash
 # Verificar usuarios en Clerk
-node scripts/clerk-bulk-import.js check
+& "C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64\node.exe" scripts\clerk-bulk-import.js check
 
-# Verificar en base de datos local
+# Verificar en base de datos local (aplicar en el SQL Editor de Supabase;
+# no hay acceso DDL directo, la conexión db.<ref>.supabase.co:5432 da ENOTFOUND)
 SELECT email, role, tenant_id FROM users WHERE email = 'usuario@ejemplo.com';
 ```
 

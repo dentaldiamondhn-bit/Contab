@@ -1,5 +1,9 @@
 # Guía de Migración - Utilidades de Fecha con Timezone
 
+> **Actualizado:** 16 de Septiembre de 2026
+>
+> Servicio vigente en `lib/date-utils.ts` (funciones y firmas sin cambios). La migración es incremental; hay archivos que aún usan `toLocaleDateString` directamente (ver "Pendientes de Migración").
+
 ## Overview
 
 Se ha creado un servicio centralizado para manejo de fechas con timezone de Honduras (`America/Tegucigalpa`) para resolver problemas de consistencia en todo el proyecto.
@@ -120,7 +124,7 @@ isDateExpired(endDate)
 ## Archivos Actualizados
 
 ### Ya Migrados:
-- `app/inventory/page.tsx` - Promociones y productos
+- `app/inventory/page.tsx` - Promociones y productos (aún quedan usos directos de `toLocaleDateString` en expiración/movimientos: migración parcial)
 - `app/companies/[id]/page.tsx` - Fechas de empresa, CAI, talonarios
 - `app/accounting/taxes/page.tsx` - Fechas de impuestos y retenciones
 
@@ -131,6 +135,7 @@ isDateExpired(endDate)
 - `app/companies/[id]/security/(modules)/cai/page.tsx`
 - `app/companies/[id]/security/(modules)/retenciones/page.tsx`
 - Archivos en `components/`
+- Otros archivos de `app/billing/*`, `app/tenant-admin/*`, `app/support/*`, `app/companies/[id]/*` que aún usan `toLocaleDateString` directamente
 
 ## Script Automático
 

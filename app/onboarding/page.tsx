@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useUser } from '@clerk/nextjs';
+import { useTenant } from '@/lib/contexts/TenantContext';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +13,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { 
   Building2, 
   Users, 
-  Stethoscope, 
-  Briefcase, 
-  Store, 
-  Factory,
   ArrowRight,
   ArrowLeft,
   CheckCircle,
@@ -38,6 +35,7 @@ import {
   Check
 } from 'lucide-react';
 import { saveOnboardingData } from '@/lib/actions/onboarding';
+import { HONDURAS_DEPARTMENTS, getMunicipalitiesByDepartment } from '@/lib/data/honduras-locations';
 
 // Interfaces
 interface UserMode {
@@ -47,17 +45,13 @@ interface UserMode {
   icon: React.ReactNode;
 }
 
-interface BusinessType {
-  id: string;
-  name: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
 interface CompanyData {
   name: string;
   rtn: string;
   address: string;
+  department: string;
+  municipality: string;
+  logoUrl: string;
   contactPhone: string;
   email: string;
   industry: string;
@@ -97,6 +91,33 @@ interface Plan {
   isActive: boolean;
 }
 
+interface SalesConfig {
+  caiEnabled: boolean;
+  caiCode: string;
+  caiType: 'auto_impresion' | 'imprenta';
+  caiExpirationDate: string;
+  caiRangeFrom: string;
+  caiRangeTo: string;
+  taxes: { rate: number; type: string }[];
+  invoicePrefix: string;
+}
+
+const createDefaultSalesConfig = (): SalesConfig => ({
+  caiEnabled: false,
+  caiCode: '',
+  caiType: 'auto_impresion',
+  caiExpirationDate: '',
+  caiRangeFrom: '',
+  caiRangeTo: '',
+  taxes: [{ rate: 15, type: 'ISV' }],
+  invoicePrefix: '001-001-'
+});
+
+const cloneSalesConfig = (config?: SalesConfig): SalesConfig => {
+  const base = config || createDefaultSalesConfig();
+  return { ...base, taxes: base.taxes.map(t => ({ ...t })) };
+};
+
 // Constants
 const userModes: UserMode[] = [
   {
@@ -113,68 +134,273 @@ const userModes: UserMode[] = [
   }
 ];
 
-const businessTypes: BusinessType[] = [
-  { id: 'clinica_dental', name: 'Clínica Dental', description: 'Consultorio odontológico con pacientes y facturación médica', icon: <Stethoscope className="h-8 w-8" /> },
-  { id: 'consultorio_medico', name: 'Consultorio Médico', description: 'Centro de salud o consultorio privado', icon: <Stethoscope className="h-8 w-8" /> },
-  { id: 'farmacia', name: 'Farmacia', description: 'Venta de medicamentos y productos farmacéuticos', icon: <Store className="h-8 w-8" /> },
-  { id: 'tienda_comercio', name: 'Tienda / Comercio', description: 'Venta de productos al por menor o mayor', icon: <Store className="h-8 w-8" /> },
-  { id: 'servicios_profesionales', name: 'Servicios Profesionales', description: 'Abogados, ingenieros, arquitectos, consultores', icon: <Briefcase className="h-8 w-8" /> },
-  { id: 'manufactura', name: 'Manufactura / Producción', description: 'Fábrica o empresa de producción de bienes', icon: <Factory className="h-8 w-8" /> },
-  { id: 'otro_negocio', name: 'Otro Tipo de Negocio', description: 'Cualquier otro tipo de empresa o emprendimiento', icon: <Building2 className="h-8 w-8" /> }
-];
-
 const defaultAccounts: AccountCatalog[] = [
   // Activos
-  { code: '1.1.01', name: 'Caja General', type: 'activo', selected: true },
-  { code: '1.1.02', name: 'Bancos', type: 'activo', selected: true },
-  { code: '1.1.03', name: 'Inversiones Temporales', type: 'activo', selected: false },
-  { code: '1.2.01', name: 'Clientes', type: 'activo', selected: true },
-  { code: '1.2.02', name: 'Documentos por Cobrar', type: 'activo', selected: false },
-  { code: '1.3.01', name: 'Inventario de Mercadería', type: 'activo', selected: true },
-  { code: '1.4.01', name: 'Mobiliario y Equipo', type: 'activo', selected: true },
-  { code: '1.4.02', name: 'Equipo de Computación', type: 'activo', selected: true },
-  { code: '1.4.03', name: 'Vehículos', type: 'activo', selected: false },
+  { code: '110101', name: 'Caja General', type: 'activo', selected: true },
+  { code: '110102', name: 'Bancos', type: 'activo', selected: true },
+  { code: '110103', name: 'Inversiones Temporales', type: 'activo', selected: false },
+  { code: '110201', name: 'Clientes', type: 'activo', selected: true },
+  { code: '110202', name: 'Documentos por Cobrar', type: 'activo', selected: false },
+  { code: '110301', name: 'Inventario de Mercadería', type: 'activo', selected: true },
+  { code: '120101', name: 'Mobiliario y Equipo', type: 'activo', selected: true },
+  { code: '120102', name: 'Equipo de Computación', type: 'activo', selected: true },
+  { code: '120103', name: 'Vehículos', type: 'activo', selected: false },
   // Pasivos
-  { code: '2.1.01', name: 'Proveedores', type: 'pasivo', selected: true },
-  { code: '2.1.02', name: 'Documentos por Pagar', type: 'pasivo', selected: false },
-  { code: '2.1.03', name: 'Préstamos Bancarios', type: 'pasivo', selected: false },
-  { code: '2.2.01', name: 'Impuestos por Pagar', type: 'pasivo', selected: true },
-  { code: '2.2.02', name: 'Sueldos por Pagar', type: 'pasivo', selected: true },
+  { code: '210101', name: 'Proveedores', type: 'pasivo', selected: true },
+  { code: '210102', name: 'Documentos por Pagar', type: 'pasivo', selected: false },
+  { code: '210103', name: 'Préstamos Bancarios', type: 'pasivo', selected: false },
+  { code: '210201', name: 'Impuestos por Pagar', type: 'pasivo', selected: true },
+  { code: '210202', name: 'Sueldos por Pagar', type: 'pasivo', selected: true },
   // Patrimonio
-  { code: '3.1.01', name: 'Capital Social', type: 'patrimonio', selected: true },
-  { code: '3.1.02', name: 'Utilidades Retenidas', type: 'patrimonio', selected: false },
+  { code: '310101', name: 'Capital Social', type: 'patrimonio', selected: true },
+  { code: '310102', name: 'Utilidades Retenidas', type: 'patrimonio', selected: false },
   // Ingresos
-  { code: '4.1.01', name: 'Ventas de Mercadería', type: 'ingreso', selected: true },
-  { code: '4.1.02', name: 'Servicios Prestados', type: 'ingreso', selected: true },
-  { code: '4.1.03', name: 'Intereses Ganados', type: 'ingreso', selected: false },
+  { code: '410101', name: 'Ventas de Mercadería', type: 'ingreso', selected: true },
+  { code: '410102', name: 'Servicios Prestados', type: 'ingreso', selected: true },
+  { code: '410103', name: 'Intereses Ganados', type: 'ingreso', selected: false },
   // Gastos
-  { code: '5.1.01', name: 'Costo de Ventas', type: 'gasto', selected: true },
-  { code: '5.2.01', name: 'Sueldos y Salarios', type: 'gasto', selected: true },
-  { code: '5.2.02', name: 'Alquileres', type: 'gasto', selected: true },
-  { code: '5.2.03', name: 'Servicios Públicos', type: 'gasto', selected: true },
-  { code: '5.2.04', name: 'Depreciación', type: 'gasto', selected: false },
-  { code: '5.3.01', name: 'Gastos de Ventas', type: 'gasto', selected: false },
-  { code: '5.3.02', name: 'Gastos Administrativos', type: 'gasto', selected: false }
+  { code: '510101', name: 'Costo de Ventas', type: 'gasto', selected: true },
+  { code: '510201', name: 'Sueldos y Salarios', type: 'gasto', selected: true },
+  { code: '510202', name: 'Alquileres', type: 'gasto', selected: true },
+  { code: '510203', name: 'Servicios Públicos', type: 'gasto', selected: true },
+  { code: '510204', name: 'Depreciación', type: 'gasto', selected: false },
+  { code: '510301', name: 'Gastos de Ventas', type: 'gasto', selected: false },
+  { code: '510302', name: 'Gastos Administrativos', type: 'gasto', selected: false }
 ];
+
+const cloneAccounts = (list?: AccountCatalog[]) => (list || defaultAccounts).map(a => ({ ...a }));
+
+// Bypass temporal de pago: permite completar el onboarding sin cobrar.
+// La selección de plan se mantiene; solo se omite el método de pago/cobro.
+const BYPASS_PAYMENT = true;
 
 const wizardSteps = [
   { id: 1, name: 'Datos Empresa', icon: <Building className="h-5 w-5" /> },
-  { id: 2, name: 'Seleccionar Plan', icon: <Calculator className="h-5 w-5" /> },
-  { id: 3, name: 'Catálogo Cuentas', icon: <BookOpen className="h-5 w-5" />, optional: true },
-  { id: 4, name: 'Imagen', icon: <ImageIcon className="h-5 w-5" /> },
-  { id: 5, name: 'Config. Ventas', icon: <ShoppingCart className="h-5 w-5" /> },
-  { id: 6, name: 'Términos', icon: <FileText className="h-5 w-5" /> },
+  { id: 2, name: 'Catálogo Cuentas', icon: <BookOpen className="h-5 w-5" />, optional: true },
+  { id: 3, name: 'Imagen', icon: <ImageIcon className="h-5 w-5" /> },
+  { id: 4, name: 'Config. Ventas', icon: <ShoppingCart className="h-5 w-5" /> },
+  { id: 5, name: 'Términos', icon: <FileText className="h-5 w-5" /> },
+  { id: 6, name: 'Seleccionar Plan', icon: <Calculator className="h-5 w-5" /> },
   { id: 7, name: 'Método de Pago', icon: <CreditCard className="h-5 w-5" /> }
 ];
+
+// RTN hondureño completo: 14 dígitos en formato xxxx-xxxx-xxxxxx (4-4-6)
+function hasCompleteRTN(rtn: string): boolean {
+  return /^\d{14}$/.test((rtn || '').replace(/[\s-]/g, ''));
+}
+
+// RTN hondureño: 14 dígitos formateados automáticamente como xxxx-xxxx-xxxxxx (4-4-6)
+function maskRTN(value: string): string {
+  const clean = (value || '').replace(/\D/g, '').slice(0, 14);
+  const groups = [4, 4, 6];
+  let result = '';
+  let offset = 0;
+  groups.forEach((len, i) => {
+    if (offset >= clean.length) return;
+    const chunk = clean.slice(offset, offset + len);
+    if (!chunk) return;
+    result += (i > 0 ? '-' : '') + chunk;
+    offset += len;
+  });
+  return result;
+}
+
+// CAI: 32 caracteres alfanuméricos formateados XXXX-XXXX-XXXX-XXXX (grupos 6-6-6-6-6-2)
+function maskCAI(value: string): string {
+  const clean = (value || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 32);
+  const groups = [6, 6, 6, 6, 6, 2];
+  let result = '';
+  let offset = 0;
+  groups.forEach((len, i) => {
+    if (offset >= clean.length) return;
+    const chunk = clean.slice(offset, offset + len);
+    if (!chunk) return;
+    result += (i > 0 ? '-' : '') + chunk;
+    offset += len;
+  });
+  return result;
+}
+
+// Punto de emisión / rango: formato 000-001-01-00000001 (grupos 3-3-2-8)
+function maskEmissionRange(value: string): string {
+  const clean = (value || '').replace(/\D/g, '').slice(0, 16);
+  const groups = [3, 3, 2, 8];
+  let result = '';
+  let offset = 0;
+  groups.forEach((len, i) => {
+    if (offset >= clean.length) return;
+    const chunk = clean.slice(offset, offset + len);
+    if (!chunk) return;
+    result += (i > 0 ? '-' : '') + chunk;
+    offset += len;
+  });
+  return result;
+}
+
+// Rubros / giros de la empresa (industry)
+const BUSINESS_RUBROS = [
+  'Clínica dental',
+  'Consultorio médico',
+  'Farmacia',
+  'Tienda / Comercio',
+  'Servicios profesionales',
+  'Manufactura / Producción',
+  'Restaurante / Comida',
+  'Transporte / Logística',
+  'Construcción',
+  'Agricultura / Ganadería',
+  'Tecnología / Software',
+  'Otro'
+];
+
+// Campos del formulario de datos de empresa (reutilizado para multi-empresa en modo contador)
+function CompanyFields({ data, onChange, companyIndex = 0, onRtnDuplicate }: {
+  data: CompanyData;
+  onChange: (patch: Partial<CompanyData>) => void;
+  companyIndex?: number;
+  onRtnDuplicate?: (index: number, duplicate: boolean) => void;
+}) {
+  const [rtnStatus, setRtnStatus] = useState<'checking' | 'unique' | 'duplicate' | null>(null);
+
+  useEffect(() => {
+    const rtn = data.rtn || '';
+    if (!hasCompleteRTN(rtn)) {
+      setRtnStatus(null);
+      onRtnDuplicate?.(companyIndex, false);
+      return;
+    }
+    let cancelled = false;
+    setRtnStatus('checking');
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/onboarding/check-rtn?rtn=${encodeURIComponent(rtn)}`);
+        const json = await res.json();
+        if (cancelled) return;
+        const duplicate = !!json.exists;
+        setRtnStatus(duplicate ? 'duplicate' : 'unique');
+        onRtnDuplicate?.(companyIndex, duplicate);
+      } catch {
+        if (!cancelled) setRtnStatus(null);
+      }
+    }, 400);
+    return () => { cancelled = true; clearTimeout(t); };
+  }, [data.rtn, companyIndex]);
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="space-y-2">
+        <Label htmlFor="companyName">Nombre de la Empresa *</Label>
+        <Input id="companyName" value={data.name} onChange={(e) => onChange({ name: e.target.value })} placeholder="Ej: Empresa S.A." />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="rtn">RTN *</Label>
+        <div className="relative">
+          <Input id="rtn" value={data.rtn} onChange={(e) => onChange({ rtn: maskRTN(e.target.value) })} placeholder="0801-1999-012345" maxLength={16} className="pr-10" />
+          {data.rtn && hasCompleteRTN(data.rtn) && rtnStatus === 'unique' && (
+            <CheckCircle className="h-5 w-5 text-green-600 absolute right-3 top-3" />
+          )}
+          {data.rtn && hasCompleteRTN(data.rtn) && rtnStatus === 'checking' && (
+            <div className="h-5 w-5 animate-spin rounded-full border-2 border-blue-500 border-t-transparent absolute right-3 top-3" />
+          )}
+        </div>
+        {data.rtn && !hasCompleteRTN(data.rtn) && (
+          <p className="text-sm text-red-600">El RTN debe tener 14 dígitos válidos</p>
+        )}
+        {data.rtn && hasCompleteRTN(data.rtn) && rtnStatus === 'duplicate' && (
+          <p className="text-sm text-red-600">Este RTN ya está registrado por otra empresa</p>
+        )}
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="industry">Rubro / Giro de la Empresa *</Label>
+        <select
+          id="industry"
+          className="w-full border rounded-lg px-3 py-2"
+          value={data.industry}
+          onChange={(e) => onChange({ industry: e.target.value })}
+        >
+          <option value="">Seleccionar rubro</option>
+          {BUSINESS_RUBROS.map((rubro) => (
+            <option key={rubro} value={rubro}>{rubro}</option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="address">Dirección</Label>
+        <Textarea id="address" value={data.address} onChange={(e) => onChange({ address: e.target.value })} placeholder="Dirección exacta de la empresa (avenida, calle, colonia)" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="department">Departamento *</Label>
+        <select
+          id="department"
+          className="w-full border rounded-lg px-3 py-2"
+          value={data.department}
+          onChange={(e) => onChange({ department: e.target.value, municipality: '' })}
+        >
+          <option value="">Seleccionar departamento</option>
+          {HONDURAS_DEPARTMENTS.map((dept) => (
+            <option key={dept.name} value={dept.name}>{dept.name}</option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="municipality">Municipio *</Label>
+        <select
+          id="municipality"
+          className="w-full border rounded-lg px-3 py-2"
+          value={data.municipality}
+          onChange={(e) => onChange({ municipality: e.target.value })}
+          disabled={!data.department}
+        >
+          <option value="">{data.department ? 'Seleccionar municipio' : 'Selecciona primero el departamento'}</option>
+          {getMunicipalitiesByDepartment(data.department).map((muni) => (
+            <option key={muni} value={muni}>{muni}</option>
+          ))}
+        </select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="country">País *</Label>
+        <select
+          id="country"
+          className="w-full border rounded-lg px-3 py-2"
+          value={data.country}
+          onChange={(e) => onChange({ country: e.target.value })}
+        >
+          <option value="Honduras">Honduras</option>
+          <option value="Guatemala">Guatemala</option>
+          <option value="El Salvador">El Salvador</option>
+          <option value="Nicaragua">Nicaragua</option>
+          <option value="Costa Rica">Costa Rica</option>
+          <option value="Panamá">Panamá</option>
+          <option value="México">México</option>
+          <option value="Estados Unidos">Estados Unidos</option>
+          <option value="Otro">Otro</option>
+        </select>
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="email">Correo Electrónico</Label>
+        <Input id="email" type="email" value={data.email} onChange={(e) => onChange({ email: e.target.value })} placeholder="contacto@empresa.com" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="clientPhone">Teléfono del Cliente / Contacto</Label>
+        <Input id="clientPhone" value={data.clientPhone} onChange={(e) => onChange({ clientPhone: e.target.value })} placeholder="+504 XXXX-XXXX" />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="companyPhone">Teléfono de la Empresa</Label>
+        <Input id="companyPhone" value={data.companyPhone} onChange={(e) => onChange({ companyPhone: e.target.value })} placeholder="+504 XXXX-XXXX" />
+      </div>
+    </div>
+  );
+}
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user } = useUser();
+  const { setTenant } = useTenant();
   const displayName = user?.firstName ? `${user.firstName} ${user.lastName || ''}`.trim() : (user?.username || '');
   const [selectedMode, setSelectedMode] = useState<'accountant' | 'business' | null>(null);
-  const [selectedBusinessType, setSelectedBusinessType] = useState<string | null>(null);
+  const [accountantCompanies, setAccountantCompanies] = useState<'one' | 'multiple' | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [step, setStep] = useState<'mode-selection' | 'business-selection' | 'confirmation' | 'business-setup'>('mode-selection');
+  const [step, setStep] = useState<'mode-selection' | 'accountant-companies' | 'business-setup'>('mode-selection');
   
   // Wizard state
   const [wizardStep, setWizardStep] = useState(1);
@@ -185,18 +411,28 @@ export default function OnboardingPage() {
     email: ''
   });
   const [companyData, setCompanyData] = useState<CompanyData>({
-    name: '', rtn: '', address: '', contactPhone: '', email: '', industry: '',
+    name: '', rtn: '', address: '', department: '', municipality: '', logoUrl: '',
+    contactPhone: '', email: '', industry: '',
     country: 'Honduras', clientPhone: '', companyPhone: ''
   });
+  const [companies, setCompanies] = useState<CompanyData[]>([{
+    name: '', rtn: '', address: '', department: '', municipality: '', logoUrl: '',
+    contactPhone: '', email: '', industry: '',
+    country: 'Honduras', clientPhone: '', companyPhone: ''
+  }]);
+  const [companyIndex, setCompanyIndex] = useState(0);
   const [accounts, setAccounts] = useState<AccountCatalog[]>(defaultAccounts);
-  const [logoPreview, setLogoPreview] = useState<string | null>(null);
-  const [salesConfig, setSalesConfig] = useState({
-    caiEnabled: false,
-    caiCode: '',
-    caiType: 'auto_impresion' as 'auto_impresion' | 'imprenta',
-    taxes: [{ rate: 15, type: 'ISV' }],
-    invoicePrefix: '001-001-'
-  });
+  const [accountCatalogs, setAccountCatalogs] = useState<AccountCatalog[][]>(() => [cloneAccounts()]);
+  const [catalogCompanyIndex, setCatalogCompanyIndex] = useState(0);
+  const [rtnDuplicates, setRtnDuplicates] = useState<Record<number, boolean>>({});
+  const [logoPreviews, setLogoPreviews] = useState<(string | null)[]>([null]);
+  const [logoCompanyIndex, setLogoCompanyIndex] = useState(0);
+  const [isLogoUploading, setIsLogoUploading] = useState(false);
+  const [logoUploadProgress, setLogoUploadProgress] = useState(0);
+  const [logoUploadError, setLogoUploadError] = useState<string | null>(null);
+  const [salesConfig, setSalesConfig] = useState<SalesConfig>(createDefaultSalesConfig);
+  const [salesConfigs, setSalesConfigs] = useState<SalesConfig[]>(() => [createDefaultSalesConfig()]);
+  const [salesCompanyIndex, setSalesCompanyIndex] = useState(0);
 
   const addTax = () => {
     setSalesConfig({
@@ -223,7 +459,7 @@ export default function OnboardingPage() {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selectedPlans, setSelectedPlans] = useState<Plan[]>([]);
   const [acceptedTerms, setAcceptedTerms] = useState(false);
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>('card');
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<string>(BYPASS_PAYMENT ? 'none' : 'card');
   const [isPayPalModalOpen, setIsPayPalModalOpen] = useState(false);
   const [paypalEmail, setPaypalEmail] = useState('');
   const [paypalConfirmEmail, setPaypalConfirmEmail] = useState('');
@@ -242,41 +478,49 @@ export default function OnboardingPage() {
   const [stripeConfirmEmail, setStripeConfirmEmail] = useState('');
 
   // Fetch plans from API - maneja respuesta HTML si no hay sesión
-  useEffect(() => {
-    const fetchPlans = async () => {
-      try {
-        const response = await fetch('/api/admin/plans-public');
-        const contentType = response.headers.get('content-type') || '';
-        if (!response.ok || !contentType.includes('application/json')) {
-          // No bloquear onboarding si planes no cargan (ej: HTML de login)
-          console.warn('Plans fetch no es JSON, usando lista vacía:', response.status);
-          setPlans([]);
-          return;
-        }
-        const data = await response.json();
-        setPlans(data.plans || []);
-      } catch (error) {
-        console.error('Error fetching plans:', error);
+  const fetchPlans = useCallback(async () => {
+    try {
+      const response = await fetch('/api/admin/plans-public', { cache: 'no-store' });
+      const contentType = response.headers.get('content-type') || '';
+      if (!response.ok || !contentType.includes('application/json')) {
+        // No bloquear onboarding si planes no cargan (ej: HTML de login)
+        console.warn('Plans fetch no es JSON, usando lista vacía:', response.status, contentType);
         setPlans([]);
+        return;
       }
-    };
-    
-    fetchPlans();
+      const data = await response.json();
+      setPlans(data.plans || []);
+    } catch (error) {
+      console.error('Error fetching plans:', error);
+      setPlans([]);
+    }
   }, []);
 
+  useEffect(() => {
+    fetchPlans();
+  }, [fetchPlans]);
+
+  // Reintenta cargar los planes al entrar al paso de selección si aún no están
+  useEffect(() => {
+    if (wizardStep === 6 && plans.length === 0) {
+      fetchPlans();
+    }
+  }, [wizardStep, plans.length, fetchPlans]);
+
+  // Catálogos de cuentas por empresa (modo contador multi-empresa): cada empresa tiene su propia selección
   const handleSelectMode = (mode: 'accountant' | 'business') => {
     setSelectedMode(mode);
     if (mode === 'accountant') {
-      setStep('confirmation');
+      setAccountantCompanies(null);
+      setStep('accountant-companies');
     } else {
-      setStep('business-selection');
+      startBusinessSetup();
     }
   };
 
-  const handleSelectBusinessType = (typeId: string) => {
-    setSelectedBusinessType(typeId);
-    const selectedType = businessTypes.find(b => b.id === typeId);
-    setCompanyData(prev => ({ ...prev, industry: selectedType?.name || '' }));
+  const handleSelectAccountantCompanies = (count: 'one' | 'multiple') => {
+    setAccountantCompanies(count);
+    startBusinessSetup();
   };
 
   const handleTogglePlan = (plan: Plan) => {
@@ -294,53 +538,176 @@ export default function OnboardingPage() {
     setWizardStep(1);
   };
 
+  const isMultipleCompanies = selectedMode === 'accountant' && accountantCompanies === 'multiple';
+  const activeLogoIndex = isMultipleCompanies ? logoCompanyIndex : 0;
+  const activeLogoPreview = logoPreviews[activeLogoIndex] ?? null;
+
+  // Catálogos de cuentas por empresa (modo contador multi-empresa): cada empresa tiene su propia selección
+  useEffect(() => {
+    const count = isMultipleCompanies ? companies.length : 1;
+    setAccountCatalogs(prev => {
+      if (prev.length === count) return prev;
+      const next = prev.slice(0, count);
+      while (next.length < count) next.push(cloneAccounts());
+      return next;
+    });
+  }, [companies.length, isMultipleCompanies]);
+
+  // Logos por empresa (modo contador multi-empresa): cada empresa tiene su propia imagen
+  useEffect(() => {
+    const count = isMultipleCompanies ? companies.length : 1;
+    setLogoPreviews(prev => {
+      if (prev.length === count) return prev;
+      const next = prev.slice(0, count);
+      while (next.length < count) next.push(null);
+      return next;
+    });
+    setLogoCompanyIndex(prev => (prev >= count ? 0 : prev));
+  }, [companies.length, isMultipleCompanies]);
+
+  // Persistir la selección activa en el catálogo de la empresa actual
+  useEffect(() => {
+    setAccountCatalogs(prev => {
+      if (catalogCompanyIndex < 0 || catalogCompanyIndex >= prev.length) return prev;
+      const next = [...prev];
+      next[catalogCompanyIndex] = accounts;
+      return next;
+    });
+  }, [accounts, catalogCompanyIndex]);
+
+  const handleSelectCatalogCompany = (i: number) => {
+    setAccounts(cloneAccounts(accountCatalogs[i] ?? defaultAccounts));
+    setCatalogCompanyIndex(i);
+  };
+
+  const handleSelectLogoCompany = (i: number) => {
+    setLogoCompanyIndex(i);
+    setLogoUploadError(null);
+  };
+
+  // Configuración de ventas por empresa (modo contador multi-empresa): cada empresa tiene su propio CAI/impuestos
+  useEffect(() => {
+    const count = isMultipleCompanies ? companies.length : 1;
+    setSalesConfigs(prev => {
+      if (prev.length === count) return prev;
+      const next = prev.slice(0, count);
+      while (next.length < count) next.push(createDefaultSalesConfig());
+      return next;
+    });
+    setSalesCompanyIndex(prev => (prev >= count ? 0 : prev));
+  }, [companies.length, isMultipleCompanies]);
+
+  useEffect(() => {
+    setSalesConfigs(prev => {
+      if (salesCompanyIndex < 0 || salesCompanyIndex >= prev.length) return prev;
+      const next = [...prev];
+      next[salesCompanyIndex] = salesConfig;
+      return next;
+    });
+  }, [salesConfig, salesCompanyIndex]);
+
+  const handleSelectSalesCompany = (i: number) => {
+    setSalesConfig(cloneSalesConfig(salesConfigs[i]));
+    setSalesCompanyIndex(i);
+  };
+
+  const handleRtnDuplicate = (index: number, duplicate: boolean) => {
+    setRtnDuplicates(prev => {
+      if (prev[index] === duplicate) return prev;
+      return { ...prev, [index]: duplicate };
+    });
+  };
+
+  const updateCompanyField = (index: number, patch: Partial<CompanyData>) => {
+    setCompanies(prev => prev.map((c, i) => i === index ? { ...c, ...patch } : c));
+  };
+
+  const addCompany = () => {
+    setCompanies(prev => [...prev, {
+      name: '', rtn: '', address: '', department: '', municipality: '', logoUrl: '',
+      contactPhone: '', email: '', industry: '',
+      country: 'Honduras', clientPhone: '', companyPhone: ''
+    }]);
+    setCompanyIndex(companies.length);
+  };
+
+  const removeCompany = (index: number) => {
+    if (companies.length <= 1) return;
+    setCompanies(prev => prev.filter((_, i) => i !== index));
+    setCompanyIndex(prev => {
+      if (prev >= 1) return prev - 1;
+      return 0;
+    });
+  };
+
   const handleContinueFromWizard = async () => {
     if (!selectedMode) return;
     setIsLoading(true);
     
-    const businessTypeName = selectedBusinessType 
-      ? businessTypes.find(b => b.id === selectedBusinessType)?.name 
-      : 'Contador';
+    const businessTypeName = companyData.name || (selectedMode === 'accountant' ? 'Contador' : 'Mi negocio');
     
     // Save all data to localStorage
     localStorage.setItem('userMode', selectedMode);
+    localStorage.setItem('accountantCompanies', accountantCompanies || '');
     localStorage.setItem('personalData', JSON.stringify(personalData));
-    localStorage.setItem('businessType', selectedBusinessType || 'contador');
+    localStorage.setItem('businessType', selectedMode === 'accountant' ? 'contador' : 'otro');
     localStorage.setItem('businessName', companyData.name || businessTypeName || '');
     localStorage.setItem('companyData', JSON.stringify(companyData));
-    localStorage.setItem('accountCatalog', JSON.stringify(accounts.filter(a => a.selected)));
+    localStorage.setItem('companies', JSON.stringify(isMultipleCompanies ? companies : []));
+    localStorage.setItem('accountCatalog', JSON.stringify((accountCatalogs[0] ?? accounts).filter(a => a.selected)));
     localStorage.setItem('salesConfig', JSON.stringify(salesConfig));
     localStorage.setItem('bankAccounts', JSON.stringify(bankAccounts));
     localStorage.setItem('selectedPaymentMethod', selectedPaymentMethod);
     localStorage.setItem('acceptedTerms', JSON.stringify(acceptedTerms));
     
+    const primaryCompany = isMultipleCompanies && companies.length > 0 ? companies[0] : companyData;
+
+    // Catálogo de cuentas y configuración de ventas por empresa (índice alineado con companies / companyData)
+    const catalogCount = isMultipleCompanies ? companies.length : 1;
+    const selectedAccountsList = Array.from({ length: catalogCount }, (_, i) =>
+      (accountCatalogs[i] ?? accounts).filter(a => a.selected)
+    );
+    const salesConfigsList = Array.from({ length: catalogCount }, (_, i) =>
+      !isMultipleCompanies || i === salesCompanyIndex ? salesConfig : (salesConfigs[i] ?? salesConfig)
+    );
+
+    let createdTenantId: string | undefined;
+
     // Save to database if business mode with data
-    if (selectedMode === 'business' && companyData.name) {
+    if (primaryCompany.name) {
       try {
         console.log('🔄 Iniciando guardado en base de datos...');
         console.log('📊 Datos a guardar:', {
-          companyName: companyData.name,
-          businessType: selectedBusinessType,
+          companyName: primaryCompany.name,
+          businessType: selectedMode === 'accountant' ? 'contador' : 'otro',
           selectedPlans: selectedPlans.map(p => p.name),
-          bankAccountsCount: bankAccounts.length
+          bankAccountsCount: bankAccounts.length,
+          companiesCount: isMultipleCompanies ? companies.length : 1
         });
         
         const result = await saveOnboardingData({
-          companyData,
+          companyData: primaryCompany,
+          companies: isMultipleCompanies ? companies : undefined,
           bankAccounts,
           salesConfig,
-          businessType: selectedBusinessType || 'otro',
+          businessType: selectedMode === 'accountant' ? 'contador' : 'otro',
           selectedPlans,
-          selectedPaymentMethod
+          selectedPaymentMethod,
+          selectedAccounts: accounts.filter(a => a.selected),
+          selectedAccountsList,
+          salesConfigs: salesConfigsList,
+          hasAccountant: hasAccountant === null ? undefined : hasAccountant,
+          mode: selectedMode
         });
         
         if (result.success) {
           console.log('✅ Datos guardados exitosamente en la base de datos');
           console.log('📊 Tenant ID:', result.tenantId);
           console.log('📊 Company ID:', result.companyId);
+          createdTenantId = result.tenantId;
           
           // If Stripe is selected, redirect to Stripe checkout
-          if (selectedPaymentMethod === 'stripe' && selectedPlans.length > 0) {
+          if (!BYPASS_PAYMENT && selectedPaymentMethod === 'stripe' && selectedPlans.length > 0) {
             const totalAmount = selectedPlans.reduce((sum, p) => sum + (p.total || 0), 0);
             const primaryPlan = selectedPlans[0];
             
@@ -378,9 +745,44 @@ export default function OnboardingPage() {
     }
     
     await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Redirigir al dashboard de tenant-admin después del onboarding
-    // Los usuarios que crean un tenant son administradores de su propio tenant
+
+    // Seleccionar el tenant recién creado antes de ir al dashboard. El endpoint
+    // /api/tenants-api devuelve TODOS los tenants, por lo que sin esto el
+    // TenantContext tomaría el primero de la tabla en vez del recién creado.
+    if (createdTenantId) {
+      const isSuperAdminUser =
+        (((user?.publicMetadata?.role as string) || '').toUpperCase() === 'SUPER_ADMIN') ||
+        user?.primaryEmailAddress?.emailAddress === 'sucachi.123@gmail.com';
+
+      if (isSuperAdminUser) {
+        // Super admin: cookie de impersonación para que el middleware no lo rebote
+        // a /admin/dashboard y el TenantContext cargue el tenant como cliente.
+        document.cookie = `impersonated_tenant_id=${createdTenantId}; path=/; max-age=1800; SameSite=Lax`;
+      } else {
+        // Usuario normal: forzar el tenant recién creado en el contexto.
+        setTenant({
+          id: createdTenantId,
+          businessName: primaryCompany.name || businessTypeName,
+          tenantCode: '',
+          businessEmail: primaryCompany.email || '',
+          businessRTN: primaryCompany.rtn || '',
+          phoneNumber: primaryCompany.contactPhone || primaryCompany.companyPhone || '',
+          businessAddress: primaryCompany.address || '',
+          industry: primaryCompany.industry || '',
+        });
+      }
+      localStorage.setItem('tenant_id', createdTenantId);
+    }
+
+    // Refrescar metadata de Clerk para que el nuevo role/tenantId estén disponibles
+    // antes de navegar (el TenantContext los lee desde publicMetadata).
+    try {
+      await user?.reload();
+    } catch (e) {
+      console.warn('No se pudo recargar el usuario de Clerk', e);
+    }
+
+    // Redirigir al dashboard del tenant recién creado
     router.push('/tenant-admin/dashboard');
   };
 
@@ -402,10 +804,71 @@ export default function OnboardingPage() {
 
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setLogoPreview(reader.result as string);
-      reader.readAsDataURL(file);
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      setLogoUploadError('El archivo debe ser una imagen (JPG, PNG, SVG)');
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setLogoUploadError('El tamaño máximo permitido es 2MB');
+      return;
+    }
+
+    setLogoUploadError(null);
+    setIsLogoUploading(true);
+    setLogoUploadProgress(0);
+
+    const formData = new FormData();
+    formData.append('logo', file);
+
+    const xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/onboarding/logo-upload');
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable) {
+        const progress = Math.round((event.loaded / event.total) * 100);
+        setLogoUploadProgress(progress);
+      }
+    };
+    xhr.onload = () => {
+      setIsLogoUploading(false);
+      if (xhr.status === 200 && xhr.response?.logoUrl) {
+        const idx = activeLogoIndex;
+        setLogoPreviews(prev => {
+          const next = [...prev];
+          next[idx] = xhr.response.logoUrl;
+          return next;
+        });
+        if (isMultipleCompanies) {
+          updateCompanyField(idx, { logoUrl: xhr.response.logoPath });
+        } else {
+          setCompanyData(prev => ({ ...prev, logoUrl: xhr.response.logoPath }));
+        }
+      } else {
+        setLogoUploadError(xhr.response?.error || 'Error al subir el logo');
+      }
+    };
+    xhr.onerror = () => {
+      setIsLogoUploading(false);
+      setLogoUploadError('Error de red al subir el logo');
+    };
+    xhr.send(formData);
+
+    e.target.value = '';
+  };
+
+  const handleRemoveLogo = () => {
+    const idx = activeLogoIndex;
+    setLogoPreviews(prev => {
+      const next = [...prev];
+      next[idx] = null;
+      return next;
+    });
+    if (isMultipleCompanies) {
+      updateCompanyField(idx, { logoUrl: '' });
+    } else {
+      setCompanyData(prev => ({ ...prev, logoUrl: '' }));
     }
   };
 
@@ -434,10 +897,6 @@ export default function OnboardingPage() {
   const removeBankAccount = (id: string) => {
     setBankAccounts(bankAccounts.filter(b => b.id !== id));
   };
-
-  const selectedBusiness = selectedBusinessType 
-    ? businessTypes.find(b => b.id === selectedBusinessType)
-    : null;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-cyan-50 via-white to-cyan-50">
@@ -485,59 +944,42 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 'business-selection' && (
-          <div className="space-y-8">
+        {step === 'accountant-companies' && selectedMode === 'accountant' && (
+          <div className="max-w-4xl mx-auto space-y-8">
             <div className="flex items-center gap-4">
-              <Button variant="outline" size="sm" onClick={() => { setStep('mode-selection'); setSelectedMode(null); }}>← Volver</Button>
-              <h2 className="text-2xl font-bold text-gray-900">¿Qué tipo de negocio tienes?</h2>
+              <Button variant="outline" size="sm" onClick={() => { setStep('mode-selection'); setSelectedMode(null); setAccountantCompanies(null); }}>← Volver</Button>
+              <h2 className="text-2xl font-bold text-gray-900">¿Para cuántas empresas llevarás la contabilidad?</h2>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {businessTypes.map((business) => (
-                <Card key={business.id} className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${selectedBusinessType === business.id ? 'ring-2 ring-cyan-600 border-cyan-600 bg-cyan-50' : 'hover:border-blue-300'}`} onClick={() => handleSelectBusinessType(business.id)}>
-                  <CardContent className="p-6">
-                    <div className="flex flex-col items-center text-center space-y-3">
-                      <div className={`p-3 rounded-full ${selectedBusinessType === business.id ? 'bg-cyan-600 text-white' : 'bg-gray-100 text-gray-600'}`}>{business.icon}</div>
-                      <div>
-                        <h3 className="font-semibold text-gray-900">{business.name}</h3>
-                        <p className="text-xs text-gray-500 mt-1">{business.description}</p>
-                      </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <Card className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${accountantCompanies === 'one' ? 'ring-2 ring-cyan-600 border-cyan-600 bg-cyan-50' : 'hover:border-blue-300'}`} onClick={() => handleSelectAccountantCompanies('one')}>
+                <CardContent className="p-8">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className={`p-5 rounded-full ${accountantCompanies === 'one' ? 'bg-cyan-600 text-white' : 'bg-gray-100 text-gray-600'}`}>
+                      <Building className="h-12 w-12" />
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Solo 1 empresa</h3>
+                      <p className="text-sm text-gray-500">Por ahora llevarás la contabilidad de una sola empresa o cliente.</p>
+                    </div>
+                    {accountantCompanies === 'one' && <CheckCircle className="h-6 w-6 text-cyan-600" />}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className={`cursor-pointer transition-all duration-200 hover:shadow-lg ${accountantCompanies === 'multiple' ? 'ring-2 ring-cyan-600 border-cyan-600 bg-cyan-50' : 'hover:border-blue-300'}`} onClick={() => handleSelectAccountantCompanies('multiple')}>
+                <CardContent className="p-8">
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className={`p-5 rounded-full ${accountantCompanies === 'multiple' ? 'bg-cyan-600 text-white' : 'bg-purple-100 text-purple-600'}`}>
+                      <Building2 className="h-12 w-12" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 mb-2">Varias empresas</h3>
+                      <p className="text-sm text-gray-500">Administrarás la contabilidad de múltiples empresas o clientes desde un solo panel.</p>
+                    </div>
+                    {accountantCompanies === 'multiple' && <CheckCircle className="h-6 w-6 text-cyan-600" />}
+                  </div>
+                </CardContent>
+              </Card>
             </div>
-            <div className="flex justify-center pt-8">
-              <Button size="lg" className="gap-2 px-8" disabled={!selectedBusinessType || isLoading} onClick={startBusinessSetup}>
-                Continuar <ArrowRight className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {step === 'confirmation' && selectedMode === 'accountant' && (
-          <div className="max-w-md mx-auto">
-            <Card className="border-cyan-200">
-              <CardHeader className="text-center">
-                <div className="mx-auto w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mb-4">
-                  <Users className="h-8 w-8 text-purple-600" />
-                </div>
-                <CardTitle>Confirmar Selección</CardTitle>
-                <CardDescription>Has seleccionado:</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                <div className="text-center p-4 bg-gray-50 rounded-lg">
-                  <h3 className="font-semibold text-lg text-gray-900">Soy Contador</h3>
-                  <p className="text-sm text-gray-600 mt-1">Administrarás contabilidad de múltiples empresas</p>
-                  <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium mt-3 bg-purple-100 text-purple-800">Modo Contador</span>
-                </div>
-                <div className="space-y-3">
-                  <Button className="w-full gap-2" onClick={handleContinueFromWizard} disabled={isLoading}>
-                    {isLoading ? <><div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />Configurando...</> : <><CheckCircle className="h-4 w-4" />Confirmar y Continuar</>}
-                  </Button>
-                  <Button variant="outline" className="w-full" onClick={() => { setStep('mode-selection'); setSelectedMode(null); }} disabled={isLoading}>Volver</Button>
-                </div>
-              </CardContent>
-            </Card>
           </div>
         )}
 
@@ -547,7 +989,7 @@ export default function OnboardingPage() {
             {/* Progress Steps - Filter out Catálogo Cuentas if user has accountant */}
             <div className="mb-8">
               <div className="flex items-center justify-between">
-                {wizardSteps.filter(s => !(s.id === 3 && hasAccountant === true)).map((s, idx, arr) => (
+                {wizardSteps.filter(s => !(s.id === 2 && hasAccountant === true)).map((s, idx, arr) => (
                   <div key={s.id} className="flex items-center">
                     <div className={`flex items-center gap-2 px-4 py-2 rounded-lg ${wizardStep === s.id ? 'bg-cyan-600 text-white' : wizardStep > s.id ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                       {wizardStep > s.id ? <CheckCircle className="h-5 w-5" /> : s.icon}
@@ -558,7 +1000,7 @@ export default function OnboardingPage() {
                 ))}
               </div>
               <div className="mt-2 h-2 bg-gray-200 rounded-full">
-                <div className="h-2 bg-cyan-600 rounded-full transition-all" style={{ width: `${(wizardStep / (hasAccountant === true ? 6 : 7)) * 100}%` }} />
+                <div className="h-2 bg-cyan-600 rounded-full transition-all" style={{ width: `${(wizardStep / 7) * 100}%` }} />
               </div>
             </div>
 
@@ -570,98 +1012,100 @@ export default function OnboardingPage() {
                   <CardDescription>Ingresa la información básica de tu negocio</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="companyName">Nombre de la Empresa *</Label>
-                      <Input id="companyName" value={companyData.name} onChange={(e) => setCompanyData({...companyData, name: e.target.value})} placeholder="Ej: Empresa S.A." />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="rtn">RTN *</Label>
-                      <Input id="rtn" value={companyData.rtn} onChange={(e) => setCompanyData({...companyData, rtn: e.target.value})} placeholder="08011999012345" />
-                    </div>
-                    <div className="space-y-2 md:col-span-2">
-                      <Label htmlFor="address">Dirección</Label>
-                      <Textarea id="address" value={companyData.address} onChange={(e) => setCompanyData({...companyData, address: e.target.value})} placeholder="Dirección completa de la empresa" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="country">País *</Label>
-                      <select 
-                        id="country" 
-                        className="w-full border rounded-lg px-3 py-2"
-                        value={companyData.country} 
-                        onChange={(e) => setCompanyData({...companyData, country: e.target.value})}
-                      >
-                        <option value="Honduras">Honduras</option>
-                        <option value="Guatemala">Guatemala</option>
-                        <option value="El Salvador">El Salvador</option>
-                        <option value="Nicaragua">Nicaragua</option>
-                        <option value="Costa Rica">Costa Rica</option>
-                        <option value="Panamá">Panamá</option>
-                        <option value="México">México</option>
-                        <option value="Estados Unidos">Estados Unidos</option>
-                        <option value="Otro">Otro</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Correo Electrónico</Label>
-                      <Input id="email" type="email" value={companyData.email} onChange={(e) => setCompanyData({...companyData, email: e.target.value})} placeholder="contacto@empresa.com" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="clientPhone">Teléfono del Cliente / Contacto</Label>
-                      <Input id="clientPhone" value={companyData.clientPhone} onChange={(e) => setCompanyData({...companyData, clientPhone: e.target.value})} placeholder="+504 XXXX-XXXX" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="companyPhone">Teléfono de la Empresa</Label>
-                      <Input id="companyPhone" value={companyData.companyPhone} onChange={(e) => setCompanyData({...companyData, companyPhone: e.target.value})} placeholder="+504 XXXX-XXXX" />
-                    </div>
-                  </div>
+                  {isMultipleCompanies ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {companies.map((c, idx) => (
+                          <div key={idx} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-sm cursor-pointer ${idx === companyIndex ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-700 border-gray-300 hover:border-cyan-400'}`} onClick={() => setCompanyIndex(idx)}>
+                            <span>{c.name || `Empresa ${idx + 1}`}</span>
+                            {companies.length > 1 && (
+                              <button
+                                type="button"
+                                className="hover:text-red-400 disabled:opacity-40"
+                                onClick={(e) => { e.stopPropagation(); removeCompany(idx); }}
+                                disabled={companies.length <= 1}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                        <Button type="button" variant="outline" size="sm" onClick={addCompany}>
+                          <Plus className="h-4 w-4 mr-1" /> Agregar Empresa
+                        </Button>
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        Editando: <span className="font-medium text-gray-900">{companies[companyIndex]?.name || `Empresa ${companyIndex + 1}`}</span>
+                      </div>
+                      <CompanyFields
+                        data={companies[companyIndex]}
+                        onChange={(patch) => updateCompanyField(companyIndex, patch)}
+                        companyIndex={companyIndex}
+                        onRtnDuplicate={handleRtnDuplicate}
+                      />
+                    </>
+                  ) : (
+                    <CompanyFields
+                      data={companyData}
+                      onChange={(patch) => setCompanyData(prev => ({ ...prev, ...patch }))}
+                      onRtnDuplicate={handleRtnDuplicate}
+                    />
+                  )}
                   
-                  {/* Accountant Question */}
-                  <div className="mt-6 pt-6 border-t">
-                    <Label className="text-base font-semibold mb-4 block">¿Quién lleva la contabilidad? *</Label>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div 
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${hasAccountant === false ? 'border-cyan-600 bg-cyan-50' : 'border-gray-200 hover:border-blue-300'}`}
-                        onClick={() => setHasAccountant(false)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${hasAccountant === false ? 'border-cyan-600' : 'border-gray-400'}`}>
-                            {hasAccountant === false && <div className="w-2.5 h-2.5 bg-cyan-600 rounded-full" />}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Yo la llevo</p>
-                            <p className="text-sm text-gray-500">Configuraré el catálogo de cuentas</p>
+                  {/* Accountant Question (hidden in accountant mode) */}
+                  {selectedMode !== 'accountant' && (
+                    <div className="mt-6 pt-6 border-t">
+                      <Label className="text-base font-semibold mb-4 block">¿Quién lleva la contabilidad? *</Label>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div 
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${hasAccountant === false ? 'border-cyan-600 bg-cyan-50' : 'border-gray-200 hover:border-blue-300'}`}
+                          onClick={() => setHasAccountant(false)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${hasAccountant === false ? 'border-cyan-600' : 'border-gray-400'}`}>
+                              {hasAccountant === false && <div className="w-2.5 h-2.5 bg-cyan-600 rounded-full" />}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">Yo la llevo</p>
+                              <p className="text-sm text-gray-500">Configuraré el catálogo de cuentas</p>
+                            </div>
                           </div>
                         </div>
-                      </div>
-                      <div 
-                        className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${hasAccountant === true ? 'border-cyan-600 bg-cyan-50' : 'border-gray-200 hover:border-blue-300'}`}
-                        onClick={() => setHasAccountant(true)}
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${hasAccountant === true ? 'border-cyan-600' : 'border-gray-400'}`}>
-                            {hasAccountant === true && <div className="w-2.5 h-2.5 bg-cyan-600 rounded-full" />}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-900">Tengo contador</p>
-                            <p className="text-sm text-gray-500">Mi contador configurará las cuentas</p>
+                        <div 
+                          className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${hasAccountant === true ? 'border-cyan-600 bg-cyan-50' : 'border-gray-200 hover:border-blue-300'}`}
+                          onClick={() => setHasAccountant(true)}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${hasAccountant === true ? 'border-cyan-600' : 'border-gray-400'}`}>
+                              {hasAccountant === true && <div className="w-2.5 h-2.5 bg-cyan-600 rounded-full" />}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-900">Tengo contador</p>
+                              <p className="text-sm text-gray-500">Mi contador configurará las cuentas</p>
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </Card>
             )}
 
-            {/* STEP 2: Plan Selection */}
-            {wizardStep === 2 && (
+            {/* STEP 6: Plan Selection */}
+            {wizardStep === 6 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><Calculator className="h-6 w-6" /> Seleccionar Plan</CardTitle>
                   <CardDescription>Elige los planes que mejor se adapten a las necesidades de tu negocio</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {plans.length === 0 && (
+                    <div className="text-center py-8 border rounded-lg bg-gray-50">
+                      <p className="text-sm text-gray-600 mb-3">No se pudieron cargar los planes.</p>
+                      <Button variant="outline" onClick={fetchPlans}>Reintentar</Button>
+                    </div>
+                  )}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-6">
                     {plans.map((plan) => {
                       const isSelected = selectedPlans.some(p => p.id === plan.id);
@@ -768,14 +1212,28 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 3: Account Catalog */}
-            {wizardStep === 3 && (
+            {/* STEP 2: Account Catalog */}
+            {wizardStep === 2 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><BookOpen className="h-6 w-6" /> Catálogo de Cuentas</CardTitle>
-                  <CardDescription>Selecciona las cuentas contables que utilizará tu empresa</CardDescription>
+                  <CardDescription>{isMultipleCompanies ? 'Selecciona las cuentas de cada empresa por separado (cada una puede tener catálogos distintos)' : 'Selecciona las cuentas contables que utilizará tu empresa'}</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {isMultipleCompanies && companies.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-6">
+                      {companies.map((c, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectCatalogCompany(idx)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${idx === catalogCompanyIndex ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-700 border-gray-300 hover:border-cyan-400'}`}
+                        >
+                          {c.name || `Empresa ${idx + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex justify-between items-center mb-4">
                     <p className="text-sm text-gray-600">
                       <span className="font-medium">{accounts.filter(a => a.selected).length}</span> de {accounts.length} cuentas seleccionadas
@@ -829,18 +1287,32 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 4: Company Image */}
-            {wizardStep === 4 && (
+            {/* STEP 3: Company Image */}
+            {wizardStep === 3 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ImageIcon className="h-6 w-6" /> Imagen de la Empresa</CardTitle>
-                  <CardDescription>Sube el logo de tu empresa (opcional)</CardDescription>
+                  <CardDescription>{isMultipleCompanies ? 'Sube el logo de cada empresa por separado (opcional)' : 'Sube el logo de tu empresa (opcional)'}</CardDescription>
                 </CardHeader>
                 <CardContent>
+                  {isMultipleCompanies && companies.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-6">
+                      {companies.map((c, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectLogoCompany(idx)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${idx === activeLogoIndex ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-700 border-gray-300 hover:border-cyan-400'}`}
+                        >
+                          {c.name || `Empresa ${idx + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex flex-col items-center space-y-4">
                     <div className="w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg flex items-center justify-center bg-gray-50">
-                      {logoPreview ? (
-                        <img src={logoPreview} alt="Logo preview" className="w-full h-full object-contain rounded-lg" />
+                      {activeLogoPreview ? (
+                        <img src={activeLogoPreview} alt="Logo preview" className="w-full h-full object-contain rounded-lg" />
                       ) : (
                         <ImageIcon className="h-12 w-12 text-gray-400" />
                       )}
@@ -848,28 +1320,56 @@ export default function OnboardingPage() {
                     <div className="flex items-center gap-2">
                       <Label htmlFor="logo-upload" className="cursor-pointer">
                         <div className="flex items-center gap-2 px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700">
-                          <Upload className="h-4 w-4" /> Subir Logo
+                          <Upload className="h-4 w-4" /> {activeLogoPreview ? 'Cambiar Logo' : 'Subir Logo'}
                         </div>
-                        <input id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                        <input key={activeLogoIndex} id="logo-upload" type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
                       </Label>
-                      {logoPreview && (
-                        <Button variant="outline" onClick={() => setLogoPreview(null)}>Eliminar</Button>
+                      {activeLogoPreview && (
+                        <Button variant="outline" onClick={handleRemoveLogo}>Eliminar</Button>
                       )}
                     </div>
+                    {isLogoUploading && (
+                      <div className="w-full max-w-sm">
+                        <div className="flex justify-between text-xs text-gray-600 mb-1">
+                          <span>Subiendo logo...</span>
+                          <span>{logoUploadProgress}%</span>
+                        </div>
+                        <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                          <div className="h-2 bg-cyan-600 rounded-full transition-all" style={{ width: `${logoUploadProgress}%` }} />
+                        </div>
+                      </div>
+                    )}
+                    {logoUploadError && (
+                      <p className="text-sm text-red-600">{logoUploadError}</p>
+                    )}
                     <p className="text-sm text-gray-500">Formatos: JPG, PNG, SVG. Máximo 2MB</p>
                   </div>
                 </CardContent>
               </Card>
             )}
 
-            {/* STEP 5: Sales Configuration */}
-            {wizardStep === 5 && (
+            {/* STEP 4: Sales Configuration */}
+            {wizardStep === 4 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><ShoppingCart className="h-6 w-6" /> Configuración de Ventas</CardTitle>
-                  <CardDescription>Configura los parámetros para facturación</CardDescription>
+                  <CardDescription>{isMultipleCompanies ? 'Configura los parámetros de facturación de cada empresa por separado' : 'Configura los parámetros para facturación'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {isMultipleCompanies && companies.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {companies.map((c, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => handleSelectSalesCompany(idx)}
+                          className={`px-3 py-1.5 rounded-lg border text-sm cursor-pointer transition-colors ${idx === salesCompanyIndex ? 'bg-cyan-600 text-white border-cyan-600' : 'bg-white text-gray-700 border-gray-300 hover:border-cyan-400'}`}
+                        >
+                          {c.name || `Empresa ${idx + 1}`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                   <div className="flex items-center justify-between p-4 border rounded-lg">
                     <div>
                       <h4 className="font-medium">Habilitar CAI (Autorización de Impresión)</h4>
@@ -907,8 +1407,23 @@ export default function OnboardingPage() {
                       </div>
                       
                       <div className="space-y-2">
-                        <Label>Código CAI</Label>
-                        <Input value={salesConfig.caiCode} onChange={(e) => setSalesConfig({...salesConfig, caiCode: e.target.value})} placeholder="XXXX-XXXX-XXXX-XXXX" />
+                        <Label>Código CAI *</Label>
+                        <Input value={salesConfig.caiCode} onChange={(e) => setSalesConfig({...salesConfig, caiCode: maskCAI(e.target.value)})} placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-XX" maxLength={37} />
+                        <p className="text-xs text-gray-500">32 caracteres alfanuméricos (XX-XX-XX-XX-XX-XX)</p>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label>Fecha de Vencimiento del CAI *</Label>
+                          <Input type="date" value={salesConfig.caiExpirationDate} onChange={(e) => setSalesConfig({...salesConfig, caiExpirationDate: e.target.value})} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Rango Inicial (Punto de Emisión) *</Label>
+                          <Input value={salesConfig.caiRangeFrom} onChange={(e) => setSalesConfig({...salesConfig, caiRangeFrom: maskEmissionRange(e.target.value)})} placeholder="000-001-01-00000001" maxLength={19} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label>Rango Final (Punto de Emisión) *</Label>
+                          <Input value={salesConfig.caiRangeTo} onChange={(e) => setSalesConfig({...salesConfig, caiRangeTo: maskEmissionRange(e.target.value)})} placeholder="000-001-01-00009999" maxLength={19} />
+                        </div>
                       </div>
                     </div>
                   )}
@@ -975,8 +1490,8 @@ export default function OnboardingPage() {
               </Card>
             )}
 
-            {/* STEP 6: Terms and Conditions */}
-            {wizardStep === 6 && (
+            {/* STEP 5: Terms and Conditions */}
+            {wizardStep === 5 && (
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><FileText className="h-6 w-6" /> Términos y Condiciones</CardTitle>
@@ -1030,9 +1545,14 @@ export default function OnboardingPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2"><CreditCard className="h-6 w-6" /> Método de Pago</CardTitle>
-                  <CardDescription>Selecciona cómo deseas pagar el servicio de Diamond Accounting</CardDescription>
+                  <CardDescription>{BYPASS_PAYMENT ? 'Puedes finalizar ahora y configurar el pago más tarde' : 'Selecciona cómo deseas pagar el servicio de Diamond Accounting'}</CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
+                  {BYPASS_PAYMENT && (
+                    <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-sm text-amber-800">
+                      El cobro está deshabilitado temporalmente. Puedes finalizar el registro sin agregar un método de pago; tu plan quedará activo y podrás configurar el pago más tarde.
+                    </div>
+                  )}
                   {/* Payment Summary */}
                   <div className="bg-gradient-to-r from-cyan-50 to-blue-50 border border-cyan-200 rounded-lg p-6">
                     <h4 className="font-semibold text-gray-900 mb-4">Resumen de tu Suscripción</h4>
@@ -1055,6 +1575,7 @@ export default function OnboardingPage() {
                   </div>
 
                   {/* Payment Options */}
+                  {!BYPASS_PAYMENT && (
                   <div className="space-y-4">
                     <h4 className="font-semibold text-gray-900">Opciones de Pago</h4>
                     
@@ -1222,6 +1743,7 @@ export default function OnboardingPage() {
                       </div>
                     </div>
                   </div>
+                  )}
 
                   {/* Billing Info */}
                   <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
@@ -1242,37 +1764,42 @@ export default function OnboardingPage() {
             <div className="flex justify-between mt-6">
               <Button variant="outline" onClick={() => {
                 if (wizardStep > 1) {
-                  // Skip back from Imagen to Plan if user has accountant (skip Catálogo)
-                   if (wizardStep === 4 && hasAccountant === true) {
-                    setWizardStep(2);
+                  // Skip back from Imagen to Datos if user has accountant (skip Catálogo)
+                   if (wizardStep === 3 && hasAccountant === true) {
+                    setWizardStep(1);
                   } else {
                     setWizardStep(wizardStep - 1);
                   }
                 } else {
-                  setStep('business-selection');
+                  setStep('mode-selection');
                 }
               }}>
                 <ArrowLeft className="h-4 w-4 mr-2" /> {wizardStep > 1 ? 'Anterior' : 'Volver'}
               </Button>
-              {wizardStep < (hasAccountant === true ? 6 : 7) ? (
+              {wizardStep < 7 ? (
                 <Button 
                   onClick={() => {
                     // Skip Catálogo if user has accountant
-                    if (wizardStep === 2 && hasAccountant === true) {
-                      setWizardStep(4);
+                    if (wizardStep === 1 && hasAccountant === true) {
+                      setWizardStep(3);
                     } else {
                       setWizardStep(wizardStep + 1);
                     }
                   }}
                   disabled={
-                    (wizardStep === 1 && hasAccountant === null) || 
-                    (wizardStep === 2 && selectedPlans.length === 0) || 
-                    (wizardStep === 6 && !acceptedTerms)
+                    (wizardStep === 1 && hasAccountant === null && selectedMode !== 'accountant') || 
+                    (wizardStep === 1 && (
+                      isMultipleCompanies
+                        ? companies.length === 0 || !companies.every((c, i) => c.name.trim() && c.industry && hasCompleteRTN(c.rtn) && !rtnDuplicates[i])
+                        : (!companyData.name.trim() || !companyData.industry || !hasCompleteRTN(companyData.rtn) || rtnDuplicates[0])
+                    )) || 
+                    (wizardStep === 6 && selectedPlans.length === 0) || 
+                    (wizardStep === 5 && !acceptedTerms)
                   }
                 >
                   Siguiente <ArrowRight className="h-4 w-4 ml-2" />
                 </Button>
-              ) : wizardStep === (hasAccountant === true ? 6 : 7) ? (
+              ) : wizardStep === 7 ? (
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={handleContinueFromWizard} disabled={isLoading}>
                     <SkipForward className="h-4 w-4 mr-2" /> Saltar y Finalizar

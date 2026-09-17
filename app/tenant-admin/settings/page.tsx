@@ -213,22 +213,22 @@ export default function TenantSettingsPage() {
 
   const loadLogoFromStorage = async () => {
     try {
-      // Primero intentar cargar desde localStorage
+      // Solo reutilizar del localStorage si es un dataURL (base64), que no expira
       const savedLogo = localStorage.getItem('companyLogo');
-      if (savedLogo) {
+      if (savedLogo && savedLogo.startsWith('data:')) {
         setLogoPreview(savedLogo);
         console.log('🔍 Logo cargado desde localStorage');
         return;
       }
 
-      // Si no hay logo en localStorage, intentar cargar desde el servidor
+      // Intentar cargar desde el servidor (devuelve una URL firmada fresca)
       try {
         const response = await fetch('/api/billing/logo-get');
         if (response.ok) {
           const data = await response.json();
           if (data.success && data.logoUrl) {
             setLogoPreview(data.logoUrl);
-            localStorage.setItem('companyLogo', data.logoUrl);
+            localStorage.setItem('companyLogo', data.logoPath || '');
             console.log('🔍 Logo cargado desde servidor');
           }
         }

@@ -13,7 +13,7 @@ export async function GET() {
     
     // SOLUCIÓN: Usar cliente directo como en el PUT para evitar RLS
     const directSupabase = createClient(
-      process.env.SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
@@ -144,7 +144,7 @@ export async function PUT(request: Request) {
     
     // SOLUCIÓN: Usar cliente directo con service role key para evitar RLS
     const directSupabase = createClient(
-      process.env.SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 

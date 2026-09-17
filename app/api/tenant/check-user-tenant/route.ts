@@ -19,10 +19,15 @@ export async function GET(request: NextRequest) {
 
     if (userError) {
       if (userError.code === 'PGRST116') {
-        // Usuario no encontrado en tabla User - necesita onboarding
+        // Usuario no encontrado en tabla User - necesita crear tenant
         return NextResponse.json({
           hasTenant: false,
           needsOnboarding: true,
+          hasCompletedOnboarding: false,
+          hasCompanies: false,
+          redirectTo: '/onboarding',
+          status: 'needs_tenant',
+          user: null,
           message: 'Usuario necesita crear tenant y completar onboarding'
         });
       }

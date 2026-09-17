@@ -93,6 +93,15 @@ if (isSuperAdminEmail) {
 
 **Resultado:** El super admin puede ver todos los usuarios de todos los tenants.
 
+> **Nota de migración (16 Sept 2026):** Los fragmentos de código de este documento usan `clerkClient()` por claridad. Tras la migración del SDK, todo acceso a Clerk se realiza vía REST con `lib/clerk-api.ts` (`@clerk/clerk-sdk-node` fue eliminado). La lógica de bloqueo por email (`sucachi.123@gmail.com`) se mantiene igual.
+
+## Seguridad del Middleware (16 Sept 2026)
+
+- `middleware.ts` usa `clerkMiddleware`; TODA ruta no pública ejecuta `await auth.protect()`.
+- Las rutas protegidas (incluidas `/admin` y `/api/admin/*`) devuelven **HTTP 404** (no redirect) a requests no autenticados.
+- El middleware inyecta el header `x-tenant-id` desde metadata de Clerk cuando la petición no lo trae.
+- Estas protecciones de Middleware se suman a la protección por email del super admin: ningún tenant puede eliminar/modificar a `sucachi.123@gmail.com`.
+
 ## Comportamiento Esperado
 
 ### Para el Super Admin (`sucachi.123@gmail.com`):
@@ -127,3 +136,6 @@ Cuando alguien intenta modificar/eliminar al super admin, se registran logs:
 2. **Protección a nivel de interfaz:** Los usuarios no ven los botones para evitar intentos.
 3. **Logs de auditoría:** Todos los intentos bloqueados se registran.
 4. **Super Admin general:** Mantiene `tenantId: tenant_001` como identificador global.
+5. **Fix de env (16 Sept 2026):** `app/api/companies/route.ts` usaba `process.env.SUPABASE_URL!` (undefined → 500); corregido a `process.env.NEXT_PUBLIC_SUPABASE_URL!` (GET y PUT). Env real: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (conexión directa), Clerk keys. **No existe `SUPABASE_URL`.**
+
+*Estado validado al 16 de Septiembre de 2026.*
