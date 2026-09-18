@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/card";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
+import { Label } from "@/components/ui/label";
 import { Loader2, TrendingUp, Calendar, ArrowUpDown, BarChart3 } from "lucide-react";
 import { isValidPeriod, getYoYPeriod, getAllYoYPeriods, isSameMonthDifferentYear } from "@/lib/services/period-variations";
 

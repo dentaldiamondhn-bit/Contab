@@ -154,6 +154,23 @@ export async function generatePDFHTML(content: string, options: PDFExportOptions
 }
 
 /**
+ * Interfaz para datos de balanza de comprobación PDF
+ */
+export interface TrialBalancePDFData {
+  period: {
+    startDate: Date;
+    endDate: Date;
+  };
+  accounts: Array<{
+    code: string;
+    name: string;
+    totalDebits: number;
+    totalCredits: number;
+    balance: number;
+  }>;
+}
+
+/**
  * Exporta Balanza de Comprobación a PDF (versión optimizada con cache en Supabase Storage)
  * 
  * Genera el PDF una sola vez al realizar un cierre o firma digital,
@@ -537,14 +554,4 @@ export async function exportTaxReportToPDF(
  */
 function htmlToPDFBuffer(html: string): Buffer {
   return Buffer.from(html, 'utf-8')
-}
-
-export {
-  exportTrialBalanceToPDF,
-  exportPolizasToPDF,
-  exportTaxReportToPDF,
-  generatePDFHTML,
-  TrialBalancePDFData,
-  PolizaPDFData,
-  TaxReportPDFData,
 }

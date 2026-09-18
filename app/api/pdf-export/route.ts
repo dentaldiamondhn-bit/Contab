@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { exportTrialBalanceToPDFWithCache, exportPolizasToPDFWithCache, exportTaxReportToPDFWithCache } from '@/lib/services/pdf-export';
+import { exportTrialBalanceToPDF, exportPolizasToPDF, exportTaxReportToPDF } from '@/lib/services/pdf-export';
 
 /**
  * GET /api/pdf-export
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
           periodStartDate: new Date(),
           periodEndDate: new Date(),
         };
-        result = await exportTrialBalanceToPDFWithCache(trialBalance, optionsStr ? JSON.parse(optionsStr) : undefined);
+        result = await exportTrialBalanceToPDF(trialBalance, optionsStr ? JSON.parse(optionsStr) : undefined);
         break;
 
       case 'polizas':
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
         }
         // En producción obtendríamos las pólizas del DB
         const polizas = [];
-        result = await exportPolizasToPDFWithCache(polizas, optionsStr ? JSON.parse(optionsStr) : undefined);
+        result = await exportPolizasToPDF(polizas, optionsStr ? JSON.parse(optionsStr) : undefined);
         break;
 
       case 'tax-report':
@@ -78,7 +78,7 @@ export async function GET(request: NextRequest) {
           },
           summary: { totalTaxToPay: 0 },
         };
-        result = await exportTaxReportToPDFWithCache(taxReport, optionsStr ? JSON.parse(optionsStr) : undefined);
+        result = await exportTaxReportToPDF(taxReport, optionsStr ? JSON.parse(optionsStr) : undefined);
         break;
 
       default:
@@ -120,13 +120,13 @@ export async function POST(request: NextRequest) {
 
     switch (type) {
       case 'trial-balance':
-        result = await exportTrialBalanceToPDFWithCache(data, options);
+        result = await exportTrialBalanceToPDF(data, options);
         break;
       case 'polizas':
-        result = await exportPolizasToPDFWithCache(data, options);
+        result = await exportPolizasToPDF(data, options);
         break;
       case 'tax-report':
-        result = await exportTaxReportToPDFWithCache(data, options);
+        result = await exportTaxReportToPDF(data, options);
         break;
       default:
         return NextResponse.json({ error: `Unknown PDF type: ${type}` }, { status: 400 });
