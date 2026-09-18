@@ -396,23 +396,6 @@ model TicketEmailLog {
   @@map("ticket_email_logs")
 }
 
-model PeriodClosingBalance {
-  id            String   @id @default(uuid())
-  period        String   // e.g., "2024-01", "2024-FY"
-  startDate     DateTime
-  endDate       DateTime
-  snapshotDate  DateTime @default(now())
-  totalDebits   BigInt
-  totalCredits  BigInt
-  totalBalance  BigInt
-  accountsCount  Int
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
-
-  @@index([period], map: "idx_period_closing_period")
-  @@map("period_closing_balances")
-}
-
 model AuditOutbox {
   id              String   @id @default(cuid())
   tenantId        String   @map("tenant_id")
