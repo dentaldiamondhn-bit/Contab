@@ -2,23 +2,22 @@
 // CONTAB - Middleware de Autorización Centralizado
 // ============================================================================
 // Uso: Llamar checkAuth(req, requiredPermissions) en cada API route
+// IMPORTANTE: Este middleware VALIDA la pertenencia del usuario al tenantId
+// en la capa de la base de datos, no confía ciegamente en el header HTTP.
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { Role, Permission, hasPermission, hasAnyPermission, VALID_ROLES } from './permissions';
+import { db } from '@/lib/db';
 
 export interface AuthUser {
   userId: string;
   email: string;
   role: Role;
   tenantId?: string;
-}
-
-export interface AuthResult {
-  success: boolean;
-  user?: AuthUser;
-  error?: string;
+  // Verificado en base de datos - marca si el tenant fue verificado Db
+  tenantVerified: boolean;
 }
 
 // Extraer el rol del usuario desde Clerk metadata
@@ -29,7 +28,7 @@ function extractRole(metadata: Record<string, unknown> | undefined): Role {
   return 'USER';
 }
 
-// Obtener el usuario autenticado
+// Obtener el usuario autenticado y verificar pertenencia al tenant en BD
 export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
   try {
     const { userId, sessionClaims } = await auth();
@@ -38,9 +37,43 @@ export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
     const metadata = sessionClaims.metadata as Record<string, unknown> | undefined;
     const email = (sessionClaims.email as string) || '';
     const role = extractRole(metadata);
-    const tenantId = metadata?.tenantId as string | undefined;
+    const tenantIdFromMetadata = metadata?.tenantId as string | undefined;
 
-    return { userId, email, role, tenantId };
+    // **VALIDACIÓN EN CAPA DE BASE DE DATOS**
+    // Verificamos que el usuario realmente pertenezca al tenant reclamado
+    // Esto evita ataques donde el usuario modifica el header x-tenant-id
+    let verifiedTenantId: string | undefined;
+    let tenantVerified = false;
+
+    if (tenantIdFromMetadata) {
+      // Verificar en la base de datos que el usuario está asociado a este tenant
+      const user = await db.user.findUnique({
+        where: { id: userId },
+        select: {
+          id: true,
+          email: true,
+          role: true,
+          tenantId: true,
+        }
+      });
+
+      if (user && user.tenantId === tenantIdFromMetadata) {
+        verifiedTenantId = tenantIdFromMetadata;
+        tenantVerified = true;
+      } else {
+        // El usuario no pertenece a este tenant, usar el tenant real de la BD
+        verifiedTenantId = user?.tenantId;
+        // Continuamos pero sin validación de tenant completada
+      }
+    }
+
+    return {
+      userId,
+      email,
+      role,
+      tenantId: verifiedTenantId,
+      tenantVerified,
+    };
   } catch {
     return null;
   }
@@ -58,13 +91,13 @@ export async function checkAuth(
   const user = await getAuthUser(req);
 
   if (!user) {
-    return { success: false, error: 'No autenticado' };
+    return { success: false, user: undefined, error: 'No autenticado' };
   }
 
   // Verificar roles permitidos
   if (options?.allowedRoles && options.allowedRoles.length > 0) {
     if (!options.allowedRoles.includes(user.role)) {
-      return { success: false, error: `Rol '${user.role}' no tiene acceso` };
+      return { success: false, user: undefined, error: `Rol '${user.role}' no tiene acceso` };
     }
   }
 
@@ -75,7 +108,7 @@ export async function checkAuth(
       : hasAnyPermission(user.role, options.requiredPermissions);
 
     if (!hasAccess && user.role !== 'SUPER_ADMIN') {
-      return { success: false, error: 'Sin permisos suficientes' };
+      return { success: false, user: undefined, error: 'Sin permisos suficientes' };
     }
   }
 

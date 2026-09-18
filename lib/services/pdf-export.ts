@@ -3,6 +3,7 @@
 import { db } from "@/lib/db";
 import { formatCurrency } from "@/lib/currency-utils";
 import { NextResponse } from "next/server";
+import { supabase, generatePdfKey, cachePdf, isPdfCached } from "@/lib/services/pdf-cache-service";
 
 export interface PDFExportOptions {
   title: string;
@@ -13,81 +14,6 @@ export interface PDFExportOptions {
   date?: string;
   showHeader?: boolean;
   showFooter?: boolean;
-}
-
-export interface TrialBalancePDFData {
-  accounts: Array<{
-    code: string;
-    name: string;
-    type: string;
-    openingBalance: number;
-    totalDebits: number;
-    totalCredits: number;
-    endingBalance: number;
-    debitBalance: number;
-    creditBalance: number;
-  }>;
-  totalOpeningBalance: number;
-  totalDebits: number;
-  totalCredits: number;
-  totalEndingBalance: number;
-  totalTrialDebits: number;
-  totalTrialCredits: number;
-  isBalanced: boolean;
-  period: {
-    startDate: Date;
-    endDate: Date;
-  };
-  generatedAt: Date;
-}
-
-export interface PolizaPDFData {
-  id: string;
-  date: Date;
-  voucherType: string;
-  voucherNumber: number;
-  description: string;
-  totalAmount: number;
-  entries: Array<{
-    account: {
-      code: string;
-      name: string;
-    };
-    amount: number;
-    description?: string;
-  }>;
-}
-
-export interface TaxReportPDFData {
-  period: string;
-  taxConfig: {
-    rate: number;
-  };
-  sales: {
-    totalBase: number;
-    totalTax: number;
-    details: Array<{
-      accountCode: string;
-      accountName: string;
-      totalBase: number;
-      totalTax: number;
-      effectiveRate: number;
-    }>;
-  };
-  purchases: {
-    totalBase: number;
-    totalTax: number;
-    details: Array<{
-      accountCode: string;
-      accountName: string;
-      totalBase: number;
-      totalTax: number;
-      effectiveRate: number;
-    }>;
-  };
-  summary: {
-    totalTaxToPay: number;
-  };
 }
 
 /**
@@ -228,12 +154,33 @@ export async function generatePDFHTML(content: string, options: PDFExportOptions
 }
 
 /**
- * Exporta Balanza de Comprobación a PDF
+ * Exporta Balanza de Comprobación a PDF (versión optimizada con cache en Supabase Storage)
+ * 
+ * Genera el PDF una sola vez al realizar un cierre o firma digital,
+ * almacénalo en Supabase Storage y entrega a los clientes el enlace firmado (signedUrl) directamente.
+ * 
+ * @param tenantId ID del tenant/empresa
+ * @param trialBalance Datos de la balanza
+ * @param options Opciones de exportación
+ * @returns URL firmada del PDF en Supabase Storage
  */
 export async function exportTrialBalanceToPDF(
+  tenantId: string,
   trialBalance: TrialBalancePDFData,
   options?: Partial<PDFExportOptions>
-): Promise<Buffer> {
+): Promise<string> {
+  // Identificador único para el cache (usando el ID de la balanza o fecha período)
+  const identifier = `${trialBalance.period.startDate.toISOString()}-${trialBalance.period.endDate.toISOString()}`
+  
+  // Intentar obtener PDF del cache primero
+  const cacheCheck = await isPdfCached(tenantId, 'trial_balance', identifier)
+  
+  if (cacheCheck.cached && cacheCheck.fileUrl) {
+    // Retornar URL del cache en lugar de generar de nuevo
+    return cacheCheck.fileUrl
+  }
+  
+  // Generar contenido HTML
   const content = `
     <div class="section-title">Balanza de Comprobación</div>
     <p>Período: ${trialBalance.period.startDate.toLocaleDateString('es-HN')} - ${trialBalance.period.endDate.toLocaleDateString('es-HN')}</p>
@@ -273,6 +220,7 @@ export async function exportTrialBalanceToPDF(
     </div>
   `;
 
+  // Generar HTML
   const html = await generatePDFHTML(content, {
     title: 'Balanza de Comprobación',
     period: options?.period,
@@ -280,15 +228,66 @@ export async function exportTrialBalanceToPDF(
     preparedBy: options?.preparedBy,
     showHeader: true,
     showFooter: true,
-  });
+  })
 
-  return await htmlToPDF(html);
+  // Convertir a Buffer
+  const pdfBuffer = Buffer.from(html, 'utf-8')
+  
+  // Cachear en Supabase Storage y obtener URL firmada
+  const signedUrl = await cachePdf(tenantId, 'trial_balance', identifier, pdfBuffer, {
+    ttlMinutes: 43200 // 30 días
+  })
+  
+  return signedUrl
 }
 
 /**
- * Exporta Pólizas a PDF
+ * Interfaz para datos de póliza PDF
  */
-export async function exportPolizasToPDF(polizas: PolizaPDFData[], options?: Partial<PDFExportOptions>): Promise<Buffer> {
+export interface PolizaPDFData {
+  id: string;
+  date: Date;
+  voucherType: string;
+  voucherNumber: number;
+  description: string;
+  totalAmount: number;
+  entries: Array<{
+    account: {
+      code: string;
+      name: string;
+    };
+    amount: number;
+    description?: string;
+  }>;
+}
+
+/**
+ * Exporta Pólizas a PDF (versión optimizada con cache en Supabase Storage)
+ * 
+ * Genera el PDF una sola vez al realizar un cierre o firma digital,
+ * almacénalo en Supabase Storage y entrega a los clientes el enlace firmado (signedUrl) directamente.
+ * 
+ * @param tenantId ID del tenant/empresa
+ * @param polizas Array de pólizas a exportar
+ * @param options Opciones de exportación
+ * @returns URL firmada del PDF en Supabase Storage
+ */
+export async function exportPolizasToPDF(
+  tenantId: string,
+  polizas: PolizaPDFData[],
+  options?: Partial<PDFExportOptions>
+): Promise<string> {
+  // Identificador único para el cache (usando el rango de fechas y número de pólizas)
+  const identifier = `${polizas[0]?.date.toISOString()}-${polizas.length}-polizas`
+  
+  // Intentar obtener PDF del cache primero
+  const cacheCheck = await isPdfCached(tenantId, 'polizas', identifier)
+  
+  if (cacheCheck.cached && cacheCheck.fileUrl) {
+    // Retornar URL del cache en lugar de generar de nuevo
+    return cacheCheck.fileUrl
+  }
+  
   const voucherTypeNames: Record<string, string> = {
     'INGRESO': 'Póliza de Ingreso',
     'EGRESO': 'Póliza de Egreso',
@@ -344,24 +343,88 @@ export async function exportPolizasToPDF(polizas: PolizaPDFData[], options?: Par
     </div>
   `).join('');
 
+  // Generar HTML
   const html = await generatePDFHTML(content, {
     title: 'Reporte de Pólizas',
     showHeader: true,
     showFooter: true,
     companyName: options?.companyName,
     preparedBy: options?.preparedBy,
-  });
+  })
 
-  return await htmlToPDF(html);
+  // Convertir a Buffer
+  const pdfBuffer = Buffer.from(html, 'utf-8')
+  
+  // Cachear en Supabase Storage y obtener URL firmada
+  const signedUrl = await cachePdf(tenantId, 'polizas', identifier, pdfBuffer, {
+    ttlMinutes: 43200 // 30 días
+  })
+  
+  return signedUrl
 }
 
 /**
- * Exporta Reporte de Impuestos a PDF
+ * Interfaz para datos de reporte tributario PDF
+ */
+export interface TaxReportPDFData {
+  period: string;
+  taxConfig: {
+    rate: number;
+  };
+  sales: {
+    totalBase: number;
+    totalTax: number;
+    details: Array<{
+      accountCode: string;
+      accountName: string;
+      totalBase: number;
+      totalTax: number;
+      effectiveRate: number;
+    }>;
+  };
+  purchases: {
+    totalBase: number;
+    totalTax: number;
+    details: Array<{
+      accountCode: string;
+      accountName: string;
+      totalBase: number;
+      totalTax: number;
+      effectiveRate: number;
+    }>;
+  };
+  summary: {
+    totalTaxToPay: number;
+  };
+}
+
+/**
+ * Exporta Reporte de Impuestos a PDF (versión optimizada con cache en Supabase Storage)
+ * 
+ * Genera el PDF una sola vez al realizar un cierre o firma digital,
+ * almacénalo en Supabase Storage y entrega a los clientes el enlace firmado (signedUrl) directamente.
+ * 
+ * @param tenantId ID del tenant/empresa
+ * @param taxReport Datos del reporte tributario
+ * @param options Opciones de exportación
+ * @returns URL firmada del PDF en Supabase Storage
  */
 export async function exportTaxReportToPDF(
+  tenantId: string,
   taxReport: TaxReportPDFData,
   options?: Partial<PDFExportOptions>
-): Promise<Buffer> {
+): Promise<string> {
+  // Identificador único para el cache (usando el período)
+  const identifier = taxReport.period
+  
+  // Intentar obtener PDF del cache primero
+  const cacheCheck = await isPdfCached(tenantId, 'tax_report', identifier)
+  
+  if (cacheCheck.cached && cacheCheck.fileUrl) {
+    // Retornar URL del cache en lugar de generar de nuevo
+    return cacheCheck.fileUrl
+  }
+  
   const content = `
     <div class="section-title">Reporte Mensual de ISV - SAR</div>
     <p>Período: ${taxReport.period}</p>
@@ -450,33 +513,38 @@ export async function exportTaxReportToPDF(
       </div>
   `;
 
+  // Generar HTML
   const html = await generatePDFHTML(content, {
     title: 'Declaración Mensual de ISV - SAR',
     period: taxReport.period,
     showHeader: true,
     showFooter: true,
-  });
+  })
 
-  return await htmlToPDF(html);
+  // Convertir a Buffer
+  const pdfBuffer = Buffer.from(html, 'utf-8')
+  
+  // Cachear en Supabase Storage y obtener URL firmada
+  const signedUrl = await cachePdf(tenantId, 'tax_report', identifier, pdfBuffer, {
+    ttlMinutes: 43200 // 30 días
+  })
+  
+  return signedUrl
 }
 
 /**
- * Convierte HTML a PDF (implementación simplificada para entornos serverless)
+ * Convierte HTML a Buffer (para ser renderizado por react-pdf o servicio externo)
  */
-async function htmlToPDF(html: string): Promise<Buffer> {
-  // En entornos de producción, usaríamos un servicio dedicado como PDFShift o wkhtmltopdf
-  // Para este proyecto, retornamos el HTML formateado que puede ser impreso desde el navegador
-  // o convertido por un microservicio
-  
-  // Marcar páginas para el lector de PDF
-  const markedHTML = html.replace(/<\/div>/g, '</div>\n<!-- page-break -->');
-  
-  return Buffer.from(markedHTML, 'utf-8');
+function htmlToPDFBuffer(html: string): Buffer {
+  return Buffer.from(html, 'utf-8')
 }
 
-export default {
+export {
   exportTrialBalanceToPDF,
   exportPolizasToPDF,
   exportTaxReportToPDF,
   generatePDFHTML,
-};
+  TrialBalancePDFData,
+  PolizaPDFData,
+  TaxReportPDFData,
+}

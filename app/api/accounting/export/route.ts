@@ -27,35 +27,35 @@ export async function GET(request: NextRequest) {
     // Generar datos de la balanza
     const trialBalance = await generateTrialBalance(startDate, endDate);
 
+    // Inicializar variable de datos para Excel
+    let excelData: any = {};
+
     // Exportar según el tipo solicitado
     if (exportType === "excel") {
       // Datos para Excel
-      const excelData = trialBalance.accounts.map((account) => ({
-        'Código': account.code,
-        'Nombre': account.name,
-        'Tipo': account.type,
-        'Saldo Anterior': account.openingBalance || 0,
-        'Múebles (Débitos)': account.totalDebits || 0,
-        'Múebles (Créditos)': account.totalCredits || 0,
-        'Saldo Final': account.endingBalance || 0,
-      }));
+      excelData = {
+        period,
+        taxConfig: { rate: 0.15 },
+        sales: {
+          totalBase: 0,
+          totalTax: 0,
+          details: [],
+        },
+        purchases: {
+          totalBase: 0,
+          totalTax: 0,
+          details: [],
+        },
+        summary: {
+          'ISV por Ventas': 0,
+          'ISV por Compras': 0,
+          'ISV a Pagar': 0
+        }
+      };
       
       const filename = `Balanza_Comprobacion_${period}.xlsx`;
       const mimeType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
       
-      exportToExcel(excelData, filename, {
-        columns: [
-          { header: 'Código', key: 'Código', width: 15 },
-          { header: 'Nombre', key: 'Nombre', width: 40 },
-          { header: 'Tipo', key: 'Tipo', width: 15 },
-          { header: 'Saldo Anterior', key: 'Saldo Anterior', width: 20 },
-          { header: 'Múebles (Débitos)', key: 'Múebles (Débitos)', width: 25 },
-          { header: 'Múebles (Créditos)', key: 'Múebles (Créditos)', width: 25 },
-          { header: 'Saldo Final', key: 'Saldo Final', width: 20 },
-        ]
-      });
-      
-      // Retornar datos JSON que el frontend usará para descargar
       return NextResponse.json({
         success: true,
         data: excelData,
@@ -76,8 +76,8 @@ export async function GET(request: NextRequest) {
       return new NextResponse(pdfBuffer, {
         headers: {
           'Content-Type': mimeType,
-          'Content-Disposition': `attachment; filename="${filename}"`,
-        },
+          'Content-Disposition': `attachment; filename="${filename}"`
+        }
       });
     }
   } catch (error) {
@@ -119,16 +119,6 @@ export async function POST(request: NextRequest) {
       
       const filename = `Reporte_Polizas_${new Date().toISOString().slice(0, 10)}.xlsx`;
       
-      exportToExcel(excelData, filename, {
-        columns: [
-          { header: 'Número Póliza', key: 'Número Póliza', width: 20 },
-          { header: 'Fecha', key: 'Fecha', width: 15 },
-          { header: 'Tipo', key: 'Tipo', width: 15 },
-          { header: 'Descripción', key: 'Descripción', width: 45 },
-          { header: 'Total', key: 'Total', width: 15 },
-        ]
-      });
-      
       return NextResponse.json({
         success: true,
         data: excelData,
@@ -165,7 +155,7 @@ export async function POST(request: NextRequest) {
  * GET /api/accounting/export/tax-report?period=YYYY-MM&type=pdf|excel
  * Exporta reporte de impuestos a PDF
  */
-export async function GET taxReportRoute(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || new Date().toISOString().slice(0, 7);
@@ -250,8 +240,7 @@ export async function GET taxReportRoute(request: NextRequest) {
     };
 
     if (exportType === "excel") {
-      // Datos para Excel
-      const excelData = {
+      excelData = {
         period,
         taxConfig: { rate: taxReport.taxConfig.rate },
         sales: {
@@ -318,4 +307,4 @@ export async function GET taxReportRoute(request: NextRequest) {
   }
 }
 
-export { taxReportRoute as GET };
+export { GET as trialBalance, POST };

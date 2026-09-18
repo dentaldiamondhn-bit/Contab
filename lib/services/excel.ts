@@ -45,10 +45,15 @@ export function formatBalancesForExcel(accounts: any[]) {
     'Múebles (Débitos)': formatCurrency(account.totalDebits || 0),
     'Múebles (Créditos)': formatCurrency(account.totalCredits || 0),
     'Saldo Final': formatCurrency(account.endingBalance || 0),
-    'Saldo (Presentación)': account.debitBalance || account.creditBalance ? 
-      (account.debitBalance ? formatCurrency(account.debitBalance) : formatCurrency(account.creditBalance)) : '',
+    'Saldo (Presentación)': account.debitBalance !== undefined
+      ? account.debitBalance > 0
+        ? formatCurrency(account.debitBalance)
+        : formatCurrency(account.debitBalance)
+      : (account.creditBalance !== undefined
+        ? formatCurrency(account.creditBalance)
+        : ''),
     'Naturaleza': account.nature || '',
-  });
+  }));
 }
 
 /**
@@ -70,7 +75,7 @@ export function formatPolizasForExcel(polizas: any[]) {
  */
 export function formatPolizasDetailForExcel(polizas: any[]) {
   const rows: any[] = [];
-  
+
   polizas.forEach((poliza: any) => {
     poliza.entries?.forEach((entry: any) => {
       rows.push({
@@ -107,7 +112,7 @@ export function formatVariationsForExcel(variations: any[]) {
     'Var. Absoluta': formatCurrency(variation.varAbs),
     'Var. Porcentual': variation.varPct !== null ? `${(variation.varPct * 100).toFixed(2)}%` : 'N/A',
     'Tendencia': variation.trend,
-  });
+  }));
 }
 
 /**
@@ -121,15 +126,53 @@ export function formatFinancialStatementsForExcel(
   const rows: any[] = [];
 
   // Balance General
-  rows.push({ ... });
-  
+  rows.push({
+    Balance: balance?.totalAssets,
+    Ingreso: incomeStatement?.revenue,
+    Flujo: cashFlow?.netChange
+  });
+
   return rows;
 }
 
-export default {
-  exportToExcel,
-  formatBalancesForExcel,
-  formatPolizasForExcel,
-  formatPolizasDetailForExcel,
-  formatVariationsForExcel,
-};
+export function parseExcelToTransactions(file: File): Promise<{ success: boolean; data?: any[]; error?: string; missingCodes?: string[] }> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e: any) => {
+      try {
+        const data = new Uint8Array(e.target.result);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const firstSheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[firstSheetName];
+        
+        // Parse the Excel data into transaction format
+        const parsedData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+        
+        if (parsedData && parsedData.length > 1) {
+          const transactions = parsedData.slice(1).map((row: any[]) => ({
+            date: row[0] ? String(row[0]) : '',
+            description: row[1] ? String(row[1]) : '',
+            accountId: row[2] ? String(row[2]) : '',
+            amount: row[3] ? Number(row[3]) * 100 : 0, // Convert to centavos
+          }));
+          
+          resolve({
+            success: true,
+            data: transactions,
+          });
+        } else {
+          resolve({
+            success: false,
+            error: 'No se pudieron leer los datos del archivo Excel',
+          });
+        }
+      } catch (err) {
+        resolve({
+          success: false,
+          error: err instanceof Error ? err.message : 'Error desconocido al parsear el archivo',
+        });
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  });
+}

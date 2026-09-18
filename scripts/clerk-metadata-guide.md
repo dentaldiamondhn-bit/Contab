@@ -1,8 +1,10 @@
 # Guía de Metadata para Clerk - Estructura Completa
 
-> **Actualizado:** 17 de Septiembre de 2026
+> **Actualizado:** 18 de Septiembre de 2026
 >
-> La estructura de metadata (`role`, `tenantId`, `tenantCode`, `permissions`, `isolation`) sigue vigente. `middleware.ts` lee esta metadata (campos en `sessionClaims.metadata`) e inyecta `x-tenant-id` en las peticiones. Recuerda: las rutas no públicas usan `auth.protect()` → **404** sin sesión.
+> La estructura de metadata (`role`, `tenantId`, `tenantCode`, `permissions`, `isolation`) sigue vigente. `middleware.ts` lee esta metadata (campos en `sessionClaims.metadata`) e inyecta headers `x-tenant-id` y `x-user-jwt` en las peticiones. Recuerda: las rutas no públicas usan `auth.protect()` → **404** sin sesión.
+>
+> **Enterprise-Ready (18 Sept 2026):** El middleware ahora también inyecta `x-user-jwt` para el cliente Supabase con JWT que habilita RLS directo en PostgreSQL.
 
 ## Cómo Agregar Metadata a Usuarios en Clerk
 

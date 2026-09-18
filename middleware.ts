@@ -1,5 +1,7 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import { createSupabaseClientWithJwt, supabase } from "@/lib/supabase-client-direct";
+import { getAuthUser } from "@/lib/auth-middleware";
 
 const isPublicRoute = createRouteMatcher([
   "/auth/login(.*)",
@@ -53,10 +55,28 @@ export default clerkMiddleware(async (auth, req) => {
     return NextResponse.redirect(new URL("/admin/dashboard", req.url));
   }
 
+  // ===========================================
+  // ÁREA 1: Hibridación de Acceso a Datos
+  // ===========================================
+  // 1. Pasar tenantId explícito en headers para queries Prisma
+  // 2. Preparar cliente Supabase con JWT para RLS directo
+  // ===========================================
+  
   const requestHeaders = new Headers(req.headers);
-  // Solo aplicar el tenant del metadata si la petición NO trae ya un tenant explícito.
-  // Así las páginas que operan con companyId de la URL (ej. /companies/ANGELOH7/...) no
-  // son pisadas por metadata.tenantId cuando representan otro tenant.
+  
+  // Obtener usuario auth para pasar información de tenant
+  const authResult = await getAuthUser(req as any);
+  
+  if (authResult.success && authResult.user?.tenantId) {
+    // 1. Añadir tenantId explícito en header para Prisma queries
+    requestHeaders.set('x-tenant-id', authResult.user.tenantId);
+    
+    // 2. Preparar Supabase client con JWT para RLS directo
+    // Se hará en las API routes/components que necesiten RLS directo
+    requestHeaders.set('x-user-jwt', authResult.user.userId || '');
+  }
+
+  // También pasar el tenantId desde metadata si no hay uno explícito
   if (metadata.tenantId && !requestHeaders.get('x-tenant-id')) {
     requestHeaders.set('x-tenant-id', metadata.tenantId);
   }

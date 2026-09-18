@@ -1,5 +1,7 @@
 ﻿# Reporte de Estado y Plan de Ejecución: Integración Fiscal
 
+> **Actualizado:** 18 de Septiembre de 2026
+
 ## 1. Estado Actual del Código
 
 ### 1.1 Resumen Ejecutivo
@@ -15,6 +17,7 @@
 | **Configuración de Impuestos** | Completo | 1 página | 3 rutas | 2 tablas | Prisma + Supabase |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (companies, libro_ventas, Purchase) |
 | **Notas de Crédito/Débito (SAR)** | Completo | 1 página | 2 rutas | 1 tabla (`InvoiceNote`) | Supabase |
+| **Validación Fiscal (CAI)** | ✅ Implementado | — | 1 middleware | — | — |
 | **DIN** | No Iniciado | 0 | 0 | 0 | — |
 | **TCA** | No Iniciado | 0 | 0 | 0 | — |
 | **Impresora Fiscal** | No Iniciado | 0 | 0 | 0 | — |
@@ -341,6 +344,44 @@ Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito si
 | Fiscales NC/ND | No consumen CAI propio; referencian CAI de la factura original (SAR-HN); numeración interna NC-/ND- |
 | Verificación notas | Build EXIT=0; rutas `ƒ /api/billing/notes`, `ƒ /api/billing/notes/[id]`, `○ /billing/notes`; INSERT 201 / SELECT 200 / DELETE 204 |
 | Fix env | `app/api/companies/route.ts` usa `NEXT_PUBLIC_SUPABASE_URL` (no `SUPABASE_URL`) |
+
+## Validación Fiscal de CAI (18 Sept 2026)
+
+### Nuevo Middleware: `lib/middleware/fiscal-validation.middleware.ts`
+
+**Propósito:** Valida documentos fiscales con CAI antes de guardar, verificando:
+1. La fecha actual sea menor a la fecha límite de emisión (expiryDate)
+2. El número correlativo no supere el rango autorizado (rangeEnd)
+3. La fecha de emisión no sea posterior a la expiración del CAI
+4. El voucher number esté dentro del rango [rangeStart, rangeEnd]
+
+**Uso en API routes:**
+
+```typescript
+import { validateFiscalDocument } from '@/lib/middleware/fiscal-validation.middleware';
+
+const result = await validateFiscalDocument({
+  caiId: 'xxx',
+  issueDate: new Date(),
+  voucherNumber: 1234,
+});
+
+if (!result.valid) {
+  return NextResponse.json({ error: result.reason }, { status: 400 });
+}
+```
+
+**Campos de respuesta:**
+
+| Campo | Tipo | Descripción |
+|---|---|---|
+| `valid` | boolean | Si el documento es válido |
+| `reason` | string | Razón de rechazo (si aplica) |
+| `caicCode` | string | Código CAI validado |
+| `expiryDate` | string | Fecha de expiración del CAI |
+| `daysUntilExpiry` | number | Días hasta expiración |
+| `remainingInRange` | number | Facturas restantes en el rango |
+| `canGenerate` | boolean | Si se puede generar el documento |
 
 ## Actualizaciones de Infraestructura (8 Sept 2026)
 

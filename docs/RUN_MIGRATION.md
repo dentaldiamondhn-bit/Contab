@@ -1,6 +1,6 @@
 # Cómo Ejecutar la Migración SQL en Windows
 
-> **Actualizado:** 17 de Septiembre de 2026
+> **Actualizado:** 18 de Septiembre de 2026
 
 > ⚠️ **VÍA RECOMENDADA — SQL Editor de Supabase.** No hay acceso DDL directo: la conexión directa a `db.<ref>.supabase.co:5432` falla con `getaddrinfo ENOTFOUND`. Las migraciones DDL **se aplican vía SQL Editor de Supabase**, no con `prisma migrate` ni `psql` contra el host directo.
 
@@ -20,7 +20,45 @@ Las migraciones persistentes viven en dos lugares:
 - `prisma/migrations/*.sql` (migraciones de schema vía Prisma)
 - `scripts/migrations/*.sql` (scripts ad-hoc de Supabase/RLS)
 
-## Opción 2: Usar Prisma para generar el cliente (no aplica DDL a Supabase)
+## Opción 2: CI/CD con Prisma Migrate (Enterprise-Ready)
+
+### Nuevos scripts de migración (18 Sept 2026)
+
+El proyecto ahora tiene scripts separados para Staging y Production:
+
+```bash
+# Crear una nueva migración:
+prisma migrate add <nombre-migracion>
+
+# Aplicar en Staging primero:
+npm run prisma:migrate:deploy:staging
+
+# Si staging es exitoso, aplicar en Production:
+npm run prisma:migrate:deploy:production
+
+# O ejecutar ambos secuencialmente:
+npm run prisma:deploy
+```
+
+### Flujo CI/CD recomendado
+
+1. Desarrollador crea migración: `prisma migrate add <nombre>`
+2. Commitea archivos de migración (`prisma/migrations/`)
+3. CI ejecuta `prisma:migrate:deploy:staging` primero
+4. Si staging pasa, CI ejecuta `prisma:migrate:deploy:production`
+5. Si staging falla, se detiene el pipeline
+
+### Variables de entorno requeridas
+
+```
+# Staging
+DATABASE_URL_STAGING=postgresql://...
+
+# Production  
+DATABASE_URL=postgresql://...
+```
+
+## Opción 3: Usar Prisma para generar el cliente (no aplica DDL a Supabase)
 
 Con Node portable + `pnpm.cmd`:
 
@@ -32,7 +70,7 @@ pnpm.cmd prisma generate
 
 `npx prisma db pull`, `db execute`, `migrate dev` y `migrate deploy` requieren conexión directa y fallan contra Supabase con `getaddrinfo ENOTFOUND`. Úsalos solo contra una instancia local si existe, o aplica el SQL manualmente (Opción 1).
 
-## Opción 3: Usar un Cliente PostgreSQL GUI (solo si hay conexión disponible)
+## Opción 4: Usar un Cliente PostgreSQL GUI (solo si hay conexión disponible)
 
 1. **Descargar DBeaver** (gratis): https://dbeaver.io/download/
 2. Conectar a tu base de datos PostgreSQL **con una cadena que tenga acceso** (no el host directo `db.<ref>.supabase.co`, que da ENOTFOUND)

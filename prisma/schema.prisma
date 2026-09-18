@@ -26,6 +26,20 @@ model Account {
   @@map("Account")
 }
 
+model ExchangeRateHistory {
+  id            String   @id @default(cuid())
+  date          DateTime @map("date")
+  fromCurrency  String   @map("from_currency")
+  toCurrency    String   @map("to_currency")
+  rate          Decimal  @map("rate")
+  source        String?  @map("source") // e.g., "BCH", "Banco Central", "manual"
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@unique([date, fromCurrency, toCurrency], map: "unique_exchange_rate_daily")
+  @@index([date], map: "idx_exchange_rate_date")
+  @@map("exchange_rate_history")
+}
+
 model Transaction {
   id            String   @id @default(cuid())
   tenantId      String   @map("tenant_id")
@@ -35,7 +49,7 @@ model Transaction {
   voucherType   String   @map("voucher_type")
   voucherNumber Int      @map("voucher_number")
   currency      String   @default("HNL")
-  exchangeRate  Decimal  @default(24.70) @map("exchange_rate")
+  exchangeRate  Decimal  @default(24.70) @map("exchange_rate") // Rate at transaction date
   totalAmount   BigInt   @map("total_amount")
   clienteRTN    String?  @map("cliente_rtn")
   proveedorRTN  String?  @map("proveedor_rtn")
@@ -380,4 +394,80 @@ model TicketEmailLog {
 
   @@index([ticketId], map: "idx_ticket_email_log_ticket_id")
   @@map("ticket_email_logs")
+}
+
+model PeriodClosingBalance {
+  id            String   @id @default(uuid())
+  period        String   // e.g., "2024-01", "2024-FY"
+  startDate     DateTime
+  endDate       DateTime
+  snapshotDate  DateTime @default(now())
+  totalDebits   BigInt
+  totalCredits  BigInt
+  totalBalance  BigInt
+  accountsCount  Int
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  @@index([period], map: "idx_period_closing_period")
+  @@map("period_closing_balances")
+}
+
+model OutboxAudit {
+  id            String   @id @default(uuid())
+  tablename     String   @map("tablename")
+  recordid      String   @map("recordid")
+  action        String   @map("action")
+  oldvalues     Json?    @map("oldvalues")
+  newvalues     Json?    @map("newvalues")
+  changedfields Json?    @map("changedfields")
+  userid        String?  @map("userid")
+  useragent     String?  @map("useragent")
+  ipaddress     String?  @map("ipaddress")
+  tenantid      String?  @map("tenantid")
+  processed     Boolean  @default(false) @map("processed")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  @@map("outbox_audit")
+}
+
+model AuditOutbox {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  tableName       String   // Tabla afectada (Transaction, JournalEntry, etc.)
+  recordId        String   // ID del registro afectado
+  action          String   // CREATE, UPDATE, DELETE
+  oldValues       String?  // JSON old values
+  newValues       String?  // JSON new values
+  changedFields   String?  // Campos cambiados
+  userId          String?  // Usuario que realizó la operación
+  userAgent       String?  // User agent del request
+  ipAddress       String?  // IP address del request
+  category        String   // e.g., 'ADMIN', 'USER'
+  description     String?  // Descripción
+  status          String   // 'PENDING', 'PROCESSED', 'FAILED'
+  createdAt       DateTime @default(now()) @map("created_at")
+  processedAt     DateTime? @map("processed_at")
+
+  @@index([tenantId], map: "idx_audit_outbox_tenant")
+  @@index([status], map: "idx_audit_outbox_status")
+  @@map("audit_outbox")
+}
+
+model PeriodClosingBalance {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  periodStart     DateTime @map("period_start")
+  periodEnd       DateTime @map("period_end")
+  totalDebits     BigInt   @map("total_debits") @default(0)
+  totalCredits    BigInt   @map("total_credits") @default(0)
+  totalBalance    BigInt   @map("total_balance") @default(0)
+  accountCount    Int      @default(0)
+  transactionCount Int     @default(0)
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, periodStart, periodEnd], map: "unique_period_closing")
+  @@index([tenantId], map: "idx_period_closing_tenant")
+  @@map("period_closing_balances")
 }

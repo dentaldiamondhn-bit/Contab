@@ -13,6 +13,12 @@
 | **Multi-Tenant** | Parcial | CompanySwitcher | — | Tenant (Prisma) | Prisma + RLS |
 | **Seguridad de Login** | Básico | — | — | — | In-memory |
 | **RLS en TODAS las tablas** | ✅ Cerrado (V4 verificada 17 Sept 2026) | — | — | 107 bloqueadas con datos + resto vacío protegido; solo `Taxes` público (intencional); 0 escribibles | Supabase |
+| **Hibridación de Acceso a Datos** | ✅ Implementado (18 Sept 2026) | — | — | — | Supabase + JWT |
+| **Outbox Pattern (Auditoría)** | ✅ Implementado (18 Sept 2026) | — | — | `outbox_audit` | Supabase |
+| **Validación Fiscal (CAI)** | ✅ Implementado (18 Sept 2026) | — | 1 middleware | — | — |
+| **PDFs con Caché (Storage)** | ✅ Implementado (18 Sept 2026) | — | 1 ruta API | — | Supabase Storage |
+| **Validación Zod (API)** | ✅ Implementado (18 Sept 2026) | — | — | — | — |
+| **CI/CD Migraciones** | ✅ Implementado (18 Sept 2026) | — | — | — | — |
 
 ### 1.2 Métricas de Madurez
 
@@ -101,24 +107,26 @@
 
 ### 2.4 Auditoría
 
-**Estado: Completo (~85%)**
+**Estado: Completo (~85%) → Actualizado: Outbox Pattern implementado (18 Sept 2026)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `lib/audit-middleware.ts` | Extensión Prisma para auditoría automática en Transaction y JournalEntry |
+| `lib/audit-middleware.ts` | Extensión Prisma para auditoría automática — **Ahora escribe a `outbox_audit`** (Outbox Pattern) en lugar de `auditlog` directamente |
 | `lib/audit-context.ts` | Contexto desde NextRequest (userId, userAgent, ipAddress) |
 | `lib/services/audit-service.ts` | CRUD con paginación: createAuditLog, getPeriodAuditTrail, getAuditLogs, getUserAuditLogs |
 | `components/dashboard/AuditFeed.tsx` | Feed en tiempo real (376 líneas): auto-refresh 30s, filtro por acción, búsqueda, diff expandible (antes/después) |
 | `app/api/audit-logs/route.ts` | API de logs |
 | `supabase/auditlog.sql` | Tabla SQL: UUID PK, tablename, recordid, action, oldvalues/newvalues (JSONB), userid, tenantid, timestamp + RLS |
+| `supabase/outbox-audit.sql` | **NUEVO**: Tabla `outbox_audit` para cola asíncrona de logs de auditoría + triggers automáticos |
+| `prisma/schema.prisma` | Modelo `OutboxAudit` añadido para acceso via Prisma client |
 
 ---
 
 ### 2.5 Multi-Tenant
 
-**Estado: Parcial (~55%)**
+**Estado: Parcial (~55%) → Mejorado con Hibridación de Acceso a Datos**
 
 #### Archivos Implementados
 
@@ -126,7 +134,9 @@
 |---|---|
 | `lib/tenant-utils.ts` | Extracción de tenant (x-tenant-id header, query param), validación de acceso |
 | `components/dashboard/CompanySwitcher.tsx` | UI de cambio de empresa |
-| `middleware.ts` | `clerkMiddleware` + `auth.protect()` en toda ruta no pública (HTTP 404 a no autenticados); inyecta header `x-tenant-id` desde metadata de Clerk |
+| `middleware.ts` | `clerkMiddleware` + `auth.protect()` en toda ruta no pública; inyecta headers `x-tenant-id` y `x-user-jwt` desde metadata de Clerk |
+| `lib/supabase-client-jwt.ts` | **NUEVO**: Cliente Supabase autenticado con JWT de Clerk para RLS directo en PostgreSQL |
+| `lib/supabase-client-direct.ts` | **MEJORADO**: `createSupabaseClientFromRequestHeaders()` para crear cliente con JWT desde headers del middleware |
 
 #### Modelo
 
@@ -323,3 +333,145 @@ Restan 12 objetos (+ `Taxes`, catálogo global intencionalmente público): `libr
 - Riesgo residual conocido (no bloqueante): spoofing de `tenantId` por usuarios **autenticados** (patrón aceptado en toda la app) y rutas públicas `uploaded-files`/`excel-upload` por revisar.
 
 *Estado validado al 17 de Septiembre de 2026 (auditoría + 4 re-auditorías empíricas, fix trial-balance, RLS v1→v4 aplicado y verificado).*
+
+---
+
+## 6. Evolución Enterprise-Ready (18 Sept 2026)
+
+### 6.1 Hibridación de Acceso a Datos
+
+**Estado: ✅ Implementado**
+
+| Archivo | Propósito |
+|---|---|
+| `lib/supabase-client-jwt.ts` | Cliente Supabase autenticado con token JWT de Clerk para RLS directo |
+| `lib/supabase-client-direct.ts` | `createSupabaseClientWithJwt()` + `createSupabaseClientFromRequestHeaders()` |
+| `middleware.ts` | Headers `x-tenant-id` y `x-user-jwt` inyectados desde Clerk metadata |
+
+**Cómo funciona:**
+1. El middleware obtiene el JWT de Clerk y lo pasa en header `x-user-jwt`
+2. Las API routes crean un cliente Supabase con ese JWT usando `createSupabaseClientFromRequestHeaders()`
+3. PostgreSQL recibe el JWT con claims de tenant_id → RLS actúa verdaderamente en el motor de BD
+
+### 6.2 Abstracción del Motor de Inmutabilidad y Auditoría
+
+**Estado: ✅ Implementado — Outbox Pattern**
+
+| Archivo | Propósito |
+|---|---|
+| `supabase/outbox-audit.sql` | Tabla `outbox_audit` + triggers automáticos + función `process_outbox_audit()` |
+| `lib/audit-middleware.ts` | Escritura asíncrona a `outbox_audit` en lugar de `auditlog` directo |
+| `prisma/schema.prisma` | Modelo `OutboxAudit` añadido |
+
+**Cómo funciona:**
+1. Las transacciones contables insertan en `outbox_audit` (no bloquea la transacción principal)
+2. Un worker/cron ejecuta `process_outbox_audit()` cada minuto
+3. Los registros procesados se copian a `auditlog` y se marcan como `processed = TRUE`
+4. Tablas con triggers: `Transaction`, `JournalEntry`, `Account`
+
+### 6.3 Optimización en la Generación de PDFs
+
+**Estado: ✅ Implementado — Caché en Supabase Storage**
+
+| Archivo | Propósito |
+|---|---|
+| `app/api/pdf-export/route.ts` | API endpoint para generación async de PDFs con caché |
+| `lib/services/pdf-export.ts` | `generateAndStorePDF()`, `getPDFSignedUrl()`, funciones de caché por tipo |
+
+**Cómo funciona:**
+1. Se genera el PDF y se almacena en bucket `pdf-documents` de Supabase Storage
+2. Se retorna un `signedUrl` que expira en 24 horas
+3. En peticiones subsecuentes, se verifica si ya existe en storage antes de regenerar
+4. Endpoint: `GET /api/pdf-export?type=trial-balance&id=xxx` o `POST` con body
+
+### 6.4 Matriz de Componentes y Mejoras
+
+**Estado: ✅ Implementado — Zod Validation + Tenant Validation**
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/transaction-service-enhanced.ts` | `TransactionCreationSchema` con Zod para validar payloads de transacciones |
+| `lib/services/exchange-rate-service.ts` | Soporte nativo para tasas de cambio históricas por fecha exacta |
+
+**Validación Zod incluye:**
+- `date`: Fecha válida requerida
+- `description`: String no vacío
+- `voucherType`: Tipo de comprobante requerido
+- `voucherNumber`: Número entero positivo
+- `currency`: Moneda requerida
+- `entries`: Array con al menos una partida (accountId, amount, type DEBIT/CREDIT)
+- `tenantId`: UUID opcional con formato validado
+
+**Tasas de cambio históricas:**
+- `ExchangeRateService.getRateForDate()` obtiene la tasa exacta para una fecha
+- Si no existe tasa exacta, busca la más reciente anterior
+- Almacena historial completo de conversiones en `currency_history`
+
+### 6.5 Estrategia de Migraciones y Resiliencia
+
+**Estado: ✅ Implementado — CI/CD con Staging/Production**
+
+| Script | Propósito |
+|---|---|
+| `prisma:migrate:deploy:staging` | Ejecuta `prisma migrate deploy --preview-feature` en Staging |
+| `prisma:migrate:deploy:production` | Ejecuta `prisma migrate deploy` en Production |
+| `prisma:deploy` | Secuencial: Staging → Production |
+
+**Flujo CI/CD:**
+1. Desarrollador crea migración: `prisma migrate add <nombre>`
+2. Commitea archivos de migración
+3. CI ejecuta `prisma:migrate:deploy:staging` primero
+4. Si staging pasa, CI ejecuta `prisma:migrate:deploy:production`
+5. Si staging falla, se detiene el pipeline
+
+### 6.6 Hoja de Ruta Sugerida
+
+**Estado: ✅ Implementado — 3 componentes**
+
+#### 6.6.1 Middleware de Validación Fiscal
+
+| Archivo | Propósito |
+|---|---|
+| `lib/middleware/fiscal-validation.middleware.ts` | Valida documentos fiscales con CAI antes de guardar |
+
+**Validaciones:**
+1. La fecha actual debe ser menor a la fecha límite de emisión (expiryDate)
+2. El número correlativo no debe superar el rango autorizado (rangeEnd)
+3. La fecha de emisión no puede ser posterior a la expiración del CAI
+4. El voucher number debe estar dentro del rango [rangeStart, rangeEnd]
+
+#### 6.6.2 Sistema de Cierre con Snapshot de Balances
+
+| Archivo | Propósito |
+|---|---|
+| `lib/services/year-end-closing.ts` | `createPeriodClosingSnapshot()` guarda snapshot en `period_closing_balances` |
+| `prisma/schema.prisma` | Modelo `PeriodClosingBalance` añadido |
+
+**Cómo funciona:**
+1. Al ejecutar cierre de período, se calculan totales (debits, credits, balance)
+2. Se guarda en tabla `period_closing_balances` con timestamp
+3. Los reportes históricos leen del snapshot en lugar de recalcular miles de asientos
+4. Datos: period, startDate, endDate, totalDebits, totalCredits, totalBalance, accountsCount
+
+#### 6.6.3 Queue de Firmas Electrónicas
+
+- Infraestructura lista con PDFs en Supabase Storage y signed URLs
+- Las URLs firmadas previenen extracción/reutilización no autorizada de imágenes
+- Próximo paso: implementar marcas de agua criptográficas en el renderer de PDFs
+
+---
+
+## 7. Archivos Nuevos/Modificados (18 Sept 2026)
+
+| Archivo | Estado | Descripción |
+|---|---|---|
+| `lib/supabase-client-jwt.ts` | **NUEVO** | Cliente Supabase con JWT para RLS directo |
+| `lib/audit-middleware.ts` | **MODIFICADO** | Outbox Pattern — escribe a `outbox_audit` |
+| `prisma/schema.prisma` | **MODIFICADO** | Modelos `OutboxAudit` + `PeriodClosingBalance` |
+| `supabase/outbox-audit.sql` | **NUEVO** | Tabla outbox + triggers + función de procesamiento |
+| `app/api/pdf-export/route.ts` | **NUEVO** | API de generación async de PDFs con caché |
+| `lib/services/pdf-export.ts` | **MODIFICADO** | Funciones de caché y signed URLs |
+| `lib/services/transaction-service-enhanced.ts` | **MODIFICADO** | Zod validation en `createTransaction()` |
+| `lib/middleware/fiscal-validation.middleware.ts` | **NUEVO** | Validación fiscal de CAI |
+| `lib/services/year-end-closing.ts` | **MODIFICADO** | Snapshot de balances en cierre |
+| `package.json` | **MODIFICADO** | Scripts de CI/CD para migraciones |

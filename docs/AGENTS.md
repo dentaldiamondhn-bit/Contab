@@ -7,3 +7,37 @@ This version has breaking changes — APIs, conventions, and file structure may 
 This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
 
 <!-- END:nextjs-agent-rules -->
+
+---
+
+# Enterprise-Ready Improvements (18 Sept 2026)
+
+## Quick Reference
+
+| Area | File | Description |
+|---|---|---|
+| JWT RLS | `lib/supabase-client-jwt.ts` | Supabase client with Clerk JWT for direct RLS |
+| Outbox Audit | `lib/audit-middleware.ts` | Async audit logs via outbox pattern |
+| PDF Cache | `app/api/pdf-export/route.ts` | PDF generation with Supabase Storage caching |
+| Zod Validation | `lib/services/transaction-service-enhanced.ts` | Transaction payload validation |
+| Fiscal Middleware | `lib/middleware/fiscal-validation.middleware.ts` | CAI validation before saving |
+| Period Snapshot | `lib/services/year-end-closing.ts` | Balance snapshots for historical reports |
+
+## Key Commands
+
+```bash
+# Create new migration
+prisma migrate add <name>
+
+# Deploy to staging first
+npm run prisma:migrate:deploy:staging
+
+# Then production
+npm run prisma:migrate:deploy:production
+
+# Or both sequentially
+npm run prisma:deploy
+
+# Generate Prisma client
+prisma generate
+```

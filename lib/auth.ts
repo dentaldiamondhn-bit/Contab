@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { db } from "@/lib/db";
+import { createSupabaseClientWithJwt } from "@/lib/supabase-client-direct";
 
 export interface SessionUser {
   id: string;
@@ -70,6 +71,36 @@ export async function getCurrentUser(userId: string) {
     return user;
   } catch (error) {
     console.error('Get current user error:', error);
+    return null;
+  }
+}
+
+// Obtener cliente Supabase con JWT token para RLS directo
+// Este cliente usará las políticas RLS de PostgreSQL automáticamente
+export async function getSupabaseJwtClient(): Promise<import('@supabase/supabase-js').SupabaseClient> {
+  const cookieStore = await cookies();
+  const supabaseToken = cookieStore.get('sb-access-token')?.value;
+  
+  if (!supabaseToken) {
+    throw new Error('No Supabase auth token available');
+  }
+  
+  return createSupabaseClientWithJwt(supabaseToken);
+}
+
+// Obtener tenantId del usuario actual desde Clerk metadata
+export async function getCurrentTenantId(): Promise<string | null> {
+  try {
+    const cookieStore = await cookies();
+    const userData = cookieStore.get('user-data')?.value;
+    
+    if (userData) {
+      const user = JSON.parse(userData);
+      return user.tenantId || null;
+    }
+    
+    return null;
+  } catch {
     return null;
   }
 }

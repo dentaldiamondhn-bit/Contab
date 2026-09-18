@@ -64,9 +64,13 @@ export class YearEndClosingService {
         },
       });
 
+      // Create period closing balance snapshot
+      const snapshot = await this.createPeriodClosingSnapshot(data.year, totalRevenue, totalExpenses, netIncome);
+
       return {
         success: true,
         message: `Year ${data.year} closed successfully. Net income: ${formatCurrency(netIncome)}`,
+        snapshot,
         summary: {
           totalRevenue,
           totalExpenses,
@@ -341,6 +345,80 @@ export class YearEndClosingService {
     });
 
     return closingTransaction.id;
+  }
+
+  /**
+   * Create a period closing balance snapshot
+   * Guarda un resumen consolidado de los saldos finales en una tabla dedicada
+   * para evitar recalcular miles de asientos contables antiguos cada vez que
+   * se consulte un reporte histórico.
+   */
+  private static async createPeriodClosingSnapshot(
+    year: number,
+    totalRevenue: bigint,
+    totalExpenses: bigint,
+    netIncome: bigint
+  ): Promise<YearEndClosingSnapshot | null> {
+    const startDate = new Date(year, 0, 1);
+    const endDate = new Date(year, 11, 31, 23, 59, 59, 999);
+
+    try {
+      // Count active accounts
+      const accountsCount = await (db as any).account.count({
+        where: {
+          isActive: true,
+        },
+      });
+
+      // Calculate total debits and credits from all transactions in the year
+      const transactions = await (db as any).transaction.findMany({
+        where: {
+          date: {
+            gte: startDate,
+            lte: endDate,
+          },
+        },
+        include: {
+          entries: true,
+        },
+      });
+
+      let totalDebits = BigInt(0);
+      let totalCredits = BigInt(0);
+
+      for (const transaction of transactions) {
+        for (const entry of transaction.entries) {
+          const amount = Number(entry.amount);
+          if (amount > 0) {
+            totalDebits += BigInt(amount);
+          } else if (amount < 0) {
+            totalCredits += BigInt(Math.abs(amount));
+          }
+        }
+      }
+
+      const totalBalance = totalDebits - totalCredits;
+
+      // Create the snapshot record
+      await (db as any).$executeRaw`
+        INSERT INTO period_closing_balances (period, start_date, end_date, total_debits, total_credits, total_balance, accounts_count, snapshot_date)
+        VALUES (${`${year}-FY`}, ${startDate}, ${endDate}, ${totalDebits}, ${totalCredits}, ${totalBalance}, ${accountsCount}, now())
+      `;
+
+      return {
+        period: `${year}-FY`,
+        startDate,
+        endDate,
+        totalDebits,
+        totalCredits,
+        totalBalance,
+        accountsCount,
+        snapshotDate: new Date(),
+      };
+    } catch (error) {
+      console.error('Error creating period closing snapshot:', error);
+      return null;
+    }
   }
 
   /**

@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { createAuditLog } from './services/audit-service'; // Now imports from the service
+import { createAuditOutboxEntry } from './services/audit-service'; // Now imports from the service
 
 export interface AuditContext {
   userId?: string;
@@ -25,7 +25,7 @@ export function getAuditContext(): AuditContext {
 }
 
 /**
- * Clear the current audit context
+ * Clear the audit context
  */
 export function clearAuditContext() {
   currentAuditContext = {};
@@ -74,7 +74,9 @@ function cleanData(data: any): any {
 }
 
 /**
- * Prisma middleware for audit logging
+ * Prisma middleware for audit logging using Outbox Pattern
+ * Escribe en la tabla audit_outbox en lugar de auditLog directamente,
+ * lo que permite procesamiento asíncrono y no bloquea transacciones de alta concurrencia
  */
 export const auditExtension = Prisma.defineExtension((client) => {
   return client.$extends({
@@ -93,8 +95,6 @@ export const auditExtension = Prisma.defineExtension((client) => {
 
         const tableName = model.toLowerCase();
         let result;
-        let oldData: any;
-        let dataToDelete: any;
 
         try {
           switch (operation) {
@@ -103,7 +103,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
               if (result) {
                 const records = Array.isArray(result) ? result : [result];
                 for (const record of records) {
-                  await createAuditLog(client as any, { // Pass client to createAuditLog
+                  await createAuditOutboxEntry(client as any, { // Pass client to createAuditOutboxEntry
                     tableName,
                     recordId: record.id,
                     action: 'CREATE',
@@ -111,6 +111,7 @@ export const auditExtension = Prisma.defineExtension((client) => {
                     userId: auditContext.userId,
                     userAgent: auditContext.userAgent,
                     ipAddress: auditContext.ipAddress,
+                    tenantId: auditContext.userId ? 'derived' : undefined,
                   });
                 }
               }
@@ -121,23 +122,24 @@ export const auditExtension = Prisma.defineExtension((client) => {
               // Need to fetch old data before the update
               if (args.where && (args.where.id || (args.where as any)?.id)) {
                 const recordId = args.where.id || (args.where as any)?.id;
-                oldData = await (client as any)[tableName].findUnique({ where: { id: recordId } });
-              }
-              result = await query(args); // Perform the update
-              if (oldData && result) {
-                const changedFields = getChangedFields(oldData, result);
-                if (changedFields.length > 0) {
-                  await createAuditLog(client as any, { // Pass client to createAuditLog
-                    tableName,
-                    recordId: result.id,
-                    action: 'UPDATE',
-                    oldValues: cleanData(oldData),
-                    newValues: cleanData(result),
-                    changedFields,
-                    userId: auditContext.userId,
-                    userAgent: auditContext.userAgent,
-                    ipAddress: auditContext.ipAddress,
-                  });
+                const oldData = await (client as any)[tableName].findUnique({ where: { id: recordId } });
+                result = await query(args); // Perform the update
+                if (oldData && result) {
+                  const changedFields = getChangedFields(oldData, result);
+                  if (changedFields.length > 0) {
+                    await createAuditOutboxEntry(client as any, { // Pass client to createAuditOutboxEntry
+                      tableName,
+                      recordId: result.id,
+                      action: 'UPDATE',
+                      oldValues: cleanData(oldData),
+                      newValues: cleanData(result),
+                      changedFields,
+                      userId: auditContext.userId,
+                      userAgent: auditContext.userAgent,
+                      ipAddress: auditContext.ipAddress,
+                      tenantId: auditContext.userId ? 'derived' : undefined,
+                    });
+                  }
                 }
               }
               break;
@@ -147,19 +149,20 @@ export const auditExtension = Prisma.defineExtension((client) => {
               // Need to fetch data before deletion
               if (args.where && (args.where.id || (args.where as any)?.id)) {
                 const recordId = args.where.id || (args.where as any)?.id;
-                dataToDelete = await (client as any)[tableName].findUnique({ where: { id: recordId } });
-              }
-              result = await query(args); // Perform the deletion
-              if (dataToDelete) {
-                await createAuditLog(client as any, { // Pass client to createAuditLog
-                  tableName,
-                  recordId: dataToDelete.id,
-                  action: 'DELETE',
-                  oldValues: cleanData(dataToDelete),
-                  userId: auditContext.userId,
-                  userAgent: auditContext.userAgent,
-                  ipAddress: auditContext.ipAddress,
-                });
+                const dataToDelete = await (client as any)[tableName].findUnique({ where: { id: recordId } });
+                result = await query(args); // Perform the deletion
+                if (dataToDelete) {
+                  await createAuditOutboxEntry(client as any, { // Pass client to createAuditOutboxEntry
+                    tableName,
+                    recordId: dataToDelete.id,
+                    action: 'DELETE',
+                    oldValues: cleanData(dataToDelete),
+                    userId: auditContext.userId,
+                    userAgent: auditContext.userAgent,
+                    ipAddress: auditContext.ipAddress,
+                    tenantId: auditContext.userId ? 'derived' : undefined,
+                  });
+                }
               }
               break;
 

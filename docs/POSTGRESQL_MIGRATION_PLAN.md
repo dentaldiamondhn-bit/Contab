@@ -1,12 +1,41 @@
 # Plan de Migración a PostgreSQL con RLS
 
-> **Estado actual (17 de Septiembre de 2026)**
+> **Estado actual (18 de Septiembre de 2026)**
 >
 > La migración **ya está completada**: la base actual es **Supabase (PostgreSQL)** con RLS activo, accesos vía `DATABASE_URL` y `NEXT_PUBLIC_SUPABASE_URL`. Este documento conserva el plan original (SQLite → PostgreSQL) como referencia histórica y guía de configuración.
 >
 > ⚠️ **Vía de aplicación de DDL:** No hay acceso DDL directo — la conexión directa `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`. **Todo SQL de migración/configuración se aplica con el SQL Editor de Supabase** (https://app.supabase.com → proyecto → SQL Editor → New query → Run). `npx prisma migrate deploy`, `prisma migrate dev` y `psql` contra el host directo **no funcionan** contra Supabase. Prisma se usa sobre todo para **generar el cliente** (`prisma generate`); el schema/funciones/políticas se gestionan vía SQL Editor.
 >
 > Build actual: `pnpm build` = `prisma generate && next build` (EXIT=0, "Compiled successfully"). Stack: Next.js **16.3.5** (Turbopack), React 19, Clerk (`clerkMiddleware`, `auth.protect()` → 404), Supabase (Postgres), Prisma 5.x.
+
+### Actualización CI/CD (18 Sept 2026)
+
+El proyecto ahora tiene scripts separados para Staging y Production:
+
+```bash
+# Crear una nueva migración:
+prisma migrate add <nombre-migracion>
+
+# Aplicar en Staging primero:
+npm run prisma:migrate:deploy:staging
+
+# Si staging es exitoso, aplicar en Production:
+npm run prisma:migrate:deploy:production
+
+# O ejecutar ambos secuencialmente:
+npm run prisma:deploy
+```
+
+### Nuevos modelos en Prisma (18 Sept 2026)
+
+Se agregaron dos modelos nuevos al schema:
+- `OutboxAudit` — Tabla outbox para logs de auditoría asíncronos
+- `PeriodClosingBalance` — Snapshot de balances para cierres de período
+
+```bash
+# Después de agregar modelos, regenerar el cliente:
+prisma generate
+```
 
 ## 📋 Resumen
 Migrar de SQLite a PostgreSQL para habilitar Row Level Security (RLS) y mejorar la seguridad multi-tenant.

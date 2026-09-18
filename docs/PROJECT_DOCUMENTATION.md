@@ -1337,6 +1337,140 @@ ETAPA 6                                 █████████████�
 
 ---
 
+## 18. Evolución Enterprise-Ready (18 Sept 2026)
+
+### 18.1 Resumen de Mejoras Implementadas
+
+| Área | Estado | Archivos Principales |
+|---|---|---|
+| Hibridación de Acceso a Datos | ✅ | `lib/supabase-client-jwt.ts`, `lib/supabase-client-direct.ts` |
+| Outbox Pattern (Auditoría) | ✅ | `lib/audit-middleware.ts`, `supabase/outbox-audit.sql` |
+| PDFs con Caché (Storage) | ✅ | `app/api/pdf-export/route.ts`, `lib/services/pdf-export.ts` |
+| Validación Zod (API) | ✅ | `lib/services/transaction-service-enhanced.ts` |
+| CI/CD Migraciones | ✅ | `package.json` scripts |
+| Validación Fiscal (CAI) | ✅ | `lib/middleware/fiscal-validation.middleware.ts` |
+| Snapshot de Balances | ✅ | `lib/services/year-end-closing.ts` |
+
+### 18.2 Hibridación de Acceso a Datos
+
+**Problema:** Las consultas desde el cliente usaban Supabase anon sin JWT, evadiendo RLS.
+
+**Solución:** Cliente Supabase autenticado con JWT de Clerk que envía claims de tenant_id a PostgreSQL.
+
+```typescript
+// Uso en API routes:
+import { createSupabaseClientFromRequestHeaders } from '@/lib/supabase-client-direct';
+
+const supabase = await createSupabaseClientFromRequestHeaders(request);
+const { data } = await supabase.from('transactions').select('*');
+// RLS actúa en PostgreSQL con el tenant_id del JWT
+```
+
+### 18.3 Outbox Pattern para Auditoría
+
+**Problema:** Los logs de auditoría se escribían sincrónicamente, bloqueando transacciones contables de alta concurrencia.
+
+**Solución:** Tabla `outbox_audit` como cola de mensajes. Los triggers insertan en outbox y un worker asíncrono procesa a `auditlog`.
+
+**Flujo:**
+1. Transacción contable → Trigger INSERT en `outbox_audit`
+2. Worker/cron ejecuta `process_outbox_audit()` cada minuto
+3. Registros se copian a `auditlog` y marcan `processed = TRUE`
+
+### 18.4 PDFs con Caché en Supabase Storage
+
+**Problema:** Los PDFs se regeneraban en cada petición, consumiendo recursos.
+
+**Solución:** Generar una vez, almacenar en Supabase Storage, entregar signed URLs que expiran en 24h.
+
+```typescript
+// Generar y cachear PDF:
+const result = await generateAndStorePDF('invoices/inv-123.pdf', pdfElement);
+// result.signedUrl → URL firmada que expira en 24h
+```
+
+### 18.5 Validación Zod para Transacciones
+
+**Problema:** Los payloads de transacciones se validaban manualmente, propenso a errores.
+
+**Solución:** Schema Zod que valida antes de tocar la base de datos.
+
+```typescript
+const TransactionCreationSchema = z.object({
+  date: z.date(),
+  description: z.string().min(1),
+  voucherType: z.string().min(1),
+  voucherNumber: z.number().int().positive(),
+  currency: z.string().min(1),
+  entries: z.array(z.object({
+    accountId: z.string().min(1),
+    amount: z.number().finite(),
+    type: z.enum(['DEBIT', 'CREDIT']),
+  })).min(1),
+  tenantId: z.string().uuid().optional(),
+});
+```
+
+### 18.6 CI/CD para Migraciones
+
+**Problema:** Las migraciones se aplicaban directamente a producción sin testing.
+
+**Solución:** Scripts separados para Staging y Production. El pipeline ejecuta Staging primero.
+
+```bash
+# Migración segura:
+npm run prisma:migrate:deploy:staging   # Primero en staging
+npm run prisma:migrate:deploy:production # Luego en producción
+# O ejecutar ambos secuencialmente:
+npm run prisma:deploy
+```
+
+### 18.7 Validación Fiscal de CAI
+
+**Problema:** No se validaba la fecha límite ni el rango correlativo antes de guardar documentos fiscales.
+
+**Solución:** Middleware que verifica:
+1. Fecha actual < fecha expiración del CAI
+2. Número correlativo dentro del rango [rangeStart, rangeEnd]
+3. CAI no está expirado ni agotado
+
+```typescript
+import { validateFiscalDocument } from '@/lib/middleware/fiscal-validation.middleware';
+
+const result = await validateFiscalDocument({
+  caiId: 'xxx',
+  issueDate: new Date(),
+  voucherNumber: 1234,
+});
+
+if (!result.valid) {
+  return NextResponse.json({ error: result.reason }, { status: 400 });
+}
+```
+
+### 18.8 Snapshot de Balances en Cierre
+
+**Problema:** Los reportes históricos recalculaban miles de asientos contables cada vez.
+
+**Solución:** Al ejecutar cierre de período, se guarda un snapshot consolidado en `period_closing_balances`.
+
+```sql
+-- Tabla de snapshots:
+CREATE TABLE period_closing_balances (
+  id UUID PRIMARY KEY,
+  period TEXT,           -- "2024-FY"
+  start_date TIMESTAMPTZ,
+  end_date TIMESTAMPTZ,
+  total_debits BIGINT,
+  total_credits BIGINT,
+  total_balance BIGINT,
+  accounts_count INT,
+  snapshot_date TIMESTAMPTZ DEFAULT now()
+);
+```
+
+---
+
 > **Archivos de documentación disponibles en `docs/`:**
 > - `PROJECT_DOCUMENTATION.md` — Este documento
 > - `MASTER_REPORT.md` — Reporte maestro de progreso

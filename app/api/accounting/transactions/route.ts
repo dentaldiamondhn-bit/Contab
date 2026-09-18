@@ -217,26 +217,28 @@ export async function POST(request: NextRequest) {
           );
 
           // Agrupar por cuenta (producto)
-          const productGroups = inventoryEntries.reduce(
-            (acc: any, entry: any) => {
-              const account = await db.account.findFirst({
-                where: { id: entry.accountId },
-              });
-              const code = account?.code || entry.accountId;
-              
-              if (!acc[code]) {
-                acc[code] = {
-                  productId: entry.accountId,
-                  productCode: code,
-                  productName: account?.name || `Producto ${code}`,
-                  quantity: 0,
-                };
-              }
-              acc[code].quantity += Math.abs(entry.amount);
-              return acc;
-            },
-            {}
-          );
+          const productGroups: any = {};
+          const accountPromises = inventoryEntries.map(async (entry: any) => {
+            const account = await db.account.findFirst({
+              where: { id: entry.accountId },
+            });
+            const code = account?.code || entry.accountId;
+            if (!productGroups[code]) {
+              productGroups[code] = {
+                productId: entry.accountId,
+                productCode: code,
+                productName: account?.name || `Producto ${code}`,
+                quantity: 0,
+              };
+            }
+            productGroups[code].quantity += Math.abs(entry.amount);
+          });
+          
+          // Esperar a que todas las promesas se resuelvan
+          await Promise.all(accountPromises);
+          
+          // Convertir el objeto a un formato compatible con el código existente
+          const productGroupsArray = Object.values(productGroups);
 
           productInfo = Object.values(productGroups).map((g: any) => ({
             productId: g.productId,
