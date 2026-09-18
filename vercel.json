@@ -7,12 +7,5 @@
   ],
   "installCommand": "npm install --legacy-peer-deps",
   "buildCommand": "npm run build",
-  "framework": "nextjs",
-
-  "functions": {
-    "api/admin/migrations/*": {
-      "runtime": "nodejs18.x",
-      "maxDuration": 60
-    }
-  }
+  "framework": "nextjs"
 }
