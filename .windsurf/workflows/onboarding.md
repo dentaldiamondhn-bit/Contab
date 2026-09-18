@@ -6,7 +6,7 @@ description: Onboarding para nuevos desarrolladores en Contab
 
 Bienvenido al equipo de desarrollo de **Contab**, el sistema contable para contadores hondureños. Este workflow te guiará para configurar tu entorno de desarrollo local.
 
-> **Última actualización:** 16 de Septiembre de 2026
+> **Última actualización:** 17 de Septiembre de 2026
 
 ## Stack Tecnológico
 

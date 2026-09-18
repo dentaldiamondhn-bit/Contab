@@ -9,6 +9,9 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
+import WarehousesManager from '@/components/inventory/WarehousesManager';
+import TransfersManager from '@/components/inventory/TransfersManager';
+import InventoryVariations from '@/components/inventory/InventoryVariations';
 import {
   Package,
   AlertTriangle,
@@ -423,6 +426,9 @@ export default function InventoryPage() {
             )}
           </TabsTrigger>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
+          <TabsTrigger value="warehouses">Almacenes</TabsTrigger>
+          <TabsTrigger value="transfers">Traslados</TabsTrigger>
+          <TabsTrigger value="variations">Variaciones</TabsTrigger>
         </TabsList>
 
         <TabsContent value="products" className="space-y-4">
@@ -642,6 +648,18 @@ export default function InventoryPage() {
               </table>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="warehouses" className="space-y-4">
+          <WarehousesManager companyId={companyId} />
+        </TabsContent>
+
+        <TabsContent value="transfers" className="space-y-4">
+          <TransfersManager companyId={companyId} />
+        </TabsContent>
+
+        <TabsContent value="variations" className="space-y-4">
+          <InventoryVariations companyId={companyId} />
         </TabsContent>
       </Tabs>
 

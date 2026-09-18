@@ -270,7 +270,7 @@ contab/
 ### Middleware de Autenticación (clerkMiddleware)
 
 - `middleware.ts` usa `clerkMiddleware`; para toda ruta NO pública ejecuta `await auth.protect()`, que devuelve HTTP **404** (no redirect) a requests no autenticados.
-- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`.
+- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/`. (`/api/accounting/trial-balance` salió el 17 Sept 2026.)
 - Inyecta el header `x-tenant-id` desde la metadata de Clerk.
 
 ---
@@ -428,15 +428,17 @@ TenantProvider → Envuelve toda la app
 - ✅ Performance optimizado (fetches paralelos)
 - ✅ **Todos los componentes conectados a API real** — JournalEntryForm, FinancialStatements, MultiTenantAccountingManager, use-accounts hook
 - ✅ **User dropdown para reversiones** — Usa `/api/accounting/users` con service role (bypasses Clerk auth)
-- ✅ **Cierre mensual automatizado** — Tabla `period_locks` con validaciones automáticas (mes anterior cerrado, transacciones existentes, balanza cuadrada). API REST con GET/POST/DELETE. UI con grid de 12 meses, progreso anual, y reapertura controlada.
-- ❌ Sin exportación Excel/PDF real
+- ✅ **Cierre mensual automatizado** — Tabla `period_locks` con validaciones automáticas (secuencia mes anterior, no futuro, balanza cuadrada, sin pendientes). API REST con GET/POST/PATCH + candado que rechaza asientos en meses cerrados. UI con grid de 12 meses, progreso anual, y reapertura controlada (17 Sept 2026).
+- ✅ **Wizard de Cierre Único** — mensual (`1-12`) + anual (`0`) en `components/accounting/ClosingWizard.tsx` (tabs); mismo candado `lib/services/period-lock.ts:choose` (`assertPeriodOpen`/`assertYearOpen`/`assertPeriodOpenUnified`) reutilizado por `journal-service` y `period-lock-middleware.ts`; `PERIOD_LOCKS.sql` CHECK `0-12`; endpoint único `/api/accounting/period-closing` (sin duplicados, wrappers legacy `@deprecated`).
+- ✅ **Variaciones entre períodos** — `GET /api/accounting/period-variations?from=&to=` + página `/reports/period-variations` con filtros, tabla y CSV (Etapa 3.3, 17 Sept 2026)
+- ❌ Sin exportación Excel
 
 #### 8.2 Estados Financieros (~60%)
 - ✅ Balance General con datos Supabase
 - ✅ Estado de Resultados con datos Supabase
 - ✅ Flujo de Efectivo con datos Supabase
 - ✅ **Multi-tenant conectado a API real** — `MultiTenantAccountingManager` carga empresas de `/api/admin/tenants`
-- ❌ Sin exportación Excel/PDF real
+- ❌ Sin exportación Excel
 - ❌ Sin dashboard de ratios financieros
 
 #### 8.3 Libros Legales (~65%)
@@ -444,7 +446,7 @@ TenantProvider → Envuelve toda la app
 - ✅ Formulario SAR 221 (ISV)
 - ✅ Exportación DET (archivo .txt formato SAR)
 - ✅ Retenciones con recibo PDF (1% y 12.5%)
-- ✅ DIAT (declaración mensual de ventas/compras por empresa, exportación CSV e impresión)
+- ✅ DIAT (declaración mensual de ventas/compras por empresa, exportación CSV, impresión y PDF profesional, 17 Sept 2026)
 - ❌ Sin declaraciones anuales
 
 #### 8.4 Facturación y Ventas (~70%)
@@ -455,15 +457,15 @@ TenantProvider → Envuelve toda la app
 - ✅ Esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026)
 - ✅ Notas de crédito/débito (fiscal SAR) — `lib/services/notes-service.ts`, `app/api/billing/notes[/[id]]`, `app/billing/notes`, `NoteForm`/`NotePreview`; numeración NC-/ND-, asiento AJUSTE best-effort con ISV 15%
 - ❌ Sin cotizaciones/proformas
-- ❌ Sin generación de PDF
+- ✅ PDF profesional de factura (server-side, botón real en `app/billing/[id]`, 17 Sept 2026)
 
-#### 8.5 Inventario (~55%)
+#### 8.5 Inventario (~70%)
 - ✅ CRUD de productos con categorías
 - ✅ Movimientos (IN/OUT/ADJUSTMENT); el stock se actualiza en la aplicación (sin trigger)
 - ✅ Importación CSV/Excel
 - ✅ Reportes de inventario
 - ✅ Esquema único `product`/`inventory_movement` (migración 008, 16 Sept 2026)
-- ❌ Sin multi-almacén funcional
+- ✅ Multi-almacén funcional + traslados con logística (Etapa 2, 17 Sept 2026)
 - ❌ Sin valoración FIFO/promedio
 - ❌ Sin inventario físico
 
@@ -476,12 +478,12 @@ TenantProvider → Envuelve toda la app
 - ❌ Sin devoluciones
 - ❌ Sin matching 3 vías
 
-#### 8.7 Control Financiero (~35%)
+#### 8.7 Control Financiero (~50%)
 - ✅ Proyección de flujo de caja (30 días)
 - ✅ Punto de equilibrio
+- ✅ Presupuestos y control presupuestario (CRUD + vs real + alertas, 17 Sept 2026)
 - ⚠️ Conciliación bancaria parcial
 - ⚠️ Multi-divisa con datos hardcodeados
-- ❌ Sin presupuestos
 - ❌ Sin centros de costo
 - ❌ Sin caja chica
 
@@ -491,7 +493,7 @@ TenantProvider → Envuelve toda la app
 - ✅ 5+ componentes de charts (Recharts + Tremor)
 - ✅ Exportación CSV completa
 - ❌ Sin exportación Excel
-- ❌ PDF es placeholder
+- ✅ PDF profesional server-side (factura, guía de traslado, presupuesto vs real, DIAT) + CSS de impresión A4 (17 Sept 2026)
 - ❌ Sin reportes programados
 
 #### 8.9 Seguridad y Control (~80%)
@@ -499,7 +501,7 @@ TenantProvider → Envuelve toda la app
 - ✅ RBAC con 7 roles y 30+ permisos
 - ✅ Gestión de usuarios CRUD
 - ✅ Auditoría en tiempo real
-- ⚠️ Multi-tenant con RLS parcial
+- ✅ Multi-tenant con RLS cerrado y verificado (17 Sept 2026)
 - ⚠️ Rate limiting in-memory
 - ❌ Sin 2FA
 
@@ -509,7 +511,6 @@ TenantProvider → Envuelve toda la app
 - ⚠️ Correo electrónico simulado
 - ⚠️ Push notifications sin configurar
 - ❌ Sin backup/restore
-- ❌ PDF es placeholder
 
 #### 8.11 Integración Fiscal (~75%)
 - ✅ ISV 15%/18% con auto-categorización
@@ -786,7 +787,7 @@ TenantProvider → Envuelve toda la app
 | Retenciones | `withholding-service.ts` | CRUD y cálculo de retenciones |
 | Notas crédito/débito | `notes-service.ts` | Numeración NC-/ND- por tenant, CRUD, asiento AJUSTE best-effort, cambio de estado |
 | Impuestos | `tax-config.ts`, `tax-helper.ts`, `tax-reporting.ts` | Configuración y reportes fiscales |
-| PDF Export | `pdf-export.ts` | Generación HTML para PDF |
+| PDF Export | `pdf-documents.ts` + `pdf-data.ts` + `pdf-document-builder.tsx` | PDF real server-side (factura, traslado, presupuesto, DIAT); `pdf-export.ts` legacy solo pólizas/trial HTML |
 | OCR | `ocr-service.ts` | Procesamiento de imágenes |
 | Cierre | `year-end-closing.ts` | Cierre contable anual |
 | Archivos | `file-service.ts` | Gestión de archivos |
@@ -1027,10 +1028,10 @@ PROMEDIO                      ████████████████�
 | 4 | ~~Sin notas de crédito/débito con UI~~ | ~~Facturación~~ | ~~Incumplimiento fiscal~~ | ✅ Resuelta (16 Sept 2026) |
 | 5 | ~~JournalEntryForm usa mockData y no guarda~~ | ~~Contabilidad~~ | ~~Función principal rota~~ | ✅ Resuelta |
 | 6 | ~~FinancialStatements usa mockData~~ | ~~Estados Financieros~~ | ~~Componente inutilizable~~ | ✅ Resuelta |
-| 7 | Sin presupuestos ni centros de costo | Control Financiero | Sin control presupuestario | Alta |
-| 8 | Sin multi-almacén funcional | Inventario | Sin logística | Alta |
-| 9 | Sin generación de PDF profesional | Múltiples | Sin impresión | Alta |
-| 10 | RLS no confirmado en todas las tablas | Seguridad | Riesgo cross-tenant | Alta |
+| 7 | Sin centros de costo | Control Financiero | Sin asignación de costos | Alta |
+| 8 | ~~Sin multi-almacén funcional~~ | ~~Inventario~~ | ~~Sin logística~~ | ✅ Resuelta (17 Sept 2026) |
+| 9 | ~~Sin generación de PDF profesional~~ | ~~Múltiples~~ | ~~Sin impresión~~ | ✅ Resuelta (17 Sept 2026) |
+| 10 | ~~RLS parcial / cross-tenant directo vía REST~~ | ~~Seguridad~~ | ~~61 legibles + 49 escribibles con anon~~ | ✅ Resuelta (17 Sept 2026) |
 
 ### 16.6 Fortalezas del Sistema
 
@@ -1102,7 +1103,7 @@ PROMEDIO                      ████████████████�
 | 1.14 | Implementar guardado real en handleSubmit | Contabilidad | `JournalEntryForm.tsx` | 1.13 | Asientos guardados |
 | 1.15 | Conectar FinancialStatements a datos reales | Estados Financieros | `FinancialStatements.tsx` | Ninguna | Componente funcional |
 | 1.16 | Crear tipos TypeScript para entidades HR | RRHH | `types/hr.ts` | 1.1-1.2 | Tipos definidos |
-| 1.17 | Crear tipos TypeScript para entidades contables | Contabilidad | `types/accounting.ts` | Ninguna | Tipos definidos |
+| 1.17 | ✅ Crear tipos TypeScript para entidades contables | Contabilidad | `types/accounting.ts` (17 Sept 2026) | Ninguna | ✅ Completada | - Prisma `audit-middleware.ts`: legado, compatibilidad solo |
 
 **Entregable Etapa 1:** Todos los datos persistidos en Supabase; componentes conectados a API real.
 
@@ -1143,10 +1144,10 @@ PROMEDIO                      ████████████████�
 |---|---|---|---|---|---|
 | 3.1 | Servicio de exportación Excel | Reportes | `lib/services/excel-export.ts` | Ninguna | Servicio |
 | 3.2 | Agregar botón Excel a cada reporte | Reportes | Múltiples componentes | 3.1 | Exportación |
-| 3.3 | Generación PDF server-side | Reportes | `lib/services/pdf-export.ts` | Ninguna | PDF funcional |
-| 3.4 | Plantillas de impresión por reporte | Reportes | `templates/reports/` | 3.3 | Plantillas |
-| 3.5 | PDF de factura de venta | Facturación | `lib/services/invoice-pdf.ts` | 3.3 | PDF factura |
-| 3.6 | Plantilla HTML de factura | Facturación | `templates/invoice.html` | Ninguna | Plantilla |
+| 3.3 | ~~Generación PDF server-side~~ | ~~Reportes~~ | ~~`lib/services/pdf-documents.ts` + `pdf-document-builder.tsx`~~ | ~~Ninguna~~ | ✅ Completada (17 Sept 2026) |
+| 3.4 | ~~Plantillas de impresión por reporte~~ | ~~Reportes~~ | ~~`components/reports/ProfessionalDoc.tsx` + CSS `@media print`~~ | ~~3.3~~ | ✅ Completada (17 Sept 2026) |
+| 3.5 | ~~PDF de factura de venta~~ | ~~Facturación~~ | ~~`components/reports/InvoicePDF.tsx`~~ | ~~3.3~~ | ✅ Completada (17 Sept 2026) |
+| 3.6 | ~~Plantilla profesional de factura~~ | ~~Facturación~~ | ~~Layout `ProfessionalDoc` (A4, CAI, firmas)~~ | ~~Ninguna~~ | ✅ Completada (17 Sept 2026) |
 | 3.7 | Comparativos de período | Estados Financieros | `components/financials/` | 1.15 | Comparativos |
 | 3.8 | Servicio de cálculo de ratios financieros | Estados Financieros | `lib/services/financial-ratios.ts` | 1.15 | 15+ ratios |
 | 3.9 | Dashboard de ratios financieros | Estados Financieros | `app/reports/ratios/page.tsx` | 3.8 | Dashboard |
@@ -1164,16 +1165,16 @@ PROMEDIO                      ████████████████�
 
 | # | Tarea | Módulo | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|---|
-| 4.1 | Modelo de datos de presupuestos | Control Financiero | `supabase/BUDGET_TABLES.sql` | Ninguna | Tablas SQL |
-| 4.2 | CRUD de presupuestos | Control Financiero | `lib/services/budget-service.ts` + API | 4.1 | Servicio + API |
-| 4.3 | UI de gestión de presupuestos | Control Financiero | `app/financial/budgets/page.tsx` | 4.2 | Página |
-| 4.4 | Reporte presupuesto vs real | Control Financiero | `app/reports/budget-vs-actual/page.tsx` | 4.2 | Reporte |
+| 4.1 | ~~Modelo de datos de presupuestos~~ | ~~Control Financiero~~ | ~~`supabase/BUDGET_TABLES.sql`~~ | ~~Ninguna~~ | ✅ Completada (17 Sept 2026) |
+| 4.2 | ~~CRUD de presupuestos~~ | ~~Control Financiero~~ | ~~`lib/services/budget-service.ts` + API~~ | ~~4.1~~ | ✅ Completada (17 Sept 2026) |
+| 4.3 | ~~UI de gestión de presupuestos~~ | ~~Control Financiero~~ | ~~Tab Presupuestos + `components/financial/BudgetsManager.tsx`~~ | ~~4.2~~ | ✅ Completada (17 Sept 2026) |
+| 4.4 | ~~Reporte presupuesto vs real~~ | ~~Control Financiero~~ | ~~Vista de detalle con comparación, alertas y CSV~~ | ~~4.2~~ | ✅ Completada (17 Sept 2026) |
 | 4.5 | Modelo de centros de costo | Control Financiero | `supabase/COST_CENTERS.sql` | Ninguna | Tablas SQL |
 | 4.6 | Asignación de transacciones a centros | Control Financiero | `lib/services/cost-center-service.ts` | 4.5 | Servicio |
 | 4.7 | UI de centros de costo | Control Financiero | `app/financial/cost-centers/page.tsx` | 4.6 | Página |
-| 4.8 | UI de gestión de almacenes | Inventario | `app/inventory/warehouses/page.tsx` | Ninguna | Página |
-| 4.9 | Transferencias entre almacenes | Inventario | `components/inventory/TransferForm.tsx` | 4.8 | Formulario |
-| 4.10 | Stock por almacén | Inventario | `lib/services/warehouse-stock.ts` | 4.8 | Consulta |
+| 4.8 | ~~UI de gestión de almacenes~~ | ~~Inventario~~ | ~~Tab Almacenes + `components/inventory/WarehousesManager.tsx`~~ | ~~Ninguna~~ | ✅ Completada (17 Sept 2026) |
+| 4.9 | ~~Transferencias entre almacenes~~ | ~~Inventario~~ | ~~Tab Traslados + `components/inventory/TransfersManager.tsx` + `lib/services/warehouse-service.ts`~~ | ~~4.8~~ | ✅ Completada (17 Sept 2026) |
+| 4.10 | ~~Stock por almacén~~ | ~~Inventario~~ | ~~`getWarehouseStock` (kardex) + API `.../inventory/stock`~~ | ~~4.8~~ | ✅ Completada (17 Sept 2026) |
 | 4.11 | Formulario de órdenes de compra | Compras | `components/purchasing/PurchaseOrderForm.tsx` | 1.7-1.9 | Formulario |
 | 4.12 | Workflow de aprobación de compras | Compras | `lib/services/po-approval.ts` | 4.11 | Aprobación |
 | 4.13 | Recepción de mercancía | Compras | `components/purchasing/ReceivingForm.tsx` | 4.12 | Recepción |
@@ -1203,8 +1204,8 @@ PROMEDIO                      ████████████████�
 | 5.5 | Generación automática de reportes por correo | Reportes | `lib/services/email-reports.ts` | 5.4, 4.17 | Automatización |
 | 5.6 | UI de programación de reportes | Reportes | `app/reports/scheduled/page.tsx` | 5.4 | Config UI |
 | 5.7 | Conciliación bancaria inteligente | Control Financiero | `lib/services/reconciliation.ts` | 1.15 | Matching mejorado |
-| 5.8 | Cierre mensual automatizado | Contabilidad | `lib/services/monthly-closing.ts` | Etapa 1 | Cierre automático |
-| 5.9 | Balance de apertura automático | Contabilidad | `lib/services/opening-balance.ts` | 5.8 | Balance |
+| 5.8 | ~~Cierre mensual automatizado~~ | ~~Contabilidad~~ | ~~`lib/services/period-closing.ts` + candado en `journal-service.ts`~~ | ~~Etapa 1~~ | ✅ Completada (17 Sept 2026) |
+| 5.9 | ~~Balance de apertura automático~~ | ~~Contabilidad~~ | ~~`lib/services/opening-balance.ts` + `POST .../opening-balances/auto` + UI~~ | ~~5.8~~ | ✅ Completada (17 Sept 2026) |
 | 5.10 | Servicio de KPIs centralizado | Reportes | `lib/services/kpi-service.ts` | Ninguna | Cálculo |
 | 5.11 | Tabla de histórico de KPIs | Reportes | `supabase/KPI_HISTORY.sql` | Ninguna | Almacenamiento |
 | 5.12 | Dashboard de KPIs con tendencias | Reportes | `app/reports/kpis/page.tsx` | 5.10-5.11 | Dashboard |

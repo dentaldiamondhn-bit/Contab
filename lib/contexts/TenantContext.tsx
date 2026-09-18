@@ -299,6 +299,7 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
   }, [currentTenant]);
 
   const setCompany = (company: Company) => {
+    console.log('DEBUG setCompany called with:', company);
     setCurrentCompanyState(company);
     if (typeof window !== 'undefined') {
       localStorage.setItem('selected_company', JSON.stringify(company));

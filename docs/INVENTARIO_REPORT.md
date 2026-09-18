@@ -13,7 +13,8 @@
 | **Reportes de Inventario** | Completo | 1 componente | 1 ruta | — | Supabase |
 | **Categorías y Paquetes** | Parcial | En página | 0 rutas | — | Supabase |
 | **Importación Masiva** | Completo | En página | — | — | Excel/CSV |
-| **Almacenes** | **No funcional** | 0 páginas | 1 ruta | 1 tabla | Supabase |
+| **Almacenes** | Completo (Etapa 2) | 1 tab + componente | 2 rutas | 1 tabla (`warehouse`) | Supabase |
+| **Traslados/Logística** | Completo (Etapa 2) | 1 tab + componente | 2 rutas | 2 tablas (`inventory_transfer` + `_item`) | Supabase |
 | **Tracking por Lote** | No Iniciado | 0 | 0 | 0 | — |
 | **Inventario Físico** | No Iniciado | 0 | 0 | 0 | — |
 | **Valoración FIFO/Promedio** | No Iniciado | 0 | 0 | — | Columna existe sin lógica |
@@ -22,8 +23,8 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~55% | CRUD y movimientos fuertes; sin multi-almacén, lotes, FIFO |
-| Cobertura de Pruebas | 0% | No existen pruebas |
+| Completitud Funcional | ~70% | Etapa 2 (multi-almacén + traslados) completa; sin lotes, FIFO, inventario físico |
+| Cobertura de Pruebas | Parcial | 12 tests node:test en almacenes/traslados (cálculo + rutas API) |
 | Persistencia | ~60% | Esquema único canónico (`product`/`inventory_movement`); consolidado el 16 Sept 2026 |
 | Integración Contable | ~50% | Integración con asientos contables existe pero parcial |
 | Importación | ~80% | CSV y Excel funcionales |
@@ -55,7 +56,7 @@
 
 #### Lo que Falta
 
-- **Multi-almacén NO funcional** (stock por almacén, transferencias e inventario físico pendientes)
+- ~~Multi-almacén NO funcional~~ ✅ Resuelto: stock por almacén (kardex) y transferencias con flujo logístico (Etapa 2, 17 Sept 2026); inventario físico pendiente (Etapa 4)
 - Sin imágenes de producto
 - Sin conversión de unidades de medida
 - Sin códigos de barras
@@ -88,7 +89,7 @@
 
 #### Lo que Falta
 
-- Sin transferencias entre almacenes
+- ~~Sin transferencias entre almacenes~~ ✅ Traslados con flujo pending → in_transit → received/cancelled + movimientos de kardex automáticos (17 Sept 2026)
 - Sin movimientos por lote
 - Sin motivo de ajuste estandarizado
 
@@ -119,7 +120,7 @@
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | ~~Dual schema de productos~~ | Resuelto: esquema único `product` (migración 008, 16 Sept 2026) | — |
-| 2 | Sin multi-almacén funcional | Imposible para empresas con múltiples ubicaciones | Alta |
+| 2 | ~~Sin multi-almacén funcional~~ | Resuelto: almacenes, stock por almacén y traslados con logística (Etapa 2, 17 Sept 2026) | — |
 | 3 | Sin valoración FIFO/promedio | Costos de inventario inexactos | Alta |
 | 4 | Sin inventario físico | Sin control real de stock | Alta |
 | 5 | Sin tracking por lotes | Sin trazabilidad | Media |
@@ -136,13 +137,13 @@
 | 1.2 | Migrar datos entre esquemas | Script de migración | ✅ Datos migrados (backups `_backup_*_008`) |
 | 1.3 | Actualizar API y UI para esquema único | `inventory/page.tsx`, API routes | ✅ Código actualizado |
 
-### Etapa 2: Multi-Almacén
+### Etapa 2: Multi-Almacén — ✅ Completada (17 Sept 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 2.1 | UI de gestión de almacenes | `app/inventory/warehouses/page.tsx` | Página de almacenes |
-| 2.2 | Transferencias entre almacenes | `components/inventory/TransferForm.tsx` | Formulario |
-| 2.3 | Stock por almacén | `lib/services/warehouse-stock.ts` | Consulta por almacén |
+| 2.1 | ✅ UI de gestión de almacenes | Tabs "Almacenes" en `app/companies/[id]/inventory/page.tsx` + `components/inventory/WarehousesManager.tsx` (CRUD, activar/desactivar) | Tab + componente |
+| 2.2 | ✅ Transferencias entre almacenes | Tabs "Traslados" + `components/inventory/TransfersManager.tsx`; servicio `lib/services/warehouse-service.ts`; API `app/api/companies/[id]/inventory/transfers/**` | Flujo pending → in_transit → received/cancelled |
+| 2.3 | ✅ Stock por almacén | Derivado del kardex en `warehouse-service.ts` (`getWarehouseStock`); API `.../inventory/stock`; vista con valorizado, mínimo y CSV | Consulta por almacén |
 
 ### Etapa 3: Valoración y Costos
 
@@ -174,11 +175,11 @@
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
 | Etapa 1: Consolidación | 3 tareas | Alta | ✅ Completada (16 Sept 2026) |
-| Etapa 2: Multi-Almacén | 3 tareas | Alta | 2-3 semanas |
+| Etapa 2: Multi-Almacén | 3 tareas | Alta | ✅ Completada (17 Sept 2026) |
 | Etapa 3: Valoración | 3 tareas | Alta | 3-4 semanas |
 | Etapa 4: Físico/Lotes | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total restante** | **11 tareas** | — | **8-11 semanas** |
+| **Total restante** | **8 tareas** | — | **6-8 semanas** |
 
 ---
 
@@ -195,4 +196,20 @@
 | Build | `pnpm build` EXIT=0 (16 Sept 2026) |
 | Consolidación BD | Inventario unificado a `product`/`inventory_movement`; legacy eliminado (migración 008, verificado 16 Sept 2026) |
 
-*Estado validado al 16 de Septiembre de 2026.*
+*Estado validado al 17 de Septiembre de 2026.*
+
+## Actualizaciones de Multi-Almacén y Logística (17 Sept 2026)
+
+Etapa 2 completada: almacenes funcionales, stock por almacén derivado del kardex y traslados con flujo logístico.
+
+| Cambio | Detalle |
+|---|---|
+| Tablas | `supabase/WAREHOUSE_LOGISTICS.sql`: `company_id` en `warehouse` + `inventory_transfer`; campos logísticos (`carrier`, `guide_number`, `dispatched_by/at`); CHECK de estados pending/in_transit/received/cancelled; índices + RLS por tenant. Tablas base (`warehouse`, `inventory_transfer`, `inventory_transfer_item`) ya existían |
+| Servicio | `lib/services/warehouse-service.ts`: CRUD almacenes (con bloqueo de desactivación si hay traslados abiertos), `getWarehouseStock` (agrega kardex por almacén/producto), traslados con validación de stock en origen, numeración `TRF-00001`, movimientos de kardex automáticos (`transfer_out/in/return` con `reference_type='transfer'`) y ajuste de `product.current_stock` |
+| Cálculo puro | `lib/services/transfer-calc.ts`: transiciones válidas, numeración, agregación de stock, faltantes, validación de entrada |
+| API | `GET/POST .../inventory/warehouses`, `PUT .../warehouses/[warehouseId]`, `GET .../inventory/stock?warehouseId=&productId=`, `GET/POST .../inventory/transfers`, `GET/PUT .../transfers/[transferId]` (action dispatch/receive/cancel; 400 validación, 404 no encontrado) |
+| UI | Tabs "Almacenes" y "Traslados" en `app/companies/[id]/inventory/page.tsx` (`WarehousesManager`: CRUD + stock valorizado con mínimo y CSV; `TransfersManager`: crear con disponibilidad en origen, despachar/recibir/anular, guía y transportista, CSV) |
+| Tests | `tests/warehouse/` (5 cálculo + 7 rutas, `node:test`); `npm test` → 38 pass (6 DIAT + 20 presupuestos + 12 almacenes) |
+| Variaciones de inventario (17 Sept 2026) | `aggregateStockAt` + `periodFlows` en `transfer-calc.ts`; `getInventoryVariations` (stock acumulado al cierre de cada mes + flujos IN/OUT por almacén/producto) + `GET .../inventory/variations?from=&to=[&warehouseId=]` + tab "Variaciones" (`InventoryVariations` con filtros, badges y CSV) |
+| Build | `next build` → `EXIT=0`, 6 rutas registradas |
+| ⚠️ Pendiente del usuario | Ejecutar `supabase/WAREHOUSE_LOGISTICS.sql` en el SQL Editor de Supabase (sin acceso DDL directo); la UI muestra aviso con esta instrucción si falta la migración |

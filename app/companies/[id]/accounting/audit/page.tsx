@@ -83,6 +83,11 @@ function formatDayLabel(dateStr: string): string {
 
 const ACTION_LABELS: Record<string, string> = {
   OPENING_BALANCE_UPDATE: 'Saldo de Apertura',
+  OPENING_BALANCE_AUTO: 'Apertura Automática',
+  PERIOD_CLOSED: 'Cierre de Período',
+  PERIOD_REOPENED: 'Reapertura',
+  JOURNAL_CREATE: 'Asiento',
+  JOURNAL_ENTRY_CREATE: 'Asiento',
   INSERT: 'Creación',
   UPDATE: 'Actualización',
   DELETE: 'Eliminación',
@@ -90,6 +95,11 @@ const ACTION_LABELS: Record<string, string> = {
 
 const ACTION_COLORS: Record<string, string> = {
   OPENING_BALANCE_UPDATE: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  OPENING_BALANCE_AUTO: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+  PERIOD_CLOSED: 'bg-green-100 text-green-700 border-green-200',
+  PERIOD_REOPENED: 'bg-amber-100 text-amber-700 border-amber-200',
+  JOURNAL_CREATE: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  JOURNAL_ENTRY_CREATE: 'bg-indigo-100 text-indigo-700 border-indigo-200',
   INSERT: 'bg-green-100 text-green-700 border-green-200',
   UPDATE: 'bg-blue-100 text-blue-700 border-blue-200',
   DELETE: 'bg-red-100 text-red-700 border-red-200',
@@ -237,7 +247,10 @@ export default function AccountingAuditPage() {
                 className="px-3 py-2 border rounded-md text-sm"
               >
                 <option value="">Todas las acciones</option>
+                <option value="JOURNAL_CREATE">Asientos</option>
                 <option value="OPENING_BALANCE_UPDATE">Saldos de Apertura</option>
+                <option value="OPENING_BALANCE_AUTO">Apertura Automática</option>
+                <option value="PERIOD_CLOSED">Cierre de Período</option>
                 <option value="INSERT">Creaciones</option>
                 <option value="UPDATE">Actualizaciones</option>
                 <option value="DELETE">Eliminaciones</option>
@@ -326,8 +339,10 @@ export default function AccountingAuditPage() {
                           </TableRow>
 
                           {isDayExpanded && group.logs.map((log) => {
-                            const oldBal = log.old_values?.opening_balance ?? null;
-                            const newBal = log.new_values?.opening_balance ?? null;
+                            // Dos formatos: apertura (opening_balance) y asiento (amount + voucher)
+                            const isJournal = String(log.action || '').startsWith('JOURNAL');
+                            const oldBal = log.old_values?.opening_balance ?? (isJournal ? null : null);
+                            const newBal = log.new_values?.opening_balance ?? log.new_values?.amount ?? null;
 
                             return (
                               <TableRow key={log.id} className="hover:bg-gray-50">
@@ -356,10 +371,20 @@ export default function AccountingAuditPage() {
                                   </Badge>
                                 </TableCell>
                                 <TableCell className="px-6 text-sm text-right">
-                                  {oldBal !== null ? formatCurrency(oldBal) : '-'}
+                                  {isJournal
+                                    ? (log.old_values?.amount != null ? formatCurrency(log.old_values.amount) : '-')
+                                    : (oldBal !== null ? formatCurrency(oldBal) : '-')}
                                 </TableCell>
                                 <TableCell className="px-6 text-sm font-medium text-right">
-                                  {newBal !== null ? formatCurrency(newBal) : '-'}
+                                  <div>
+                                    {isJournal && log.new_values?.voucherType
+                                      ? <span className="text-xs text-gray-500 mr-1">{log.new_values.voucherType}-{log.new_values.voucherNumber}</span>
+                                      : null}
+                                    {newBal !== null ? formatCurrency(newBal) : '-'}
+                                  </div>
+                                  {isJournal && log.new_values?.description && (
+                                    <div className="text-xs text-gray-500 font-normal truncate max-w-[220px]">{log.new_values.description}</div>
+                                  )}
                                 </TableCell>
                                 <TableCell className="px-6 text-sm text-gray-600">
                                   <div className="flex items-center gap-1">

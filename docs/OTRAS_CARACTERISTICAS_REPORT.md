@@ -258,4 +258,4 @@
 | Stack validado | Next.js 16.3.5 (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x, Tailwind, shadcn/ui; `output: 'standalone'` |
 | Build | `pnpm build` EXIT=0 (16 Sept 2026) |
 
-*Estado validado al 16 de Septiembre de 2026.*
+*Estado validado al 17 de Septiembre de 2026.*

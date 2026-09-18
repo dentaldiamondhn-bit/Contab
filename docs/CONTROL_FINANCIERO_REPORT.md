@@ -11,7 +11,7 @@
 | **Proyección de Flujo** | Completo | 1 chart + servicio | 1 ruta | — | Supabase |
 | **Punto de Equilibrio** | Completo | 1 chart | 1 ruta | — | Cálculos |
 | **Multi-Divisa** | Parcial | 1 página (datos hardcodeados) | 1 ruta | En Transaction | Prisma |
-| **Presupuestos** | No Iniciado | 0 | 0 | 0 | — |
+| **Presupuestos** | Completo (Etapa 1) | 1 tab + componente | 3 rutas | 2 tablas | Supabase |
 | **Centros de Costo** | No Iniciado | 0 | 0 | 0 | — |
 | **Caja Chica** | No Iniciado | 0 | 0 | 0 | — |
 | **Inter-Empresas** | No Iniciado | 0 | 0 | 0 | — |
@@ -20,10 +20,10 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~35% | Proyección y punto de equilibrio fuertes; sin presupuestos ni centros de costo |
-| Cobertura de Pruebas | 0% | No existen pruebas |
-| Persistencia | ~50% | Conciliación en Supabase; multi-divisa en Prisma |
-| Analítica Financiera | ~40% | Proyecciones y break-even; sin presupuestos |
+| Completitud Funcional | ~50% | Etapa 1 (presupuestos) completa; sin centros de costo |
+| Cobertura de Pruebas | Parcial | 20 tests node:test en presupuestos (cálculo + rutas API) |
+| Persistencia | ~55% | Conciliación y presupuestos en Supabase; multi-divisa en Prisma |
+| Analítica Financiera | ~60% | Proyecciones, break-even y control presupuestario (vs real + alertas) |
 
 ---
 
@@ -117,24 +117,25 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | Sin presupuestos | Sin control presupuestario | Crítica |
-| 2 | Sin centros de costo | Sin asignación de costos | Alta |
-| 3 | Página multi-divisa hardcodeada | Función inutilizable | Alta |
-| 4 | Sin caja chica | Sin control de efectivo menor | Media |
-| 5 | Sin operaciones inter-empresas | Sin consolidación | Media |
+| 1 | Sin centros de costo | Sin asignación de costos | Alta |
+| 2 | Página multi-divisa hardcodeada | Función inutilizable | Alta |
+| 3 | Sin caja chica | Sin control de efectivo menor | Media |
+| 4 | Sin operaciones inter-empresas | Sin consolidación | Media |
+
+> Problema anterior #1 (Sin presupuestos) resuelto el 17 Sept 2026 — ver § "Actualizaciones de Presupuestos".
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Presupuestos
+### Etapa 1: Presupuestos ✅ Completada (17 Sept 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | Modelo de datos de presupuestos | `supabase/BUDGET_TABLES.sql` | Tablas SQL |
-| 1.2 | CRUD de presupuestos | `lib/services/budget-service.ts` + API | Servicio + API |
-| 1.3 | UI de gestión de presupuestos | `app/financial/budgets/page.tsx` | Página |
-| 1.4 | Reporte presupuesto vs real | `app/reports/budget-vs-actual/page.tsx` | Reporte |
+| 1.1 | ✅ Modelo de datos de presupuestos | `supabase/BUDGET_TABLES.sql` | Tablas `budgets` + `budget_lines` |
+| 1.2 | ✅ CRUD de presupuestos | `lib/services/budget-service.ts` + `lib/services/budget-calc.ts` + API `app/api/companies/[id]/budgets/**` (3 rutas) | Servicio + API |
+| 1.3 | ✅ UI de gestión de presupuestos | Tab "Presupuestos" en `app/companies/[id]/financial-control/page.tsx` + `components/financial/BudgetsManager.tsx` | Tab + componente |
+| 1.4 | ✅ Reporte presupuesto vs real | Vista de detalle del presupuesto (comparación mensual, varianzas, % ejecución, alertas, export CSV) | Control presupuestario |
 
 ### Etapa 2: Centros de Costo
 
@@ -174,12 +175,12 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Presupuestos | 4 tareas | Alta | 3-4 semanas |
+| Etapa 1: Presupuestos | 4 tareas | Alta | ✅ Completada (17 Sept 2026) |
 | Etapa 2: Centros de Costo | 4 tareas | Alta | 3-4 semanas |
 | Etapa 3: Multi-Divisa | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Extras | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total** | **16 tareas** | — | **11-15 semanas** |
+| **Total (pendiente)** | **12 tareas** | — | **9-12 semanas** |
 
 ---
 
@@ -198,7 +199,23 @@
 | Cambio | Detalle |
 |---|---|
 | Asientos desde Facturación | Las notas de crédito/débito (`lib/services/notes-service.ts`) publican asientos `AJUSTE` vía `POST /api/accounting/transactions` (cuentas 4101/2105/1101/1103, header `x-tenant-id`, ISV 15% incluido) — alimentan la contabilidad y la conciliación del control financiero |
-| Middleware Clerk | Rutas protegidas: `auth.protect()` → HTTP 404 sin sesión; inyecta `x-tenant-id`. Públicas acotadas (`/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`) |
+| Middleware Clerk | Rutas protegidas: `auth.protect()` → HTTP 404 sin sesión; inyecta `x-tenant-id`. Públicas acotadas (`/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`; `trial-balance` salió el 17 Sept 2026) |
 | Fix env `SUPABASE_URL` | `app/api/companies/route.ts`: `SUPABASE_URL` (inexistente → 500) reemplazado por `NEXT_PUBLIC_SUPABASE_URL` |
 | Build | `pnpm build` → `EXIT=0` (Next.js 16.3.5 + Turbopack, `output: 'standalone'`) |
 | DDL | Sin acceso DDL directo (`DATABASE_URL` → ENOTFOUND); DDL vía SQL Editor de Supabase |
+
+## Actualizaciones de Presupuestos (17 Sept 2026)
+
+Etapa 1 completada: presupuestos anuales por empresa con líneas por cuenta contable y control presupuestario (presupuesto vs real con alertas).
+
+| Cambio | Detalle |
+|---|---|
+| Tablas | `supabase/BUDGET_TABLES.sql`: `budgets` (tenant, empresa, nombre, año, tipo, estado) + `budget_lines` (cuenta, categoría ingreso/gasto, período YYYY-MM o NULL anual, monto); índices + RLS por tenant |
+| Servicio | `lib/services/budget-service.ts`: CRUD, `resolveTenant` (header → `companies` → fallback), comparación contra mayor contable (`Transaction`/`JournalEntry`/`Account`, misma convención de signos que trial-balance); error amable si faltan las tablas |
+| Cálculo puro | `lib/services/budget-calc.ts`: prorrateo anual /12, varianza dirigida (gasto = P−R, ingreso = R−P), % ejecución, estados ok/advertencia/crítico/sin-datos (umbrales gasto 90/100, ingreso 80/50) |
+| API | `GET/POST /api/companies/[id]/budgets`, `GET/PUT/DELETE .../budgets/[budgetId]`, `GET .../[budgetId]/comparison?period=YYYY-MM` (400 validación, 404 no encontrado) |
+| UI | Tab "Presupuestos" en Control Financiero (`components/financial/BudgetsManager.tsx`): lista, creación con selector de cuentas del catálogo, detalle con comparación mensual, alertas, totales con barras de ejecución, export CSV, activar/cerrar/eliminar |
+| Tests | `tests/budgets/` (11 cálculo + 9 rutas, `node:test`); `npm test` → 26 pass (6 DIAT + 20 presupuestos) |
+| Tendencia anual (17 Sept 2026) | `getBudgetTrend` en `budget-service.ts` (12 meses con la misma matemática del comparativo) + `GET .../budgets/[budgetId]/trend` + tabla mensual en el detalle (`BudgetsManager`, mes actual resaltado) |
+| Tablas verificadas | `supabase/BUDGET_TABLES.sql` ejecutado sin errores; `budgets` y `budget_lines` confirmadas en Supabase vía REST (HTTP 200, vacías, 17 Sept 2026). El aviso de la UI solo aparece si las tablas llegaran a faltar |
+| Build | `next build` → `EXIT=0`, 4 rutas de presupuestos registradas |

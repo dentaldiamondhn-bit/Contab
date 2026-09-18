@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createSupabaseClient } from "@/lib/supabase/client";
 import { supabase as supabaseService } from "@/lib/supabase-db";
-import { createTransaction } from "@/lib/actions/transaction";
+import { createJournalTransaction } from "@/lib/services/journal-service";
+import { integrateSaleWithInventory } from "@/lib/services/inventory-integration";
 
 // Helper para obtener tenantId del request
 async function getTenantFromRequest(request: NextRequest) {
@@ -183,56 +184,98 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    
-    // Validar campos requeridos
-    if (!body.description || !body.currency || !body.entries) {
-      return NextResponse.json(
-        { error: "Faltan campos requeridos: description, currency, entries" },
-        { status: 400 }
-      );
+
+    // Validación básica (el servicio revalida a fondo: balance, cuentas, fecha)
+    if (!body || typeof body !== "object") {
+      return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
     }
 
-    // Validar entries
-    if (!Array.isArray(body.entries) || body.entries.length < 2) {
-      return NextResponse.json(
-        { error: "La transacción debe tener al menos 2 entries" },
-        { status: 400 }
-      );
-    }
+    // Vía Supabase service_role (reemplaza Prisma, sin DATABASE_URL en runtime)
+    const performedBy =
+      request.headers.get('x-user-id') ||
+      request.headers.get('x-user-email') ||
+      'system';
+    const { transaction, entries } = await createJournalTransaction(
+      supabaseService,
+      tenant.id,
+      body,
+      { performedBy },
+    );
 
-    // Validar que todos los entries tengan campos requeridos
-    for (const entry of body.entries) {
-      if (!entry.accountId || entry.amount === undefined || entry.isDebit === undefined) {
-        return NextResponse.json(
-          { error: "Todos los entries deben tener accountId, amount e isDebit" },
-          { status: 400 }
+    // INTEGRACIóN AUTOMáTICA DE INVENTARIO
+    // Cuando se crea una venta (voucherType: INGRESO), reducir automáticamente
+    // el inventario y crear el asiento de COGS (Cost of Goods Sold)
+    if (body.voucherType === 'INGRESO' && transaction) {
+      try {
+        // Extraer información de productos de las entries de la transacción
+        let productInfo = [];
+
+        if (entries && entries.length > 0) {
+          // Buscar entries que sean de tipo activo (debe) y tengan información de cuenta
+          const inventoryEntries = entries.filter(
+            (e: any) => e.accountId && e.amount > 0
+          );
+
+          // Agrupar por cuenta (producto)
+          const productGroups = inventoryEntries.reduce(
+            (acc: any, entry: any) => {
+              const account = await db.account.findFirst({
+                where: { id: entry.accountId },
+              });
+              const code = account?.code || entry.accountId;
+              
+              if (!acc[code]) {
+                acc[code] = {
+                  productId: entry.accountId,
+                  productCode: code,
+                  productName: account?.name || `Producto ${code}`,
+                  quantity: 0,
+                };
+              }
+              acc[code].quantity += Math.abs(entry.amount);
+              return acc;
+            },
+            {}
+          );
+
+          productInfo = Object.values(productGroups).map((g: any) => ({
+            productId: g.productId,
+            productCode: g.productCode,
+            productName: g.productName,
+            quantity: g.quantity,
+          }));
+        }
+
+        // Integrar con inventario - crear COGS y reducir stock
+        const integrationResult = await integrateSaleWithInventory(
+          tenant.id,
+          transaction.id,
+          productInfo,
+          body.description || 'Venta de productos'
         );
+
+        if (!integrationResult.success) {
+          console.warn("Warning: Inventory integration failed:", integrationResult.error);
+          // No fallamos la transacción principal, solo advertimos
+        }
+      } catch (inventoryError) {
+        console.error("Error in inventory integration:", inventoryError);
+        // No fallamos la transacción principal por errores de integración
       }
     }
 
-    // Convertir fechas de string a Date
-    if (body.date) {
-      body.date = new Date(body.date);
-    }
-
-    // Agregar tenantId al body
-    body.tenantId = tenant.id;
-    
-    const result = await createTransaction(body);
-    
-    if (result.success) {
-      return NextResponse.json(result.transaction);
-    } else {
-      return NextResponse.json(
-        { error: result.error },
-        { status: 400 }
-      );
-    }
+    return NextResponse.json(
+      { success: true, transaction: { ...transaction, entries } },
+      { status: 201 }
+    );
   } catch (error) {
     console.error("Error creating transaction:", error);
-    return NextResponse.json(
-      { error: "Error creating transaction" },
-      { status: 500 }
-    );
+    const message = error instanceof Error ? error.message : "Error creating transaction";
+    if (
+      /requerid|debe|balanceada|existen|inválida|mayor a cero|al menos|especificado|cerrado|bloqueado|reábralo/i.test(message)
+    ) {
+      return NextResponse.json({ error: message }, { status: 400 });
+    }
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

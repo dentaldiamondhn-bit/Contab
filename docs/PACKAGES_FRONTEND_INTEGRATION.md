@@ -1,6 +1,6 @@
 # Integración de Paquetes con Frontend
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > Los scripts SQL originales (`CREATE_PACKAGES_TABLE.sql`, `PACKAGES_FUNCTIONS.sql`) ya no existen como archivos separados; su funcionalidad quedó consolidada en **`scripts/migrations/PACKAGES_SYSTEM_COMPLETE.sql`**. El DDL se aplica vía **SQL Editor de Supabase** (no hay acceso DDL directo, la conexión `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`). Las rutas API bajo `/api/*` son protegidas por `middleware.ts` (`auth.protect()` → 404 sin sesión).
 

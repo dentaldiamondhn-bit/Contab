@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as sb } from "@/lib/supabase-db";
+import {
+  assertCloseAllowed,
+  evaluatePeriodFlags,
+  periodKey,
+  prevPeriod,
+} from "@/lib/services/period-closing";
 
 interface PeriodLock {
   tenant_id: string; year: number; month: number; status: string;
@@ -198,12 +204,41 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // Conteo del diciembre previo por año (para flags de enero)
+    const prevDecCounts = new Map<number, number>();
+    for (const y of targetYears) {
+      const rows = await fetchRowsForTenant(tenantId, `${y - 1}-12-01`, `${y}-01-01`);
+      const seen = new Set<string>();
+      for (const r of rows) {
+        if (!seen.has(r.id_transaccion)) {
+          seen.add(r.id_transaccion);
+        }
+      }
+      prevDecCounts.set(y, seen.size);
+    }
+
+    const today = new Date();
     const periods: any[] = [];
     for (const y of targetYears) {
       for (let m = 1; m <= 12; m++) {
         const lock = locks.find((l: any) => l.year === y && l.month === m);
         const status = lock?.status || "open";
-        periods.push({ year: y, month: m, status, closed_by: lock?.closed_by || null, closed_at: lock?.closed_at || null, notes: lock?.notes || null, transaction_count: monthCounts.get(`${y}-${m}`) || 0, prev_month_closed: true, can_close: true });
+        const prev = prevPeriod(y, m);
+        const prevLock = prev.month === 12
+          ? locks.find((l: any) => l.year === prev.year && l.month === 12)
+          : locks.find((l: any) => l.year === y && l.month === prev.month);
+        const prevCount = prev.month === 12
+          ? (prevDecCounts.get(y) || 0)
+          : (monthCounts.get(`${y}-${prev.month}`) || 0);
+        const flags = evaluatePeriodFlags({
+          status,
+          prevStatus: prevLock?.status || null,
+          prevTxCount: prevCount,
+          year: y,
+          month: m,
+          today,
+        });
+        periods.push({ year: y, month: m, status, closed_by: lock?.closed_by || null, closed_at: lock?.closed_at || null, notes: lock?.notes || null, transaction_count: monthCounts.get(`${y}-${m}`) || 0, prev_month_closed: flags.prev_month_closed, can_close: flags.can_close });
       }
     }
 
@@ -226,8 +261,50 @@ export async function POST(request: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
     const body = await request.json();
     const { year, month, notes, action } = body;
-    if (!year || !month) return NextResponse.json({ error: "Año y mes requeridos" }, { status: 400 });
+    if (!year || month === undefined || month === null) return NextResponse.json({ error: "Año y mes requeridos" }, { status: 400 });
     const userId = request.headers.get("x-user-email") || "system";
+
+    // Validación de secuencia: mensual exige mes previo; anual (month=0) exige 12 meses cerrados.
+    const y = Number(year);
+    const m = Number(month);
+    if (m === 0) {
+      const { data: locks } = await sb.from("period_locks").select("status,month").eq("tenant_id", tenantId).eq("year", y);
+      const closedMonths = new Set((locks || []).filter((l: any) => l.status === 'closed' || l.status === 'locked').map((l: any) => l.month));
+      const missing = Array.from({ length: 12 }, (_, i) => i + 1).filter((mm) => !closedMonths.has(mm));
+      if (missing.length > 0) {
+        return NextResponse.json({ error: `Cierre anual requiere los 12 meses cerrados. Faltan: ${missing.join(', ')}` }, { status: 400 });
+      }
+      // Reusa assertCloseAllowed para año no futuro / no ya cerrado (month=0)
+      try {
+        const { data: annualLock } = await sb.from("period_locks").select("status").eq("tenant_id", tenantId).eq("year", y).eq("month", 0).maybeSingle();
+        assertCloseAllowed({ status: (annualLock as any)?.status || 'open', prevStatus: null, prevTxCount: 0, year: y, month: 0 });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return NextResponse.json({ error: msg }, { status: 400 });
+      }
+    } else {
+      const prev = prevPeriod(y, m);
+      try {
+        const { data: prevLock } = await sb.from("period_locks").select("status").eq("tenant_id", tenantId).eq("year", prev.year).eq("month", prev.month).maybeSingle();
+        const prevRows = await fetchRowsForTenant(
+          tenantId,
+          `${prev.year}-${String(prev.month).padStart(2, "0")}-01`,
+          prev.month === 12 ? `${prev.year + 1}-01-01` : `${prev.year}-${String(prev.month + 1).padStart(2, "0")}-01`,
+        );
+        const prevSeen = new Set<string>();
+        for (const r of prevRows) prevSeen.add(r.id_transaccion);
+        assertCloseAllowed({
+          status: "open",
+          prevStatus: (prevLock as { status?: string } | null)?.status || null,
+          prevTxCount: prevSeen.size,
+          year: y,
+          month: m,
+        });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        return NextResponse.json({ error: msg, prevPeriod: periodKey(prev.year, prev.month) }, { status: 400 });
+      }
+    }
 
     const result = await cerrarPeriodoContable(tenantId, year, month, userId, notes || "");
     if (result.error) return NextResponse.json(result, { status: 400 });
@@ -243,9 +320,30 @@ export async function PATCH(request: NextRequest) {
     if (!tenantId) return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
     const body = await request.json();
     const { year, month, reason } = body;
-    if (!year || !month) return NextResponse.json({ error: "Año y mes requeridos" }, { status: 400 });
+    if (!year || month === undefined || month === null) return NextResponse.json({ error: "Año y mes requeridos" }, { status: 400 });
     const userId = request.headers.get("x-user-email") || "system";
-    const result = await reabrirPeriodoContable(tenantId, year, month, userId, reason || "");
+    const result = await reabrirPeriodoContable(tenantId, year, Number(month), userId, reason || "");
+    if (result.error) return NextResponse.json(result, { status: 400 });
+    return NextResponse.json(result);
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message ?? "Error interno" }, { status: 500 });
+  }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const tenantId = new URL(request.url).searchParams.get("tenantId") || request.headers.get("x-tenant-id");
+    if (!tenantId) return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
+    const body = await request.json();
+    const { year, month } = body;
+    if (!year || month === undefined || month === null) return NextResponse.json({ error: "Año y mes requeridos" }, { status: 400 });
+    const y = Number(year);
+    const m = Number(month);
+    if (!Number.isInteger(y) || !Number.isInteger(m) || y < 2000 || y > 2100 || m < 0 || m > 12) {
+      return NextResponse.json({ error: "Año y mes inválidos" }, { status: 400 });
+    }
+    const userId = request.headers.get("x-user-email") || "system";
+    const result = await bloquearPeriodoContable(tenantId, y, m, userId);
     if (result.error) return NextResponse.json(result, { status: 400 });
     return NextResponse.json(result);
   } catch (error: any) {
@@ -297,7 +395,8 @@ async function reabrirPeriodoContable(tenantId: string, year: number, month: num
   } catch {}
 
   if (!periodLock) return { error: "Período no encontrado" };
-  if (periodLock.status !== "closed" && periodLock.status !== "locked") return { error: `Período no está cerrado (estado: ${periodLock.status})` };
+  if (periodLock.status === "locked") return { error: "Período bloqueado permanentemente: no se puede reabrir" };
+  if (periodLock.status !== "closed") return { error: `Período no está cerrado (estado: ${periodLock.status})` };
 
   try {
     await sb.from("period_locks").update({ status: "open", reopened_by: userId, reopened_at: new Date().toISOString(), reopen_reason: reason || null, updated_at: new Date().toISOString() })
@@ -312,4 +411,27 @@ async function reabrirPeriodoContable(tenantId: string, year: number, month: num
   } catch {}
 
   return { success: true, year, month, status: "open", reopened_by: userId, reason };
+}
+
+async function bloquearPeriodoContable(tenantId: string, year: number, month: number, userId: string) {
+  let periodLock: PeriodLock | null = null;
+  try {
+    const { data } = await sb.from("period_locks").select("*").eq("tenant_id", tenantId).eq("year", year).eq("month", month).single();
+    if (data) periodLock = data as PeriodLock;
+  } catch {}
+  if (!periodLock) return { error: "Período no encontrado: cierre primero el período" };
+  if (periodLock.status === "locked") return { error: "Período ya está bloqueado" };
+  if (periodLock.status !== "closed") return { error: `Solo se puede bloquear un período cerrado (estado actual: ${periodLock.status})` };
+  try {
+    await sb.from("period_locks").update({ status: "locked", locked_by: userId, locked_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("tenant_id", tenantId).eq("year", year).eq("month", month);
+  } catch (e) { return { error: String(e) }; }
+  try {
+    await sb.from("account_audit_log").insert({
+      id: crypto.randomUUID(), tenant_id: tenantId, account_code: "CLOSING", action: "PERIOD_LOCKED",
+      old_values: { year, month, status: "closed" }, new_values: { year, month, status: "locked" },
+      performed_by: userId, performed_at: new Date().toISOString(),
+    });
+  } catch {}
+  return { success: true, year, month, status: "locked", locked_by: userId };
 }

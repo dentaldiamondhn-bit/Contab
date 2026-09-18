@@ -1,6 +1,6 @@
 # Plan de Migración a PostgreSQL con RLS
 
-> **Estado actual (16 de Septiembre de 2026)**
+> **Estado actual (17 de Septiembre de 2026)**
 >
 > La migración **ya está completada**: la base actual es **Supabase (PostgreSQL)** con RLS activo, accesos vía `DATABASE_URL` y `NEXT_PUBLIC_SUPABASE_URL`. Este documento conserva el plan original (SQLite → PostgreSQL) como referencia histórica y guía de configuración.
 >

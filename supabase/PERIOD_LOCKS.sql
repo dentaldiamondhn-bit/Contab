@@ -30,7 +30,7 @@ CREATE TABLE IF NOT EXISTS period_locks (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   tenant_id       TEXT NOT NULL,
   year            INTEGER NOT NULL,
-  month           INTEGER NOT NULL CHECK (month >= 1 AND month <= 12),
+  month           INTEGER NOT NULL CHECK (month >= 0 AND month <= 12),
   status          TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'closed', 'locked')),
   closed_by       TEXT,
   closed_at       TIMESTAMPTZ,

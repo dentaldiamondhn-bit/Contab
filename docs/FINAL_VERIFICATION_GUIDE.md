@@ -1,7 +1,7 @@
 # Final System Verification Guide
 ## Onboarding Data Saving Fix
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > Esta guía corresponde a una verificación histórica del flujo de onboarding / `update_tenant_statistics()`. **Estado actual:** build `pnpm build` EXIT=0 ("Compiled successfully") con Next.js 16.3.5 y `output: 'standalone'`. El middleware ya no usa rutas "públicas" para `/onboarding`: hoy `middleware.ts` usa `clerkMiddleware` y toda ruta no pública ejecuta `await auth.protect()`, que devuelve HTTP **404** (no redirect) a no autenticados.
 
@@ -68,7 +68,7 @@ $$ LANGUAGE plpgsql;
 
 ### Current Status: ✅ READY
 - Antes (histórico): `/onboarding` era ruta pública y los API routes accesibles.
-- **Ahora (16 Sept 2026):** `middleware.ts` usa `clerkMiddleware` con `isPublicRoute`. `/onboarding` ya **no** está en la lista pública; las rutas no públicas ejecutan `await auth.protect()` (**HTTP 404** para no autenticados). Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`.
+- **Ahora (16 Sept 2026):** `middleware.ts` usa `clerkMiddleware` con `isPublicRoute`. `/onboarding` ya **no** está en la lista pública; las rutas no públicas ejecutan `await auth.protect()` (**HTTP 404** para no autenticados). Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/`. (`/api/accounting/trial-balance` salió el 17 Sept 2026.)
 - El middleware inyecta `x-tenant-id` desde la metadata de Clerk si la petición no trae un tenant explícito.
 - User headers properly set.
 

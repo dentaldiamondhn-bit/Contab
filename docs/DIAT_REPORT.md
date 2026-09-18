@@ -1,6 +1,6 @@
 # Reporte del Módulo DIAT (Declaración Informativa de Actividades)
 
-> **Fecha:** 16 de Septiembre de 2026
+> **Fecha:** 17 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
 > **Estado:** Completo (funcional en producción de desarrollo)
 
@@ -122,6 +122,13 @@ Cubre:
 - `404` — período sin datos: la empresa no tiene ningún dato.
 
 Archivos: `tests/diat/diat-route.test.mjs`, `tests/diat/loader.mjs`, `tests/diat/register.mjs`, `tests/diat/diat-generator-mock.mjs`, `tests/diat/next-server-stub.mjs`.
+
+## 6.2 Comparativo fiscal entre períodos (17 Sept 2026)
+
+- `getDiatVariations` en `diat-generator.ts` (resúmenes de dos meses) + `GET /api/diat/variations?companyId=&from=&to=` (400 validación, 404 sin datos).
+- `buildDiatDelta` en `lib/services/diat-delta.ts` (puro): 8 métricas (operaciones, facturas, ventas, ISV ventas, compras, ISV compras, crédito fiscal, ISV a pagar) con variación absoluta y porcentual.
+- UI en `DIATManager`: selector "vs", botón Comparar y tabla de métricas.
+- Tests en `tests/diat-variations/` (delta + ruta); `npm test` → 90 pass.
 
 ## 7. Limitaciones y Pendientes
 

@@ -33,7 +33,7 @@ export default function FinancialStatements() {
   const loadAccounts = async () => {
     setLoading(true);
     try {
-      const res = await fetch("/api/accounting/accounts");
+      const res = await fetch("/api/accounting/accounts?year=" + new Date().getFullYear());
       if (res.ok) {
         const data = await res.json();
         setAccounts(
@@ -41,7 +41,7 @@ export default function FinancialStatements() {
             code: a.code,
             name: a.name,
             type: a.type,
-            balance: Number(a.opening_balance || a.balance || 0),
+            balance: Number(a.opening_balance || a.balance || 0) / 100,
           }))
         );
       }

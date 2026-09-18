@@ -12,7 +12,7 @@
 | **Auditoría** | Completo | 1 feed | 1 ruta | 2 tablas | Supabase + Prisma |
 | **Multi-Tenant** | Parcial | CompanySwitcher | — | Tenant (Prisma) | Prisma + RLS |
 | **Seguridad de Login** | Básico | — | — | — | In-memory |
-| **RLS en TODAS las tablas** | Parcial | — | — | — | Supabase |
+| **RLS en TODAS las tablas** | ✅ Cerrado (V4 verificada 17 Sept 2026) | — | — | 107 bloqueadas con datos + resto vacío protegido; solo `Taxes` público (intencional); 0 escribibles | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -20,7 +20,7 @@
 |---|---|---|
 | Completitud Funcional | ~80% | Auth, RBAC, auditoría sólidos; multi-tenant parcial |
 | Cobertura de Pruebas | 0% | No existen pruebas de seguridad |
-| Fortaleza | ~60% | Rate limiting in-memory (se pierde al reiniciar); RLS no confirmado en todas las tablas |
+| Fortaleza | ~75% | RLS cerrado y verificado el 17 Sept 2026 (ver § Auditoría RLS); rate limiting aún in-memory |
 | Cumplimiento | ~50% | Sin logs de seguridad exportables; sin 2FA |
 
 ---
@@ -50,7 +50,7 @@
 - TODA ruta no pública ejecuta `await auth.protect()`.
 - Las rutas protegidas devuelven **HTTP 404** (no redirect) a requests no autenticados.
 - El middleware inyecta el header `x-tenant-id` desde metadata de Clerk cuando la petición no lo trae.
-- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`, `/`.
+- Rutas públicas: `/auth/login`, `/auth/register`, `/auth/sign-in`, `/auth/sign-up`, `/auth/callback`, `/auth/reset-password`, `/api/auth/check-email`, `/api/auth/check-username`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/`. (`/api/accounting/trial-balance` salió de la lista el 17 Sept 2026: requería auth y aceptaba `tenantId` libre.)
 
 ---
 
@@ -134,9 +134,9 @@
 
 #### Lo que Falta
 
-- **RLS no confirmado en todas las tablas** (solo auditlog tiene RLS explícito)
+- **RLS mixto**: auditado el 17 Sept 2026 — ~135 tablas/vistas bloqueadas, ~83 abiertas a anon (ver § Auditoría RLS y Cross-Tenant); remediación en `supabase/RLS_ALL_TABLES.sql` pendiente de aplicar
 - Tenant context setting es manual por componente (RPC `set_tenant`)
-- Sin validación server-side de tenant en todas las APIs
+- APIs confían en `tenantId` del request (spoofeable por usuarios autenticados); `x-tenant-id` del middleware solo se inyecta si no viene en el request
 
 ---
 
@@ -163,22 +163,23 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | RLS no confirmado en todas las tablas | Riesgo de acceso cross-tenant | **Crítica** |
-| 2 | Rate limiting in-memory | Se pierde al reiniciar | Alta |
-| 3 | Sin 2FA | Seguridad débil para admins | Alta |
-| 4 | Sin logs de seguridad exportables | Sin auditoría externa | Media |
-| 5 | Sin detección de anomalías | Sin alertas de seguridad | Media |
+| 1 | ~~RLS parcial / cross-tenant directo vía REST~~ | ~~61 tablas/vistas legibles + 49 escribibles con anon~~ | ✅ Resuelta (17 Sept 2026: 1 legible intencional, 0 escribibles; ver Resultado V4) |
+| 2 | ~~`/api/accounting/trial-balance` era pública + `tenantId` libre~~ | ~~Lectura no autenticada de cualquier tenant~~ | ✅ Corregida (17 Sept 2026: fuera de rutas públicas) |
+| 3 | Rate limiting in-memory | Se pierde al reiniciar | Alta |
+| 4 | Sin 2FA | Seguridad débil para admins | Alta |
+| 5 | Sin logs de seguridad exportables | Sin auditoría externa | Media |
+| 6 | Sin detección de anomalías | Sin alertas de seguridad | Media |
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Refuerzo de RLS
+### Etapa 1: Refuerzo de RLS — ✅ Completada (17 Sept 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | Auditar RLS en todas las tablas Supabase | `supabase/AUDIT_RLS.sql` | Informe |
-| 1.2 | Habilitar RLS en tablas sin protección | Migraciones SQL | RLS activo |
+| 1.1 | ✅ Auditar RLS en todas las tablas Supabase | Prueba empírica anon GET/POST en 218 tablas/vistas (ver § Auditoría RLS) | Informe |
+| 1.2 | ✅ Habilitar RLS en tablas sin protección | `supabase/RLS_ALL_TABLES.sql` v2 + `V3` + `V4` (REVOKE 3 vistas) | RLS cerrado y verificado |
 | 1.3 | Middleware server-side de validación de tenant | `lib/middleware/tenant-validation.ts` | Validación |
 
 ### Etapa 2: Seguridad de Login
@@ -218,7 +219,7 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: RLS | 3 tareas | Alta | 2-3 semanas |
+| Etapa 1: RLS | 3 tareas | Alta | ✅ Completada (17 Sept 2026: auditoría + 4 re-auditorías, v1→V4 verificado) |
 | Etapa 2: Login | 3 tareas | Alta | 3-4 semanas |
 | Etapa 3: Auditoría | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Cumplimiento | 3 tareas | Media | 2-3 semanas |
@@ -244,4 +245,81 @@
 - La ruta usaba `process.env.SUPABASE_URL!` (undefined → 500); ahora usa `process.env.NEXT_PUBLIC_SUPABASE_URL!` en GET y PUT.
 - Env real en `.env.local`: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (conexión directa), Clerk keys. **No existe `SUPABASE_URL`.**
 
-*Estado validado al 16 de Septiembre de 2026.*
+## Auditoría RLS y Cross-Tenant (17 Sept 2026)
+
+Método: prueba empírica contra Supabase REST con la key **anónima** (sin login) en las 218 tablas/vistas del OpenAPI: `GET ?select=*&limit=2` (lectura), conteo exacto en tablas críticas y `POST {}` (escritura segura: falla en NOT NULL antes de insertar; 0 filas creadas). Ground truth sobre cualquier documentación previa.
+
+### Resultado: RLS mixto (NO está en todas las tablas)
+
+| Grupo | Cantidad | Detalle |
+|---|---|---|
+| Bloqueadas (RLS efectivo) | ~135 | anon `GET []` + `POST 401/42501`: `users`, `User`, `companies`, `Invoice`, `InvoiceItem`, `Purchase`, `PurchaseItem`, `Tenant(s)`, `warehouse`, `budgets`, `inventory_transfer`, `login_attempts`, `password_resets`, `tenant_user_access`, `TenantCompensation`, `inventory_movement`, `inventory_adjustment*`, `Reconciliation`, `BankAccount`, `Withholding`, `CAI`, `AccountPayable/Receivable`, `PurchaseOrder*`, etc. |
+| Lectura anónima ABIERTA | 61 | Ver tabla de expuestas abajo |
+| Escritura anónima ABIERTA (llega a BD) | 49 | `POST {}` retorna 400 NOT NULL (no 401/42501): cualquiera puede intentar INSERT/UPDATE/DELETE por REST directo |
+| Migración logística | ✅ | `WAREHOUSE_LOGISTICS.sql` aplicada (`carrier`/`company_id` presentes; `inventory_transfer` con RLS) |
+
+### Tablas expuestas a lectura anónima (conteo exacto, sin login)
+
+| Tabla/Vista | Filas anon | Datos |
+|---|---|---|
+| `JournalEntry` | 95 | Asientos (cuenta, monto, tenant) |
+| `Transaction` | 47 | Transacciones contables globales |
+| `employees` | 49 | RRHH (datos personales/contrato) |
+| `Account` / `balance_general` | 43 / 43 | Catálogo y balance |
+| `payroll_details` | 15 | Detalle de planilla |
+| `payroll_vouchers` | 13 | Comprobantes de pago |
+| `Taxes` | 10 | Catálogo de impuestos |
+| `product` | 11 | Productos de todos los tenants |
+| `libro_ventas` | 3 | Ventas fiscales |
+| `purchase_book_sar` | 2 | Compras fiscales |
+| `vacation_requests` / `vacation_history` | 3 / ? | Vacaciones de empleados |
+| `Supplier`, `customer` | 1 / 1 | Proveedores y clientes |
+| + vistas `libro_*`, `vista_*`, `resumen_*`, `top_clientes`, etc. | — | Réplicas de lo anterior vía owner (sin `security_invoker`) |
+
+### Por qué el middleware NO protege esto
+
+- Clerk protege rutas Next.js, pero la URL + `anon key` (`NEXT_PUBLIC_*`) viven en el navegador: cualquiera llama a PostgREST directo evadiendo el middleware.
+- `createSupabaseClient()` (24 componentes) usa anon **sin JWT de Supabase** (auth es Clerk) → sin claim de tenant; hoy funciona solo porque el RLS está OFF en esas tablas.
+- `SUPABASE_SERVICE_ROLE_KEY` **NO** se filtra al navegador (verificado: `createServiceRoleClient` usa var server-only; en cliente es `undefined`). El fallback service-role de `TransactionFormSimple.tsx` es código muerto en browser, sin fuga de secreto. ✅
+- `/api/*` confía en `tenantId` del request; el middleware solo inyecta `x-tenant-id` si no viene (spoofeable por usuarios autenticados — patrón aceptado en toda la app; el hueco crítico era el acceso **no autenticado**, ver abajo).
+
+### Hueco crítico corregido en código (17 Sept 2026)
+
+- `/api/accounting/trial-balance` estaba en rutas **públicas** del middleware + aceptaba `tenantId` libre con `service_role` → balanza de cualquier tenant sin login. **Fix**: eliminada de `isPublicRoute` en `middleware.ts` (sus 5 consumidores son páginas logueadas; `next build` verde). Rutas públicas restantes con criterio: `auth/*`, `plans-public`, `paypal`, `webhooks`, `uploaded-files`, `excel-upload` (estas dos últimas: revisar — permiten subida sin auth).
+
+### Remediación entregada
+
+- `supabase/RLS_ALL_TABLES.sql` (idempotente, bloques DO con EXCEPTION + bloque de verificación `pg_tables`): 28 tablas con policy `tenant_isolation` por claim, 28 con deny-by-default (incl. backups y `Customer`/`Packages`/`Retentions`/`Payrolls` sin tenant), `Taxes` solo-lectura, 26 vistas con `security_invoker=true`. No toca las ~135 ya bloqueadas.
+- ⚠️ Al aplicar, los componentes anon directos se quedan sin datos (es el objetivo) y **deben migrarse a rutas API** (la mayoría ya existen server-side con `service_role`): `InventoryManager`, `InventoryReports` (`product`, `inventory_movement`), `TransactionFormSimple`, `ExcelBooksUploader` (`Transaction`, `JournalEntry`, `Account`), `SupplierManager` (`Supplier`), `CustomerManager`/`InvoiceForm`/`SalesDashboard` (`Customer`, `Account`), `SalesBook`/`PurchaseBook` (`libro_*`), `BalanceSheet`/`IncomeStatement`/`CashFlowStatement`/`FinancialReports`/`AccountingBooksViewer`/`InventoryBalanceBook` (vistas), `BankAccountManager`/`BankReconciliation` (`BankAccount`, `Reconciliation`), `AccountsReceivableManager`, `WithholdingManager`, `PurchaseOrdersManager`. (`CashFlowManager` también usa anon: tablas por confirmar.)
+- Nota: `InvoiceForm`/`SalesDashboard`/`security/UserManagement` leen `Invoice`/`User` (ya con RLS) vía anon → hoy reciben `[]`; la migración a API también los repara.
+- Aplicar primero en staging y correr el bloque F de verificación (debe imprimir `OK: RLS habilitado en todas las tablas`).
+
+### Resultado v1 (re-auditoría 17 Sept 2026): parcial — 7 de 218 objetos
+
+La primera aplicación aseguró `cai` + 6 vistas (`declaracion_mensual`, `purchase_book_sar`, `resumen_isv`, `top_clientes`, `vista_resumen_produccion`, `vw_employee_deductions`). El resto crítico sigue abierto (`Transaction`, `JournalEntry`, `Account`, `product`, `employees`, `payroll_details`, ...). Causas raíz:
+
+1. **Identificadores sin comillas**: `ALTER TABLE Transaction` (sin comillas) lo convierte Postgres a minúsculas y toca otra tabla (`transaction`) en vez de `"Transaction"`.
+2. **Policies permisivas previas**: Postgres combina policies con OR — una `USING(true)` previa anula la restrictiva nueva aunque el `ALTER`/`CREATE` haya corrido.
+
+`supabase/RLS_ALL_TABLES.sql` **v2** corrige ambas: entrecomilla todos los identificadores y el bloque A0 borra todas las policies previas en alcance antes de crear las restrictivas. **Pendiente: re-ejecutar v2 en el SQL Editor y avisar para re-verificar** (re-auditoría anon debe devolver `[]` en todo lo sensible).
+
+### Resultado v2 (re-auditoría 17 Sept 2026): avance mayor — lecturas 54→13
+
+Todas las tablas críticas quedaron bloqueadas (anon `GET []` + `POST 401/42501`): `Transaction`, `JournalEntry`, `Account`, `product`, `Supplier`, `employees`, `customer`, `payroll_details`, `payroll_vouchers`, `vacation_requests`, más 17 vistas con `security_invoker` (23 bloqueadas con datos). Escrituras reales abiertas: 49→7.
+
+Restan 12 objetos (+ `Taxes`, catálogo global intencionalmente público): `libro_ventas`, `inventario_valorizado`, `Tenants`, `employee_vacation_summary`, `InvoiceSummary`, `PackageDetails`, `tenantstatistics`, `tenant_plan_summary`, `resumen_ingresos_egresos`, `libro_egresos`, `libro_diario_integrado`, `inventory_stock_alert` (+ `libro_compras`, `cuentas_por_pagar/cobrar` vacías, a futuro). Diagnóstico: son vistas simples actualizables (el `POST` 23502 las delataba como tablas) — `ALTER TABLE` no aplica y la policy del mismo bloque se revertía con el `ALTER`. `RLS_ALL_TABLES_V3.sql` lo corrige con 3 bloques independientes por objeto (ENABLE + invoker + policy). **Pendiente: ejecutar V3 y avisar para verificación final.**
+
+### Resultado V3 (re-auditoría 17 Sept 2026): lecturas 13→4, escrituras 7→0
+
+- Bloqueadas con datos: 23→**107** (incl. `product`, `Transaction`, `employees`, `payroll_details`, `libro_ventas`, `inventario_valorizado`, `Tenants`, `libro_compras` vacía a futuro).
+- Escrituras anónimas reales: **0** en las 218 (ningún `POST` llega a BD; `PUBLIC_WRITE` siempre fue 0).
+- Restan 4 legibles: `Taxes` (catálogo global, público a propósito) + 3 presuntas **vistas materializadas** (`libro_diario_integrado`, `libro_egresos`, `resumen_ingresos_egresos`): el `security_invoker` no aplica a materializadas y corren como owner. `RLS_ALL_TABLES_V4.sql` las cierra con `REVOKE ALL ... FROM anon, authenticated, PUBLIC` (service_role intacto; ningún componente cliente las lee directo). **Pendiente: ejecutar V4 y avisar para verificación final.**
+
+### Resultado V4 / cierre (re-auditoría 17 Sept 2026): 1 legible intencional, 0 escribibles
+
+- Las 3 eran vistas regulares sobre bases ya protegidas; el `REVOKE ALL ... FROM anon, authenticated, PUBLIC` las cerró (`GET 401`). Diagnóstico `pg_class` del usuario confirmó `relkind = view`.
+- Estado final verificado: **1** legible con datos (`Taxes`, catálogo global a propósito), **0** escrituras reales en las 218, **107** bloqueadas con datos, resto vacío y protegido, `PUBLIC_WRITE` siempre en 0.
+- ⚠️ Efecto previsto: los ~20 componentes cliente con anon directo ahora reciben `[]`/401 y **deben migrarse a rutas API** (lista en § Auditoría RLS); la API server-side (`service_role`) no se afectó.
+- Riesgo residual conocido (no bloqueante): spoofing de `tenantId` por usuarios **autenticados** (patrón aceptado en toda la app) y rutas públicas `uploaded-files`/`excel-upload` por revisar.
+
+*Estado validado al 17 de Septiembre de 2026 (auditoría + 4 re-auditorías empíricas, fix trial-balance, RLS v1→v4 aplicado y verificado).*

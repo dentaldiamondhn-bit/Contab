@@ -369,6 +369,37 @@ export async function hasDiatData(companyId: string): Promise<boolean> {
   return months.length > 0;
 }
 
+export interface DiatVariations {
+  companyId: string;
+  from: string;
+  to: string;
+  fromResumen: DiatResumen;
+  toResumen: DiatResumen;
+  generatedAt: string;
+}
+
+// Comparativo fiscal entre dos períodos (resúmenes; el delta se calcula con
+// buildDiatDelta de diat-delta.ts para mantener este módulo testeable).
+export async function getDiatVariations(
+  companyId: string,
+  from: string,
+  to: string,
+): Promise<DiatVariations | null> {
+  if (!(await hasDiatData(companyId))) return null;
+  const [fromReport, toReport] = await Promise.all([
+    getDiatReport(companyId, from),
+    getDiatReport(companyId, to),
+  ]);
+  return {
+    companyId,
+    from,
+    to,
+    fromResumen: fromReport.resumen,
+    toResumen: toReport.resumen,
+    generatedAt: new Date().toISOString(),
+  };
+}
+
 export async function getAvailableDiatPeriods(companyId: string): Promise<string[]> {
   const months = await collectDiatPeriods(companyId);
 

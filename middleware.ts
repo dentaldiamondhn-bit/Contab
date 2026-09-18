@@ -15,7 +15,6 @@ const isPublicRoute = createRouteMatcher([
   "/api/webhooks(.*)",
   "/api/accounting/uploaded-files(.*)",
   "/api/accounting/excel-upload(.*)",
-  "/api/accounting/trial-balance(.*)",
   "/",
 ]);
 

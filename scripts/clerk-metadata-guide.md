@@ -1,6 +1,6 @@
 # Guía de Metadata para Clerk - Estructura Completa
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > La estructura de metadata (`role`, `tenantId`, `tenantCode`, `permissions`, `isolation`) sigue vigente. `middleware.ts` lee esta metadata (campos en `sessionClaims.metadata`) e inyecta `x-tenant-id` en las peticiones. Recuerda: las rutas no públicas usan `auth.protect()` → **404** sin sesión.
 

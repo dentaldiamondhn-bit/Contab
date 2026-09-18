@@ -7,6 +7,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import BudgetsManager from '@/components/financial/BudgetsManager';
 import { 
   TrendingUp, 
   DollarSign, 
@@ -721,13 +722,14 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
       {/* Main Content */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-6">
+        <TabsList className="grid w-full grid-cols-7">
           <TabsTrigger value="overview">Resumen</TabsTrigger>
           <TabsTrigger value="kpis">KPIs</TabsTrigger>
           <TabsTrigger value="costs">Costos</TabsTrigger>
           <TabsTrigger value="cashflow">Flujo de Caja</TabsTrigger>
           <TabsTrigger value="units">Unidades</TabsTrigger>
           <TabsTrigger value="records">Registros</TabsTrigger>
+          <TabsTrigger value="budgets">Presupuestos</TabsTrigger>
         </TabsList>
 
         {/* Overview Tab */}
@@ -1894,6 +1896,11 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                 })}
             </div>
           )}
+        </TabsContent>
+
+        {/* Presupuestos y control presupuestario */}
+        <TabsContent value="budgets" className="space-y-6">
+          <BudgetsManager companyId={companyId} />
         </TabsContent>
       </Tabs>
     </div>

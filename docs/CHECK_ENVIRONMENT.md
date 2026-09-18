@@ -1,6 +1,6 @@
 # Variables de Entorno Requeridas para Producción
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > Estado real del proyecto: Next.js **16.3.5** (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x, `output: 'standalone'`. Build `pnpm build` = `prisma generate && next build` (EXIT=0, "Compiled successfully").
 

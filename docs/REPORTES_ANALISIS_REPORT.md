@@ -128,7 +128,7 @@
 #### Lo Implementado
 
 - **CSV:** En BalanceSheet, IncomeStatement, CashFlowStatement, BankReconciliation, CashFlowManager (inline `exportToCSV`)
-- **PDF:** Componentes existen pero `htmlToPDF` retorna HTML como Buffer (placeholder)
+- **PDF:** Motor server-side real con `@react-pdf/renderer` (`lib/services/pdf-documents.ts` + `pdf-document-builder.tsx`); layout profesional compartido (`components/reports/ProfessionalDoc.tsx`); 4 documentos (factura, guía de traslado, presupuesto vs real, DIAT) vía `GET /api/documents/pdf` (17 Sept 2026). `PDFExportService.htmlToPDF` legacy sigue como placeholder solo para pólizas/trial HTML
 
 #### Archivos PDF
 
@@ -142,8 +142,8 @@
 #### Lo que Falta
 
 - **Sin exportación Excel (.xlsx)**
-- PDF usa impresión del navegador (no generación server-side)
-- Sin plantillas de impresión profesionales
+- ~~PDF usa impresión del navegador (no generación server-side)~~ ✅ PDF real server-side (17 Sept 2026)
+- ~~Sin plantillas de impresión profesionales~~ ✅ Layout `ProfessionalDoc` + CSS `@media print` A4 en `app/globals.css` (17 Sept 2026)
 
 ---
 
@@ -152,7 +152,7 @@
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | Sin exportación Excel | Requisito estándar para contabilidad | Crítica |
-| 2 | PDF es placeholder | No genera PDFs reales | Alta |
+| 2 | ~~PDF es placeholder~~ | Resuelto: motor server-side real con 4 documentos (17 Sept 2026) | — |
 | 3 | Sin KPIs centralizados con histórico | Sin tendencias | Media |
 | 4 | Sin reportes programados | Sin automatización | Media |
 
@@ -168,13 +168,13 @@
 | 1.2 | Servicio de exportación Excel | `lib/services/excel-export.ts` | Servicio |
 | 1.3 | Agregar botón Excel a cada reporte | Múltiples componentes | Exportación |
 
-### Etapa 2: PDF Profesional
+### Etapa 2: PDF Profesional — ✅ Completada (17 Sept 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 2.1 | Implementar generación PDF server-side | `lib/services/pdf-export.ts` | PDF funcional |
-| 2.2 | Plantillas de impresión por reporte | `templates/reports/` | Plantillas |
-| 2.3 | Agregar botón PDF a cada reporte | Múltiples componentes | Exportación |
+| 2.1 | ✅ Implementar generación PDF server-side | `lib/services/pdf-documents.ts` + `pdf-data.ts` + `pdf-document-builder.tsx` (`renderToBuffer`) | PDF funcional |
+| 2.2 | ✅ Plantillas de impresión por reporte | `components/reports/ProfessionalDoc.tsx` (layout A4 compartido) + 4 documentos + CSS `@media print` en `app/globals.css` | Plantillas |
+| 2.3 | ✅ Agregar botón PDF a cada reporte | Botones en `TransfersManager`, `BudgetsManager`, `DIATManager` y `app/billing/[id]/page.tsx` vía `GET /api/documents/pdf` | Exportación |
 
 ### Etapa 3: KPIs y Analítica
 
@@ -206,7 +206,7 @@
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
 | Etapa 1: Excel | 3 tareas | Media | 1-2 semanas |
-| Etapa 2: PDF | 3 tareas | Alta | 2-3 semanas |
+| Etapa 2: PDF | 3 tareas | Alta | ✅ Completada (17 Sept 2026) |
 | Etapa 3: KPIs | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Programados | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
@@ -231,3 +231,19 @@
 | Nuevo reporte: Notas de Crédito/Débito | Página `/billing/notes` con KPIs (Total Notas, Créditos, Débitos, Efecto Neto ISV) y filtros por tipo/estado |
 | Fix API de empresas | `app/api/companies/route.ts` usaba `SUPABASE_URL` (undefined → 500); ahora `NEXT_PUBLIC_SUPABASE_URL` |
 | Env | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`; NO existe `SUPABASE_URL` |
+
+## Actualizaciones de PDF Profesional (17 Sept 2026)
+
+Etapa 2 completada: generación real de PDF server-side en 4 módulos + impresión profesional.
+
+| Cambio | Detalle |
+|---|---|
+| Motor | `lib/services/pdf-documents.ts` (`renderToBuffer` → `Buffer` → `attachment application/pdf`); datos en `lib/services/pdf-data.ts` (encabezado empresa + factura); ensamble en `lib/services/pdf-document-builder.tsx` |
+| Plantilla | `components/reports/ProfessionalDoc.tsx`: A4, encabezado fiscal con RTN, numeración de páginas, firmas, leyenda SAR; reutilizada por los 4 documentos |
+| Documentos | `InvoicePDF` (ítems, ISV, CAI), `TransferPDF` (guía: ruta, transportista, firmas), `BudgetVsActualPDF` (varianzas, ejecución, alertas), `DiatPDF` (declarante, resumen, ventas/compras), `VariationsPDF` (comparativo de saldos, 17 Sept 2026) |
+| API | `GET /api/documents/pdf?type=invoice\|transfer\|budget\|diat\|variations&id=&companyId=[&period=][&to=]` (400 validación, 404 no encontrado) |
+| UI | Botones PDF en `TransfersManager` (guía), `BudgetsManager` (vs real del período), `DIATManager` (declaración) y `app/billing/[id]/page.tsx` (factura; reemplaza placeholders `window.print()`) |
+| Impresión | `@media print` en `app/globals.css`: A4, oculta navegación/controles, evita cortes en tablas |
+| Tests | `tests/pdf/` (5 helpers + 6 rutas con bytes `%PDF` reales, `node:test`); `npm test` → 49 pass (6 DIAT + 20 presupuestos + 12 almacenes + 11 PDF) |
+| 5to documento (17 Sept 2026) | `VariationsPDF` + tipo `variations` en motor/API + botón en `/reports/period-variations` |
+| Build | `next build` → `EXIT=0`, ruta `/api/documents/pdf` registrada |

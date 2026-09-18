@@ -1,6 +1,6 @@
 # Reporte de Archivos Duplicados en migrations/
 
-> ## ✅ Estado actual (16 de Septiembre de 2026)
+> ## ✅ Estado actual (17 de Septiembre de 2026)
 >
 > Este reporte es histórico (listaba duplicados y recomendaba limpieza). Estado real de la carpeta `scripts/migrations/`:
 >

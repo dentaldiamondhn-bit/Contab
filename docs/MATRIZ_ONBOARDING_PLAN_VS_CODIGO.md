@@ -136,3 +136,15 @@
 | **Persistencia de tasas múltiples** | Insertaba en `CustomTaxes` | Inserta en la tabla **`Taxes`** del módulo de contabilidad (columns `tenantid`, `name`, `type`, `rate`, `description`, `isactive`, `createdat`, `updatedat`), con `type` mapeado por `TAX_TYPE_MAP` para respetar el CHECK `IVA|ISR|ISV|OTRO` (ISV/IVA/ISR directo; IT/Exento/Otro → OTRO) |
 
 > Resultado: selección del usuario y catálogo por defecto producen exactamente los mismos códigos de cuenta, y las tasas configuradas en el wizard quedan visibles en `/accounting/taxes`.
+
+---
+
+## 9. Fixes multi-empresa dashboard (17 sep 2026)
+
+| # | Fix | Archivo | Descripción |
+|---|---|---|---|
+| F1 | Eliminar `TenantProvider` anidado | `app/tenant-admin/layout.tsx` | Provider anidado creaba contexto separado; header cambiaba empresa en contexto root pero dashboard usaba contexto anidado (desactualizado). Quitado provider anidado. |
+| F2 | Restaurar header en `/tenant-admin` | `app/tenant-admin/layout.tsx` | Al quitar provider anidado se perdió header. Restaurado `<TenantHeader />` sin provider anidado. |
+| F3 | Debug API dashboard | `app/api/tenant-admin/dashboard/route.ts` | Logs de debug para verificar filtrado por `company_id` (helper `withCompany` con subqueries correlacionadas). |
+| F3 | Fix middleware impersonación | `middleware.ts:51-56` | Omite redirect SUPER_ADMIN en `/dashboard` si existe cookie `impersonated_tenant_id`. |
+| F4 | Fix middleware planes públicos | `middleware.ts:41` | Añade `!isPublicRoute(req)` para que `/api/admin/plans-public` no sea bloqueado por check admin. |

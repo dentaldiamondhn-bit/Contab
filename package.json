@@ -7,7 +7,7 @@
     "build": "prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
-    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/diat/register.mjs --test tests/diat/diat-route.test.mjs",
+    "test": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/diat/register.mjs --test tests/diat/diat-route.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/budgets/register.mjs --test tests/budgets/budget-calc.test.mjs tests/budgets/budgets-route.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/warehouse/register.mjs --test tests/warehouse/transfer-calc.test.mjs tests/warehouse/warehouse-routes.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/pdf/register.mjs --test tests/pdf/pdf-helpers.test.mjs tests/pdf/pdf-route.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/accounting/register.mjs --test tests/accounting/journal-service.test.mjs tests/accounting/transactions-route.test.mjs tests/accounting/period-closing.test.mjs tests/accounting/opening-balance.test.mjs tests/accounting/opening-auto-route.test.mjs tests/accounting/period-variations.test.mjs tests/accounting/variations-route.test.mjs && node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./tests/diat-variations/register.mjs --test tests/diat-variations/diat-delta.test.mjs tests/diat-variations/diat-variations-route.test.mjs",
     "email": "email dev"
   },
   "prisma": {

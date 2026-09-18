@@ -1,6 +1,11 @@
 import { NextResponse } from 'next/server';
 import { performYearEndClosing } from '@/app/services/closing';
 import { db } from '@/lib/db';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { assertYearOpen } from '@/lib/services/period-lock';
+
+// @deprecated — punto único es /api/accounting/period-closing (mensual) + anual via month=0.
+// Este handler mantiene compatibilidad y delega al candado unificado (period_locks).
 
 export async function POST(request: Request) {
   try {
@@ -21,13 +26,42 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // Perform the year-end closing
+    // Candado unificado: si el año ya está cerrado (month=0), rechaza
+    try {
+      const supabase = getSupabaseServer();
+      // Intenta inferir tenant del equityAccount o del body si viene
+      const tenantId = (await db.account.findUnique({ where: { id: equityAccountId } }))?.tenantId || 'unknown';
+      if (tenantId !== 'unknown') await assertYearOpen(supabase as any, String(tenantId), year);
+    } catch (e) {
+      if (e instanceof Error && /cerrado|bloqueado/.test(e.message)) {
+        return NextResponse.json({ error: e.message }, { status: 403 });
+      }
+    }
+
+    // Perform the year-end closing (legacy) + marca anual en period_locks para el Wizard unificado
     const closingTransaction = await performYearEndClosing(year, equityAccountId, closedBy);
+    try {
+      const supabase = getSupabaseServer();
+      const tenantId2 = (await db.account.findUnique({ where: { id: equityAccountId } }))?.tenantId;
+      if (tenantId2) {
+        await (supabase as any).from('period_locks').upsert({
+          tenant_id: String(tenantId2),
+          year,
+          month: 0,
+          status: 'closed',
+          closed_by: closedBy,
+          closed_at: new Date().toISOString(),
+          notes: `Cierre anual ${year} (via /api/closing/perform)`,
+          updated_at: new Date().toISOString(),
+        }, { onConflict: 'tenant_id,year,month' });
+      }
+    } catch {}
 
     return NextResponse.json({
       success: true,
       message: `Year-end closing for ${year} completed successfully`,
-      closingTransaction
+      closingTransaction,
+      unified: { annualPeriod: `${year}-00` }
     });
 
   } catch (error) {

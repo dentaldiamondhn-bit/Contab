@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
+  ArrowLeftRight,
   BarChart3,
   BookOpen,
   Calculator,
@@ -97,6 +98,14 @@ export default function ReportsPage() {
           href: "/reports/flujo-efectivo",
           icon: <TrendingUp className="w-5 h-5" />,
           color: "bg-cyan-500",
+          available: true,
+        },
+        {
+          title: "Variaciones entre Períodos",
+          description: "Comparativo de saldos por cuenta mes a mes",
+          href: "/reports/period-variations",
+          icon: <ArrowLeftRight className="w-5 h-5" />,
+          color: "bg-indigo-500",
           available: true,
         },
       ],

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 
+// @deprecated — canónico: GET /api/accounting/trial-balance?tenantId=&startDate=&endDate=
+// Este endpoint se mantiene por compatibilidad; delega al mismo origen de datos.
+
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);

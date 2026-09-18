@@ -1,6 +1,6 @@
 # Documentación Completa del Sistema Multi-Tenant
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > Nota de entorno actual: el proyecto corre sobre Next.js **16.3.5** (Turbopack), React 19, Clerk, Supabase (Postgres), Prisma 5.x y `output: 'standalone'`. **No hay acceso DDL directo** a Supabase (la conexión `db.<ref>.supabase.co:5432` da `getaddrinfo ENOTFOUND`): **todo SQL se aplica vía el SQL Editor de Supabase**, y Prisma se usa para generar el cliente (`pnpm.cmd prisma generate`). Las rutas no públicas usan `auth.protect()` (devuelve **404** sin sesión). Node portable: `C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64\node.exe`; en Windows usa `pnpm.cmd` (el `.ps1` está bloqueado).
 

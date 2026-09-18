@@ -1,53 +1,53 @@
 import { Prisma } from '@prisma/client';
 import { db } from './db';
+import { assertPeriodOpenUnified } from '@/lib/services/period-lock';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
+// Reutiliza period_locks (Supabase) para mensual + anual.
+// Legacy GlobalSettings.lastClosedDate se mantiene solo como fallback.
 export async function periodLockMiddleware(
   params: any,
   action: 'create' | 'update' | 'delete',
   model: string
 ) {
-  // Only apply to Transaction model operations
   if (model !== 'Transaction') return params;
-  
-  // For create operations, check if transaction date is in a locked period
+
+  const tenantIdFromArgs = params.args?.data?.tenantId || params.args?.data?.tenant_id;
+  const supaTenantCheck = async (date: Date) => {
+    try {
+      const supabase = getSupabaseServer();
+      // tenant del args si viene, si no intenta inferir del registro existente
+      const tenantId = tenantIdFromArgs || 'unknown';
+      if (tenantId && tenantId !== 'unknown') {
+        await assertPeriodOpenUnified(supabase as any, String(tenantId), date.toISOString());
+      }
+    } catch (e) {
+      // Re-lanza como error de candado unificado
+      throw e;
+    }
+    // Fallback legacy solo si no hay period_locks
+    await checkPeriodLockLegacy(db, date);
+  };
+
   if (action === 'create' && params.args?.data?.date) {
-    const transactionDate = new Date(params.args.data.date);
-    await checkPeriodLock(db, transactionDate);
+    await supaTenantCheck(new Date(params.args.data.date));
   }
-
-  // For update operations, get the existing transaction first
-  if (action === 'update') {
-    const existingTransaction = await db.transaction.findUnique({
-      where: params.args.where
-    });
-    
-    if (existingTransaction) {
-      await checkPeriodLock(db, existingTransaction.date);
-    }
+  if (action === 'update' && params.args?.where) {
+    const existing = await db.transaction.findUnique({ where: params.args.where });
+    if (existing?.date) await supaTenantCheck(new Date(existing.date));
+    if (params.args.data?.date) await supaTenantCheck(new Date(params.args.data.date));
   }
-
-  // For delete operations, get the existing transaction first
-  if (action === 'delete') {
-    const existingTransaction = await db.transaction.findUnique({
-      where: params.args.where
-    });
-    
-    if (existingTransaction) {
-      await checkPeriodLock(db, existingTransaction.date);
-    }
+  if (action === 'delete' && params.args?.where) {
+    const existing = await db.transaction.findUnique({ where: params.args.where });
+    if (existing?.date) await supaTenantCheck(new Date(existing.date));
   }
-
   return params;
 }
 
-async function checkPeriodLock(db: any, transactionDate: Date) {
-  // Get the last closed date from GlobalSettings
+async function checkPeriodLockLegacy(db: any, transactionDate: Date) {
   const settings = await db.globalSettings.findFirst();
-  
   if (settings?.lastClosedDate) {
     const lastClosedDate = new Date(settings.lastClosedDate);
-    
-    // If transaction date is on or before the closed date, throw error
     if (transactionDate <= lastClosedDate) {
       throw new Error(
         `Cannot modify transaction from ${transactionDate.toISOString().split('T')[0]}. ` +

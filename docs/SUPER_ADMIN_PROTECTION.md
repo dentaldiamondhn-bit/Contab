@@ -138,4 +138,4 @@ Cuando alguien intenta modificar/eliminar al super admin, se registran logs:
 4. **Super Admin general:** Mantiene `tenantId: tenant_001` como identificador global.
 5. **Fix de env (16 Sept 2026):** `app/api/companies/route.ts` usaba `process.env.SUPABASE_URL!` (undefined → 500); corregido a `process.env.NEXT_PUBLIC_SUPABASE_URL!` (GET y PUT). Env real: `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL` (conexión directa), Clerk keys. **No existe `SUPABASE_URL`.**
 
-*Estado validado al 16 de Septiembre de 2026.*
+*Estado validado al 17 de Septiembre de 2026.*

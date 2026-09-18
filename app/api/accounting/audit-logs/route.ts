@@ -17,6 +17,7 @@ export async function GET(request: NextRequest) {
     const accountCode = searchParams.get("accountCode") || undefined;
     const from = searchParams.get("from") || undefined;
     const to = searchParams.get("to") || undefined;
+    const format = searchParams.get("format") || 'json';
 
     let query = supabaseService
       .from("account_audit_log")
@@ -25,7 +26,12 @@ export async function GET(request: NextRequest) {
       .order("performed_at", { ascending: false });
 
     if (action) {
-      query = query.eq("action", action);
+      // Filtro múltiple si viene "JOURNAL_CREATE,OPENING_BALANCE_UPDATE"
+      if (action.includes(',')) {
+        query = query.in('action', action.split(',').map((s) => s.trim()).filter(Boolean));
+      } else {
+        query = query.eq("action", action);
+      }
     }
     if (accountCode) {
       query = query.ilike("account_code", `%${accountCode}%`);
@@ -60,6 +66,10 @@ export async function GET(request: NextRequest) {
         };
       })
     );
+
+    if (format === 'csv' || format === 'excel') {
+      return NextResponse.json({ data: enrichedLogs, format, message: 'Use client-side export or ?format=json for full data' });
+    }
 
     return NextResponse.json({
       logs: enrichedLogs,

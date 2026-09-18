@@ -84,6 +84,13 @@ export default function OpeningBalancesPage() {
   const [hasChanges, setHasChanges] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [calculating, setCalculating] = useState(false);
+  const [autoYear, setAutoYear] = useState(new Date().getFullYear());
+  const [autoLoading, setAutoLoading] = useState(false);
+  const [autoOverwrite, setAutoOverwrite] = useState(false);
+  const [autoPreview, setAutoPreview] = useState<{
+    year: number; sourceEnd: string; asOf: string; nonZeroCount: number;
+    totalDebit: number; totalCredit: number; difference: number; balanced: boolean;
+  } | null>(null);
 
   useEffect(() => {
     loadAccounts();
@@ -200,7 +207,8 @@ export default function OpeningBalancesPage() {
           code.startsWith(a.code + '-')
         );
         if (matchedAccount) {
-          newBalances[matchedAccount.id] = balance;
+          // opening_balance se guarda en centavos (BIGINT): convertir.
+          newBalances[matchedAccount.id] = Math.round(balance * 100);
           newDates[matchedAccount.id] = yesterday;
           matched++;
         }
@@ -219,6 +227,57 @@ export default function OpeningBalancesPage() {
       setSaveMessage({ type: 'error', text: 'Error de conexión al calcular' });
     }
     setCalculating(false);
+  };
+
+  const previewAutoOpening = async () => {
+    setAutoLoading(true);
+    setSaveMessage(null);
+    setAutoPreview(null);
+    try {
+      const res = await fetch(`/api/accounting/opening-balances/auto?tenantId=${companyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        body: JSON.stringify({ year: autoYear }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setSaveMessage({ type: 'error', text: data?.error || 'Error al calcular la apertura' });
+      } else {
+        setAutoPreview(data.preview);
+      }
+    } catch (error) {
+      console.error('Error preview apertura:', error);
+      setSaveMessage({ type: 'error', text: 'Error de conexión' });
+    }
+    setAutoLoading(false);
+  };
+
+  const applyAutoOpening = async () => {
+    if (!autoPreview) return;
+    if (!confirm(`Aplicar apertura ${autoPreview.year} (${autoPreview.nonZeroCount} cuentas) al 1-ene?${autoOverwrite ? ' Se SOBRESCRIBEN aperturas existentes.' : ''}`)) return;
+    setAutoLoading(true);
+    setSaveMessage(null);
+    try {
+      const res = await fetch(`/api/accounting/opening-balances/auto?tenantId=${companyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        body: JSON.stringify({ year: autoPreview.year, apply: true, overwrite: autoOverwrite }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        setSaveMessage({ type: 'error', text: data?.error || 'Error al aplicar la apertura' });
+      } else {
+        const r = data.result;
+        const skipped = (r.skippedNoChart || []).length + (r.skippedZero || 0);
+        setSaveMessage({ type: 'success', text: `Apertura ${r.year} aplicada: ${r.applied} cuentas${skipped > 0 ? `, ${skipped} omitidas` : ''}.` });
+        setAutoPreview(null);
+        await loadAccounts();
+      }
+    } catch (error) {
+      console.error('Error aplicar apertura:', error);
+      setSaveMessage({ type: 'error', text: 'Error de conexión' });
+    }
+    setAutoLoading(false);
   };
 
   const handleSave = async () => {
@@ -346,6 +405,64 @@ export default function OpeningBalancesPage() {
           {saveMessage.text}
         </div>
       )}
+
+      {/* Apertura automática desde el cierre previo */}
+      <Card className="border-green-200">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base">Apertura automática del año</CardTitle>
+          <CardDescription>
+            Traslada los saldos al 31-dic del año previo como apertura del 1-ene (en centavos). Primero calcula la vista previa, luego aplica.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-end gap-3">
+            <div>
+              <label className="text-xs font-medium text-gray-600">Año a aperturar</label>
+              <Input
+                type="number"
+                min={2001}
+                max={2100}
+                value={autoYear}
+                onChange={(e) => setAutoYear(parseInt(e.target.value) || new Date().getFullYear())}
+                className="w-28 mt-1"
+              />
+            </div>
+            <label className="flex items-center gap-2 text-sm text-gray-600 pb-2">
+              <input
+                type="checkbox"
+                checked={autoOverwrite}
+                onChange={(e) => setAutoOverwrite(e.target.checked)}
+              />
+              Sobrescribir aperturas existentes
+            </label>
+            <Button variant="outline" onClick={previewAutoOpening} disabled={autoLoading}>
+              <Calculator className="h-4 w-4 mr-2" />
+              {autoLoading ? 'Calculando...' : 'Vista previa'}
+            </Button>
+            <Button
+              onClick={applyAutoOpening}
+              disabled={autoLoading || !autoPreview}
+              className="bg-green-600 hover:bg-green-700"
+            >
+              <CheckCircle className="h-4 w-4 mr-2" />
+              Aplicar apertura
+            </Button>
+          </div>
+          {autoPreview && (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <Badge variant={autoPreview.balanced ? 'default' : 'destructive'}>
+                {autoPreview.balanced ? 'Cuadrado' : `Descuadre ${autoPreview.difference.toFixed(2)}`}
+              </Badge>
+              <span className="text-gray-600">
+                {autoPreview.nonZeroCount} cuentas al {autoPreview.sourceEnd} → apertura {autoPreview.asOf}
+              </span>
+              <span className="text-gray-600">
+                Debe {autoPreview.totalDebit.toFixed(2)} / Haber {autoPreview.totalCredit.toFixed(2)}
+              </span>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Info Card */}
       <Card className="border-cyan-200 bg-cyan-50/50">

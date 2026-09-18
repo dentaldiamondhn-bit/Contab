@@ -1,6 +1,6 @@
 # Guía de Migración - Utilidades de Fecha con Timezone
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 >
 > Servicio vigente en `lib/date-utils.ts` (funciones y firmas sin cambios). La migración es incremental; hay archivos que aún usan `toLocaleDateString` directamente (ver "Pendientes de Migración").
 

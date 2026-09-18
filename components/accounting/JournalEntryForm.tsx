@@ -54,14 +54,24 @@ export default function JournalEntryForm() {
     { id: "2", accountId: "", accountName: "", accountCode: "", debit: 0, credit: 0 },
   ]);
 
-  useEffect(() => {
-    loadAccounts();
-  }, []);
+  const tenantId = currentTenant?.id || "";
+  const [accountsError, setAccountsError] = useState<string | null>(null);
 
-  const loadAccounts = async () => {
+  useEffect(() => {
+    if (tenantId) loadAccounts(tenantId);
+    else {
+      setAccounts([]);
+      setLoadingAccounts(false);
+    }
+  }, [tenantId]);
+
+  const loadAccounts = async (tid: string) => {
     setLoadingAccounts(true);
+    setAccountsError(null);
     try {
-      const res = await fetch("/api/accounting/accounts");
+      const res = await fetch(`/api/accounting/accounts?tenantId=${encodeURIComponent(tid)}`, {
+        headers: { "x-tenant-id": tid },
+      });
       if (res.ok) {
         const data = await res.json();
         setAccounts(
@@ -72,9 +82,13 @@ export default function JournalEntryForm() {
             type: a.type,
           }))
         );
+      } else {
+        const err = await res.json().catch(() => ({}));
+        setAccountsError(err.error || "No se pudieron cargar las cuentas");
       }
     } catch (error) {
       console.error("Error loading accounts:", error);
+      setAccountsError("No se pudieron cargar las cuentas");
     }
     setLoadingAccounts(false);
   };
@@ -132,6 +146,11 @@ export default function JournalEntryForm() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (!tenantId) {
+      alert("Seleccione una empresa/tenant antes de guardar la póliza.");
+      return;
+    }
+
     if (!isBalanced) {
       alert("La póliza no está balanceada. El total del débito debe igualar al total del crédito.");
       return;
@@ -163,14 +182,18 @@ export default function JournalEntryForm() {
         entries: journalEntries,
       };
 
-      const res = await fetch("/api/accounting/transactions", {
+      const res = await fetch(`/api/accounting/transactions?tenantId=${encodeURIComponent(tenantId)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "x-tenant-id": tenantId },
         body: JSON.stringify(payload),
       });
 
       if (res.ok) {
-        alert("Póliza guardada exitosamente");
+        const saved = await res.json().catch(() => null);
+        const voucher = saved?.transaction?.voucherNumber
+          ? ` (Póliza N° ${saved.transaction.voucherNumber})`
+          : "";
+        alert(`Póliza guardada exitosamente${voucher}`);
         setDescription("");
         setReference("");
         setEntries([
@@ -197,6 +220,21 @@ export default function JournalEntryForm() {
           Registra transacciones usando el sistema de partida doble para {currentTenant?.businessName}
         </p>
       </div>
+
+      {!tenantId && (
+        <Alert className="bg-yellow-50 border-yellow-200">
+          <AlertCircle className="h-4 w-4 text-yellow-600" />
+          <AlertDescription className="text-yellow-800">
+            Seleccione una empresa para cargar el catálogo de cuentas y guardar pólizas.
+          </AlertDescription>
+        </Alert>
+      )}
+      {accountsError && (
+        <Alert className="bg-red-50 border-red-200">
+          <AlertCircle className="h-4 w-4 text-red-600" />
+          <AlertDescription className="text-red-800">{accountsError}</AlertDescription>
+        </Alert>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>

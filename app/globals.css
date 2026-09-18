@@ -80,3 +80,53 @@ body {
   scrollbar-width: thin;
   scrollbar-color: rgb(148 163 184) rgb(241 245 249);
 }
+
+/* Impresión profesional: página A4, sin navegación ni controles */
+@page {
+  size: A4;
+  margin: 14mm 12mm;
+}
+
+@media print {
+  nav,
+  aside,
+  header button,
+  .no-print {
+    display: none !important;
+  }
+
+  body {
+    background: #fff !important;
+    font-size: 11px;
+    color: #000;
+  }
+
+  main,
+  [role='main'],
+  .container {
+    margin: 0 !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  table {
+    page-break-inside: auto;
+  }
+
+  tr,
+  .card,
+  [class*='Card'] {
+    page-break-inside: avoid;
+  }
+
+  a {
+    text-decoration: none;
+    color: inherit;
+  }
+
+  button,
+  select,
+  input {
+    display: none !important;
+  }
+}

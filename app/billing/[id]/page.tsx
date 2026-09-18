@@ -113,6 +113,14 @@ export default function InvoiceDetailPage() {
     }
   };
 
+  const downloadPdf = () => {
+    const tenantId = currentTenant?.id || '';
+    window.open(
+      `/api/documents/pdf?type=invoice&id=${encodeURIComponent(invoiceId)}&companyId=${encodeURIComponent(tenantId)}`,
+      '_blank',
+    );
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {
       style: 'currency',
@@ -245,6 +253,7 @@ export default function InvoiceDetailPage() {
                 Imprimir
               </button>
               <button
+                onClick={downloadPdf}
                 className="px-4 py-2 bg-cyan-600 text-white rounded-lg hover:bg-cyan-700 transition-colors flex items-center gap-2"
               >
                 <Download className="w-4 h-4" />
@@ -313,7 +322,7 @@ export default function InvoiceDetailPage() {
                     <Printer className="w-4 h-4" />
                     Imprimir
                   </Button>
-                  <Button variant="outline" onClick={() => window.print()} className="flex items-center gap-2">
+                  <Button variant="outline" onClick={downloadPdf} className="flex items-center gap-2">
                     <Download className="w-4 h-4" />
                     Descargar PDF
                   </Button>

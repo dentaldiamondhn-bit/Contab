@@ -1,6 +1,6 @@
 # Cómo Ejecutar la Migración SQL en Windows
 
-> **Actualizado:** 16 de Septiembre de 2026
+> **Actualizado:** 17 de Septiembre de 2026
 
 > ⚠️ **VÍA RECOMENDADA — SQL Editor de Supabase.** No hay acceso DDL directo: la conexión directa a `db.<ref>.supabase.co:5432` falla con `getaddrinfo ENOTFOUND`. Las migraciones DDL **se aplican vía SQL Editor de Supabase**, no con `prisma migrate` ni `psql` contra el host directo.
 

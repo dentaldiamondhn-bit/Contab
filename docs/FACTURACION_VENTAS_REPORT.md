@@ -59,7 +59,7 @@
 #### Lo que Falta
 
 - ~~Dual schema inconsistente~~ ✅ Resuelto: esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026)
-- Sin generación de PDF de factura (impresión aún manual/HTML)
+- ~~Sin generación de PDF de factura~~ ✅ Resuelto: `InvoicePDF` server-side + botón real (17 Sept 2026)
 - Sin envío por correo
 - Sin facturación recurrente para clientes finales
 
@@ -193,7 +193,7 @@
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | ~~Dual schema de facturas~~ | Resuelto: esquema único `Invoice`/`InvoiceItem` (migración 007, 16 Sept 2026) | — |
-| 2 | Sin generación de PDF de factura | Imposible entregar facturas | Crítica |
+| 2 | ~~Sin generación de PDF de factura~~ | Resuelto: `InvoicePDF` server-side + botón real en `app/billing/[id]/page.tsx` (17 Sept 2026) | — |
 | 3 | ~~Sin notas de crédito/débito~~ — **IMPLEMENTADO ✅** (ver §2.6) | Incumplimiento fiscal | ~~Crítica~~ Resuelta |
 | 4 | Sin cotizaciones/proformas | Sin proceso de ventas | Alta |
 | 5 | Factura sin integración contable (las notas NC/ND ya generan asiento AJUSTE) | Doble registro | Alta |
@@ -207,8 +207,8 @@
 | # | Tarea | Archivos | Entregable | Estado |
 |---|---|---|---|---|
 | 1.1 | Consolidar esquemas de factura en uno solo | `scripts/migrations/007_consolidate_invoice_schema.sql`, `prisma/schema.prisma` | Esquema único `Invoice`/`InvoiceItem` | ✅ (16 Sept 2026) |
-| 1.2 | Generación de PDF de factura | `lib/services/invoice-pdf.ts` | PDF funcional | Pendiente |
-| 1.3 | Plantilla HTML de factura | `templates/invoice.html` | Plantilla profesional | Pendiente |
+| 1.2 | Generación de PDF de factura | `components/reports/InvoicePDF.tsx` + motor `lib/services/pdf-documents.ts` + `GET /api/documents/pdf?type=invoice` | PDF funcional | ✅ (17 Sept 2026) |
+| 1.3 | Plantilla profesional de factura | Layout compartido `components/reports/ProfessionalDoc.tsx` (A4, encabezado fiscal, CAI, firmas) | Plantilla profesional | ✅ (17 Sept 2026) |
 
 ### Etapa 2: Notas de Crédito/Débito — ✅ Completada (16 Sept 2026)
 
@@ -290,4 +290,4 @@ Etapa 1 (Consolidación + PDF)
 | APIs del módulo Facturación | `app/api/billing/*`: `products`, `payment-receipts`, `payment-links`, `notes`, `notes/[id]`, `invoices`, `invoices/generate-current`, `fiscal-info`, `customers`, `cai` (`route`/`[id]`/`tenant`/`list`/`debug`), `bank-accounts` |
 | Fix env `SUPABASE_URL` | `app/api/companies/route.ts` usaba `SUPABASE_URL` (inexistente → 500); ahora usa `NEXT_PUBLIC_SUPABASE_URL`. No existe `SUPABASE_URL` |
 | Consolidación esquema | Migración 007: `invoice`/`invoiceitem`/`invoices`/`invoice_items` eliminadas; canónico `Invoice`/`InvoiceItem` (DECIMAL). Prisma realineado |
-| Middleware Clerk | Rutas no públicas ejecutan `auth.protect()` → HTTP 404 a no autenticados; inyecta `x-tenant-id`. Públicas: `/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance` |
+| Middleware Clerk | Rutas no públicas ejecutan `auth.protect()` → HTTP 404 a no autenticados; inyecta `x-tenant-id`. Públicas: `/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload` (`trial-balance` salió el 17 Sept 2026) |

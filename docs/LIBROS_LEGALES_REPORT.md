@@ -154,9 +154,9 @@
 
 #### Lo que Falta
 
-- Sin balance de apertura automático
-- Sin cierre mensual (solo anual)
-- Sin reporte de variaciones
+- ~~Sin balance de apertura automático~~ ✅ Disponible vía `POST /api/accounting/opening-balances/auto` (traslado del cierre previo, 17 Sept 2026)
+- Cierre mensual implementado en Contabilidad (ver `REGISTROS_CONTABLES_REPORT.md` §2.6); esta sección cubre solo el flujo anual
+- ~~Sin reporte de variaciones~~ ✅ `/reports/period-variations` + API comparativa (17 Sept 2026)
 
 ---
 

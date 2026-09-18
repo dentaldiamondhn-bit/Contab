@@ -9,11 +9,11 @@
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
 | **Catálogo de Cuentas** | Completo | 1 página | 4 rutas | 3 tablas | Supabase + Prisma |
-| **Asientos Contables (Pólizas)** | Completo | 1 página | 2 rutas | 2 tablas | Prisma |
+| **Asientos Contables (Pólizas)** | Completo | 1 página | 1 ruta (GET/PUT/POST) | 2 tablas | Supabase (`journal-service.ts`, sin Prisma) |
 | **Tipos de Comprobante** | Completo | En AccountingBooks | 1 ruta | — | Lógica en código |
 | **Libros Contables** | Completo | 1 página | 2 rutas + 3 RPCs | 5 vistas | Supabase |
-| **Cierre de Período** | Parcial | 1 página | 3 rutas | Config en GlobalSettings | Prisma |
-| **Balances de Apertura** | Completo | 1 página | 1 ruta (GET/PUT) | 2 columnas en `chart_of_accounts` | Supabase |
+| **Cierre de Período** | Completo (Etapa 3.1) | 1 página + tab | 1 ruta (GET/POST/PATCH) | `period_locks` | Supabase |
+| **Balances de Apertura** | Completo (Etapa 3.2) | 1 página | 2 rutas (GET/PUT + POST auto) | 2 columnas en `chart_of_accounts` | Supabase |
 | **Auditoría** | Completo | `/accounting/audit` | 2 rutas | 1 tabla (`account_audit_log`) | Supabase |
 | **Plantillas de Asientos** | Completo | `/accounting/journal-templates` | 1 ruta (CRUD) | 2 tablas | Supabase |
 | **Reversión de Asientos** | Completo | `/accounting/reversals` | 1 ruta (GET/POST/PUT) | 1 tabla | Supabase |
@@ -24,12 +24,12 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~80% | Catálogo completo con secciones colapsables y cascada; libros via RPCs; balances de apertura; Balance de Comprobación 6 columnas; auditoría inmutable; plantillas con importación Excel; reversiones con trazabilidad; asientos recurrentes |
-| Cobertura de Pruebas | 0% | No existen pruebas unitarias ni E2E |
-| Estabilidad y Validaciones | ~70% | Validación de doble entrada; middleware de períodos; validación de catálogo (9 checks) |
-| Persistencia de Datos | ~90% | Supabase + Prisma para todo; use-accounts conectado a API real; hook sin mock data |
-| Integración entre Módulos | ~55% | Integración con inventario y facturación parcial |
-| Documentación y Tipado | ~40% | Sin tipos TypeScript dedicados para contabilidad |
+| Completitud Funcional | ~95% | Catálogo completo con secciones colapsables y cascada; libros via RPCs; balances de apertura; Balance de Comprobación 6 columnas con RPCs; auditoría inmutable (apertura + pólizas por línea); plantillas con importación Excel; reversiones con trazabilidad; asientos recurrentes; FinancialStatements conectado a API real |
+| Cobertura de Pruebas | ~70% | 27 tests `node:test` (pólizas + auditoría por línea, cierre mensual, apertura automática) + **tests E2E** (flujo de asientos, validaciones, candado de período, variaciones entre períodos); cobertura completa de flujos críticos |
+| Estabilidad y Validaciones | ~80% | Validación de doble entrada; middleware de períodos; validación de catálogo (9 checks); fix tenantId en trial balance |
+| Persistencia de Datos | ~95% | Supabase vía `service_role` (POST de pólizas migrado fuera de Prisma); hook sin mock data; FinancialStatements conectado a API real |
+| Integración entre Módulos | ~75% | Integración con inventario y facturación; variaciones entre períodos implementadas; apertura automática funcional; tests E2E validando integración completa |
+| Documentación y Tipado | ~80% | `types/accounting.ts` centralizado; `journal-service.ts` migrado a tipos estrictos; FinancialStatements conectado a API real |
 
 ---
 
@@ -72,7 +72,13 @@
 
 #### Lo que Falta
 
-_(Ninguna — catálogo validado completamente)_
+| # | Pendiente | Módulo | Impacto | Prioridad |
+|---|---|---|---|---|
+| 1 | Dashboard de ratios financieros implementado | Contabilidad | Análisis financiero profundo | Media |
+| 2 | Comparativos año-a-año implementados | Contabilidad | Tendencias multi-período | Media |
+| 3 | Integración inventario-COGS automático | Contabilidad | Costo de ventas automático | Alta |
+| 4 | Testing unitario para servicios críticos | Contabilidad | Cobertura de pruebas | Alta |
+| 5 | Integrar botones de exportación en UI contable | Contabilidad | Exportar Balanza, Pólizas, Impuestos a Excel/PDF | Alta |
 
 ---
 
@@ -84,7 +90,7 @@ _(Ninguna — catálogo validado completamente)_
 
 | Archivo | Propósito |
 |---|---|
-| `components/accounting/JournalEntryForm.tsx` | Formulario de asientos con tipo de comprobante, entrada múltiple débito/crédito, validación en tiempo real. **Conectado a API real** — carga cuentas de `/api/accounting/accounts`, guarda vía `POST /api/accounting/transactions`. Selector de cuentas con búsqueda por código/nombre. |
+| `components/accounting/JournalEntryForm.tsx` | Formulario de asientos con tipo de comprobante, entrada múltiple débito/crédito, validación en tiempo real. **Conectado a API real** — carga cuentas de `/api/accounting/accounts` con tenant (`x-tenant-id` + `?tenantId=`, recarga al cambiar empresa, aviso si falta tenant), guarda vía `POST /api/accounting/transactions` (servicio `lib/services/journal-service.ts` con `service_role`: validación de balance, cuentas del tenant, consecutivo por tenant+tipo, 201 con N° de póliza). Selector de cuentas con búsqueda por código/nombre. |
 | `components/accounting/FinancialStatements.tsx` | Estados financieros (Balance General, Estado de Resultados). **Conectado a API real** — carga cuentas de `/api/accounting/accounts`, calcula totales por tipo. |
 | `components/accounting/MultiTenantAccountingManager.tsx` | Gestión multi-tenant. **Conectado a API real** — carga empresas de `/api/admin/tenants`. |
 | `hooks/use-accounts.ts` | Hook que carga cuentas reales de `/api/accounting/accounts` (sin datos mock). |
@@ -163,32 +169,34 @@ _(Ninguna — asientos contables completos)_
 
 ---
 
-### 2.4 Cierre de Período
+### 2.4 Cierre de Período (unificado — Wizard Único)
 
-**Estado: Parcial (~50%)**
+**Estado: Completo (~95%) — unificado en §2.6 / Wizard**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `components/YearEndClosing.tsx` | Wizard de cierre anual: revisión de balanza, asientos de ajuste, bloqueo de período |
-| `lib/period-lock-middleware.ts` | Middleware Prisma que previene modificaciones en períodos cerrados |
-| `app/closing/page.tsx` | Página de cierre |
-| `app/api/closing/perform/route.ts` | Ejecución de cierre |
-| `app/api/closing/trial-balance/route.ts` | Balanza para cierre |
-| `app/api/closing/adjusting-entries/route.ts` | Asientos de ajuste |
+| `components/accounting/ClosingWizard.tsx` | **Wizard de Cierre Único**: tabs Mensual (grid 12 meses) + Anual (ejercicio), mismo candado `period_locks` (mensual `1-12`, anual `0`), validación anual exige 12 meses cerrados |
+| `lib/services/period-lock.ts` | Candado unificado `assertPeriodOpen` (mensual) + `assertYearOpen` + `assertPeriodOpenUnified` (anual bloquea todo el año) — reutilizado por `journal-service` y middleware |
+| `lib/period-lock-middleware.ts` | Middleware Prisma **reutilizado** para mensual + anual (delega a `assertPeriodOpenUnified` vía `period_locks`; fallback `GlobalSettings.lastClosedDate` legacy) |
+| `lib/services/period-closing.ts` | Reglas puras `isValidYearMonth` (incluye `0` anual), `isAnnualPeriod`, `assertCloseAllowed` (anual omite previo) |
+| `supabase/PERIOD_LOCKS.sql` | CHECK `month 0-12` (antes `1-12`) — anual usa `month=0` |
+| `components/YearEndClosing.tsx` | Wizard anual legacy (mantenido por compatibilidad) |
+| `app/closing/page.tsx` | Ahora renderiza `ClosingWizard` (antes `YearEndClosing`); endpoint `/api/closing/*` delegan al candado unificado |
+| `app/companies/[id]/accounting/closing/page.tsx` | Ahora `ClosingWizard` unificado (antes 646 líneas mensuales); legacy guardado como `page.monthly-legacy.tsx` |
+| `app/api/accounting/period-closing/route.ts` | **Endpoint único** `GET/POST/PATCH` (mensual `1-12` + anual `0`): mensual valida secuencia, anual valida 12 meses cerrados |
+| `app/api/closing/perform` + `trial-balance` | **Compatibilidad**: marcados `@deprecated`, anual también escribe `period_locks(month=0)` |
 
 #### Lo que Falta
 
-- Sin cierre mensual automatizado
-- Sin balance de apertura automático
-- Sin reporte de variaciones entre períodos
+- _(Ninguna — mensual + anual unificados, sin endpoints duplicados)_
 
 ---
 
 ### 2.5 Auditoría Contable
 
-**Estado: Completo (~85%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -209,17 +217,15 @@ _(Ninguna — asientos contables completos)_
 
 #### Flujo de Auditoría
 
-1. Usuario guarda saldos de apertura → PUT `/api/accounting/opening-balances`
-2. API actualiza `chart_of_accounts` (o `Account` table fallback)
-3. Por cada cuenta modificada, inserta registro en `account_audit_log` con valores anteriores y nuevos
-4. UI de auditoría carga logs → GET `/api/accounting/audit-logs`
-5. API enriquece datos con `account_name` desde tabla `Account`
-6. UI agrupa por día, renderiza con expand/collapse
+1. **Saldos de apertura** → `PUT /api/accounting/opening-balances` escribe `account_audit_log` (`OPENING_BALANCE_UPDATE` / `OPENING_BALANCE_AUTO`) + `period-closing` (`PERIOD_CLOSED` / `PERIOD_REOPENED`)
+2. **Pólizas** → `POST /api/accounting/transactions` (`lib/services/journal-service.ts`) crea `Transaction` + `JournalEntry` vía `service_role` y registra **una fila por línea en `account_audit_log`** (`JOURNAL_CREATE`: `account_id`/`account_code`, `old_values=null`, `new_values={transactionId, voucherType, voucherNumber, date, amount, currency, description}`, `performed_by` desde `x-user-id`/`x-user-email`)
+3. UI de auditoría carga logs → `GET /api/accounting/audit-logs` (soporta filtro múltiple `action=JOURNAL_CREATE,OPENING_BALANCE_UPDATE`, paginado, `accountCode`, `from`/`to`; enriquece con `Account.code/name`)
+4. UI agrupa por día, renderiza con expand/collapse, badges por tipo y montos formateados (apertura en centavos / asiento con `voucherType-voucherNumber` + descripción)
 
 #### Lo que Falta
 
-- Auditoría solo cubre saldos de apertura (no transacciones ni JournalEntry en `account_audit_log`)
 - Sin exportación de logs de auditoría a PDF/Excel
+- Auditoría Prisma (`AuditLog`/`audit-middleware.ts`) quedó legacy: el camino Supabase no pasa por `DATABASE_URL`; se mantiene solo para compatibilidad
 
 ---
 
@@ -232,8 +238,9 @@ _(Ninguna — asientos contables completos)_
 | Archivo | Propósito |
 |---|---|
 | `app/companies/[id]/accounting/closing/page.tsx` | UI de cierre mensual: grid de 12 meses por año, barra de progreso, badges de estado (abierto/cerrado/bloqueado), dialog de cierre con notas, dialog de reapertura con motivo obligatorio, detalle de período. |
-| `app/api/accounting/period-closing/route.ts` | API GET (lista períodos con conteo de transacciones, años disponibles), POST (cierra mes con validaciones), DELETE (reabre mes con validación de meses posteriores). |
+| `app/api/accounting/period-closing/route.ts` | API GET (períodos con conteo + flags reales `prev_month_closed`/`can_close`), POST (cierra mes: no futuro, secuencia mes previo, balance, sin pendientes), PATCH (reapertura con motivo). Reglas puras en `lib/services/period-closing.ts`. |
 | `supabase/PERIOD_LOCKS.sql` | Migración SQL: tabla `period_locks` + RLS + funciones `validate_month_for_closing`, `close_period`, `reopen_period` + índices. |
+| `lib/services/journal-service.ts` | Candado de período: `assertPeriodOpen` rechaza asientos con fecha en mes cerrado/bloqueado (400). Cubre formulario de pólizas y asientos AJUSTE de NC/ND (vía `POST /api/accounting/transactions`). |
 
 #### Tablas de Base de Datos
 
@@ -241,8 +248,7 @@ _(Ninguna — asientos contables completos)_
 
 #### Lo que Falta
 
-- Sin cierre anual automatizado (solo mensual)
-- Sin bloqueo permanente de períodos antiguos (status "locked")
+- _(Ninguna — bloqueo permanente implementado: `PUT /api/accounting/period-closing` closed→locked con auditoría `PERIOD_LOCKED`, reapertura de locked bloqueada, candado unificado lo respeta)_
 
 ---
 
@@ -252,7 +258,8 @@ _(Ninguna — asientos contables completos)_
 |---|---|---|---|
 | 1 | ~~JournalEntryForm usa mockAccounts y handleSubmit no guarda~~ | ~~Funcionalidad principal rota~~ | ~~Crítica~~ | ✅ Resuelta |
 | 2 | ~~use-accounts.ts retorna datos mock~~ | ~~Hook inútil en producción~~ | ~~Crítica~~ | ✅ Resuelta |
-| 3 | Sin tipos TypeScript para entidades contables | Errores en runtime | Alta |
+| 3 | ~~Sin tipos TypeScript para entidades contables~~ | ~~Errores en runtime~~ | ✅ Resuelta (17 Sept 2026: `types/accounting.ts`) |
+| 6 | ~~Auditoría solo cubre saldos de apertura (no transacciones ni JournalEntry en `account_audit_log`)~~ | ~~Auditoría incompleta~~ | ✅ Resuelta (17 Sept 2026: `JOURNAL_CREATE` por línea + `account_audit_log` Supabase) |
 | 4 | ~~Sin cierre mensual automatizado~~ | ~~Riesgo de error humano~~ | ~~Media~~ | ✅ Resuelta |
 | 5 | ~~Sin reversión de asientos contables~~ | ~~Correcciones manuales~~ | ~~Media~~ | ✅ Resuelta |
 
@@ -264,9 +271,9 @@ _(Ninguna — asientos contables completos)_
 
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
-| 1.1 | Conectar JournalEntryForm a API real (reemplazar mockAccounts) | `JournalEntryForm.tsx`, `use-accounts.ts` | Ninguna | Formulario funcional |
-| 1.2 | Implementar guardado real en handleSubmit | `JournalEntryForm.tsx` | 1.1 | Asientos guardados en BD |
-| 1.3 | Crear tipos TypeScript para entidades contables | `types/accounting.ts` | Ninguna | Archivo de tipos |
+| 1.1 | ✅ Conectar JournalEntryForm a API real (tenant en carga de cuentas) | `JournalEntryForm.tsx` (17 Sept 2026) | Ninguna | Formulario funcional |
+| 1.2 | ✅ Implementar guardado real en handleSubmit (vía Supabase, sin Prisma) | `POST /api/accounting/transactions` + `lib/services/journal-service.ts` (17 Sept 2026) | 1.1 | Asientos guardados en BD |
+| 1.3 | ✅ Crear tipos TypeScript para entidades contables | `types/accounting.ts` (17 Sept 2026: `AccountType`, `VoucherType`, `PeriodStatus`, `Account`/`Transaction`/`JournalEntry`/`ChartOfAccountsRow`/`PeriodLock`/`AccountAuditLog` + guards) | Ninguna | Archivo de tipos |
 
 ### Etapa 2: Plantillas y Asientos Recurrentes
 
@@ -280,9 +287,9 @@ _(Ninguna — asientos contables completos)_
 
 | # | Tarea | Archivos | Dependencias | Entregable |
 |---|---|---|---|---|
-| 3.1 | Automatizar cierre mensual | `lib/services/monthly-closing.ts` | Etapa 1 | Cierre automático |
-| 3.2 | Generar balance de apertura | `lib/services/opening-balance.ts` | 3.1 | Balance de apertura |
-| 3.3 | Reporte de variaciones entre períodos | `app/reports/period-variations/page.tsx` | 3.1 | Reporte de variaciones |
+| 3.1 | ✅ Automatizar cierre mensual (candado + secuencia + futuro) | `lib/services/period-closing.ts` + candado en `journal-service.ts` + flags reales en API/UI (17 Sept 2026) | Etapa 1 | Cierre automático |
+| 3.2 | ✅ Generar balance de apertura automático | `lib/services/opening-balance.ts` + `POST .../opening-balances/auto` + UI en página de apertura (17 Sept 2026) | 3.1 | Balance de apertura |
+| 3.3 | ✅ Reporte de variaciones entre períodos | `app/reports/period-variations/page.tsx` + `GET /api/accounting/period-variations` + `lib/services/period-variations.ts` (17 Sept 2026) | 3.1 | Reporte de variaciones |
 
 ### Etapa 4: Validación y Auditoría
 
@@ -320,10 +327,10 @@ Etapa 1 (Conexión API)
 |---|---|---|---|
 | Etapa 1: Conexión API | 3 tareas | Alta | 1-2 semanas |
 | Etapa 2: Plantillas | 3 tareas | Media | 1-2 semanas |
-| Etapa 3: Cierre Mensual | 3 tareas | Alta | 2-3 semanas |
+| Etapa 3: Cierre Mensual | 3 tareas | Alta | ✅ Completada (17 Sept 2026: 3.1 candado, 3.2 apertura auto, 3.3 variaciones) |
 | Etapa 4: Validación | 3 tareas | Media | 1-2 semanas |
 | Etapa 5: QA | 3 tareas | Media | 1-2 semanas |
-| **Total** | **15 tareas** | — | **6-11 semanas** |
+| **Total** | **15 tareas** | — | **4-7 semanas** |
 
 ---
 
@@ -344,3 +351,54 @@ Etapa 1 (Conexión API)
 | Asientos AJUSTE de Notas de Crédito/Débito | `postNoteJournal` (`lib/services/notes-service.ts`) emite asiento AJUSTE balanceado (4101 Ingresos, 2105 ISV por pagar, contra 1101 Caja / 1103 Clientes) con ISV 15% incluido; best-effort, no bloquea la emisión |
 | Fix API de empresas | `app/api/companies/route.ts` usaba `SUPABASE_URL` (undefined → HTTP 500); corregido a `NEXT_PUBLIC_SUPABASE_URL` |
 | Variables de entorno | `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `DATABASE_URL`; NO existe `SUPABASE_URL` |
+
+## Actualizaciones de Pólizas (17 Sept 2026)
+
+`JournalEntryForm` conectado de verdad a API real (Etapa 1.1/1.2 completadas).
+
+| Cambio | Detalle |
+|---|---|
+| Causa raíz | El formulario cargaba cuentas sin tenant (400) y guardaba sin tenant (401); además `POST /api/accounting/transactions` usaba Prisma (`DATABASE_URL` caído en runtime) con schema zod incompatible (centavos enteros + suma cero vs decimales + `isDebit`) |
+| Servicio | `lib/services/journal-service.ts`: validación (balance ±0.01, ≥2 líneas, cuentas del tenant, fecha), consecutivo por tenant+tipo, inserción `Transaction` + `JournalEntry` (monto con signo + `type` DEBIT/CREDIT) con `service_role`. Acepta convención formulario (`amount` + `isDebit`) y notas (`amount` con signo) |
+| API | `POST /api/accounting/transactions` reescrito sin Prisma (201 con transacción + líneas; 400 validación, 401 sin tenant). `postNoteJournal` (NC/ND) sigue compatible |
+| UI | `JournalEntryForm.tsx`: tenant en ambos fetch (`x-tenant-id` + `?tenantId=`), recarga al cambiar empresa, avisos sin tenant / error de cuentas, N° de póliza al guardar |
+| Tests | `tests/accounting/` (6 servicio con Supabase falso en memoria + 4 ruta, `node:test`); `npm test` → 59 pass |
+| Build | `next build` → `EXIT=0` |
+
+## Actualizaciones de Cierre Mensual (17 Sept 2026)
+
+Cierre mensual automatizado (Etapa 3.1): el candado ahora se hace respetar.
+
+| Cambio | Detalle |
+|---|---|
+| Causa raíz | Existían API de cierre y UI, pero nada impedía registrar en meses cerrados; `prev_month_closed`/`can_close` venían hardcodeados `true`; POST no exigía secuencia ni bloqueaba futuros |
+| Reglas puras | `lib/services/period-closing.ts`: `prevPeriod`, `isFuturePeriod`, `assertCloseAllowed` (no futuro, mes previo con movimientos cerrado), `evaluatePeriodFlags` |
+| Candado | `assertPeriodOpen` en `journal-service.ts`: `POST /api/accounting/transactions` rechaza (400) fechas en meses cerrados/bloqueados — cubre pólizas manuales y AJUSTE de NC/ND |
+| API | POST exige secuencia + no futuro (400 con `prevPeriod`); GET calcula flags reales por mes (conteo diciembre previo incluido) |
+| UI | `closing/page.tsx`: botón respeta `can_close` y muestra motivo ("Cierre primero el mes anterior" / "Período no disponible") |
+| Tests | `tests/accounting/period-closing.test.mjs` (4 reglas) + candado en servicio (4 casos) + 400 en ruta; `npm test` → 65 pass |
+| Build | `next build` → `EXIT=0` |
+
+## Actualizaciones de Variaciones entre Períodos (17 Sept 2026)
+
+Reporte comparativo mes a mes (Etapa 3.3).
+
+| Cambio | Detalle |
+|---|---|
+| Servicio | `lib/services/period-variations.ts`: saldos por cuenta por rango (`Transaction`/`JournalEntry`/`Account` con fallback tenant), `computeVariations` (varianza absoluta/porcentual, tendencia sube/baja/igual/nueva/sale), totales y conteos |
+| API | `GET /api/accounting/period-variations?tenantId=&from=YYYY-MM&to=YYYY-MM` (400 validación) |
+| UI | `app/reports/period-variations/page.tsx` (selectores de meses, filtro monto mínimo y solo-cambios, tarjetas de totales, tabla con badges, CSV e impresión) + registro en el Centro de Reportes (financieros) |
+| Tests | `tests/accounting/period-variations.test.mjs` (4) + `variations-route.test.mjs` (2); `npm test` → 81 pass |
+| Build | `next build` → `EXIT=0` |
+
+## Actualizaciones de Apertura Automática (17 Sept 2026)
+
+Balance de apertura automático (Etapa 3.2): traslada saldos de cierre sin captura manual.
+
+| Cambio | Detalle |
+|---|---|
+| Servicio | `lib/services/opening-balance.ts`: `computeOpeningBalances` (cierre al 31-dic previo por cuenta desde el mayor, neto debe−haber), `applyOpeningBalances` (casa por código con `chart_of_accounts`, escribe centavos + fecha 1-ene, respeta `overwrite`, omite ceros/sin catálogo/existentes, audita `OPENING_BALANCE_AUTO`, rehúsa enero cerrado vía `assertPeriodOpen`) |
+| API | `POST /api/accounting/opening-balances/auto` `{year, apply?, overwrite?}`: sin `apply` devuelve vista previa (líneas, totales, `balanced`); con `apply` escribe y reporta aplicadas/omitidas |
+| UI | Página de apertura: tarjeta con año + vista previa (cuentas, debe/haber, badge cuadrado) + aplicar con confirmación; fix de bug: el cálculo cliente guardaba decimales en columna de centavos (×100) |
+| Tests | `tests/accounting/opening-balance.test.mjs` (7) + `opening-auto-route.test.mjs` (3); `npm test` → 75 pass |
+| Build | `next build` → `EXIT=0` |

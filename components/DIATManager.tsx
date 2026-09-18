@@ -7,7 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { FileText, Download, Printer, RefreshCw, Building2, Landmark, ShieldAlert } from 'lucide-react';
+import { FileText, Download, Printer, RefreshCw, Building2, Landmark, ShieldAlert, ArrowLeftRight } from 'lucide-react';
+import { buildDiatDelta, DiatDelta } from '@/lib/services/diat-delta';
 
 interface DiatDeclarante {
   companyId: string;
@@ -137,6 +138,10 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
   const [report, setReport] = useState<DiatReport | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [comparePeriod, setComparePeriod] = useState<string>('');
+  const [delta, setDelta] = useState<DiatDelta | null>(null);
+  const [deltaLoading, setDeltaLoading] = useState(false);
+  const [deltaError, setDeltaError] = useState<string | null>(null);
 
   const loadPeriods = useCallback(async () => {
     setLoading(true);
@@ -237,6 +242,32 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
     URL.revokeObjectURL(url);
   };
 
+  const loadDelta = async () => {
+    if (!selectedPeriod || !comparePeriod || selectedPeriod === comparePeriod) {
+      setDeltaError('Seleccione dos períodos diferentes para comparar.');
+      return;
+    }
+    setDeltaLoading(true);
+    setDeltaError(null);
+    try {
+      const res = await fetch(
+        `/api/diat/variations?companyId=${encodeURIComponent(companyId)}&from=${encodeURIComponent(comparePeriod)}&to=${encodeURIComponent(selectedPeriod)}`
+      );
+      const json = await res.json();
+      if (!res.ok || !json.success) {
+        setDeltaError(json.error || 'No se pudo comparar');
+        setDelta(null);
+      } else {
+        const v = json.data.variations;
+        setDelta(buildDiatDelta(v.from, v.to, v.fromResumen, v.toResumen));
+      }
+    } catch {
+      setDeltaError('Error de red al comparar');
+      setDelta(null);
+    }
+    setDeltaLoading(false);
+  };
+
   const printReport = () => {
     const content = document.getElementById('diat-content');
     if (!content) return;
@@ -313,8 +344,83 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
             <Printer className="h-4 w-4 mr-2" />
             Imprimir
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!report}
+            onClick={() =>
+              window.open(
+                `/api/documents/pdf?type=diat&id=${encodeURIComponent(companyId)}&companyId=${encodeURIComponent(companyId)}&period=${encodeURIComponent(selectedPeriod)}`,
+                '_blank',
+              )
+            }
+          >
+            <FileText className="h-4 w-4 mr-2" />
+            PDF
+          </Button>
+          <Select value={comparePeriod} onValueChange={setComparePeriod}>
+            <SelectTrigger className="w-32">
+              <SelectValue placeholder="vs..." />
+            </SelectTrigger>
+            <SelectContent>
+              {availablePeriods.filter((p) => p !== selectedPeriod).map((p) => (
+                <SelectItem key={p} value={p}>
+                  {p}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button variant="outline" size="sm" onClick={loadDelta} disabled={!report || !comparePeriod || deltaLoading}>
+            <ArrowLeftRight className="h-4 w-4 mr-2" />
+            Comparar
+          </Button>
         </div>
       </div>
+
+      {deltaError && (
+        <Alert variant="destructive">
+          <ShieldAlert className="h-4 w-4" />
+          <AlertDescription>{deltaError}</AlertDescription>
+        </Alert>
+      )}
+
+      {delta && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">
+              Comparativo {delta.from} vs {delta.to}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Métrica</TableHead>
+                  <TableHead className="text-right">{delta.from}</TableHead>
+                  <TableHead className="text-right">{delta.to}</TableHead>
+                  <TableHead className="text-right">Variación</TableHead>
+                  <TableHead className="text-right">Var. %</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {delta.metrics.map((m) => (
+                  <TableRow key={m.key}>
+                    <TableCell className="font-medium">{m.label}</TableCell>
+                    <TableCell className="text-right">{fmt(m.from)}</TableCell>
+                    <TableCell className="text-right">{fmt(m.to)}</TableCell>
+                    <TableCell className={`text-right font-medium ${m.varAbs < 0 ? 'text-red-600' : m.varAbs > 0 ? 'text-green-600' : ''}`}>
+                      {fmt(m.varAbs)}
+                    </TableCell>
+                    <TableCell className="text-right text-sm">
+                      {m.varPct === null ? 's/p' : `${m.varPct}%`}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      )}
 
       {error && (
         <Alert variant="destructive">

@@ -51,7 +51,7 @@ Archivo clave: `middleware.ts`
 - `/api/auth/check-email`, `/api/auth/check-username`
 - `/api/admin/plans-public`
 - `/api/paypal/*`, `/api/webhooks/*`
-- `/api/accounting/uploaded-files`, `/api/accounting/excel-upload`, `/api/accounting/trial-balance`
+- `/api/accounting/uploaded-files`, `/api/accounting/excel-upload` (`/api/accounting/trial-balance` salió el 17 Sept 2026)
 
 ### Comportamiento del middleware
 1. Si la ruta **no es pública**, exige autenticación con `auth.protect()`.
@@ -208,6 +208,16 @@ Para aislar datos por empresa dentro del mismo tenant, se añadió columna `comp
 - Backfill automático usando la relación `tenant_id` → `companies.tenant_id` (subqueries correlacionadas para tablas hijas `InvoiceItem/Payment/Note`).
 - Migración: `scripts/migrations/012_ADD_COMPANY_ID_TO_MULTI_TENANT_TABLES.sql` (ejecutar en Supabase SQL Editor por bloques para evitar deadlocks).
 - Verificación: `total = con_company_id` en todas las tablas tras el backfill.
+
+### 5.9 Fixes de contexto y dashboard multi-empresa (17 sep 2026)
+
+| # | Fix | Archivo | Descripción |
+|---|---|---|---|
+| F1 | Eliminar `TenantProvider` anidado | `app/tenant-admin/layout.tsx` | El layout tenía su propio `TenantProvider` anidado que creaba contexto separado; el header (root) cambiaba empresa pero el dashboard usaba el contexto anidado (desactualizado). **Fix:** quitar `TenantProvider` anidado y usar solo el root. |
+| F2 | Restaurar header en `/tenant-admin` | `app/tenant-admin/layout.tsx` | Al quitar el provider anidado se perdió el header. **Fix:** volver a poner `<TenantHeader />` sin el provider anidado. |
+| F3 | Debug API dashboard | `app/api/tenant-admin/dashboard/route.ts` | Añadidos logs de debug para verificar filtrado por `company_id` (subqueries correlacionadas en helper `withCompany`). |
+| F4 | Fix middleware impersonación | `middleware.ts:51-56` | Omite redirect de SUPER_ADMIN en `/dashboard` si existe cookie `impersonated_tenant_id`. |
+| F5 | Fix middleware planes públicos | `middleware.ts:41` | Añade `!isPublicRoute(req)` para que `/api/admin/plans-public` no sea bloqueado por check de admin. |
 
 ---
 

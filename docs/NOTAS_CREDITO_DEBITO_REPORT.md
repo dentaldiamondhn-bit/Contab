@@ -1,6 +1,6 @@
 # Reporte del Módulo: Notas de Crédito/Débito (fiscal SAR)
 
-> **Fecha:** 16 de Septiembre de 2026
+> **Fecha:** 17 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
 > **Estado:** Completo (funcional, `pnpm build` EXIT=0)
 

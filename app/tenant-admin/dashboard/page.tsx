@@ -61,9 +61,11 @@ export default function TenantAdminDashboard() {
     if (!tenantId) return;
     setLoading(true);
     try {
+      console.log('DEBUG fetchDashboard:', { tenantId, companyId });
       const params = new URLSearchParams({ tenantId });
       if (companyId) params.append('companyId', companyId);
-      const res = await fetch(`/api/tenant-admin/dashboard?${params.toString()}`);
+      console.log('DEBUG API call:', `/api/tenant-admin/dashboard?${new URLSearchParams({ tenantId, companyId: companyId || '' }).toString()}`);
+      const res = await fetch(`/api/tenant-admin/dashboard?${new URLSearchParams({ tenantId, companyId: companyId || '' }).toString()}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       if (data.kpis) setKpis(data.kpis);

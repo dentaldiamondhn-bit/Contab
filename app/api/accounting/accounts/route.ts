@@ -14,10 +14,15 @@ export async function GET(request: NextRequest) {
     const tenant = await getTenantFromRequest(request);
     if (!tenant) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
 
+    const { searchParams } = new URL(request.url);
+    const year = searchParams.get("year") || new Date().getFullYear().toString();
+
     const { data, error } = await supabaseService
       .from("Account")
       .select("*")
       .eq("tenantId", tenant.id)
+      .gte("opening_balance_date", `${year}-01-01`)
+      .lte("opening_balance_date", `${year}-12-31`)
       .order("code", { ascending: true });
 
     if (error || !data || data.length === 0) {

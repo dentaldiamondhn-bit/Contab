@@ -14,11 +14,15 @@ import {
   Receipt,
   PiggyBank,
   Download,
-  Upload
+  Upload,
+  Excel
 } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { ExcelBooksUploader } from "@/components/accounting/ExcelBooksUploader";
+import { exportToPDF } from "@/lib/services/pdf-export";
+import FinancialRatios from "@/components/accounting/FinancialRatios";
+import YearOverYearComparison from "@/components/accounting/YearOverYearComparison";
 
 export default function AccountingPage() {
   const { currentTenant } = useTenant();
@@ -90,12 +94,37 @@ export default function AccountingPage() {
   };
 
   // Función para exportar a PDF desde la página principal
-  const exportToPDF = (moduleTitle: string, moduleType: string) => {
+  const exportToPDF = async (moduleTitle: string, moduleType: string) => {
     console.log(`🔍 Debug - Exportando ${moduleTitle} a PDF...`);
     console.log(`🔍 Debug - Tenant:`, currentTenant);
     
-    // Simplificar para prueba
-    alert(`PDF: ${moduleTitle} - ${moduleType}`);
+    try {
+      // Llamar a la API de exportación
+      const res = await fetch(`/api/accounting/export/${moduleType}?tenantId=${currentTenant?.id || '1'}&period=${new Date().toISOString().slice(0, 7)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${moduleTitle.toLowerCase().replace(/ /g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert(`✅ ${moduleTitle} exportado exitosamente a PDF`);
+      } else {
+        const errorData = await res.json();
+        alert(`❌ Error al exportar: ${errorData.error || 'Error desconocido'}`);
+      }
+    } catch (error) {
+      console.error('Error en exportToPDF:', error);
+      alert('❌ Error inesperado al exportar el PDF');
+    }
   };
 
   // Función para ver detalles desde la página principal
@@ -327,6 +356,18 @@ export default function AccountingPage() {
                   </div>
                   
                   <div className="flex space-x-2">
+<Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => {
+                      console.log("🔍 Debug - Click en Ver button");
+                      viewDetails(module.title, module.id);
+                    }}
+                  >
+                    <FileText className="h-4 w-4 mr-2" />
+                    Ver
+                  </Button>
+<div className="flex space-x-2">
                     <Button 
                       variant="outline" 
                       className="flex-1"
@@ -349,12 +390,51 @@ export default function AccountingPage() {
                       <Download className="h-4 w-4 mr-2" />
                       PDF
                     </Button>
-                    <Link href={module.href} className="flex-1">
-                      <Button className="w-full">
-                        Acceder
-                      </Button>
-                    </Link>
+<Button 
+  variant="outline" 
+  className="flex-1"
+  onClick={() => {
+    // Llamar a la API de exportación Excel
+    const moduleType = module.id;
+    const tenantId = currentTenant?.id || '1';
+    const period = new Date().toISOString().slice(0, 7);
+    
+    window.fetch(`/api/accounting/export/${moduleType}?tenantId=${tenantId}&period=${period}&type=excel`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    }).then(async (res) => {
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${moduleTitle.toLowerCase().replace(/ /g, '_')}_${period}.xlsx`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert(`✅ ${moduleTitle} exportado a Excel`);
+      } else {
+        const errorData = await res.json();
+        alert(`❌ Error al exportar: ${errorData.error || 'Error desconocido'}`);
+      }
+    }).catch((error) => {
+      console.error('Error en exportExcel:', error);
+      alert('❌ Error inesperado al exportar a Excel');
+    });
+  }}
+>
+  <Upload className="h-4 w-4 mr-2" />
+  Excel
+</Button>
                   </div>
+                  <Link href={module.href} className="flex-1">
+                    <Button className="w-full">
+                      Acceder
+                    </Button>
+                  </Link>
+                </div>
                 </div>
               </CardContent>
             </Card>
@@ -362,8 +442,13 @@ export default function AccountingPage() {
         </div>
       </div>
 
+      {/* Dashboard de Razones Financieras */}
+      <FinancialRatiosDashboard />
+
+      {/* Comparador Año-a-Año */}
+      <YearOverYearComparison initialPeriod={new Date().toISOString().slice(0, 7)} initialYearsAgo={1} />
+
       {/* Actividad Reciente */}
-      <div className="space-y-6">
         <h2 className="text-2xl font-bold text-gray-900">Actividad Reciente</h2>
         <Card>
           <CardHeader>

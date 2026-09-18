@@ -9,7 +9,7 @@ export async function GET(req: NextRequest) {
 
     const tenantId = req.nextUrl.searchParams.get('tenantId');
     const companyId = req.nextUrl.searchParams.get('companyId');
-    console.log('DEBUG API tenant-admin/dashboard:', { tenantId, companyId });
+    console.log('DEBUG API tenant-admin/dashboard: received', { tenantId, companyId });
     if (!tenantId) return NextResponse.json({ error: 'tenantId requerido' }, { status: 400 });
 
     const supabase = createServiceRoleClient();
@@ -22,20 +22,23 @@ export async function GET(req: NextRequest) {
     const withCompany = (query: any) => companyId ? query.eq('company_id', companyId) : query;
 
     // 1. Invoices (ventas del mes)
-    const { data: currentInvoices } = await withCompany(
+    const { data: currentInvoices, error: invErr1 } = await withCompany(
       supabase.from('Invoice')
-        .select('id,total,status,createdAt,customerName')
+        .select('id,total,status,createdAt,customerName,company_id')
         .eq('tenantId', tenantId)
         .gte('createdAt', currentMonthStart)
     );
 
-    const { data: prevInvoices } = await withCompany(
+    const { data: prevInvoices, error: invErr2 } = await withCompany(
       supabase.from('Invoice')
-        .select('id,total,status,createdAt')
+        .select('id,total,status,createdAt,company_id')
         .eq('tenantId', tenantId)
         .gte('createdAt', prevMonthStart)
         .lte('createdAt', prevMonthEnd)
     );
+
+    console.log('DEBUG invoices current:', currentInvoices?.map((i: any) => ({ id: i.id, company_id: i.company_id, total: i.total })));
+    console.log('DEBUG invoices prev:', prevInvoices?.map((i: any) => ({ id: i.id, company_id: i.company_id, total: i.total })));
 
     const currentSales = (currentInvoices || [])
       .filter((i: any) => i.status !== 'CANCELLED')
@@ -165,7 +168,7 @@ export async function GET(req: NextRequest) {
     }
     taxAlerts.push({ tax: 'Renta Anual', dueDate: `${now.getFullYear() + 1}-03-31`, status: 'info' });
 
-    return NextResponse.json({
+    const responseData = {
       kpis: {
         cashBalance,
         accountsReceivable,
@@ -178,7 +181,9 @@ export async function GET(req: NextRequest) {
       cashFlowMonths,
       topClients,
       taxAlerts,
-    });
+    };
+    console.log('DEBUG API response:', { companyId, kpis: responseData.kpis, topClients: responseData.topClients?.length });
+    return NextResponse.json(responseData);
   } catch (error: any) {
     console.error('Dashboard API error:', error?.message || error);
     return NextResponse.json({ error: 'Error interno' }, { status: 500 });
