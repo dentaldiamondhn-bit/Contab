@@ -413,24 +413,6 @@ model PeriodClosingBalance {
   @@map("period_closing_balances")
 }
 
-model OutboxAudit {
-  id            String   @id @default(uuid())
-  tablename     String   @map("tablename")
-  recordid      String   @map("recordid")
-  action        String   @map("action")
-  oldvalues     Json?    @map("oldvalues")
-  newvalues     Json?    @map("newvalues")
-  changedfields Json?    @map("changedfields")
-  userid        String?  @map("userid")
-  useragent     String?  @map("useragent")
-  ipaddress     String?  @map("ipaddress")
-  tenantid      String?  @map("tenantid")
-  processed     Boolean  @default(false) @map("processed")
-  createdAt     DateTime @default(now()) @map("created_at")
-
-  @@map("outbox_audit")
-}
-
 model AuditOutbox {
   id              String   @id @default(cuid())
   tenantId        String   @map("tenant_id")

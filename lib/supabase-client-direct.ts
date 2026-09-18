@@ -1,5 +1,4 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
-import { headers } from 'next/headers'
 
 // Tipos para el cliente con RLS directo
 export interface SupabaseClientDirect extends SupabaseClient {

@@ -2,25 +2,28 @@
 // CONTAB - Middleware de Autorización Centralizado
 // ============================================================================
 // Uso: Llamar checkAuth(req, requiredPermissions) en cada API route
-// IMPORTANTE: Este middleware VALIDA la pertenencia del usuario al tenantId
-// en la capa de la base de datos, no confía ciegamente en el header HTTP.
+// IMPORTANTE: Este middleware es Edge-safe — NO accede a Prisma/BD directamente.
+// La validación de tenant en BD debe hacerse en API routes (Node.js runtime).
 // ============================================================================
 
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { Role, Permission, hasPermission, hasAnyPermission, VALID_ROLES } from './permissions';
-import { db } from '@/lib/db';
 
 export interface AuthUser {
   userId: string;
   email: string;
   role: Role;
   tenantId?: string;
-  // Verificado en base de datos - marca si el tenant fue verificado Db
   tenantVerified: boolean;
 }
 
-// Extraer el rol del usuario desde Clerk metadata
+interface AuthResult {
+  success: boolean;
+  user?: AuthUser;
+  error?: string;
+}
+
 function extractRole(metadata: Record<string, unknown> | undefined): Role {
   if (!metadata) return 'USER';
   const role = (metadata.role as string)?.toUpperCase();
@@ -28,7 +31,8 @@ function extractRole(metadata: Record<string, unknown> | undefined): Role {
   return 'USER';
 }
 
-// Obtener el usuario autenticado y verificar pertenencia al tenant en BD
+// Edge-safe: only reads from Clerk sessionClaims, no DB access.
+// Tenant verification via DB must be done in API routes (Node.js runtime).
 export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
   try {
     const { userId, sessionClaims } = await auth();
@@ -37,42 +41,14 @@ export async function getAuthUser(req: NextRequest): Promise<AuthUser | null> {
     const metadata = sessionClaims.metadata as Record<string, unknown> | undefined;
     const email = (sessionClaims.email as string) || '';
     const role = extractRole(metadata);
-    const tenantIdFromMetadata = metadata?.tenantId as string | undefined;
-
-    // **VALIDACIÓN EN CAPA DE BASE DE DATOS**
-    // Verificamos que el usuario realmente pertenezca al tenant reclamado
-    // Esto evita ataques donde el usuario modifica el header x-tenant-id
-    let verifiedTenantId: string | undefined;
-    let tenantVerified = false;
-
-    if (tenantIdFromMetadata) {
-      // Verificar en la base de datos que el usuario está asociado a este tenant
-      const user = await db.user.findUnique({
-        where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-          role: true,
-          tenantId: true,
-        }
-      });
-
-      if (user && user.tenantId === tenantIdFromMetadata) {
-        verifiedTenantId = tenantIdFromMetadata;
-        tenantVerified = true;
-      } else {
-        // El usuario no pertenece a este tenant, usar el tenant real de la BD
-        verifiedTenantId = user?.tenantId;
-        // Continuamos pero sin validación de tenant completada
-      }
-    }
+    const tenantId = metadata?.tenantId as string | undefined;
 
     return {
       userId,
       email,
       role,
-      tenantId: verifiedTenantId,
-      tenantVerified,
+      tenantId,
+      tenantVerified: false,
     };
   } catch {
     return null;
@@ -84,7 +60,7 @@ export async function checkAuth(
   req: NextRequest,
   options?: {
     requiredPermissions?: Permission[];
-    requireAll?: boolean; // true = TODOS los permisos, false = ALGUNO
+    requireAll?: boolean;
     allowedRoles?: Role[];
   }
 ): Promise<AuthResult> {
@@ -94,17 +70,15 @@ export async function checkAuth(
     return { success: false, user: undefined, error: 'No autenticado' };
   }
 
-  // Verificar roles permitidos
   if (options?.allowedRoles && options.allowedRoles.length > 0) {
     if (!options.allowedRoles.includes(user.role)) {
       return { success: false, user: undefined, error: `Rol '${user.role}' no tiene acceso` };
     }
   }
 
-  // Verificar permisos requeridos
   if (options?.requiredPermissions && options.requiredPermissions.length > 0) {
     const hasAccess = options.requireAll
-      ? hasAnyPermission(user.role, options.requiredPermissions) // requireAll se maneja como "any" para SUPER_ADMIN
+      ? hasAnyPermission(user.role, options.requiredPermissions)
       : hasAnyPermission(user.role, options.requiredPermissions);
 
     if (!hasAccess && user.role !== 'SUPER_ADMIN') {
@@ -115,7 +89,6 @@ export async function checkAuth(
   return { success: true, user };
 }
 
-// Helper para respuestas de error de autorización
 export function unauthorizedResponse(message: string = 'No autorizado'): NextResponse {
   return NextResponse.json({ error: message }, { status: 403 });
 }
@@ -124,7 +97,6 @@ export function unauthenticatedResponse(): NextResponse {
   return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
 }
 
-// Wrapper para API routes con autorización
 export function withAuth(
   handler: (req: NextRequest, user: AuthUser) => Promise<NextResponse>,
   options?: {

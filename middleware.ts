@@ -1,6 +1,5 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { createSupabaseClientWithJwt, supabase } from "@/lib/supabase-client-direct";
 import { getAuthUser } from "@/lib/auth-middleware";
 
 const isPublicRoute = createRouteMatcher([
@@ -65,15 +64,14 @@ export default clerkMiddleware(async (auth, req) => {
   const requestHeaders = new Headers(req.headers);
   
   // Obtener usuario auth para pasar información de tenant
-  const authResult = await getAuthUser(req as any);
+  const authUser = await getAuthUser(req as any);
   
-  if (authResult.success && authResult.user?.tenantId) {
+  if (authUser?.tenantId) {
     // 1. Añadir tenantId explícito en header para Prisma queries
-    requestHeaders.set('x-tenant-id', authResult.user.tenantId);
+    requestHeaders.set('x-tenant-id', authUser.tenantId);
     
     // 2. Preparar Supabase client con JWT para RLS directo
-    // Se hará en las API routes/components que necesiten RLS directo
-    requestHeaders.set('x-user-jwt', authResult.user.userId || '');
+    requestHeaders.set('x-user-jwt', authUser.userId || '');
   }
 
   // También pasar el tenantId desde metadata si no hay uno explícito
