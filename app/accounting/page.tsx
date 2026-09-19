@@ -15,12 +15,19 @@ import {
   PiggyBank,
   Download,
   Upload,
-  Excel
+  Excel,
+  Shield,
+  Folder,
+  Clipboard
+} from "lucide-react";ile,
+  Clipboard,
+  Printer
 } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { ExcelBooksUploader } from "@/components/accounting/ExcelBooksUploader";
 import { exportToPDF } from "@/lib/services/pdf-export";
+import { exportAuditLogsToPDF } from "@/lib/services/audit-export-service";
 import FinancialRatios from "@/components/accounting/FinancialRatios";
 import YearOverYearComparison from "@/components/accounting/YearOverYearComparisons";
 
@@ -38,7 +45,19 @@ export default function AccountingPage() {
       icon: FolderTree,
       color: "bg-green-500",
       href: `/companies/${currentTenant?.id || 1}/accounting/accounts`,
-      features: ["Estructura jerárquica", "Tipos de cuenta", "Códigos únicos"]
+      features: ["Estructura jerárquica", "Tipos de cuenta", "Códigos únicos"],
+      quickExport: {
+        pdf: {
+          title: "Catálogo de Cuentas",
+          apiPath: "/api/accounting/accounts/export",
+          type: "pdf"
+        },
+        excel: {
+          title: "Catálogo de Cuentas Excel",
+          apiPath: "/api/accounting/accounts/export",
+          type: "excel"
+        }
+      }
     },
     {
       id: "books",
@@ -47,7 +66,19 @@ export default function AccountingPage() {
       icon: BookOpen,
       color: "bg-purple-500",
       href: `/companies/${currentTenant?.id || 1}/accounting/books`,
-      features: ["Libro Diario", "Libro Mayor", "Balance de Comprobación"]
+      features: ["Libro Diario", "Libro Mayor", "Balance de Comprobación"],
+      quickExport: {
+        pdf: {
+          title: "Libros Contables",
+          apiPath: "/api/accounting/export?books",
+          type: "pdf"
+        },
+        excel: {
+          title: "Libros Contables Excel",
+          apiPath: "/api/accounting/export?books",
+          type: "excel"
+        }
+      }
     },
     {
       id: "financial-statements",
@@ -66,6 +97,83 @@ export default function AccountingPage() {
       color: "bg-orange-500",
       href: `/companies/${currentTenant?.id || 1}/accounting/books`,
       features: ["Libro de Compras y Ventas", "Retenciones", "Cumplimiento SAR"]
+    },
+    // Módulos de exportación rápida
+    {
+      id: "trial-balance",
+      title: "📊 Balanza",
+      description: "Balanza de comprobación con 6 columnas",
+      icon: File,
+      color: "bg-blue-500",
+      features: ["Saldos por cuenta", "Débito y Crédito", "Diferencias"],
+      quickExport: {
+        pdf: {
+          title: "Balanza de Comprobación",
+          apiPath: "/api/accounting/export?trial-balance",
+          type: "pdf"
+        },
+        excel: {
+          title: "Balanza Excel",
+          apiPath: "/api/accounting/export?trial-balance",
+          type: "excel"
+        }
+      }
+    },
+    {
+      id: "polizas",
+      title: "📄 Pólizas",
+      description: "Historial de asientos contables",
+      icon: FileText,
+      color: "bg-violet-500",
+      features: ["Fecha", "Descripción", "Total"],
+      quickExport: {
+        pdf: {
+          title: "Pólizas",
+          apiPath: "/api/accounting/export?polizas",
+          type: "pdf"
+        }
+      }
+    },
+    {
+      id: "tax-report",
+      title: "💰 Impuestos (ISV/SAR)",
+      description: "Reporte mensual de ventas y compras",
+      icon: Shield,
+      color: "bg-red-500",
+      features: ["Ventas totales", "Impuesto cobrado", "Compras deducibles"],
+      quickExport: {
+        pdf: {
+          title: "Reporte ISV",
+          apiPath: "/api/accounting/export?tax-report",
+          type: "pdf"
+        },
+        excel: {
+          title: "Reporte ISV Excel",
+          apiPath: "/api/accounting/export?tax-report",
+          type: "excel"
+        }
+      }
+    },
+    // Módulo de exportación de auditoría
+    {
+      id: "audit-logs",
+      title: "📋 Logs de Auditoría",
+      description: "Historial de movimientos y cambios en el sistema contable",
+      icon: Clipboard,
+      color: "bg-gray-700",
+      features: ["Registro de cambios", "Validación de movimientos", "Historial de usuario"],
+      quickExport: {
+        pdf: {
+          title: "Logs de Auditoría",
+          apiPath: "/api/accounting/export-audit?period",
+          type: "pdf"
+        },
+        excel: {
+          title: "Logs de Auditoría Excel",
+          apiPath: "/api/accounting/export-audit?period",
+          type: "excel"
+        }
+      }
     }
   ];
 
@@ -85,7 +193,68 @@ export default function AccountingPage() {
       EGRESO: "bg-red-100 text-red-800",
       DIARIO: "bg-cyan-100 text-cyan-800",
       AJUSTE: "bg-yellow-100 text-yellow-800",
-    };
+};
+  
+  // Funciones de exportación rápida para los nuevos módulos
+  const exportQuickPDF = async (module) => {
+    const quickExport = module.quickExport?.pdf;
+    if (!quickExport) return alert('Este módulo no tiene exportación PDF rápida configurada');
+    
+    try {
+      const res = await fetch(quickExport.apiPath + '?tenantId=' + (currentTenant?.id || '1') + '&period=' + new Date().toISOString().slice(0, 7) + '&type=' + quickExport.type, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = quickExport.title + '_' + new Date().toISOString().slice(0, 10) + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert('✅ ' + quickExport.title + ' exportado exitosamente a PDF');
+      } else {
+        const errorData = await res.json();
+        alert('❌ Error al exportar: ' + (errorData.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error en exportQuickPDF:', error);
+      alert('❌ Error inesperado al exportar el PDF');
+    }
+  };
+  
+  const exportQuickExcel = async (module) => {
+    const quickExport = module.quickExport?.excel;
+    if (!quickExport) return alert('Este módulo no tiene exportación Excel rápida configurada');
+    
+    try {
+      const res = await fetch(quickExport.apiPath + '?tenantId=' + (currentTenant?.id || '1') + '&period=' + new Date().toISOString().slice(0, 7) + '&type=' + quickExport.type, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      
+      if (res.ok) {
+        const blob = await res.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = quickExport.title + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        alert('✅ ' + quickExport.title + ' exportado exitosamente a Excel');
+      } else {
+        const errorData = await res.json();
+        alert('❌ Error al exportar: ' + (errorData.error || 'Error desconocido'));
+      }
+    } catch (error) {
+      console.error('Error en exportQuickExcel:', error);
+      alert('❌ Error inesperado al exportar el Excel');
+    }
+  };
     return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-800";
   };
 
@@ -353,7 +522,22 @@ export default function AccountingPage() {
                         <span className="text-sm text-gray-600">{feature}</span>
                       </div>
                     ))}
-                  </div>
+                  {module.quickExport && (
+                    <div className="flex items-center space-x-2 mt-3 pt-3 border-t border-gray-200">
+                      {module.quickExport.pdf && (
+                        <Button variant="outline" size="sm" onClick={() => exportQuickPDF(module)}>
+                          <Download className="h-3 w-3 mr-1" />
+                          PDF
+                        </Button>
+                      )}
+                      {module.quickExport.excel && (
+                        <Button variant="outline" size="sm" onClick={() => exportQuickExcel(module)}>
+                          <Upload className="h-3 w-3 mr-1" />
+                          Excel
+                        </Button>
+                      )}
+                    </div>
+                  )}
                   <div className="flex space-x-2">
                     <Button 
                       variant="outline" 
@@ -461,3 +645,64 @@ export default function AccountingPage() {
     </div>
   );
 }
+
+// Funciones de exportación rápida para los nuevos módulos
+const exportQuickPDF = async (module) => {
+  const quickExport = module.quickExport?.pdf;
+  if (!quickExport) return alert('Este módulo no tiene exportación PDF rápida configurada');
+  
+  try {
+    const res = await fetch(quickExport.apiPath + '?tenantId=' + (currentTenant?.id || '1') + '&period=' + new Date().toISOString().slice(0, 7) + '&type=' + quickExport.type, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = quickExport.title + '_' + new Date().toISOString().slice(0, 10) + '.pdf';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      alert('✅ ' + quickExport.title + ' exportado exitosamente a PDF');
+    } else {
+      const errorData = await res.json();
+      alert('❌ Error al exportar: ' + (errorData.error || 'Error desconocido'));
+    }
+  } catch (error) {
+    console.error('Error en exportQuickPDF:', error);
+    alert('❌ Error inesperado al exportar el PDF');
+  }
+};
+
+const exportQuickExcel = async (module) => {
+  const quickExport = module.quickExport?.excel;
+  if (!quickExport) return alert('Este módulo no tiene exportación Excel rápida configurada');
+  
+  try {
+    const res = await fetch(quickExport.apiPath + '?tenantId=' + (currentTenant?.id || '1') + '&period=' + new Date().toISOString().slice(0, 7) + '&type=' + quickExport.type, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+    if (res.ok) {
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = quickExport.title + '_' + new Date().toISOString().slice(0, 10) + '.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      alert('✅ ' + quickExport.title + ' exportado exitosamente a Excel');
+    } else {
+      const errorData = await res.json();
+      alert('❌ Error al exportar: ' + (errorData.error || 'Error desconocido'));
+    }
+  } catch (error) {
+    console.error('Error en exportQuickExcel:', error);
+    alert('❌ Error inesperado al exportar el Excel');
+  }
+};

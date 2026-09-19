@@ -12,7 +12,7 @@
 | **Estado de Resultados** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Flujo de Efectivo** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Balanza de Comprobación** | Completo | 1 página | 2 rutas | 1 vista + 1 API | Supabase |
-| **Ratios Financieros** | Básico | En componentes | 0 rutas | — | Cálculos en código |
+| **Ratios Financieros** | ✅ Completo | `app/reports/ratios/page.tsx` + API | 1 ruta | Datos reales | Cálculo automático |
 | **Comparativos de Período** | Parcial | En FinancialStatements | 0 rutas | — | Mock data |
 
 ### 1.2 Métricas de Madurez
@@ -23,7 +23,7 @@
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Estabilidad y Validaciones | ~55% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
 | Exportación | ~40% | Solo CSV; sin exportación Excel ni PDF real |
-| Ratios Financieros | ~20% | Solo margen de utilidad; sin dashboard de ratios |
+| Ratios Financieros | ~95% | 15 ratios automáticas + dashboard UI | Dashboard implementado |
 
 ---
 
@@ -127,7 +127,7 @@
 | 1 | ~~FinancialStatements usa mock data~~ | ~~Componente principal inutilizable~~ | ~~Crítica~~ | ✅ Resuelta |
 | 2 | Flujo de Efectivo usa clasificación simplificada | Cálculos inexactos | Alta |
 | 3 | Sin exportación Excel/PDF real | Limitación para uso en producción | Alta |
-| 4 | Sin dashboard de ratios financieros | Sin análisis financiero profundo | Media |
+| 4 | Sin dashboard de ratios financieros | Sin análisis financiero profundo | Media | ✅ Resuelto - Dashboard en `app/reports/ratios/page.tsx` |
 | 5 | Sin comparativos de período reales | Sin tendencias | Media |
 
 ---
@@ -155,7 +155,7 @@
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
 | 3.1 | Crear servicio de cálculo de ratios financieros | `lib/services/financial-ratios.ts` | 15+ ratios |
-| 3.2 | Dashboard de ratios financieros | `app/reports/ratios/page.tsx` | Dashboard visual |
+| 3.2 | Dashboard de ratios financieros | `app/reports/ratios/page.tsx` | Dashboard visual ✅ |
 | 3.3 | Análisis de tendencias multi-período | `lib/services/trend-analysis.ts` | Análisis de tendencias |
 
 ### Etapa 4: Comparativos y Proyecciones

@@ -72,3 +72,28 @@ test('evaluatePeriodFlags combina estado, previo y futuro', () => {
     { prev_month_closed: true, can_close: false },
   );
 });
+
+test('assertCloseAllowed: edge cases y configuraciones extremas', () => {
+  const TODAY = new Date('2026-09-17T12:00:00Z');
+
+  // Sin configuración previa permite cierre
+  assert.doesNotThrow(() =>
+    assertCloseAllowed({ status: 'open', prevStatus: null, prevTxCount: 0, year: 2026, month: 1, today: TODAY }),
+  );
+
+  // Mismo mes cerrado dos veces bloquea
+  assert.throws(
+    () => assertCloseAllowed({ status: 'closed', prevStatus: 'closed', prevTxCount: 10, year: 2026, month: 1, today: TODAY }),
+    /bloqueado/,
+  );
+
+  // Mes con transacciones previas puede cerrarse
+  assert.doesNotThrow(() =>
+    assertCloseAllowed({ status: 'open', prevStatus: 'closed', prevTxCount: 3, year: 2026, month: 2, today: TODAY }),
+  );
+
+  // Año diferente permite cierre
+  assert.doesNotThrow(() =>
+    assertCloseAllowed({ status: 'open', prevStatus: 'closed', prevTxCount: 0, year: 2025, month: 12, today: TODAY }),
+  );
+});

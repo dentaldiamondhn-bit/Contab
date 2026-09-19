@@ -25,7 +25,7 @@
 | Métrica | Valor | Observación |
 |---|---|---|
 | Completitud Funcional | ~95% | Catálogo completo con secciones colapsables y cascada; libros via RPCs; balances de apertura; Balance de Comprobación 6 columnas con RPCs; auditoría inmutable (apertura + pólizas por línea); plantillas con importación Excel; reversiones con trazabilidad; asientos recurrentes; FinancialStatements conectado a API real |
-| Cobertura de Pruebas | ~70% | 27 tests `node:test` (pólizas + auditoría por línea, cierre mensual, apertura automática) + **tests E2E** (flujo de asientos, validaciones, candado de período, variaciones entre períodos); cobertura completa de flujos críticos |
+| Cobertura de Pruebas | ~85% | 35+ tests `node:test` (pólizas + auditoría por línea, cierre mensual, apertura automática, variaciones período, transacciones, balances de apertura) + **tests E2E** (flujo de asientos, validaciones, candado de período, variaciones entre períodos); cobertura completa de flujos críticos; validaciones adicionadas: montos > 0, cuentas repetidas, tipos de cuenta, fechas inválidas, period locking edge cases |
 | Estabilidad y Validaciones | ~80% | Validación de doble entrada; middleware de períodos; validación de catálogo (9 checks); fix tenantId en trial balance |
 | Persistencia de Datos | ~95% | Supabase vía `service_role` (POST de pólizas migrado fuera de Prisma); hook sin mock data; FinancialStatements conectado a API real |
 | Integración entre Módulos | ~75% | Integración con inventario y facturación; variaciones entre períodos implementadas; apertura automática funcional; tests E2E validando integración completa |
@@ -74,11 +74,12 @@
 
 | # | Pendiente | Módulo | Impacto | Prioridad |
 |---|---|---|---|---|
-| 1 | Dashboard de ratios financieros implementado | Contabilidad | Análisis financiero profundo | Media |
-| 2 | Comparativos año-a-año implementados | Contabilidad | Tendencias multi-período | Media |
-| 3 | Integración inventario-COGS automático | Contabilidad | Costo de ventas automático | Alta |
-| 4 | Testing unitario para servicios críticos | Contabilidad | Cobertura de pruebas | Alta |
-| 5 | Integrar botones de exportación en UI contable | Contabilidad | Exportar Balanza, Pólizas, Impuestos a Excel/PDF | Alta |
+| ok | Dashboard de ratios financieros implementado | Contabilidad | Análisis financiero profundo | Media |
+| ok | Comparatives año-a-año implementados | Contabilidad | Tendencias multi-período | Media |
+| ok | Integración inventario-COGS automático | Contabilidad | Costo de ventas automático | Alta |
+| ok | Testing unitario para servicios críticos completado | Contabilidad | Cobertura de pruebas | Alta |
+| ok | Integrar botones de exportación en UI contable completado | Contabilidad | Exportar Balanza, Pólizas, Impuestos a Excel/PDF | Alta |
+| ok | Exportación logs auditoría PDF/Excel completado | Contabilidad | Exportar logs a PDF/Excel con filtros | Alta |
 
 ---
 
@@ -224,8 +225,8 @@ _(Ninguna — asientos contables completos)_
 
 #### Lo que Falta
 
-- Sin exportación de logs de auditoría a PDF/Excel
-- Auditoría Prisma (`AuditLog`/`audit-middleware.ts`) quedó legacy: el camino Supabase no pasa por `DATABASE_URL`; se mantiene solo para compatibilidad
+- Sin exportación de logs de auditoría a PDF/Excel **(Completado - 18 Sept 2026)**
+- Auditoría Prisma (`AuditLog`/`audit-middleware.ts`) quedó legacy: el camino Supabase no pasa por `DATABASE_URL`; se mantiene solo para compatibilidad (modo mantenimiento)
 
 ---
 

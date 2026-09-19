@@ -46,3 +46,32 @@ test('200 — aplicar con overwrite', async () => {
   assert.equal(body.result.applied, 3);
   assert.equal(mockState.calls[0].opts.overwrite, true);
 });
+
+test('400 — sin year en el cuerpo', async () => {
+  resetOpeningMock();
+  const noYear = await POST(req({}, tenant));
+  assert.equal(noYear.status, 400);
+  assert.match(noYear.body.error, /year/);
+});
+
+test('403 — período cerrado bloquea aplicación automática', async () => {
+  resetOpeningMock();
+  mockState.error = new Error('Período 2026-01 está cerrado: no se aceptan movimientos automáticos. Reábralo para permitir aperturas.');
+  const res = await POST(req({ year: 2026 }, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 403);
+  assert.match(body.error, /cerrado/);
+});
+
+test('200 — respuesta incluye success y metadata completa', async () => {
+  resetOpeningMock();
+  mockState.result = { year: 2026, applied: 2, skippedNoChart: ['1101'], skippedZero: 1 };
+  const res = await POST(req({ year: 2026, apply: true }, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 200);
+  assert.property(body, 'success');
+  assert.property(body, 'result');
+  assert.equal(body.result.applied, 2);
+  assert.property(body, 'skippedNoChart');
+  assert.property(body, 'skippedZero');
+});

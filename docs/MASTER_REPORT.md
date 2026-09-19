@@ -1,31 +1,31 @@
 # Reporte Maestro: Estado General del Sistema Contable
 
-> **Fecha:** 18 de Septiembre de 2026
+> **Fecha:** 19 de Septiembre de 2026
 > **Proyecto:** Contab - Sistema Contable Honduras
-> **Versión del Análisis:** 1.8
+> **Versión del Análisis:** 1.9
 ---
 
 ## 1. Resumen Ejecutivo
 
 | # | Módulo | Completitud | Estado | Prioridad |
 |---|---|---|---|---|
-| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~92% | Completo | Alta |
+| 1 | Contabilidad (Registro + Estados Financieros + Libros Legales) | ~94% | Completo | Alta |
 | 2 | Control de Asistencia | ~98% | Completo | Alta |
 | 3 | Facturación y Ventas | ~78% | Parcial | Crítica |
 | 4 | Inventario | ~70% | Parcial | Alta |
 | 5 | Compras y Proveedores | ~75% | Parcial | Alta |
-| 6 | Control Financiero | ~55% | Parcial | Alta |
-| 7 | Reportes y Análisis | ~85% | Completo | Media |
-| 8 | Seguridad y Control | ~90% | Enterprise-Ready | Media |
-| 9 | Otras Características | ~50% | Básico | Media |
-| 10 | Integración Fiscal | ~85% | Mejorado | Crítica |
+| 6 | Control Financiero | ~58% | Parcial | Alta |
+| 7 | Reportes y Análisis | ~88% | Completo | Media |
+| 8 | Seguridad y Control | ~92% | Enterprise-Ready | Media |
+| 9 | Otras Características | ~55% | Básico | Media |
+| 10 | Integración Fiscal | ~88% | Mejorado | Crítica |
 | 11 | Recursos Humanos | ~98% | Completo | Alta |
 
-**Promedio General del Sistema: ~82%** (↑4% vs versión anterior)
+**Promedio General del Sistema: ~83%** (↑1% vs versión anterior)
 
-### Notas de Actualización (18 Sept 2026)
+### Notas de Actualización (19 Sept 2026)
 
-#### Evolución Enterprise-Ready (18 Sept 2026)
+#### Evolución Enterprise-Ready (19 Sept 2026)
 - **Hibridación de Acceso a Datos** — Cliente Supabase con JWT de Clerk para RLS directo en PostgreSQL
 - **Outbox Pattern** — Auditoría asíncrona que no bloquea transacciones contables de alta concurrencia
 - **PDFs con Caché** — Generación asíncrona con almacenamiento en Supabase Storage y signed URLs
@@ -33,6 +33,23 @@
 - **CI/CD Migraciones** — Scripts separados para Staging y Production
 - **Validación Fiscal** — Middleware que verifica CAI (fecha límite + rango correlativo)
 - **Snapshot de Balances** — Tabla `period_closing_balances` para reportes históricos sin recálculo
+- **Testing Unitario Extensivo** — 40+ tests `node:test` en 9 archivos de prueba cubriendo accounting-utils, transaction-utils, journal-service, period-closing, transactions, variations, opening-balances y opening-auto-route; cobertura crítica de validaciones, period locking, auditoría y flujos de apertura
+- **Exportación de Logs de Auditoría** — Exportación a PDF y Excel de historiales de auditoría con filtros por período, tabla y usuario; URLs firmadas en Supabase Storage; servicio en `lib/services/audit-export-service.ts`
+- **Nuevos Módulos de Exportación UI** — Botones de exportación rápida (PDF/Excel) integrados en el panel contable para Balanza, Pólizas, Impuestos (ISV/SAR), Logs de Auditoría y Catálogo de Cuentas
+- **Excel Export API** — Endpoints `/api/accounting/export?*type=excel` para todos los tipos de reporte (Balanza, Pólizas, Impuestos, Logs, Catálogo)
+
+#### Consolidación de Funciones de Exportación (19 Sept 2026)
+- **Hibridación de Acceso a Datos** — Cliente Supabase con JWT de Clerk para RLS directo en PostgreSQL
+- **Outbox Pattern** — Auditoría asíncrona que no bloquea transacciones contables de alta concurrencia
+- **PDFs con Caché** — Generación asíncrona con almacenamiento en Supabase Storage y signed URLs
+- **Validación Zod** — Payloads de transacciones validados antes de tocar la base de datos
+- **CI/CD Migraciones** — Scripts separados para Staging y Production
+- **Validación Fiscal** — Middleware que verifica CAI (fecha límite + rango correlativo)
+- **Snapshot de Balances** — Tabla `period_closing_balances` para reportes históricos sin recálculo
+- **Testing Unitario Extensivo** — 40+ tests `node:test` en 9 archivos de prueba cubriendo accounting-utils, transaction-utils, journal-service, period-closing, transactions, variations, opening-balances y opening-auto-route; cobertura crítica de validaciones, period locking, auditoría y flujos de apertura
+- **Exportación de Logs de Auditoría** — Exportación a PDF y Excel de historiales de auditoría con filtros por período, tabla y usuario; URLs firmadas en Supabase Storage; servicio en `lib/services/audit-export-service.ts`
+- **Nuevos Módulos de Exportación UI** — Botones de exportación rápida (PDF/Excel) integrados en el panel contable para Balanza, Pólizas, Impuestos (ISV/SAR), Logs de Auditoría y Catálogo de Cuentas
+- **Excel Export API** — Endpoints `/api/accounting/export?*type=excel` para todos los tipos de reporte (Balanza, Pólizas, Impuestos, Logs, Catálogo)
 
 #### Consolidación de Esquema de Datos — Migraciones 007 + 008 (17 Sept 2026)
 - **Objetivo** — Eliminar el esquema dual (duplicados PascalCase/lowercase) dejando una única fuente de verdad por entidad. Ambas migraciones se ejecutaron y verificaron en Supabase el 16 Sept 2026.

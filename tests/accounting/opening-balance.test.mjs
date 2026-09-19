@@ -105,3 +105,33 @@ test('apply: casa por código, omite cero/sin catálogo/existente, audita', asyn
   const res2 = await applyOpeningBalances(db, 'T1', 2026, { overwrite: true });
   assert.equal(res2.applied, 2);
 });
+
+test('aggregateClosing: entrada con ambos cero se incluye con net 0', () => {
+  const lines = aggregateClosing([
+    { accountId: 'a1', code: '1101', name: 'Caja', debit: 0, credit: 0 },
+  ]);
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].net, 0);
+  assert.equal(lines[0].openingCents, 0);
+});
+
+test('computeOpeningBalances: tenant vacío rechazado', async () => {
+  const { db } = makeFakeDb({});
+  await assert.rejects(computeOpeningBalances(db, '', 2026), /Tenant/);
+});
+
+test('computeOpeningBalances: años fuera de rango', async () => {
+  const { db } = makeFakeDb({
+    transactions: [tx('t1', '2025-06-10', [je('a1', '1101', 'Caja', 500, 0)])],
+  });
+  await assert.rejects(computeOpeningBalances(db, 'T1', 2000), /2001 y 2100/);
+  await assert.rejects(computeOpeningBalances(db, 'T1', 2101), /2001 y 2100/);
+});
+
+test('apply: mes distinto de enero también bloquea', async () => {
+  const locked = makeFakeDb({
+    transactions: [tx('t1', '2025-06-10', [je('a1', '1101', 'Caja', 500, 0)])],
+    tables: { period_locks: [{ tenant_id: 'T1', year: 2026, month: 6, status: 'closed' }] },
+  });
+  await assert.rejects(applyOpeningBalances(locked.db, 'T1', 2026), /2026-06.*cerrado/);
+});

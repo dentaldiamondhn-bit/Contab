@@ -177,5 +177,91 @@ test('fecha inválida se rechaza', async () => {
       { ...input([line('a1', 5, true), line('a2', 5, false)]), date: 'no-fecha' },
     ),
     /date inválida/,
+});
+
+test('validación: monto mayor a cero en todas las líneas', () => {
+  const ok = validateJournalInput(input([line('a1', 1, true), line('a2', -1, false)]));
+  assert.equal(ok.totalDebit, 1);
+  assert.equal(ok.totalCredit, 1);
+});
+
+test('validación: líneas con mismo accountId rechazadas', () => {
+  assert.throws(
+    () => validateJournalInput(input([line('a1', 100, true), line('a1', 50, false)])),
+    /Cuentas repetidas/,
+  );
+});
+
+test('consecutivo: números negativos rechazados', async () => {
+  const { db } = makeFakeDb({
+    transactions: [{ id: 't1', tenantId: 'T1', voucherType: 'DIARIO', voucherNumber: -1 }],
+  });
+  assert.equal(await getNextVoucherNumber(db, 'T1', 'DIARIO'), 1);
+});
+
+test('consecutivo: número cero aceptado como primer ingreso', async () => {
+  const { db } = makeFakeDb({
+    transactions: [{ id: 't1', tenantId: 'T1', voucherType: 'INGRESO', voucherNumber: 0 }],
+  });
+  assert.equal(await getNextVoucherNumber(db, 'T1', 'INGRESO'), 1);
+});
+
+test('createJournalInput: validación de tipos de cuenta', () => {
+  const result = validateJournalInput(input([{ accountId: 'invalid', amount: 100, isDebit: true }]));
+  assert.equal(result.error?.includes('Cuentas no existen'), true);
+});
+
+test('createJournalTransaction: validación de balance global', async () => {
+  const { db } = makeFakeDb({
+    accounts: [
+      { id: 'a1', tenantId: 'T1' },
+    ],
+  });
+  await assert.rejects(
+    createJournalTransaction(db, 'T1', input([line('a1', 100, true)])),
+    /balanceada/,
+  );
+});
+
+test('createJournalTransaction: auditoría con performedBy personalizable', async () => {
+  const { db } = makeFakeDb({
+    accounts: [
+      { id: 'a1', tenantId: 'T1' },
+    ],
+  });
+  const res = await createJournalTransaction(
+    db,
+    'T1',
+    input([line('a1', 200, true), line('a2', 200, false)]),
+    { performedBy: 'test_user' },
+  );
+  const audit = store.account_audit_log[0];
+  assert.equal(audit.performed_by, 'test_user');
+});
+
+test('candado: período sin configurar permite cualquier fecha', async () => {
+  const { db } = makeFakeDb({
+    accounts: [
+      { id: 'a1', tenantId: 'T1' },
+    ],
+  });
+  const res = await createJournalTransaction(db, 'T1', input([line('a1', 10, true), line('a2', 10, false)]), {
+    date: '2026-09-15',
+  });
+  assert.equal(res.transaction.voucherNumber, 1);
+});
+
+test('fecha futura rechazada', async () => {
+  const { db } = makeFakeDb({
+    accounts: [
+      { id: 'a1', tenantId: 'T1' },
+      { id: 'a2', tenantId: 'T1' },
+    ],
+  });
+  await assert.rejects(
+    createJournalTransaction(db, 'T1', input([line('a1', 10, true), line('a2', 10, false)]), {
+      date: '2027-01-01',
+    }),
+    /fecha/,
   );
 });

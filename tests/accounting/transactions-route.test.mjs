@@ -78,3 +78,81 @@ test('500 — error interno del servicio', async () => {
   assert.equal(res.status, 500);
   assert.match(body.error, /connection reset/);
 });
+
+test('201 — crea póliza con líneas balanceadas y tipos de movimiento correctos', async () => {
+  resetJournalMock();
+  mockState.result = {
+    transaction: { id: 'tx2', voucherNumber: 8, totalAmount: 250 },
+    entries: [
+      { accountId: 'a1', amount: 250 },
+      { accountId: 'a2', amount: -250 },
+    ],
+  };
+  const res = await POST(req(payload, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 201);
+  assert.equal(body.success, true);
+  assert.equal(body.transaction.voucherNumber, 8);
+  assert.equal(body.transaction.totalAmount, 250);
+  assert.equal(body.transaction.entries.length, 2);
+  assert.equal(body.transaction.entries[0].amount, 250);
+  assert.equal(body.transaction.entries[0].type, 'DEBIT');
+  assert.equal(body.transaction.entries[1].type, 'CREDIT');
+});
+
+test('400 — validación: descripción vacía', async () => {
+  resetJournalMock();
+  const payloadBad = { ...payload, description: '' };
+  const res = await POST(req(payloadBad, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 400);
+  assert.match(body.error, /descripción/);
+});
+
+test('400 — validación: mínimo 2 líneas requeridas', async () => {
+  resetJournalMock();
+  const payloadOneLine = {
+    ...payload,
+    entries: [{ accountId: 'a1', amount: 100, isDebit: true }],
+  };
+  const res = await POST(req(payloadOneLine, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 400);
+  assert.match(body.error, /mínimo 2 líneas/);
+});
+
+test('400 — validación: líneas desbalanceadas', async () => {
+  resetJournalMock();
+  const payloadUnbalanced = {
+    ...payload,
+    entries: [
+      { accountId: 'a1', amount: 100, isDebit: true },
+      { accountId: 'a2', amount: 50, isDebit: false },
+    ],
+  };
+  const res = await POST(req(payloadUnbalanced, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 400);
+  assert.match(body.error, /balanceada/);
+});
+
+test('400 — validación: cuenta no existe', async () => {
+  resetJournalMock();
+  const payloadInvalidAccount = {
+    ...payload,
+    entries: [{ accountId: 'nonexistent', amount: 100, isDebit: true }, ...payload.entries],
+  };
+  const res = await POST(req(payloadInvalidAccount, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 400);
+  assert.match(body.error, /Cuentas no existen/);
+});
+
+test('500 — error de auditoría guardado', async () => {
+  resetJournalMock();
+  mockState.auditError = new Error('No se pudo guardar el log de auditoría');
+  const res = await POST(req(payload, tenant));
+  const body = await res.json();
+  assert.equal(res.status, 500);
+  assert.match(body.error, /auditoría/);
+});
