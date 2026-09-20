@@ -17,13 +17,13 @@
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
-| **Declaraciones Anuales** | No Iniciado | 0 | 0 | 0 | — |
+| **Declaraciones Anuales** | ✅ En progreso | `app/reports/annual-tax/page.tsx` + API | 1 ruta | Datos reales | Generación automática |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~70% | Libros, SAR 221 y DIAT fuertes; faltan declaraciones anuales |
+| Completitud Funcional | ~72% | Libros, SAR 221 y DIAT fuertes; Declaraciones Anuales en desarrollo |
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Exportación | ~50% | CSV y DET; sin Excel ni PDF profesional |
 | Cumplimiento SAR | ~65% | Formulario 221, DET y DIAT listos; sin envío en línea |
@@ -167,7 +167,7 @@
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
 | 2 | Retenciones sin asiento contable | Duble registro manual | Alta |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
-| 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta |
+| 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta | ✅ En desarrollo - `app/reports/annual-tax/page.tsx` |
 | 5 | DET sin carga automática a SAR | Proceso manual | Media |
 
 ---
@@ -188,7 +188,7 @@
 |---|---|---|---|
 | 2.1 | Auto-generar Libro de Ventas desde transacciones | `lib/services/books-generator.ts` | Generación automática |
 | 2.2 | Auto-generar Libro de Compras desde transacciones | `lib/services/books-generator.ts` | Generación automática |
-| 2.3 | Validación de completitud antes de generar DET | `lib/services/det-live-core.ts` | Validaciones |
+| 2.3 | Validación de completitud antes de generar DET | `lib/services/det-live-core.ts` | Validaciones ✅ |
 
 ### Etapa 3: DIAT y Declaraciones (DIAT ✅)
 
@@ -196,7 +196,7 @@
 |---|---|---|---|
 | 3.1 | ~~Crear generador de DIAT~~ | ~~`lib/services/diat-generator.ts`~~ | ✅ Generador DIAT (16 Sept 2026) |
 | 3.2 | ~~UI para DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página DIAT + API (16 Sept 2026) |
-| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual |
+| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ En desarrollo |
 
 ### Etapa 4: Exportación y Cumplimiento
 
