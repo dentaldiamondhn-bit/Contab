@@ -15,10 +15,7 @@ import {
   PiggyBank,
   Download,
   Upload,
-  Excel,
-  Shield,
-  Folder,
-  Clipboard
+  Excel
 } from "lucide-react";
 import Link from "next/link";
 import { useTenant } from "@/lib/contexts/TenantContext";

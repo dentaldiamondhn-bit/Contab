@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { RefreshCcw, FileText, Printer, Download, AlertCircle, Loader2, TrendingUp, Layer, Shield, DollarSign, PieChart } from "lucide-react";
+import { RefreshCcw, FileText, Printer, Download, AlertCircle, Loader2, TrendingUp, DollarSign, PieChart } from "lucide-react";
 
 interface FinancialRatio {
   id: string;

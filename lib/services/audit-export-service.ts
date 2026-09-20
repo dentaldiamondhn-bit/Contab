@@ -3,7 +3,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { format } from 'date-fns';
 import { v4 as uuidv4 } from 'uuid';
-import { PDFDocument, StandardFonts, rgb } from 'pdfkit';
+import { PDFDocument } from 'pdfkit';
 
 // Cliente Supabase para lecturas
 const supabase = createClient(
@@ -375,7 +375,7 @@ export async function exportAuditLogsToPDF(
       columnWidths: [30, 40, 25, 30, 30, 230],
       prepareHeader: () => {
         doc.fontSize(8);
-        doc.font(StandardFonts.HelveticaBold);
+        doc.font('Helvetica');
       },
     }
   );
