@@ -21,6 +21,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | Outbox Fix | `supabase/fix-audit-triggers-jsonb.sql` | Minimal function-only repair (21 Sept 2026): avoids table locks/deadlocks |
 | Import Templates Tab | `app/companies/[id]/accounting/page.tsx` | "Plantillas" tab with 6 downloadable Excel import templates |
 | Annual Tax Declarations | `app/reports/annual-tax` | Annual ISV/ISR/withholding declarations page |
+| Balance Sheet (modern) | `app/companies/[id]/accounting/financial-statements/balance-general` | Balance general per company: Excel/PDF export, liquidity ratios, % of assets |
+| Balance Sheet Comparative | `lib/reports/balance-general.ts`, `components/financials/BalanceSheetComparative.tsx` | Period comparatives (prev month / prev year) with variances |
 | PDF Cache | `app/api/pdf-export/route.ts` | PDF generation with Supabase Storage caching |
 | Zod Validation | `lib/services/transaction-service-enhanced.ts` | Transaction payload validation |
 | Fiscal Middleware | `lib/middleware/fiscal-validation.middleware.ts` | CAI validation before saving |

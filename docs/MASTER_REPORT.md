@@ -66,5 +66,6 @@
 - **Consolidación de Plantillas de Importación** — Nueva tab **"Plantillas"** en el panel contable (`app/companies/[id]/accounting/page.tsx`) con 6 templates descargables (`libro_diario`, `libro_mayor`, `libro_compras`, `libro_ventas`, `egresos_personalizado`, `ingresos_personalizado`); el uploader (`ExcelBooksUploader.tsx`) ya no descarga templates.
 - **Módulo Declaraciones Anuales** — Página `/reports/annual-tax` (ISV/ISR/Retenciones) compilada y desplegada.
 - **Deploy verificado** — Producción `app.contabhn.com` actualizado (commits `a80e6ea` y `b69025a`).
+- **Balance General completado (21 Sept 2026)** — Comparativos de período en componente independiente (`BalanceSheetComparative.tsx`), exportación Excel/PDF y ratios de liquidez integrados (razón corriente, prueba ácida, razón de efectivo, capital de trabajo) en `app/companies/[id]/accounting/financial-statements/balance-general`; utilidades compartidas en `lib/reports/balance-general.ts`.
 
 ---

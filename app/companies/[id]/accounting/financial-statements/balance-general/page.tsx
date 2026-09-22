@@ -22,19 +22,17 @@ import {
   Building2,
   Printer,
   FileText,
+  FileSpreadsheet,
   Percent,
   TrendingUp,
   TrendingDown,
-  Scale
+  Scale,
+  ArrowLeftRight,
+  Activity
 } from 'lucide-react';
-
-interface BalanceItem {
-  code: string;
-  name: string;
-  amount: number;
-  type: 'activo-corriente' | 'activo-no-corriente' | 'pasivo-corriente' | 'pasivo-no-corriente' | 'patrimonio';
-  parentCode?: string;
-}
+import { transformToBalanceGeneral, groupBalanceItems, computeLiquidityRatios } from '@/lib/reports/balance-general';
+import type { BalanceItem } from '@/lib/reports/balance-general';
+import BalanceSheetComparative from '@/components/financials/BalanceSheetComparative';
 
 interface CompanyInfo {
   name: string;
@@ -58,6 +56,8 @@ export default function BalanceGeneralPage() {
   });
   const [balanceData, setBalanceData] = useState<BalanceItem[]>([]);
   const [showPercentages, setShowPercentages] = useState(true);
+  const [showComparative, setShowComparative] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<'prev-month' | 'prev-year'>('prev-month');
 
   // Cargar datos de la empresa
   useEffect(() => {
@@ -126,48 +126,7 @@ export default function BalanceGeneralPage() {
   };
 
   // Transformar datos del trial balance a estructura de Balance General
-  const transformToBalanceGeneral = (data: any[]): BalanceItem[] => {
-    return data.map((item: any) => {
-      const account = item.account || {};
-      const code = account.code || item.code || '';
-      const name = account.name || item.name || 'Sin nombre';
-      const balance = parseFloat(item.balance || 0);
-      
-      // Clasificar por tipo de cuenta según código
-      const firstDigit = code.charAt(0);
-      let type: BalanceItem['type'];
-      
-      if (firstDigit === '1') {
-        // Activos: 1xxx
-        // Corrientes: 11xx (Caja, Bancos), 12xx (Clientes), 13xx (Inventarios)
-        // No corrientes: 14xx+ (Mobiliario, Vehículos)
-        type = code.startsWith('11') || code.startsWith('12') || code.startsWith('13') 
-          ? 'activo-corriente' 
-          : 'activo-no-corriente';
-      } else if (firstDigit === '2') {
-        // Pasivos: 2xxx
-        // Corrientes: 21xx (Proveedores), 22xx (Acreedores), 23xx (Impuestos)
-        // No corrientes: 24xx+ (Préstamos largo plazo)
-        type = code.startsWith('21') || code.startsWith('22') || code.startsWith('23')
-          ? 'pasivo-corriente'
-          : 'pasivo-no-corriente';
-      } else if (firstDigit === '3') {
-        // Patrimonio: 3xxx
-        type = 'patrimonio';
-      } else {
-        // Por defecto, si no encaja, lo ponemos en patrimonio
-        type = 'patrimonio';
-      }
-      
-      return {
-        code,
-        name,
-        amount: Math.abs(balance), // Balance General usa valores absolutos
-        type,
-        parentCode: code.length > 2 ? code.substring(0, 2) : undefined
-      };
-    }).sort((a, b) => a.code.localeCompare(b.code));
-  };
+  // (implementado en lib/reports/balance-general.ts → transformToBalanceGeneral)
 
   // Agrupar por secciones
   const groupedData = useMemo(() => {
@@ -190,6 +149,12 @@ export default function BalanceGeneralPage() {
       totalPatrimonio: patrimonio.reduce((sum, i) => sum + i.amount, 0),
     };
   }, [balanceData]);
+
+  // Ratios de liquidez integrados al balance
+  const liquidityRatios = useMemo(
+    () => computeLiquidityRatios(groupedData, balanceData),
+    [groupedData, balanceData]
+  );
 
   const totalActivos = groupedData.totalActivosCorrientes + groupedData.totalActivosNoCorrientes;
   const totalPasivos = groupedData.totalPasivosCorrientes + groupedData.totalPasivosNoCorrientes;
@@ -277,6 +242,98 @@ export default function BalanceGeneralPage() {
     }
   };
 
+  const handleDownloadExcel = async () => {
+    try {
+      const XLSX = await import('xlsx');
+      const fmt = (n: number) =>
+        new Intl.NumberFormat('es-HN', {
+          style: 'currency',
+          currency,
+          minimumFractionDigits: 2,
+        }).format(n);
+
+      const rows: (string | number)[][] = [];
+      rows.push([companyInfo.name]);
+      rows.push([`RTN: ${companyInfo.rtn}`]);
+      rows.push(['BALANCE GENERAL']);
+      rows.push([`Del ${formatDate(startDate)} al ${formatDate(endDate)}`]);
+      rows.push([`Expresado en ${currency === 'HNL' ? 'Lempiras' : 'Dólares'}`]);
+      rows.push([]);
+      rows.push(['CUENTA', 'CÓDIGO', 'MONTO']);
+
+      const pushSection = (title: string, items: BalanceItem[], total: number) => {
+        rows.push([title]);
+        items.forEach((i) => rows.push([i.name, i.code, fmt(i.amount)]));
+        rows.push([`Total ${title}`, '', fmt(total)]);
+        rows.push([]);
+      };
+
+      pushSection('Activos Corrientes', groupedData.activosCorrientes, groupedData.totalActivosCorrientes);
+      pushSection('Activos No Corrientes', groupedData.activosNoCorrientes, groupedData.totalActivosNoCorrientes);
+      rows.push(['TOTAL ACTIVOS', '', fmt(totalActivos)]);
+      rows.push([]);
+      pushSection('Pasivos Corrientes', groupedData.pasivosCorrientes, groupedData.totalPasivosCorrientes);
+      pushSection('Pasivos No Corrientes', groupedData.pasivosNoCorrientes, groupedData.totalPasivosNoCorrientes);
+      rows.push(['TOTAL PASIVOS', '', fmt(totalPasivos)]);
+      rows.push([]);
+      pushSection('Patrimonio', groupedData.patrimonio, groupedData.totalPatrimonio);
+      rows.push(['TOTAL PASIVO + PATRIMONIO', '', fmt(totalPatrimonioPasivos)]);
+      rows.push([]);
+
+      rows.push(['RATIOS DE LIQUIDEZ']);
+      rows.push(['Razón Corriente', '', liquidityRatios.currentRatio !== null ? `${liquidityRatios.currentRatio.toFixed(2)}x` : 'N/A']);
+      rows.push(['Prueba Ácida', '', liquidityRatios.quickRatio !== null ? `${liquidityRatios.quickRatio.toFixed(2)}x` : 'N/A']);
+      rows.push(['Razón de Efectivo', '', liquidityRatios.cashRatio !== null ? `${liquidityRatios.cashRatio.toFixed(2)}x` : 'N/A']);
+      rows.push(['Capital de Trabajo', '', fmt(liquidityRatios.workingCapital)]);
+
+      const worksheet = XLSX.utils.aoa_to_sheet(rows);
+      worksheet['!cols'] = [{ wch: 42 }, { wch: 12 }, { wch: 18 }];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Balance General');
+      XLSX.writeFile(
+        workbook,
+        `Balance_General_${companyInfo.name.replace(/\s+/g, "_")}_${new Date().toISOString().slice(0, 10)}.xlsx`
+      );
+    } catch (e) {
+      console.error('Error exporting to Excel:', e);
+      alert('No se pudo generar el archivo Excel');
+    }
+  };
+
+  const renderRatioTile = (
+    label: string,
+    value: number | null,
+    unit: string,
+    okThreshold: number,
+    formatter: (v: number) => string
+  ) => {
+    const healthy = value !== null && value >= okThreshold;
+    return (
+      <div
+        className={`p-3 rounded-lg border ${
+          healthy
+            ? 'border-green-200 bg-green-50'
+            : value === null
+              ? 'border-gray-200 bg-gray-50'
+              : 'border-red-200 bg-red-50'
+        }`}
+      >
+        <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</p>
+        <p
+          className={`text-xl font-bold mt-1 ${
+            healthy ? 'text-green-700' : value === null ? 'text-gray-400' : 'text-red-700'
+          }`}
+        >
+          {value !== null ? formatter(value) : 'N/A'}
+          <span className="text-sm font-medium text-gray-500 ml-1">{unit}</span>
+        </p>
+        <p className="text-[11px] text-gray-400 mt-1">
+          {unit === 'x' ? 'veces los pasivos corrientes' : 'excedente de liquidez'}
+        </p>
+      </div>
+    );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -305,6 +362,18 @@ export default function BalanceGeneralPage() {
                 <Percent className="h-4 w-4 mr-2" />
                 {showPercentages ? 'Ocultar %' : 'Mostrar %'}
               </Button>
+              <Button
+                variant={showComparative ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowComparative(!showComparative)}
+              >
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Comparativo
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleDownloadExcel}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Excel
+              </Button>
               <Button variant="outline" size="sm" onClick={handlePrint}>
                 <Printer className="h-4 w-4 mr-2" />
                 Imprimir
@@ -322,7 +391,7 @@ export default function BalanceGeneralPage() {
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
@@ -364,6 +433,23 @@ export default function BalanceGeneralPage() {
                   Generar Balance
                 </Button>
               </div>
+              {showComparative && (
+                <div className="space-y-2">
+                  <Label htmlFor="comparisonMode" className="flex items-center">
+                    <ArrowLeftRight className="h-4 w-4 mr-2" />
+                    Comparar con
+                  </Label>
+                  <select
+                    id="comparisonMode"
+                    value={comparisonMode}
+                    onChange={(e) => setComparisonMode(e.target.value as 'prev-month' | 'prev-year')}
+                    className="w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="prev-month">Mes anterior</option>
+                    <option value="prev-year">Mismo mes, año anterior</option>
+                  </select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -413,6 +499,24 @@ export default function BalanceGeneralPage() {
               <Badge variant={isBalanced ? 'default' : 'destructive'}>
                 {balanceData.length} cuentas
               </Badge>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Ratios de Liquidez */}
+        <Card className="mb-6 border-cyan-200">
+          <CardHeader className="bg-cyan-50 border-b">
+            <CardTitle className="text-lg text-cyan-900 flex items-center">
+              <Activity className="h-5 w-5 mr-2" />
+              Ratios de Liquidez
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {renderRatioTile('Razón Corriente', liquidityRatios.currentRatio, 'x', 1, (v) => `${v.toFixed(2)}`)}
+              {renderRatioTile('Prueba Ácida', liquidityRatios.quickRatio, 'x', 1, (v) => `${v.toFixed(2)}`)}
+              {renderRatioTile('Razón de Efectivo', liquidityRatios.cashRatio, 'x', 0.2, (v) => `${v.toFixed(2)}`)}
+              {renderRatioTile('Capital de Trabajo', liquidityRatios.workingCapital, '', 0, (v) => formatCurrency(v))}
             </div>
           </CardContent>
         </Card>
@@ -602,6 +706,16 @@ export default function BalanceGeneralPage() {
             </p>
           </CardContent>
         </Card>
+
+        {showComparative && (
+          <BalanceSheetComparative
+            tenantId={companyId}
+            startDate={startDate}
+            endDate={endDate}
+            currency={currency}
+            mode={comparisonMode}
+          />
+        )}
         </div>
       </div>
     </div>

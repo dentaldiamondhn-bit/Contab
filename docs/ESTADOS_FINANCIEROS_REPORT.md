@@ -8,22 +8,22 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables/Vistas | Almacenamiento |
 |---|---|---|---|---|---|
-| **Balance General** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
+| **Balance General** | ✅ Completo (21 Sept 2026) | 2 páginas | 1 ruta + trial-balance | 1 vista | Supabase |
 | **Estado de Resultados** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Flujo de Efectivo** | Parcial | 1 página | 1 ruta | 1 vista | Supabase |
 | **Balanza de Comprobación** | Completo | 1 página | 2 rutas | 1 vista + 1 API | Supabase |
 | **Ratios Financieros** | ✅ Completo | `app/reports/ratios/page.tsx` + API | 1 ruta | Datos reales | Cálculo automático |
-| **Comparativos de Período** | Parcial | En FinancialStatements | 0 rutas | — | Mock data |
+| **Comparativos de Período** | ✅ Balance General (21 Sept 2026) | FinancialStatements + `BalanceSheetComparative.tsx` | trial-balance (2 rangos) | — | Datos reales |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~70% | Balance de Comprobación 6 columnas funcional con RPCs; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales; FinancialStatements conectado a API real |
+| Completitud Funcional | ~75% (Balance General completo) | Balance de Comprobación 6 columnas funcional con RPCs; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales; FinancialStatements conectado a API real |
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Estabilidad y Validaciones | ~55% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
-| Exportación | ~40% | Solo CSV; sin exportación Excel ni PDF real |
-| Ratios Financieros | ~95% | 15 ratios automáticas + dashboard UI | Dashboard implementado |
+| Exportación | ~80% | Balance General con Excel (.xlsx) y PDF real (21 Sept 2026); resto de estados solo CSV |
+| Ratios Financieros | ~95% | 15 ratios automáticas + dashboard UI; razón corriente/prueba ácida/efectivo/capital de trabajo integrados en Balance General | Dashboard implementado |
 
 ---
 
@@ -38,6 +38,9 @@
 | Archivo | Propósito |
 |---|---|
 | `components/financials/BalanceSheet.tsx` | Balance General: carga datos de vista Supabase `balance_general`, agrupación por ACTIVO CORRIENTE/NO CORRIENTE/PASIVO/PATRIMONIO, tarjetas resumen, exportación CSV, validación de balance |
+| `app/companies/[id]/accounting/financial-statements/balance-general/page.tsx` | Página moderna de Balance General por empresa: filtros de fecha/moneda, % del activo, validación, **ratios de liquidez integrados**, **exportación Excel y PDF**, **comparativo de períodos** (21 Sept 2026) |
+| `components/financials/BalanceSheetComparative.tsx` | **NUEVO (21 Sept 2026)**: componente independiente de comparativos de período (mes anterior / mismo mes año anterior) con variaciones absolutas y porcentuales |
+| `lib/reports/balance-general.ts` | **NUEVO (21 Sept 2026)**: utilidades puras — clasificación por código, transformación desde balanza, agrupación por secciones y cálculo de ratios de liquidez |
 | `app/reports/balance-general/page.tsx` | Página de Balance General |
 | `app/api/reports/balance-general/route.ts` | API de datos de Balance General |
 
@@ -47,9 +50,9 @@
 
 #### Lo que Falta
 
-- Sin comparativos de período en componente independiente
-- Sin exportación Excel/PDF
-- Sin ratios de liquidez integrados
+- ~~Sin comparativos de período en componente independiente~~ ✅ Implementado (21 Sept 2026): `components/financials/BalanceSheetComparative.tsx`
+- ~~Sin exportación Excel/PDF~~ ✅ Implementado (21 Sept 2026): Excel (.xlsx) + PDF en `app/companies/[id]/accounting/financial-statements/balance-general/page.tsx`
+- ~~Sin ratios de liquidez integrados~~ ✅ Implementado (21 Sept 2026): razón corriente, prueba ácida, razón de efectivo y capital de trabajo integradas en la página
 
 ---
 
@@ -126,9 +129,9 @@
 |---|---|---|---|
 | 1 | ~~FinancialStatements usa mock data~~ | ~~Componente principal inutilizable~~ | ~~Crítica~~ | ✅ Resuelta |
 | 2 | Flujo de Efectivo usa clasificación simplificada | Cálculos inexactos | Alta |
-| 3 | Sin exportación Excel/PDF real | Limitación para uso en producción | Alta |
+| 3 | Sin exportación Excel/PDF real | Limitación para uso en producción | Alta | ✅ Balance General: Excel + PDF (21 Sept 2026); resto de estados pendiente |
 | 4 | Sin dashboard de ratios financieros | Sin análisis financiero profundo | Media | ✅ Resuelto - Dashboard en `app/reports/ratios/page.tsx` |
-| 5 | Sin comparativos de período reales | Sin tendencias | Media |
+| 5 | Sin comparativos de período reales | Sin tendencias | Media | ✅ Balance General: `BalanceSheetComparative.tsx` (21 Sept 2026) |
 
 ---
 
@@ -216,3 +219,13 @@ Etapa 1 (Conexión de Datos)
 |---|---|
 | Asientos AJUSTE de Notas de Crédito/Débito | NC/ND generan asientos AJUSTE en `/api/accounting/transactions` (4101 Ingresos, 2105 ISV por pagar, contra 1101 Caja / 1103 Clientes; ISV 15% incluido). Impactan el Estado de Resultados (4101) y el Balance General (1101/1103/2105) |
 | Fix API de empresas | `app/api/companies/route.ts` corregido: `SUPABASE_URL` → `NEXT_PUBLIC_SUPABASE_URL` (elimina el HTTP 500) |
+
+## Actualizaciones de Estados Financieros (21 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Comparativos de período (Balance General) | Nuevo componente independiente `components/financials/BalanceSheetComparative.tsx`: compara período actual vs mes anterior o mismo mes del año anterior, mostrando variación absoluta y porcentual por cuenta y por sección (datos reales de `trial-balance`) |
+| Exportación Excel | Botón "Excel" en la página de Balance General genera `.xlsx` con estructura completa (encabezado, secciones con totales, verificación y ratios de liquidez) vía `xlsx` |
+| Exportación PDF | PDF real (jsPDF + html2canvas) ya disponible e incluye el comparativo cuando está activado |
+| Ratios de liquidez integrados | Tarjeta "Ratios de Liquidez" en el Balance General: razón corriente, prueba ácida (sin inventario 13xx), razón de efectivo (11xx) y capital de trabajo, con semáforo de salud |
+| Utilidades compartidas | `lib/reports/balance-general.ts`: clasificación por código (1/11-13/2/21-23/3), transformación de balanza y agrupación reutilizadas por página y componente |

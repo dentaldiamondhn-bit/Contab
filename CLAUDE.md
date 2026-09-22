@@ -34,3 +34,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `app/companies/[id]/accounting/page.tsx` — "Plantillas" tab with 6 downloadable Excel import templates
 - `components/accounting/ExcelBooksUploader.tsx` — Removed template download buttons
 - `app/reports/annual-tax` — New annual ISV/ISR/withholding declarations page
+- `lib/reports/balance-general.ts` — Shared balance sheet utils (classification, transform, grouping, liquidity ratios)
+- `components/financials/BalanceSheetComparative.tsx` — Independent period comparatives component
+- `app/companies/[id]/accounting/financial-statements/balance-general/page.tsx` — Excel + PDF export and integrated liquidity ratios
