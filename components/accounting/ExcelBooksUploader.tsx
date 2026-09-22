@@ -3,18 +3,14 @@
 import { useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { 
   Upload, 
   FileSpreadsheet, 
   CheckCircle, 
   AlertCircle,
-  Download,
   Loader2
 } from "lucide-react";
 import { createSupabaseClient, insertWithTenant } from "@/lib/supabase/client";
-import { createClient } from '@supabase/supabase-js';
-import * as XLSX from "xlsx";
 import {
   Dialog,
   DialogContent,
@@ -723,15 +719,6 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
   const [showPopup, setShowPopup] = useState(false);
   const [popupInfo, setPopupInfo] = useState<{ processed: number; total: number; fileName: string } | null>(null);
 
-  // Generar template de Excel
-  const downloadTemplate = (tipo: keyof typeof TEMPLATES) => {
-    const columns = TEMPLATES[tipo];
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([columns]);
-    XLSX.utils.book_append_sheet(wb, ws, tipo);
-    XLSX.writeFile(wb, `template_${tipo}.xlsx`);
-  };
-
   // Detectar tipo de libro según columnas
   const detectBookType = (headers: string[]): keyof typeof TEMPLATES | null => {
     // Normalizar headers (quitar espacios, caracteres especiales, convertir a minúsculas)
@@ -937,26 +924,6 @@ export function ExcelBooksUploader({ tenantId, onSuccess }: ExcelUploaderProps) 
               <div>• Libro de Compras</div>
               <div>• Libro de Ventas</div>
             </div>
-          </div>
-          
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" onClick={() => downloadTemplate("egresos_personalizado")}>
-              <Download className="h-4 w-4 mr-2" />
-              Template Egresos Personalizado
-            </Button>
-            <Button variant="outline" onClick={() => downloadTemplate("ingresos_personalizado")}>
-              <Download className="h-4 w-4 mr-2" />
-              Template Ingresos Personalizado
-            </Button>
-            <Button variant="outline" onClick={() => downloadTemplate("libro_diario")}>
-              <Download className="h-4 w-4 mr-2" />
-              Template Libro Diario
-            </Button>
-          </div>
-          
-          <div className="mt-2">
-            <Badge variant="outline">Tip</Badge>{" "}
-            Descargue los templates para ver el formato exacto requerido.
           </div>
         </div>
         </CardContent>

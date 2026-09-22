@@ -112,6 +112,42 @@ interface AccountingBook {
   companyId: string;
 }
 
+// Templates de importación de libros contables
+const IMPORT_TEMPLATES = {
+  libro_diario: [
+    "fecha", "tipo_comprobante", "numero_comprobante", "descripcion",
+    "codigo_cuenta", "nombre_cuenta", "debe", "haber"
+  ],
+  libro_mayor: [
+    "codigo_cuenta", "nombre_cuenta", "tipo_cuenta", "total_debe", "total_haber", "saldo"
+  ],
+  libro_compras: [
+    "fecha", "numero_factura", "rtn_proveedor", "descripcion_compra",
+    "monto_compra", "credito_fiscal"
+  ],
+  libro_ventas: [
+    "fecha", "numero_factura", "rtn_cliente", "descripcion_venta",
+    "monto_venta", "debito_fiscal"
+  ],
+  egresos_personalizado: [
+    "fecha", "cheque / transf.", "proveedor / beneficiario", "rtn proveedor",
+    "concepto", "monto neto", "isv pagado", "total egreso"
+  ],
+  ingresos_personalizado: [
+    "fecha", "documento (recibo/factura)", "cliente / concepto", "rtn cliente",
+    "monto exento", "monto gravado (15%)", "isv (15%)", "total ingreso"
+  ]
+} as const;
+
+const IMPORT_TEMPLATES_INFO: Record<keyof typeof IMPORT_TEMPLATES, { label: string; description: string }> = {
+  libro_diario: { label: "Libro Diario", description: "Registro cronológico de transacciones con partida doble" },
+  libro_mayor: { label: "Libro Mayor", description: "Resumen por cuentas con saldos acumulados" },
+  libro_compras: { label: "Libro de Compras", description: "Compras y crédito fiscal de proveedores" },
+  libro_ventas: { label: "Libro de Ventas", description: "Ventas y débito fiscal de clientes" },
+  egresos_personalizado: { label: "Egresos Personalizado", description: "Egresos con cheque/transferencia y beneficiario" },
+  ingresos_personalizado: { label: "Ingresos Personalizado", description: "Ingresos con recibo/factura y cliente" },
+};
+
 export default function CompanyAccountingPage() {
   const params = useParams();
   const router = useRouter();
@@ -365,6 +401,14 @@ export default function CompanyAccountingPage() {
         setUploadedFiles(j.files || []);
       }
     } catch {}
+  };
+
+  const downloadTemplate = (tipo: keyof typeof IMPORT_TEMPLATES) => {
+    const columns = IMPORT_TEMPLATES[tipo];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([columns]);
+    XLSX.utils.book_append_sheet(wb, ws, String(tipo));
+    XLSX.writeFile(wb, `template_${tipo}.xlsx`);
   };
 
   const handleDownloadFile = async (f:any) => {
@@ -911,10 +955,14 @@ export default function CompanyAccountingPage() {
 
       {/* Tabs de Contabilidad */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-6">
           <TabsTrigger value="overview" className="flex items-center space-x-2">
             <Calculator className="h-4 w-4" />
             <span>Resumen</span>
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center space-x-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Plantillas</span>
           </TabsTrigger>
           <TabsTrigger value="transactions" className="flex items-center space-x-2">
             <FileText className="h-4 w-4" />
@@ -1189,6 +1237,38 @@ export default function CompanyAccountingPage() {
                   </table>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Plantillas - Templates descargables para Importar Libros Contables */}
+        <TabsContent value="templates" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                Plantillas de Importación
+              </CardTitle>
+              <CardDescription>
+                Descarga los templates Excel con el formato exacto requerido para importar libros contables
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(Object.keys(IMPORT_TEMPLATES) as (keyof typeof IMPORT_TEMPLATES)[]).map(tipo => (
+                  <div key={tipo} className="rounded-lg border p-4 flex flex-col items-center text-center gap-3 hover:shadow-md hover:border-green-300 transition-all">
+                    <FileSpreadsheet className="h-10 w-10 text-green-600" />
+                    <div className="min-h-[3rem] space-y-1">
+                      <p className="font-semibold">{IMPORT_TEMPLATES_INFO[tipo].label}</p>
+                      <p className="text-xs text-muted-foreground">{IMPORT_TEMPLATES_INFO[tipo].description}</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => downloadTemplate(tipo)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar Plantilla
+                    </Button>
+                  </div>
+                ))}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
