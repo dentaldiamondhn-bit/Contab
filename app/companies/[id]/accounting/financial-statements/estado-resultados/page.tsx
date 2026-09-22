@@ -26,21 +26,20 @@ import {
   Calculator,
   PieChart,
   Percent,
-  ArrowRightLeft
+  ArrowRightLeft,
+  Sparkles,
+  Target,
+  LineChart
 } from 'lucide-react';
-
-interface ResultadoItem {
-  code: string;
-  name: string;
-  amount: number;
-  type: 'ingreso' | 'costo' | 'gasto' | 'otro';
-}
-
-interface CompanyInfo {
-  name: string;
-  rtn: string;
-  address: string;
-}
+import {
+  transformToEstadoResultados,
+  groupResultadoItems,
+  computeCategoryMargins,
+  computeMarginSummary,
+  computeProjections,
+} from '@/lib/reports/income-statement';
+import type { ResultadoItem, CompanyInfo } from '@/lib/reports/income-statement';
+import IncomeStatementComparative from '@/components/financials/IncomeStatementComparative';
 
 export default function EstadoResultadosPage() {
   const params = useParams();
@@ -58,7 +57,7 @@ export default function EstadoResultadosPage() {
   });
   const [resultadoData, setResultadoData] = useState<ResultadoItem[]>([]);
   const [showComparison, setShowComparison] = useState(false);
-  const [previousPeriodData, setPreviousPeriodData] = useState<ResultadoItem[]>([]);
+  const [comparisonMode, setComparisonMode] = useState<'prev-month' | 'prev-year'>('prev-month');
 
   // Cargar datos de la empresa
   useEffect(() => {
@@ -124,76 +123,26 @@ export default function EstadoResultadosPage() {
     }
   };
 
-  // Transformar datos del trial balance a estructura de Estado de Resultados
-  const transformToEstadoResultados = (data: any[]): ResultadoItem[] => {
-    return data.map((item: any) => {
-      const account = item.account || {};
-      const code = account.code || item.code || '';
-      const name = account.name || item.name || 'Sin nombre';
-      const balance = parseFloat(item.balance || 0);
-      
-      // Clasificar por tipo según código
-      let type: ResultadoItem['type'];
-      const firstDigit = code.charAt(0);
-      const secondDigit = code.charAt(1);
-      
-      if (firstDigit === '4') {
-        // Ingresos (4xxx)
-        type = 'ingreso';
-      } else if (firstDigit === '5') {
-        // Costos (5xxx)
-        type = 'costo';
-      } else if (firstDigit === '6') {
-        // Gastos (6xxx)
-        type = 'gasto';
-      } else {
-        type = 'otro';
-      }
-      
-      return {
-        code,
-        name,
-        amount: balance, // Usamos el balance directo (ya viene con signo de la API)
-        type
-      };
-    }).filter(item => 
-      item.type === 'ingreso' || 
-      item.type === 'costo' || 
-      item.type === 'gasto'
-    ).sort((a, b) => a.code.localeCompare(b.code));
-  };
+  // (implementado en lib/reports/income-statement.ts → transformToEstadoResultados)
 
   // Agrupar por categorías
-  const groupedData = useMemo(() => {
-    const ingresos = resultadoData.filter(i => i.type === 'ingreso');
-    const costos = resultadoData.filter(i => i.type === 'costo');
-    const gastos = resultadoData.filter(i => i.type === 'gasto');
-    
-    const totalIngresos = ingresos.reduce((sum, i) => sum + Math.abs(i.amount), 0);
-    const totalCostos = costos.reduce((sum, i) => sum + Math.abs(i.amount), 0);
-    const totalGastos = gastos.reduce((sum, i) => sum + Math.abs(i.amount), 0);
-    
-    // Cálculos jerárquicos
-    const utilidadBruta = totalIngresos - totalCostos;
-    const utilidadOperacion = utilidadBruta - totalGastos;
-    const utilidadAntesImpuestos = utilidadOperacion; // Asumiendo no hay otros ingresos/gastos
-    const isr = utilidadAntesImpuestos > 0 ? utilidadAntesImpuestos * 0.25 : 0;
-    const utilidadNeta = utilidadAntesImpuestos - isr;
-    
-    return {
-      ingresos,
-      costos,
-      gastos,
-      totalIngresos,
-      totalCostos,
-      totalGastos,
-      utilidadBruta,
-      utilidadOperacion,
-      utilidadAntesImpuestos,
-      isr,
-      utilidadNeta
-    };
-  }, [resultadoData]);
+  const groupedData = useMemo(() => groupResultadoItems(resultadoData), [resultadoData]);
+
+  // Márgenes por categoría
+  const categoryMargins = useMemo(
+    () => ({
+      costos: computeCategoryMargins(groupedData.costos, groupedData.totalIngresos),
+      gastos: computeCategoryMargins(groupedData.gastos, groupedData.totalIngresos),
+    }),
+    [groupedData]
+  );
+
+  const marginSummary = useMemo(() => computeMarginSummary(groupedData), [groupedData]);
+
+  const projections = useMemo(
+    () => computeProjections(groupedData, startDate, endDate),
+    [groupedData, startDate, endDate]
+  );
 
   // Formatear moneda
   const formatCurrency = (amount: number) => {
@@ -303,7 +252,7 @@ export default function EstadoResultadosPage() {
         {/* Filtros */}
         <Card className="mb-6 print:hidden">
           <CardContent className="py-4">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="startDate" className="flex items-center">
                   <Calendar className="h-4 w-4 mr-2" />
@@ -340,6 +289,20 @@ export default function EstadoResultadosPage() {
                   </SelectContent>
                 </Select>
               </div>
+              {showComparison && (
+                <div className="space-y-2">
+                  <Label htmlFor="comparisonMode">Comparar con</Label>
+                  <Select value={comparisonMode} onValueChange={(v: 'prev-month' | 'prev-year') => setComparisonMode(v)}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prev-month">Mes anterior</SelectItem>
+                      <SelectItem value="prev-year">Mismo mes, año anterior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-end">
                 <Button onClick={loadResultadoData} className="w-full">
                   Generar Estado
@@ -405,6 +368,17 @@ export default function EstadoResultadosPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Comparativo de Períodos */}
+        {showComparison && (
+          <IncomeStatementComparative
+            tenantId={companyId}
+            startDate={startDate}
+            endDate={endDate}
+            currency={currency}
+            mode={comparisonMode}
+          />
+        )}
 
         {/* INGRESOS OPERACIONALES */}
         <Card className="mb-4">
@@ -618,36 +592,155 @@ export default function EstadoResultadosPage() {
           </CardContent>
         </Card>
 
-        {/* Gráfica de Gastos (Placeholder) */}
+        {/* Análisis de Márgenes por Categoría */}
         <Card className="mb-6">
           <CardHeader className="bg-gray-50 border-b">
             <CardTitle className="text-lg flex items-center">
               <PieChart className="h-5 w-5 mr-2" />
-              Análisis de Gastos
+              Análisis de Márgenes por Categoría
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
-            {groupedData.gastos.length > 0 ? (
-              <div className="space-y-2">
-                {groupedData.gastos.slice(0, 5).map((gasto, index) => (
-                  <div key={index} className="flex items-center">
-                    <div className="w-32 text-sm text-gray-600 truncate">{gasto.name}</div>
-                    <div className="flex-1 mx-2">
-                      <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full bg-orange-500 rounded-full"
-                          style={{ width: `${getPercentageOfSales(Math.abs(gasto.amount))}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="w-24 text-right text-sm font-medium">
-                      {getPercentageOfSales(Math.abs(gasto.amount)).toFixed(1)}%
-                    </div>
-                  </div>
-                ))}
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 mb-6">
+              <div className="text-center border rounded-lg p-3">
+                <p className="text-xs text-gray-500">Margen Bruto</p>
+                <p className={`text-xl font-bold ${marginSummary.margenBruto >= 0 ? 'text-blue-700' : 'text-red-600'}`}>
+                  {marginSummary.margenBruto.toFixed(1)}%
+                </p>
               </div>
-            ) : (
-              <p className="text-gray-400 text-center">No hay datos suficientes para el análisis</p>
+              <div className="text-center border rounded-lg p-3">
+                <p className="text-xs text-gray-500">Margen Operativo</p>
+                <p className={`text-xl font-bold ${marginSummary.margenOperativo >= 0 ? 'text-purple-700' : 'text-red-600'}`}>
+                  {marginSummary.margenOperativo.toFixed(1)}%
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-3">
+                <p className="text-xs text-gray-500">Margen Neto</p>
+                <p className={`text-xl font-bold ${marginSummary.margenNeto >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {marginSummary.margenNeto.toFixed(1)}%
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-3">
+                <p className="text-xs text-gray-500">Costo sobre Ventas</p>
+                <p className="text-xl font-bold text-red-700">{marginSummary.costosSobreVentas.toFixed(1)}%</p>
+              </div>
+              <div className="text-center border rounded-lg p-3">
+                <p className="text-xs text-gray-500">Gastos sobre Ventas</p>
+                <p className="text-xl font-bold text-orange-700">{marginSummary.gastosSobreVentas.toFixed(1)}%</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="text-sm font-semibold text-red-800 mb-2">Costos por Categoría</h4>
+                <div className="space-y-2">
+                  {(categoryMargins.costos.length > 0 ? categoryMargins.costos : []).map((cat) => (
+                    <div key={cat.code} className="flex items-center">
+                      <div className="w-28 text-sm text-gray-600 truncate">
+                        <span className="text-xs text-gray-400 mr-1">{cat.code}</span>
+                        {cat.name}
+                      </div>
+                      <div className="flex-1 mx-2">
+                        <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-red-500 rounded-full"
+                            style={{ width: `${Math.min(100, cat.percentOfSales)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div className="w-28 text-right text-sm font-medium">{cat.percentOfSales.toFixed(1)}%</div>
+                    </div>
+                  ))}
+                  {categoryMargins.costos.length === 0 && (
+                    <p className="text-gray-400 italic text-sm">No hay costos registrados</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <h4 className="text-sm font-semibold text-orange-800 mb-2">Gastos por Categoría</h4>
+                <div className="space-y-2">
+                  {(categoryMargins.gastos.length > 0 ? categoryMargins.gastos : []).map((cat) => (
+                    <div key={cat.code} className="flex items-center">
+                      <div className="w-28 text-sm text-gray-600 truncate">
+                        <span className="text-xs text-gray-400 mr-1">{cat.code}</span>
+                        {cat.name}
+                      </div>
+                      <div className="flex-1 mx-2">
+                        <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-orange-500 rounded-full"
+                            style={{ width: `${Math.min(100, cat.percentOfSales)}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div className="w-28 text-right text-sm font-medium">{cat.percentOfSales.toFixed(1)}%</div>
+                    </div>
+                  ))}
+                  {categoryMargins.gastos.length === 0 && (
+                    <p className="text-gray-400 italic text-sm">No hay gastos registrados</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Proyecciones */}
+        <Card className="mb-6">
+          <CardHeader className="bg-cyan-50 border-b">
+            <CardTitle className="text-lg text-cyan-900 flex items-center">
+              <LineChart className="h-5 w-5 mr-2" />
+              Proyecciones
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              Estimación por run-rate del período actual ({projections.elapsedRatio >= 1 ? 'período completo' : `${(projections.elapsedRatio * 100).toFixed(0)}% del mes`})
+            </p>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <Sparkles className="h-5 w-5 mx-auto text-cyan-600 mb-1" />
+                <p className="text-sm text-gray-600">Proyección Mensual</p>
+                <p className={`text-lg font-bold ${projections.monthly >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.monthly)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <Sparkles className="h-5 w-5 mx-auto text-cyan-600 mb-1" />
+                <p className="text-sm text-gray-600">Proyección Trimestral</p>
+                <p className={`text-lg font-bold ${projections.quarterly >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.quarterly)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <Sparkles className="h-5 w-5 mx-auto text-cyan-600 mb-1" />
+                <p className="text-sm text-gray-600">Proyección Anual</p>
+                <p className={`text-lg font-bold ${projections.annual >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.annual)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <Target className="h-5 w-5 mx-auto text-cyan-600 mb-1" />
+                <p className="text-sm text-gray-600">Punto de Equilibrio</p>
+                <p className="text-lg font-bold text-cyan-700">
+                  {projections.breakEven !== null ? formatCurrency(projections.breakEven) : 'N/A'}
+                </p>
+                <p className="text-xs text-gray-500 mt-1">Ventas mínimas para cubrir gastos</p>
+              </div>
+            </div>
+            {groupedData.totalGastos > 0 && projections.breakEven !== null && (
+              <div className="mt-4">
+                <p className="text-sm text-gray-600 mb-1">Distancia de ventas actuales al punto de equilibrio:</p>
+                <div className="h-4 bg-gray-200 rounded-full overflow-hidden">
+                  <div
+                    className={`h-full rounded-full ${groupedData.totalIngresos >= projections.breakEven ? 'bg-green-500' : 'bg-amber-500'}`}
+                    style={{ width: `${Math.min(100, (groupedData.totalIngresos / (projections.breakEven || 1)) * 100)}%` }}
+                  ></div>
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Ventas actuales: {formatCurrency(groupedData.totalIngresos)} | Punto de equilibrio: {formatCurrency(projections.breakEven)}
+                </p>
+              </div>
             )}
           </CardContent>
         </Card>

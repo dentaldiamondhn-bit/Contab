@@ -37,3 +37,8 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `lib/reports/balance-general.ts` — Shared balance sheet utils (classification, transform, grouping, liquidity ratios)
 - `components/financials/BalanceSheetComparative.tsx` — Independent period comparatives component
 - `app/companies/[id]/accounting/financial-statements/balance-general/page.tsx` — Excel + PDF export and integrated liquidity ratios
+
+### Update (22 Sept 2026)
+- `lib/reports/income-statement.ts` — Shared income statement (P&L) utils (classification, transform, grouping, category margins, margin summary, run-rate projections, break-even)
+- `components/financials/IncomeStatementComparative.tsx` — Independent period comparatives (prev month / prev year) with variances
+- `app/companies/[id]/accounting/financial-statements/estado-resultados/page.tsx` — Margin analysis by category, projections (monthly/quarterly/annual, break-even) and integrated period comparatives

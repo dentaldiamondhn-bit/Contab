@@ -75,9 +75,9 @@
 
 #### Lo que Falta
 
-- Sin comparativos de período
-- Sin análisis de márgenes por categoría
-- Sin proyecciones
+- ~~Sin comparativos de período~~ ✅ Implementado (22 Sept 2026): `components/financials/IncomeStatementComparative.tsx` + página integra comparativo opcional (mes anterior / mismo mes, año anterior) con variaciones y tendencias
+- ~~Sin análisis de márgenes por categoría~~ ✅ Implementado (22 Sept 2026): tarjeta "Análisis de Márgenes por Categoría" (margen bruto, operativo, neto, costos/gastos sobre ventas) + detalle por categoría 2 dígitos
+- ~~Sin proyecciones~~ ✅ Implementado (22 Sept 2026): tarjeta "Proyecciones" (mensual/trimestral/anual por run-rate, punto de equilibrio) — `computeProjections` en `lib/reports/income-statement.ts`
 
 ---
 

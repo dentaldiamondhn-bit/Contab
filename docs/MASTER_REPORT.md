@@ -67,5 +67,6 @@
 - **Módulo Declaraciones Anuales** — Página `/reports/annual-tax` (ISV/ISR/Retenciones) compilada y desplegada.
 - **Deploy verificado** — Producción `app.contabhn.com` actualizado (commits `a80e6ea` y `b69025a`).
 - **Balance General completado (21 Sept 2026)** — Comparativos de período en componente independiente (`BalanceSheetComparative.tsx`), exportación Excel/PDF y ratios de liquidez integrados (razón corriente, prueba ácida, razón de efectivo, capital de trabajo) en `app/companies/[id]/accounting/financial-statements/balance-general`; utilidades compartidas en `lib/reports/balance-general.ts`.
+- **Estado de Resultados completado (22 Sept 2026)** — Comparativos de período (mes anterior / mismo mes año anterior) en componente independiente (`IncomeStatementComparative.tsx`), análisis de márgenes por categoría y proyecciones (run-rate, punto de equilibrio) integrados en `app/companies/[id]/accounting/financial-statements/estado-resultados`; utilidades compartidas en `lib/reports/income-statement.ts`.
 
 ---
