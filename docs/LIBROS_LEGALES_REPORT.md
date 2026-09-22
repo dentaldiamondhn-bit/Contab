@@ -17,7 +17,7 @@
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
-| **Declaraciones Anuales** | ✅ En progreso | `app/reports/annual-tax/page.tsx` + API | 1 ruta | Datos reales | Generación automática |
+| **Declaraciones Anuales** | ✅ En progreso | `app/reports/annual-tax/page.tsx` (21 Sept 2026: página + rutas compiladas y desplegadas; datos reales pendientes) | API | Datos reales | Generación automática |
 
 ### 1.2 Métricas de Madurez
 
@@ -167,7 +167,7 @@
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
 | 2 | Retenciones sin asiento contable | Duble registro manual | Alta |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
-| 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta | ✅ En desarrollo - `app/reports/annual-tax/page.tsx` |
+| 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta | ✅ En desarrollo - `app/reports/annual-tax/page.tsx` (página + API compiladas y desplegadas 21 Sept 2026) |
 | 5 | DET sin carga automática a SAR | Proceso manual | Media |
 
 ---
@@ -196,7 +196,7 @@
 |---|---|---|---|
 | 3.1 | ~~Crear generador de DIAT~~ | ~~`lib/services/diat-generator.ts`~~ | ✅ Generador DIAT (16 Sept 2026) |
 | 3.2 | ~~UI para DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página DIAT + API (16 Sept 2026) |
-| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ En desarrollo |
+| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ En desarrollo (página desplegada 21 Sept 2026) |
 
 ### Etapa 4: Exportación y Cumplimiento
 
@@ -259,3 +259,12 @@ Etapa 1 (Retenciones + Contabilidad)
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
 | Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Libros Legales (21 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Tab "Plantillas" de importación | `app/companies/[id]/accounting/page.tsx` ofrece 6 templates Excel descargables (`libro_diario`, `libro_mayor`, `libro_compras`, `libro_ventas`, `egresos_personalizado`, `ingresos_personalizado`) con el formato exacto para cargar libros |
+| Uploader sin descargas | `components/accounting/ExcelBooksUploader.tsx` ya no incluye botones de descarga de templates (se consolidaron en la tab "Plantillas"); conserva la lista "Formatos soportados" |
+| Declaraciones Anuales | Página `/reports/annual-tax` (ISV/ISR/Retenciones) compilada, commiteada y desplegada en producción; siguiente paso: conectar datos reales |
+| Despliegue | Producción `app.contabhn.com` actualizada (commits `a80e6ea`, `b69025a`) |

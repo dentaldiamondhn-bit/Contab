@@ -29,7 +29,7 @@ npm run prisma:deploy
 ### Nuevos modelos en Prisma (18 Sept 2026)
 
 Se agregaron dos modelos nuevos al schema:
-- `OutboxAudit` — Tabla outbox para logs de auditoría asíncronos
+- `AuditOutbox` — Tabla `audit_outbox` para logs de auditoría asíncronos (outbox pattern)
 - `PeriodClosingBalance` — Snapshot de balances para cierres de período
 
 ```bash

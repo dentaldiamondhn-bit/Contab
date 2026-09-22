@@ -227,5 +227,7 @@ El módulo de auditoría Prisma (`audit-middleware.ts`/`audit-service.ts`) se en
 4. **Deprecated plan:** Planificar remoción gradual en próximos 2-3 meses
 5. **Tests:** Verificar que flujo Supabase no rompe validaciones existentes
 
+> **Actualización (21 Sept 2026):** El outbox de auditoría en Supabase (`audit_outbox`) fue reparado en producción — los triggers usan `to_jsonb(NEW/OLD)` con guarda de excepción, `supabase/outbox-audit.sql` es ahora idempotente, y existe un script mínimo `supabase/fix-audit-triggers-jsonb.sql` (solo funciones). Detalle en `SEGURIDAD_CONTROL_REPORT.md` §8.1.
+
 ---
 *Reporte generado automáticamente el 18 de Septiembre de 2026 como parte de la documentación del sistema Contab.*

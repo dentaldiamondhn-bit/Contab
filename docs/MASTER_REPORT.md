@@ -61,4 +61,10 @@
 - **DIAT implementado** — Reporte mensual de ventas/compras por empresa con generador (`lib/services/diat-generator.ts`), API `GET /api/diat?companyId=&period=` y UI en `/companies/[id]/diat` (`components/DIATManager.tsx`).
 - **Fuentes de datos** — Declarante resuelto desde `companies` (por `tenant_id` o `id`); ventas desde `libro_ventas`; compras desde `Purchase` (tenant `1` + `company_id`), filtradas por `tax_rate` (0/15/18/otras) con canceladas excluidas.
 
+#### Actualización (21 Sept 2026)
+- **Fix de Auditoría Outbox** — Triggers de auditoría corregidos a `to_jsonb(NEW/OLD)` (reparaba "cannot cast type Transaction to jsonb" en importaciones Excel) + guarda de excepción (la auditoría nunca bloquea la operación). `supabase/outbox-audit.sql` ahora idempotente (evita deadlocks 40P01 con la app) y nuevo `supabase/fix-audit-triggers-jsonb.sql` (solo funciones).
+- **Consolidación de Plantillas de Importación** — Nueva tab **"Plantillas"** en el panel contable (`app/companies/[id]/accounting/page.tsx`) con 6 templates descargables (`libro_diario`, `libro_mayor`, `libro_compras`, `libro_ventas`, `egresos_personalizado`, `ingresos_personalizado`); el uploader (`ExcelBooksUploader.tsx`) ya no descarga templates.
+- **Módulo Declaraciones Anuales** — Página `/reports/annual-tax` (ISV/ISR/Retenciones) compilada y desplegada.
+- **Deploy verificado** — Producción `app.contabhn.com` actualizado (commits `a80e6ea` y `b69025a`).
+
 ---

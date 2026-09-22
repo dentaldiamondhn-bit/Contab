@@ -346,7 +346,7 @@ TenantProvider → Envuelve toda la app
 
 **Facturación:** Invoice, InvoiceItem, InvoiceNote, cai, talonarios, customer (esquema único; legacy lowercase eliminado en migración 007, 16 Sept 2026) 
 
-**Contabilidad:** chart_of_accounts, account_audit_log, auditlog, journal_entry_templates, journal_entry_template_lines, journal_entry_reversals, recurring_entries, recurring_entry_executions
+**Contabilidad:** chart_of_accounts, account_audit_log, audit_outbox, audit_log, journal_entry_templates, journal_entry_template_lines, journal_entry_reversals, recurring_entries, recurring_entry_executions
 
 **Inventario:** product (canónico), inventory_movement, warehouses (legacy `Product`/`Products`/`products`/`InventoryMovement` eliminados en migración 008, 16 Sept 2026)
 
@@ -1370,12 +1370,13 @@ const { data } = await supabase.from('transactions').select('*');
 
 **Problema:** Los logs de auditoría se escribían sincrónicamente, bloqueando transacciones contables de alta concurrencia.
 
-**Solución:** Tabla `outbox_audit` como cola de mensajes. Los triggers insertan en outbox y un worker asíncrono procesa a `auditlog`.
+**Solución:** Tabla `audit_outbox` como cola de mensajes. Los triggers insertan en outbox y un worker asíncrono procesa a `audit_log`.
 
 **Flujo:**
-1. Transacción contable → Trigger INSERT en `outbox_audit`
-2. Worker/cron ejecuta `process_outbox_audit()` cada minuto
-3. Registros se copian a `auditlog` y marcan `processed = TRUE`
+1. Transacción contable → Trigger INSERT en `audit_outbox`
+2. Worker/cron ejecuta `process_audit_outbox()` cada minuto
+3. Registros se copian a `audit_log` y marcan `PROCESSED`
+4. (Fix 21 Sept 2026) Funciones con `to_jsonb(NEW/OLD)` (corrige "cannot cast type Transaction to jsonb") + guarda de excepción (la auditoría nunca bloquea la operación); `outbox-audit.sql` ahora idempotente (evita deadlocks 40P01 con la app); script mínimo `supabase/fix-audit-triggers-jsonb.sql` para re-crear solo las funciones
 
 ### 18.4 PDFs con Caché en Supabase Storage
 
@@ -1468,6 +1469,21 @@ CREATE TABLE period_closing_balances (
   snapshot_date TIMESTAMPTZ DEFAULT now()
 );
 ```
+
+### 18.9 Actualización (21 Sept 2026)
+
+**Plantillas de importación de libros contables**
+- Nueva tab **"Plantillas"** en `app/companies/[id]/accounting/page.tsx` (junto a "Resumen"): 6 templates Excel descargables — `libro_diario`, `libro_mayor`, `libro_compras`, `libro_ventas`, `egresos_personalizado`, `ingresos_personalizado` — con las columnas exactas requeridas por Supabase.
+- `components/accounting/ExcelBooksUploader.tsx`: se retiraron los botones de descarga de templates; queda la lista "Formatos soportados".
+
+**Fix de auditoría outbox en producción**
+- Triggers `trigger_transaction_audit` / `trigger_journalentry_audit` / `trigger_account_audit` corregidos a `to_jsonb(NEW/OLD)` + guarda de excepción; `supabase/outbox-audit.sql` idempotente (sin deadlocks con la app); `supabase/fix-audit-triggers-jsonb.sql` (solo funciones, sin DDL sobre tablas).
+- Detalle en `SEGURIDAD_CONTROL_REPORT.md` §8.
+
+**Declaraciones anuales**
+- Nueva página `app/reports/annual-tax/page.tsx` (ruta `/reports/annual-tax`): declaraciones anuales ISV/ISR/Retenciones con secciones de datos requeridos.
+
+**Deploy:** Verificado en producción `app.contabhn.com` (21 Sept 2026).
 
 ---
 

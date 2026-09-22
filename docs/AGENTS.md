@@ -17,7 +17,10 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | Area | File | Description |
 |---|---|---|
 | JWT RLS | `lib/supabase-client-jwt.ts` | Supabase client with Clerk JWT for direct RLS |
-| Outbox Audit | `lib/audit-middleware.ts` | Async audit logs via outbox pattern |
+| Outbox Audit | `lib/audit-middleware.ts`, `supabase/outbox-audit.sql` | Async audit logs via outbox pattern (`audit_outbox`, `to_jsonb`, idempotent) |
+| Outbox Fix | `supabase/fix-audit-triggers-jsonb.sql` | Minimal function-only repair (21 Sept 2026): avoids table locks/deadlocks |
+| Import Templates Tab | `app/companies/[id]/accounting/page.tsx` | "Plantillas" tab with 6 downloadable Excel import templates |
+| Annual Tax Declarations | `app/reports/annual-tax` | Annual ISV/ISR/withholding declarations page |
 | PDF Cache | `app/api/pdf-export/route.ts` | PDF generation with Supabase Storage caching |
 | Zod Validation | `lib/services/transaction-service-enhanced.ts` | Transaction payload validation |
 | Fiscal Middleware | `lib/middleware/fiscal-validation.middleware.ts` | CAI validation before saving |

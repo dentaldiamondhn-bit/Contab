@@ -14,7 +14,7 @@
 | **Seguridad de Login** | Básico | — | — | — | In-memory |
 | **RLS en TODAS las tablas** | ✅ Cerrado (V4 verificada 17 Sept 2026) | — | — | 107 bloqueadas con datos + resto vacío protegido; solo `Taxes` público (intencional); 0 escribibles | Supabase |
 | **Hibridación de Acceso a Datos** | ✅ Implementado (18 Sept 2026) | — | — | — | Supabase + JWT |
-| **Outbox Pattern (Auditoría)** | ✅ Implementado (18 Sept 2026) | — | — | `outbox_audit` | Supabase |
+| **Outbox Pattern (Auditoría)** | ✅ Implementado (18 Sept 2026, fix 21 Sept) | — | — | `audit_outbox` | Supabase |
 | **Validación Fiscal (CAI)** | ✅ Implementado (18 Sept 2026) | — | 1 middleware | — | — |
 | **PDFs con Caché (Storage)** | ✅ Implementado (18 Sept 2026) | — | 1 ruta API | — | Supabase Storage |
 | **Validación Zod (API)** | ✅ Implementado (18 Sept 2026) | — | — | — | — |
@@ -113,14 +113,15 @@
 
 | Archivo | Propósito |
 |---|---|
-| `lib/audit-middleware.ts` | Extensión Prisma para auditoría automática — **Ahora escribe a `outbox_audit`** (Outbox Pattern) en lugar de `auditlog` directamente |
+| `lib/audit-middleware.ts` | Extensión Prisma para auditoría automática — **Ahora escribe a `audit_outbox`** (Outbox Pattern) en lugar de `audit_log` directamente |
 | `lib/audit-context.ts` | Contexto desde NextRequest (userId, userAgent, ipAddress) |
 | `lib/services/audit-service.ts` | CRUD con paginación: createAuditLog, getPeriodAuditTrail, getAuditLogs, getUserAuditLogs |
 | `components/dashboard/AuditFeed.tsx` | Feed en tiempo real (376 líneas): auto-refresh 30s, filtro por acción, búsqueda, diff expandible (antes/después) |
 | `app/api/audit-logs/route.ts` | API de logs |
 | `supabase/auditlog.sql` | Tabla SQL: UUID PK, tablename, recordid, action, oldvalues/newvalues (JSONB), userid, tenantid, timestamp + RLS |
-| `supabase/outbox-audit.sql` | **NUEVO**: Tabla `outbox_audit` para cola asíncrona de logs de auditoría + triggers automáticos |
-| `prisma/schema.prisma` | Modelo `OutboxAudit` añadido para acceso via Prisma client |
+| `supabase/outbox-audit.sql` | **NUEVO**: Tabla `audit_outbox` para cola asíncrona de logs de auditoría + triggers automáticos (con `to_jsonb(NEW/OLD)`, idempotente/re-ejecutable y guarda de excepción) |
+| `supabase/fix-audit-triggers-jsonb.sql` | **NUEVO (21 Sept 2026)**: Script mínimo de reparación — solo reemplaza los cuerpos de las 3 funciones con `CREATE OR REPLACE FUNCTION` (sin DDL sobre tablas, evita deadlocks con la app en producción) |
+| `prisma/schema.prisma` | Modelo `AuditOutbox` (`@@map("audit_outbox")`) para acceso via Prisma client |
 
 ---
 
@@ -359,15 +360,17 @@ Restan 12 objetos (+ `Taxes`, catálogo global intencionalmente público): `libr
 
 | Archivo | Propósito |
 |---|---|
-| `supabase/outbox-audit.sql` | Tabla `outbox_audit` + triggers automáticos + función `process_outbox_audit()` |
-| `lib/audit-middleware.ts` | Escritura asíncrona a `outbox_audit` en lugar de `auditlog` directo |
-| `prisma/schema.prisma` | Modelo `OutboxAudit` añadido |
+| `supabase/outbox-audit.sql` | Tabla `audit_outbox` + triggers automáticos + función `process_audit_outbox()` (re-ejecutable/idempotente, 21 Sept 2026) |
+| `supabase/fix-audit-triggers-jsonb.sql` | **NUEVO (21 Sept 2026)**: Fix mínimo de funciones — solo `CREATE OR REPLACE FUNCTION`, sin locks de tabla |
+| `lib/audit-middleware.ts` | Escritura asíncrona a `audit_outbox` en lugar de `audit_log` directo |
+| `prisma/schema.prisma` | Modelo `AuditOutbox` añadido |
 
 **Cómo funciona:**
-1. Las transacciones contables insertan en `outbox_audit` (no bloquea la transacción principal)
-2. Un worker/cron ejecuta `process_outbox_audit()` cada minuto
-3. Los registros procesados se copian a `auditlog` y se marcan como `processed = TRUE`
+1. Las transacciones contables insertan en `audit_outbox` (no bloquea la transacción principal)
+2. Un worker/cron ejecuta `process_audit_outbox()` cada minuto
+3. Los registros procesados se copian a `audit_log` y se marcan como `PROCESSED`
 4. Tablas con triggers: `Transaction`, `JournalEntry`, `Account`
+5. **Fix 21 Sept 2026:** Las funciones usan `to_jsonb(NEW/OLD)` (corrige "cannot cast type Transaction to jsonb") y tienen guarda de excepción — un fallo de auditoría NUNCA bloquea la operación contable principal
 
 ### 6.3 Optimización en la Generación de PDFs
 
@@ -466,12 +469,37 @@ Restan 12 objetos (+ `Taxes`, catálogo global intencionalmente público): `libr
 | Archivo | Estado | Descripción |
 |---|---|---|
 | `lib/supabase-client-jwt.ts` | **NUEVO** | Cliente Supabase con JWT para RLS directo |
-| `lib/audit-middleware.ts` | **MODIFICADO** | Outbox Pattern — escribe a `outbox_audit` |
-| `prisma/schema.prisma` | **MODIFICADO** | Modelos `OutboxAudit` + `PeriodClosingBalance` |
-| `supabase/outbox-audit.sql` | **NUEVO** | Tabla outbox + triggers + función de procesamiento |
+| `lib/audit-middleware.ts` | **MODIFICADO** | Outbox Pattern — escribe a `audit_outbox` |
+| `prisma/schema.prisma` | **MODIFICADO** | Modelos `AuditOutbox` + `PeriodClosingBalance` |
+| `supabase/outbox-audit.sql` | **NUEVO/MODIFICADO** | Tabla `audit_outbox` + triggers (`to_jsonb`, idempotente) + función `process_audit_outbox()` |
+| `supabase/fix-audit-triggers-jsonb.sql` | **NUEVO (21 Sept 2026)** | Fix mínimo de funciones (sin DDL sobre tablas) |
 | `app/api/pdf-export/route.ts` | **NUEVO** | API de generación async de PDFs con caché |
 | `lib/services/pdf-export.ts` | **MODIFICADO** | Funciones de caché y signed URLs |
 | `lib/services/transaction-service-enhanced.ts` | **MODIFICADO** | Zod validation en `createTransaction()` |
 | `lib/middleware/fiscal-validation.middleware.ts` | **NUEVO** | Validación fiscal de CAI |
 | `lib/services/year-end-closing.ts` | **MODIFICADO** | Snapshot de balances en cierre |
 | `package.json` | **MODIFICADO** | Scripts de CI/CD para migraciones |
+
+---
+
+## 8. Actualización (21 Sept 2026)
+
+### 8.1 Corrección de Auditoría Outbox en Producción
+
+**Problema:** Al importar Excel (`ingresos_personalizado`), las filas fallaban con `cannot cast type "Transaction" to jsonb` porque los triggers de auditoría usaban `NEW::jsonb`/`OLD::jsonb` (cast inválido a JSONB). Al corregirlo apareció la tabla `audit_outbox` inexistente, y los scripts con `DROP/CREATE TRIGGER` o `ALTER TABLE` producían `deadlock detected (40P01)` contra los `AccessShareLock` de la app (polling de `/api/accounting/*`).
+
+**Solución aplicada (ejecutar en Supabase SQL Editor, idempotente):**
+1. `supabase/outbox-audit.sql` — ahora **idempotente**: crea `audit_outbox` solo si no existe; los DDL (índices, RLS, GRANT, policies, triggers) se ejecutan solo la primera vez; re-ejecuciones solo reemplazan funciones.
+2. Funciones con `to_jsonb(NEW)`/`to_jsonb(OLD)` (cast correcto) y **guarda de excepción** (`EXCEPTION WHEN OTHERS THEN NULL`): la auditoría jamás bloquea la operación contable.
+3. `supabase/fix-audit-triggers-jsonb.sql` — variante mínima (solo 3 funciones) para entornos donde la tabla ya existe.
+
+**Resultado:** Importación de libros contables verificada en producción (64/64 filas, `ingresos_personalizado`) y desplegada (21 Sept 2026).
+
+### 8.2 Consolidación de Plantillas de Importación
+
+- `app/companies/[id]/accounting/page.tsx` — Nueva tab **"Plantillas"** (junto a "Resumen") con 6 templates Excel descargables: `libro_diario`, `libro_mayor`, `libro_compras`, `libro_ventas`, `egresos_personalizado`, `ingresos_personalizado` (con las columnas exactas para Supabase).
+- `components/accounting/ExcelBooksUploader.tsx` — Se eliminaron los botones de descarga de templates ("Egresos/Ingresos/Libro Diario") y el tip "Descargue los templates"; se conserva la lista "Formatos soportados".
+
+### 8.3 Módulo Declaraciones Anuales
+
+- Nueva página `app/reports/annual-tax/page.tsx` (ruta `/reports/annual-tax`) con declaraciones anuales ISV/ISR/Retenciones y secciones de datos requeridos.
