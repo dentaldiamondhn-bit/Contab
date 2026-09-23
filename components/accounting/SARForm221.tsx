@@ -7,8 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { FileText, Calculator, Download, AlertCircle, Database, ShieldCheck, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { transformToDET, validateAgainstSARRanges, formatDETForSAR, validateCompleteness, getDETFileName } from "@/lib/reports/det-sar";
-import type { DETRecord, SARValidation } from "@/lib/reports/det-sar";
+import { transformToDET, validateAgainstSARRanges, formatDETForSAR, validateCompleteness, getSARRangesSummary, getDETFileName } from "@/lib/reports/det-sar";
+import type { DETRecord, SARValidation, DETCompletenessResult } from "@/lib/reports/det-sar";
 
 interface SARForm221Props {
   ingresos: any[];
@@ -59,7 +59,12 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
   } | null>(null);
   const [sarValidation, setSarValidation] = React.useState<SARValidation | null>(null);
   const [loadingValidation, setLoadingValidation] = React.useState(false);
-  const [completeness, setCompleteness] = React.useState<SARValidation | null>(null);
+  const [completeness, setCompleteness] = React.useState<DETCompletenessResult | null>(null);
+  const [sarRangesSummary, setSarRangesSummary] = React.useState<{
+    caiCount: number;
+    totalDocumentos: number;
+    rangoActual: string;
+  } | null>(null);
   const [generatedContent, setGeneratedContent] = React.useState<string | null>(null);
   const [generatedFileName, setGeneratedFileName] = React.useState<string | null>(null);
 
@@ -141,7 +146,11 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
         ventaBase: records.filter(r => r.tipoOperacion === 'VENTA').reduce((s, r) => s + r.montoGravado, 0),
         compraBase: records.filter(r => r.tipoOperacion === 'COMPRA').reduce((s, r) => s + r.montoGravado, 0),
       });
+      setCompleteness(null);
+      setGeneratedContent(null);
+      setGeneratedFileName(null);
       setSarValidation(null);
+      setSarRangesSummary(null);
     } catch (error) {
       console.error("Error generando DET automático:", error);
       alert("Error al generar el DET desde transacciones contables. Revise la conexión con los datos contables.");
@@ -196,6 +205,7 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
     setLoadingValidation(true);
     try {
       const ranges = await loadRanges();
+      setSarRangesSummary(getSARRangesSummary(ranges));
       const result = validateAgainstSARRanges(autoRecords, ranges);
       setSarValidation(result);
     } finally {
@@ -205,20 +215,23 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
 
   const handleGenerateDET = async () => {
     if (!autoRecords.length) {
-      alert("No hay registros DET generados. Active la generación automática desde transacciones contables primero.");
+      setCompleteness(null);
+      setGeneratedContent(null);
+      setGeneratedFileName(null);
       return;
     }
 
     const [ranges, company] = await Promise.all([loadRanges(), loadCompany()]);
     const cai = ranges[0];
+    setSarRangesSummary(getSARRangesSummary(ranges));
+
     const completenessResult = validateCompleteness(autoRecords, {
-      company: { rtn: company.rtn, name: company.name },
-      cai,
+      rtn: company.rtn,
+      nombre: company.name,
     });
     setCompleteness(completenessResult);
 
     if (completenessResult.errors.length > 0) {
-      alert(`El archivo DET NO se generó. Falta información requerida:\n\n• ${completenessResult.errors.join('\n• ')}`);
       setGeneratedContent(null);
       setGeneratedFileName(null);
       return;
@@ -226,17 +239,6 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
 
     const validation = validateAgainstSARRanges(autoRecords, ranges);
     setSarValidation(validation);
-
-    if (validation.errors.length > 0) {
-      alert(`El archivo DET NO se generó. La validación de rangos SAR encontró errores:\n\n• ${validation.errors.join('\n• ')}`);
-      setGeneratedContent(null);
-      setGeneratedFileName(null);
-      return;
-    }
-
-    if (validation.warnings.length > 0) {
-      alert(`El archivo DET se generó con advertencias SAR:\n\n• ${validation.warnings.join('\n• ')}`);
-    }
 
     const content = formatDETForSAR(autoRecords);
     const fileName = getDETFileName(autoRecords, company.name || 'empresa', cai);
@@ -349,6 +351,29 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
                 </Card>
               </div>
 
+              {sarRangesSummary && (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Card className="border-cyan-100">
+                    <CardContent className="pt-4">
+                      <div className="text-sm font-medium text-slate-600">CAIs configurados</div>
+                      <div className="text-xl font-bold">{sarRangesSummary.caiCount}</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-100">
+                    <CardContent className="pt-4">
+                      <div className="text-sm font-medium text-slate-600">Documentos autorizados</div>
+                      <div className="text-xl font-bold">{sarRangesSummary.totalDocumentos}</div>
+                    </CardContent>
+                  </Card>
+                  <Card className="border-cyan-100">
+                    <CardContent className="pt-4">
+                      <div className="text-sm font-medium text-slate-600">Rango actual</div>
+                      <div className="text-sm font-bold break-words">{sarRangesSummary.rangoActual}</div>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+
               {autoRecords.length > 0 && (
                 <>
                   <div className="border rounded-lg overflow-hidden">
@@ -396,7 +421,7 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
               )}
 
               <div className="flex flex-wrap items-center gap-2">
-                <Button variant="outline" size="sm" onClick={runSARValidation} disabled={loadingValidation || !autoRecords.length}>
+                <Button variant="outline" size="sm" onClick={runSARValidation} disabled={loadingValidation}>
                   {loadingValidation ? (
                     <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                   ) : (
@@ -416,22 +441,31 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
                     <div className="flex items-center space-x-2">
                       <AlertCircle className="h-5 w-5 text-red-600" />
                       <span className="font-bold text-red-800">
-                        Faltan datos requeridos para generar el DET
+                        Faltan datos requeridos ({completeness.errors.length})
                       </span>
                     </div>
                     <p className="text-sm text-red-700">
-                      Corrija la siguiente información antes de generar el archivo DET:
+                      No se generó el archivo DET. Corrija la siguiente información antes de continuar:
                     </p>
                     <ul className="space-y-1">
                       {completeness.errors.map((error, i) => (
-                        <li key={i} className="text-sm text-red-700">• {error}</li>
+                        <li key={i} className="text-sm text-red-700">• {error.detalle}</li>
                       ))}
                     </ul>
+                    {completeness.missing.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {completeness.missing.map((label, i) => (
+                          <Badge key={i} variant="outline" className="text-red-700 border-red-300">
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
               )}
 
-              {completeness && completeness.ok && completeness.warnings.length > 0 && (
+              {completeness && completeness.warnings.length > 0 && (
                 <Card className="border-amber-200 bg-amber-50">
                   <CardContent className="pt-4 space-y-1">
                     <div className="flex items-center space-x-2">
@@ -441,7 +475,7 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
                       </span>
                     </div>
                     {completeness.warnings.map((warning, i) => (
-                      <p key={i} className="text-sm text-amber-700">• {warning}</p>
+                      <p key={i} className="text-sm text-amber-700">• {warning.detalle}</p>
                     ))}
                   </CardContent>
                 </Card>
@@ -455,11 +489,18 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
                       <span className="font-bold text-emerald-800">Archivo listo para el portal SAR</span>
                     </div>
                     <p className="text-sm text-emerald-800">
-                      El archivo <span className="font-mono">{generatedFileName}</span> está listo para adjuntar.
+                      El archivo <span className="font-mono">{generatedFileName}</span> está listo para adjuntar al portal SAR.
                     </p>
-                    <p className="text-sm text-emerald-800">
-                      Abrir el portal SAR → DET → Adjuntar y suba el archivo .txt descargado.
-                    </p>
+                    <div className="pt-1">
+                      <p className="text-sm font-semibold text-emerald-800 mb-1">Siguientes pasos</p>
+                      <ol className="list-decimal ml-5 space-y-0.5 text-sm text-emerald-800">
+                        <li>Abrir el portal SAR</li>
+                        <li>Ingresar con usuario y contraseña</li>
+                        <li>Ir al Formulario 221 (ISV)</li>
+                        <li>Adjuntar el archivo DET descargado</li>
+                        <li>Enviar la declaración</li>
+                      </ol>
+                    </div>
                   </CardContent>
                 </Card>
               )}
