@@ -5,8 +5,10 @@ import { useParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Calculator, Download, AlertCircle, Database, ShieldCheck, RefreshCw, ExternalLink, AlertTriangle } from "lucide-react";
+import { FileText, Calculator, Download, AlertCircle, Database, ShieldCheck, RefreshCw, ExternalLink, AlertTriangle, Eye, EyeOff, KeyRound, CloudUpload, Loader2, CheckCircle2, XCircle, Wifi, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { transformToDET, validateAgainstSARRanges, formatDETForSAR, validateCompleteness, getSARRangesSummary, getDETFileName } from "@/lib/reports/det-sar";
 import type { DETRecord, SARValidation, DETCompletenessResult } from "@/lib/reports/det-sar";
 
@@ -67,6 +69,36 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
   } | null>(null);
   const [generatedContent, setGeneratedContent] = React.useState<string | null>(null);
   const [generatedFileName, setGeneratedFileName] = React.useState<string | null>(null);
+  const [generatedCai, setGeneratedCai] = React.useState<string | undefined>(undefined);
+  const [generatedCorrelativo, setGeneratedCorrelativo] = React.useState<string | undefined>(undefined);
+
+  const [sarConfig, setSarConfig] = React.useState<{
+    configured: boolean;
+    endpoint: string;
+    usuario: string;
+    hasPassword: boolean;
+  } | null>(null);
+  const [loadingSarConfig, setLoadingSarConfig] = React.useState(false);
+  const [showSarForm, setShowSarForm] = React.useState(false);
+  const [sarEndpoint, setSarEndpoint] = React.useState('');
+  const [sarUsuario, setSarUsuario] = React.useState('');
+  const [sarPassword, setSarPassword] = React.useState('');
+  const [showSarPassword, setShowSarPassword] = React.useState(false);
+  const [savingSarConfig, setSavingSarConfig] = React.useState(false);
+  const [sarConfigMessage, setSarConfigMessage] = React.useState<{ ok: boolean; text: string } | null>(null);
+  const [testingConnection, setTestingConnection] = React.useState(false);
+  const [connectionResult, setConnectionResult] = React.useState<{
+    ok: boolean;
+    errorHint?: string;
+    bodyPreview?: string;
+  } | null>(null);
+  const [uploadingDet, setUploadingDet] = React.useState(false);
+  const [uploadResult, setUploadResult] = React.useState<{
+    ok: boolean;
+    errorHint?: string;
+    bodyPreview?: string;
+    portalConfirmation?: boolean;
+  } | null>(null);
 
   // Lógica de agrupación para Formulario 221 SAR
   const summary = React.useMemo(() => {
@@ -242,6 +274,8 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
 
     const content = formatDETForSAR(autoRecords);
     const fileName = getDETFileName(autoRecords, company.name || 'empresa', cai);
+    setGeneratedCai(cai?.cai);
+    setGeneratedCorrelativo(cai ? String(cai.correlativoActual || 0) : undefined);
     setGeneratedContent(content);
     setGeneratedFileName(fileName);
   };
@@ -264,6 +298,147 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
 
   const openSARPortal = () => {
     window.open('https://portal.sar.gob.hn', '_blank', 'noopener,noreferrer');
+  };
+
+  React.useEffect(() => {
+    if (!companyId) return;
+    let cancelled = false;
+    setLoadingSarConfig(true);
+    (async () => {
+      try {
+        const res = await fetch(`/api/accounting/sar-config?tenantId=${encodeURIComponent(companyId)}`);
+        const data = await res.json();
+        if (cancelled) return;
+        if (data && data.configured) {
+          setSarConfig({
+            configured: true,
+            endpoint: data.endpoint || '',
+            usuario: data.usuario || '',
+            hasPassword: !!data.hasPassword,
+          });
+        } else {
+          setSarConfig({ configured: false, endpoint: '', usuario: '', hasPassword: false });
+        }
+      } catch {
+        if (!cancelled) setSarConfig({ configured: false, endpoint: '', usuario: '', hasPassword: false });
+      } finally {
+        if (!cancelled) setLoadingSarConfig(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [companyId]);
+
+  const openSarConfigForm = () => {
+    setSarEndpoint(sarConfig?.endpoint || '');
+    setSarUsuario(sarConfig?.usuario || '');
+    setSarPassword('');
+    setSarConfigMessage(null);
+    setShowSarForm(true);
+  };
+
+  const saveSarConfig = async () => {
+    if (!companyId) return;
+    if (!sarEndpoint.trim() || !sarUsuario.trim()) {
+      setSarConfigMessage({ ok: false, text: 'El endpoint y el usuario del portal SAR son obligatorios.' });
+      return;
+    }
+    setSavingSarConfig(true);
+    try {
+      const res = await fetch('/api/accounting/sar-config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: companyId,
+          endpoint: sarEndpoint.trim(),
+          usuario: sarUsuario.trim(),
+          password: sarPassword,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.ok) {
+        setSarConfigMessage({ ok: false, text: data?.error || 'No se pudo guardar la configuración SAR.' });
+        return;
+      }
+      setSarConfig({
+        configured: true,
+        endpoint: sarEndpoint.trim(),
+        usuario: sarUsuario.trim(),
+        hasPassword: true,
+      });
+      setSarConfigMessage({ ok: true, text: 'Config guardada (clave cifrada AES-256-GCM).' });
+      setShowSarForm(false);
+    } catch {
+      setSarConfigMessage({ ok: false, text: 'Error de red al guardar la configuración SAR.' });
+    } finally {
+      setSavingSarConfig(false);
+    }
+  };
+
+  const testSARConnection = async () => {
+    if (!companyId) return;
+    setTestingConnection(true);
+    setConnectionResult(null);
+    try {
+      const res = await fetch('/api/accounting/det-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tenantId: companyId, detText: '' }),
+      });
+      const data = await res.json();
+      setConnectionResult({ ok: !!data?.ok, errorHint: data?.errorHint, bodyPreview: data?.bodyPreview });
+    } catch {
+      setConnectionResult({ ok: false, errorHint: 'RED' });
+    } finally {
+      setTestingConnection(false);
+    }
+  };
+
+  const uploadDETToSAR = async () => {
+    if (!companyId || !generatedContent) return;
+    if (uploadingDet) return;
+    setUploadingDet(true);
+    setUploadResult(null);
+    try {
+      const res = await fetch('/api/accounting/det-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenantId: companyId,
+          detText: generatedContent,
+          periodo: period,
+          cai: generatedCai,
+          correlativo: generatedCorrelativo,
+        }),
+      });
+      const data = await res.json();
+      setUploadResult({
+        ok: !!data?.ok,
+        errorHint: data?.errorHint,
+        bodyPreview: data?.bodyPreview,
+        portalConfirmation: !!data?.portalConfirmation,
+      });
+    } catch {
+      setUploadResult({ ok: false, errorHint: 'RED' });
+    } finally {
+      setUploadingDet(false);
+    }
+  };
+
+  const sarErrorLabel = (hint?: string) => {
+    switch (hint) {
+      case 'CREDENCIALES':
+        return 'El portal SAR rechazó las credenciales (usuario o contraseña incorrectos).';
+      case 'RED':
+        return 'No se pudo conectar con el portal SAR (problema de red o tiempo de espera agotado).';
+      case 'PORTAL':
+        return 'El portal SAR respondió con un error interno.';
+      case 'CONFIG':
+        return 'Configura primero la carga SAR con endpoint, usuario y contraseña.';
+      default:
+        return 'No se pudo completar la operación.';
+    }
   };
 
   const ventasCompradas = autoRecords.filter(r => r.tipoOperacion === 'VENTA');
@@ -556,6 +731,239 @@ export default function SARForm221({ ingresos, egresos, period }: SARForm221Prop
               Modo manual: el formulario usa los ingresos/egresos capturados con la tasa simplificada de 15%. Active el
               modo automático para generar el DET desde las transacciones contables.
             </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Carga SAR automática */}
+      <Card className="border-slate-200">
+        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+          <div className="flex items-center space-x-2">
+            <CloudUpload className="h-5 w-5 text-indigo-600" />
+            <CardTitle className="text-base">Carga SAR</CardTitle>
+          </div>
+          <div className="flex items-center gap-2">
+            {sarConfig?.configured && (
+              <Button variant="outline" size="sm" onClick={openSarConfigForm}>
+                <Pencil className="h-4 w-4 mr-1" />
+                Editar config
+              </Button>
+            )}
+            <Badge variant={sarConfig?.configured ? 'default' : 'outline'}>
+              {sarConfig?.configured ? 'Configurada' : 'No configurada'}
+            </Badge>
+          </div>
+        </CardHeader>
+        <CardContent className="pt-0 space-y-4">
+          {loadingSarConfig && (
+            <p className="text-sm text-slate-500">Cargando configuración SAR...</p>
+          )}
+
+          {!loadingSarConfig && sarConfig && !sarConfig.configured && (
+            <div className="border border-amber-200 bg-amber-50 rounded-lg p-4">
+              <div className="flex items-center space-x-2">
+                <AlertCircle className="h-5 w-5 text-amber-600" />
+                <span className="font-bold text-amber-800">Carga SAR no configurada</span>
+              </div>
+              <p className="text-sm text-amber-800 mt-1">
+                Configure el endpoint del portal SAR y sus credenciales para poder subir el DET automáticamente
+                (clave cifrada AES-256-GCM).
+              </p>
+            </div>
+          )}
+
+          {!loadingSarConfig && sarConfig?.configured && (
+            <div className="space-y-1 text-sm text-slate-700">
+              <div>
+                <span className="font-medium">Endpoint:</span>{' '}
+                <span className="font-mono break-all">{sarConfig.endpoint}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">Usuario:</span>
+                <span>{sarConfig.usuario}</span>
+                <Badge variant="secondary">Clave cifrada</Badge>
+              </div>
+              <div className="pt-2 flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={testSARConnection} disabled={testingConnection}>
+                  {testingConnection ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Wifi className="h-4 w-4 mr-2" />
+                  )}
+                  Probar conexión
+                </Button>
+                <Button variant="outline" size="sm" onClick={openSarConfigForm}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Editar config
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {!loadingSarConfig && sarConfig && !sarConfig.configured && (
+            <Button onClick={openSarConfigForm}>
+              <KeyRound className="h-4 w-4 mr-2" />
+              Configurar carga SAR
+            </Button>
+          )}
+
+          {showSarForm && (
+            <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
+              <div className="space-y-2">
+                <Label htmlFor="sar-endpoint">Endpoint del portal SAR</Label>
+                <Input
+                  id="sar-endpoint"
+                  type="text"
+                  value={sarEndpoint}
+                  onChange={(e) => setSarEndpoint(e.target.value)}
+                  placeholder="https://api.sar.gob.hn/... (URL del portal o API)"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sar-usuario">Usuario</Label>
+                <Input
+                  id="sar-usuario"
+                  type="text"
+                  value={sarUsuario}
+                  onChange={(e) => setSarUsuario(e.target.value)}
+                  placeholder="Usuario del portal SAR"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="sar-password">Contraseña</Label>
+                <div className="flex items-center space-x-2">
+                  <Input
+                    id="sar-password"
+                    type={showSarPassword ? 'text' : 'password'}
+                    value={sarPassword}
+                    onChange={(e) => setSarPassword(e.target.value)}
+                    placeholder={
+                      sarConfig?.configured ? '•••••••• (dejar vacío para mantener)' : 'Contraseña del portal SAR'
+                    }
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowSarPassword((value) => !value)}
+                    aria-label={showSarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                  >
+                    {showSarPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button onClick={saveSarConfig} disabled={savingSarConfig}>
+                  {savingSarConfig ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <KeyRound className="h-4 w-4 mr-2" />
+                  )}
+                  Guardar (cifrado)
+                </Button>
+                <Button variant="ghost" onClick={() => setShowSarForm(false)}>
+                  Cancelar
+                </Button>
+              </div>
+              {sarConfigMessage && (
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant={sarConfigMessage.ok ? 'default' : 'destructive'}
+                    className={sarConfigMessage.ok ? 'bg-emerald-600' : ''}
+                  >
+                    {sarConfigMessage.ok ? (
+                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                    ) : (
+                      <XCircle className="h-3 w-3 mr-1" />
+                    )}
+                    {sarConfigMessage.text}
+                  </Badge>
+                </div>
+              )}
+            </div>
+          )}
+
+          {connectionResult && (
+            <div>
+              {connectionResult.ok ? (
+                <Badge className="bg-emerald-600">
+                  <CheckCircle2 className="h-3 w-3 mr-1" />
+                  Conexión exitosa con el portal SAR
+                </Badge>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <Badge variant="destructive">
+                    <XCircle className="h-3 w-3 mr-1" />
+                    {sarErrorLabel(connectionResult.errorHint)}
+                  </Badge>
+                  <Button variant="outline" size="sm" onClick={testSARConnection} disabled={testingConnection}>
+                    Reintentar
+                  </Button>
+                </div>
+              )}
+              {connectionResult.bodyPreview && (
+                <p className="text-xs text-slate-500 mt-1 break-words">
+                  Respuesta del portal: {connectionResult.bodyPreview}
+                </p>
+              )}
+            </div>
+          )}
+
+          {generatedFileName && (
+            <div className="border-t pt-3">
+              <Button onClick={uploadDETToSAR} disabled={uploadingDet}>
+                {uploadingDet ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <CloudUpload className="h-4 w-4 mr-2" />
+                )}
+                {uploadingDet ? 'Subiendo DET...' : 'Subir DET al portal SAR'}
+              </Button>
+              {uploadResult && (
+                <div className="mt-3 space-y-2">
+                  {uploadResult.ok ? (
+                    <>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge className="bg-emerald-600">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          DET enviado al portal SAR
+                        </Badge>
+                        {uploadResult.portalConfirmation && (
+                          <Badge variant="secondary">Confirmación del portal detectada</Badge>
+                        )}
+                      </div>
+                      {uploadResult.bodyPreview && (
+                        <p className="text-xs text-slate-600 break-words">
+                          Respuesta del portal: {uploadResult.bodyPreview}
+                        </p>
+                      )}
+                      <Card className="border-emerald-200 bg-emerald-50">
+                        <CardContent className="pt-4">
+                          <p className="text-sm font-semibold text-emerald-800 mb-1">Pasos completados</p>
+                          <ol className="list-decimal ml-5 space-y-0.5 text-sm text-emerald-800">
+                            <li>Configuración de carga SAR guardada (clave cifrada AES-256-GCM)</li>
+                            <li>DET generado y validado contra rangos SAR</li>
+                            <li>DET enviado al portal SAR ({sarConfig?.endpoint})</li>
+                            {uploadResult.portalConfirmation && <li>Confirmación recibida del portal</li>}
+                          </ol>
+                        </CardContent>
+                      </Card>
+                    </>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="destructive">
+                        <XCircle className="h-3 w-3 mr-1" />
+                        {sarErrorLabel(uploadResult.errorHint)}
+                      </Badge>
+                      <Button variant="outline" size="sm" onClick={uploadDETToSAR} disabled={uploadingDet}>
+                        Reintentar
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
