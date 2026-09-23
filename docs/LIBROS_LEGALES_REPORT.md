@@ -17,15 +17,15 @@
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
-| **Declaraciones Anuales** | ✅ En progreso | `app/reports/annual-tax/page.tsx` (21 Sept 2026: página + rutas compiladas y desplegadas; datos reales pendientes) | API | Datos reales | Generación automática |
+| **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` (22 Sept 2026) | API | Datos reales | Generación automática |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~95% | Libros, SAR 221 y DIAT fuertes; Declaraciones Anuales en desarrollo |
+| Completitud Funcional | ~97% | Libros, SAR 221, DIAT y Declaraciones Anuales completos |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Exportación | ~90% | Los 4 libros legales exportan a Excel (Compras, Ventas, Retenciones y reportes SAR, 22 Sept 2026); sin PDF profesional |
+| Exportación | ~93% | Declaraciones Anuales y los 4 libros legales exportan a Excel (Compras, Ventas, Retenciones, SAR y anuales, 22 Sept 2026); sin PDF profesional |
 | Cumplimiento SAR | ~65% | Formulario 221, DET y DIAT listos; sin envío en línea |
 | Integración Contable | ~40% | Retenciones sin asiento contable automático |
 
@@ -194,6 +194,32 @@
 
 ---
 
+### 2.7 Declaraciones Anuales
+
+**Estado: Completo (~97%)**
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `app/reports/annual-tax/page.tsx` | Página de Declaraciones Anuales: 3 tarjetas (ISV/ISR/Retenciones) con montos reales desde transacciones contables, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
+| `lib/reports/annual-tax.ts` | Declaraciones Anuales automáticas: clasificación por prefijo de cuenta, transform + grouping desde trial-balance, cálculo ISV (débito − crédito fiscal efectivo), ISR 25% y retenciones (reusa `withholding-book.ts`), formato Excel multi-hoja |
+
+#### Capacidades
+
+- Generación automática desde transacciones contables (trial-balance del ejercicio: 1 ene → 31 dic) al cargar la página o cambiar el año
+- ISV: débito fiscal (ventas) − crédito fiscal (compras) mediante el ISV efectivo de las transacciones → impuesto a pagar o saldo a favor
+- ISR: ingresos gravados (REVENUE) − deducciones (EXPENSE 5/6xxx) × tarifa corporativa 25%
+- Retenciones: misma clasificación/agrupación que `lib/reports/withholding-book.ts` sobre balances de cuentas LIABILITY de retención
+- Exportación a Excel (.xlsx) con 3 hojas (ISV/ISR/Retenciones), nombre `Declaraciones_Anuales_{empresa}_{año}.xlsx`
+
+#### Lo que Falta
+
+- ~~Datos reales pendientes~~ ✅ Conectado a datos reales desde transacciones contables + exportación Excel (22 Sept 2026)
+- Sin envío en línea al portal SAR
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
@@ -201,7 +227,7 @@
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
 | 2 | Retenciones sin asiento contable | Duble registro manual | Alta |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
-| 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta | ✅ En desarrollo - `app/reports/annual-tax/page.tsx` (página + API compiladas y desplegadas 21 Sept 2026) |
+| 4 | ~~Sin declaraciones anuales consolidadas~~ | ~~Incumplimiento fiscal~~ | ✅ Implementado (conectado a datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 | 5 | ~~DET sin carga automática a SAR~~ | ~~Proceso manual~~ | ✅ Implementado (adaptador configurable de carga DET→SAR, 22 Sept 2026) |
 
 ---
@@ -230,7 +256,7 @@
 |---|---|---|---|
 | 3.1 | ~~Crear generador de DIAT~~ | ~~`lib/services/diat-generator.ts`~~ | ✅ Generador DIAT (16 Sept 2026) |
 | 3.2 | ~~UI para DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página DIAT + API (16 Sept 2026) |
-| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ En desarrollo (página desplegada 21 Sept 2026) |
+| 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ Implementado (datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 
 ### Etapa 4: Exportación y Cumplimiento
 
@@ -316,3 +342,4 @@ Etapa 1 (Retenciones + Contabilidad)
 | Cambio | Detalle |
 |---|---|
 | Libro de Retenciones automático | `lib/reports/withholding-book.ts` (clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/withholding-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
+| Declaraciones Anuales conectadas a datos reales | `lib/reports/annual-tax.ts` (cálculo ISV/ISR/Retenciones desde transacciones contables + formato Excel multi-hoja) + integración en `app/reports/annual-tax/page.tsx` con 3 tarjetas de montos reales, selector de año y botón "Exportar a Excel" (22 Sept 2026) |

@@ -1,349 +1,250 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { transformToAnnualTaxDeclarations, formatAnnualTaxForExcel } from "@/lib/reports/annual-tax";
+import type { AnnualTaxDecl } from "@/lib/reports/annual-tax";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Badge } from "@/components/ui/badge";
-import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
-import { RefreshCcw, FileText, Printer, Calendar, CheckShield, Loader2, Flag, AlertCircle } from "lucide-react";
-
-interface AnnualDeclaration {
-  id: string;
-  year: string;
-  status: "pending" | "generated" | "submitted" | "error";
-  type: "vat" | "isb" | "retention" | "global";
-  title: string;
-  period: string;
-  generatedAt: string | null;
-  submissionDeadline: string;
-  daysUntilDeadline: number;
-}
-
-interface DeclarationSection {
-  id: string;
-  name: string;
-  type: "vat" | "isb" | "retention" | "global";
-  description: string;
-  requiredData: string[];
-  generated: boolean;
-  pdfUrl: string | null;
-}
+import { AlertCircle, Calendar, FileText, FileSpreadsheet, Loader2, RefreshCcw } from "lucide-react";
 
 const CURRENT_YEAR = new Date().getFullYear();
-const DECLARATIONS: AnnualDeclaration[] = [
-  {
-    id: "vat-annual",
-    year: CURRENT_YEAR.toString(),
-    status: "pending",
-    type: "vat",
-    title: "Declaración Anual ISV (Impuesto Sobre Ventas)",
-    period: `${CURRENT_YEAR}-01`,
-    generatedAt: null,
-    submissionDeadline: `${CURRENT_YEAR}-04-25`,
-    daysUntilDeadline: 0,
-  },
-  {
-    id: "isb-annual",
-    year: CURRENT_YEAR.toString(),
-    status: "pending",
-    type: "isb",
-    title: "Declaración Anual ISR (Impuesto sobre la Renta)",
-    period: `${CURRENT_YEAR}-01`,
-    generatedAt: null,
-    submissionDeadline: `${CURRENT_YEAR}-03-15`,
-    daysUntilDeadline: 0,
-  },
-  {
-    id: "retention-annual",
-    year: CURRENT_YEAR.toString(),
-    status: "pending",
-    type: "retention",
-    title: "Declaración Anual de Retenciones",
-    period: `${CURRENT_YEAR}-01`,
-    generatedAt: null,
-    submissionDeadline: `${CURRENT_YEAR}-02-28`,
-    daysUntilDeadline: 0,
-  },
-];
 
-const DECLARATION_SECTIONS: DeclarationSection[] = [
-  {
-    id: "vat-summary",
-    name: "Resumen IVA",
-    type: "vat",
-    description: "Resumen anual de ventas, compras y impuesto calculado",
-    requiredData: ["total-ventas", "total-compras", "isv-calculado"],
-    generated: false,
-    pdfUrl: null,
-  },
-  {
-    id: "isb-summary",
-    name: "Resumen ISR",
-    type: "isb",
-    description: "Resumen anual de ingresos, egresos y utilidad neta",
-    requiredData: ["ingresos-totales", "egresos-totales", "utilidad-neta"],
-    generated: false,
-    pdfUrl: null,
-  },
-  {
-    id: "retention-summary",
-    name: "Resumen de Retenciones",
-    type: "retention",
-    description: "Resumen anual de retenciones 1% y 12.5%",
-    requiredData: ["retenciones-1porciento", "retenciones-12porciento"],
-    generated: false,
-    pdfUrl: null,
-  },
-];
-
-function fmt(n: number) {
-  return n.toLocaleString("es-HN", { style: "currency", currency: "HNL" });
+function fmt(n: number): string {
+  return new Intl.NumberFormat("es-HN", { style: "currency", currency: "HNL" }).format(n);
 }
 
-function getStatusBadge(status: AnnualDeclaration["status"]) {
+type BadgeVariant = "default" | "secondary" | "outline" | "destructive";
+
+function DeclarationCard({
+  title,
+  declaration,
+  badge,
+  badgeVariant = "default",
+}: {
+  title: string;
+  declaration: AnnualTaxDecl;
+  badge: string;
+  badgeVariant?: BadgeVariant;
+}) {
   return (
-    <Badge
-      variant={
-        status === "pending"
-          ? "outline"
-          : status === "generated"
-          ? "default"
-          : status === "submitted"
-          ? "secondary"
-          : "destructive"
-      }
-    >
-      {status}
-    </Badge>
+    <Card>
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between gap-2">
+          <CardTitle className="text-sm text-gray-500 flex items-center gap-2">
+            <FileText className="w-4 h-4 text-cyan-600" />
+            {title}
+          </CardTitle>
+          <Badge variant={badgeVariant} className="text-xs whitespace-nowrap">
+            {badge}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold text-gray-900">{fmt(declaration.amount)}</div>
+        <div className="text-xs text-gray-500 mt-1">
+          Datos contables reales del ejercicio {declaration.periodo.year}
+        </div>
+        <div className="text-xs text-gray-500">Base gravable: {fmt(declaration.base)}</div>
+        <div className="mt-4 overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b bg-gray-50">
+                <th className="text-left py-2 px-2 font-medium">Cuenta</th>
+                <th className="text-left py-2 px-2 font-medium">Descripcion</th>
+                <th className="text-left py-2 px-2 font-medium">Categoria</th>
+                <th className="text-right py-2 px-2 font-medium">Monto</th>
+              </tr>
+            </thead>
+            <tbody>
+              {declaration.detalle.map((row, index) => (
+                <tr key={`${row.cuenta}-${index}`} className="border-b hover:bg-gray-50">
+                  <td className="py-2 px-2 font-mono text-[11px]">{row.cuenta || "-"}</td>
+                  <td className="py-2 px-2 font-medium">{row.nombre}</td>
+                  <td className="py-2 px-2">
+                    <Badge variant="outline" className="text-[10px]">
+                      {row.categoria}
+                    </Badge>
+                  </td>
+                  <td className="py-2 px-2 text-right">{fmt(row.monto)}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot className="bg-gray-100 font-bold">
+              {Object.entries(declaration.subtotales || {}).map(([label, value]) => (
+                <tr key={label}>
+                  <td colSpan={3} className="py-1 px-2 text-right">
+                    {label}:
+                  </td>
+                  <td className="py-1 px-2 text-right">{fmt(value)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td colSpan={3} className="py-1 px-2 text-right">
+                  TOTAL {title.toUpperCase()}:
+                </td>
+                <td className="py-1 px-2 text-right">{fmt(declaration.amount)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
 export default function AnnualTaxDeclarationsPage() {
   const { currentTenant } = useTenant();
   const [year, setYear] = useState(CURRENT_YEAR);
-  const [selectedDeclaration, setSelectedDeclaration] = useState<AnnualDeclaration | null>(
-    DECLARATIONS[0]
-  );
-  const [loading, setLoading] = useState(false);
+  const [summary, setSummary] = useState<Awaited<ReturnType<typeof transformToAnnualTaxDeclarations>> | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [showSections, setShowSections] = useState<boolean>(false);
+  const [hasTransactions, setHasTransactions] = useState(false);
 
-  const loadDeclaration = useCallback(async (decl: AnnualDeclaration) => {
+  const companyId = currentTenant?.id;
+  const companyName = currentTenant?.businessName || "empresa";
+
+  const loadData = useCallback(async () => {
+    if (!companyId) {
+      setLoading(false);
+      setSummary(null);
+      setHasTransactions(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
       const res = await fetch(
-        `/api/accounting/annual-tax?year=${encodeURIComponent(decl.year)}&type=${encodeURIComponent(decl.type)}`,
-        { headers: { "x-tenant-id": currentTenant?.id || "1" } }
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
       );
-      const body = await res.json();
-      if (!res.ok || !body.success) throw new Error(body?.error || "Error al cargar");
-      setSelectedDeclaration(body.data.declaration);
-      setShowSections(true);
+      if (!res.ok) throw new Error(`Error al consultar las transacciones contables (${res.status})`);
+      const data = await res.json();
+      const rows = Array.isArray(data) ? data : data?.items || [];
+      setSummary(transformToAnnualTaxDeclarations(rows, { year }));
+      setHasTransactions(rows.length > 0);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al cargar declaración");
-      setShowSections(false);
+      setError(e instanceof Error ? e.message : "Error al cargar los datos contables");
+      setSummary(null);
+      setHasTransactions(false);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
-  }, [currentTenant?.id]);
+  }, [companyId, year]);
 
   useEffect(() => {
-    loadDeclaration(DECLARATIONS[0]);
-  }, [loadDeclaration]);
+    loadData();
+  }, [loadData]);
 
-  const generateDeclaration = useCallback(async (sectionId: string) => {
-    setLoading(true);
-    setError(null);
+  const handleExportExcel = useCallback(async () => {
+    if (!summary) return;
     try {
-      const res = await fetch(
-        `/api/accounting/annual-tax/generate?section=${encodeURIComponent(sectionId)}&year=${year}&tenantId=${currentTenant?.id || "1"}`,
-        { method: "POST" }
+      const XLSX = await import("xlsx");
+      const sheets = formatAnnualTaxForExcel(summary);
+      const workbook = XLSX.utils.book_new();
+      Object.entries(sheets).forEach(([name, rows]) => {
+        const ws = XLSX.utils.aoa_to_sheet(rows);
+        ws["!cols"] = [{ wch: 14 }, { wch: 46 }, { wch: 24 }, { wch: 16 }];
+        XLSX.utils.book_append_sheet(workbook, ws, name);
+      });
+      XLSX.writeFile(
+        workbook,
+        `Declaraciones_Anuales_${companyName.replace(/\s+/g, "_")}_${year}.xlsx`
       );
-      const body = await res.json();
-      if (!res.ok || !body.success) throw new Error(body?.error || "Error al generar");
-      setSelectedDeclaration(body.data.declaration);
-      setShowSections(true);
-      alert("✅ Declaración generada exitosamente");
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al generar declaración");
-      alert("❌ Error al generar la declaración");
+      console.error("Error exporting annual declarations to Excel:", e);
+      alert("No se pudo generar el archivo Excel");
     }
-    setLoading(false);
-  }, [year, currentTenant?.id]);
+  }, [summary, companyName, year]);
 
-  const submitDeclaration = useCallback(async (sectionId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/accounting/annual-tax/submit?section=${encodeURIComponent(sectionId)}&year=${year}&tenantId=${currentTenant?.id || "1"}`,
-        { method: "POST" }
-      );
-      const body = await res.json();
-      if (!res.ok || !body.success) throw new Error(body?.error || "Error al enviar");
-      setSelectedDeclaration(body.data.declaration);
-      alert("✅ Declaración enviada exitosamente a la autoridad fiscal");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al enviar declaración");
-      alert("❌ Error al enviar la declaración");
-    }
-    setLoading(false);
-  }, [year, currentTenant?.id]);
+  const isvBadge: BadgeVariant = summary && summary.isv.amount >= 0 ? "default" : "secondary";
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
-            <Calendar className="w-6 h-6 text-cyan-600" /> Declaraciones Anuales
+          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2">
+            <Calendar className="w-6 h-6 text-cyan-600" />
+            Declaraciones Anuales
           </h1>
           <p className="text-sm text-gray-500">
-            Declaraciones fiscales para el año {year}
+            Declaraciones fiscales del ejercicio {year} desde las transacciones contables
           </p>
         </div>
-        <div className="flex gap-2">
-          <Input
-            type="number"
-            min={2000}
-            max={CURRENT_YEAR + 5}
-            value={year}
-            onChange={(e) => setYear(parseInt(e.target.value))}
-            className="mt-1"
-          />
-          <Button variant="outline" size="sm" onClick={() => loadDeclaration(DECLARATIONS[0])}>
-            <Loader2 className="w-4 h-4 mr-2" /> Cargar
+        <div className="flex items-end gap-2">
+          <div>
+            <Label className="text-xs text-gray-500 mb-1 block">Año</Label>
+            <Input
+              type="number"
+              min={2000}
+              max={CURRENT_YEAR + 5}
+              value={year}
+              onChange={(e) => setYear(parseInt(e.target.value) || CURRENT_YEAR)}
+              className="w-28"
+            />
+          </div>
+          <Button variant="outline" size="sm" onClick={loadData} disabled={loading}>
+            <RefreshCcw className="w-4 h-4 mr-2" /> Cargar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleExportExcel} disabled={!summary || loading}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" /> Exportar a Excel
           </Button>
         </div>
       </div>
 
-      {error && <p className="text-sm text-red-600">Error: {error}</p>}
-
-      {selectedDeclaration && (
-        <Card>
-          <CardHeader className="p-2">
-            <CardTitle className="text-sm text-gray-500">
-              {selectedDeclaration.title} - {selectedDeclaration.year}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="pt-4">
-            <div className="flex items-center gap-4">
-              <span className="text-xs text-gray-500">Estado:</span>
-              <span>{getStatusBadge(selectedDeclaration.status)}</span>
-              <span className="text-xs text-gray-500">•</span>
-              <span className="text-xs text-gray-500">
-                Vence: {selectedDeclaration.submissionDeadline}
-              </span>
-              {selectedDeclaration.daysUntilDeadline >= 0 && (
-                <span className="text-xs text-gray-500">
-                  Faltan {selectedDeclaration.daysUntilDeadline} días
-                </span>
-              )}
-            </div>
-
-            {showSections && selectedDeclaration.type === "vat" ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-                {DECLARATION_SECTIONS.map((section) => (
-                  <Card key={section.id} className="p-4">
-                    <CardHeader>
-                      <CardTitle className="text-sm text-gray-500">{section.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-gray-500">{section.description}</p>
-                      <p className="text-xs text-gray-500 mb-2">Datos requeridos: {section.requiredData.join(", ")}</p>
-                      <Button
-                        variant={section.generated ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => generateDeclaration(section.id)}
-                      >
-                        {section.generated ? "Generado" : "Generar"}
-                      </Button>
-                      {section.pdfUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(pdfUrl, "_blank")}
-                        >
-                          <FileText className="w-3 h-3 mr-1" /> Ver PDF
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : showSections && selectedDeclaration.type === "isb" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {DECLARATION_SECTIONS.map((section) => (
-                  <Card key={section.id} className="p-4">
-                    <CardHeader>
-                      <CardTitle className="text-sm text-gray-500">{section.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-gray-500">{section.description}</p>
-                      <p className="text-xs text-gray-500 mb-2">Datos requeridos: {section.requiredData.join(", ")}</p>
-                      <Button
-                        variant={section.generated ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => generateDeclaration(section.id)}
-                      >
-                        {section.generated ? "Generado" : "Generar"}
-                      </Button>
-                      {section.pdfUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(pdfUrl, "_blank")}
-                        >
-                          <FileText className="w-3 h-3 mr-1" /> Ver PDF
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : showSections && selectedDeclaration.type === "retention" ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                {DECLARATION_SECTIONS.map((section) => (
-                  <Card key={section.id} className="p-4">
-                    <CardHeader>
-                      <CardTitle className="text-sm text-gray-500">{section.name}</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-xs text-gray-500">{section.description}</p>
-                      <p className="text-xs text-gray-500 mb-2">Datos requeridos: {section.requiredData.join(", ")}</p>
-                      <Button
-                        variant={section.generated ? "default" : "outline"}
-                        size="sm"
-                        onClick={() => generateDeclaration(section.id)}
-                      >
-                        {section.generated ? "Generado" : "Generar"}
-                      </Button>
-                      {section.pdfUrl && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => window.open(pdfUrl, "_blank")}
-                        >
-                          <FileText className="w-3 h-3 mr-1" /> Ver PDF
-                        </Button>
-                      )}
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            ) : null}
-          </CardContent>
-        </Card>
+      {error && (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Error</AlertTitle>
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       )}
 
-      {!selectedDeclaration && (
-        <div className="text-center py-12">
-          <Loader2 className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-          <p className="text-gray-500">Selecciona un año y tipo de declaración para comenzar</p>
+      {!companyId && !loading ? (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Empresa no identificada</AlertTitle>
+          <AlertDescription>Seleccione una empresa para consultar sus declaraciones anuales.</AlertDescription>
+        </Alert>
+      ) : loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-500">
+          <Loader2 className="w-6 h-6 mr-2 animate-spin" /> Cargando datos del ejercicio {year}...
         </div>
-      )}
+      ) : !hasTransactions ? (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Sin transacciones en el ejercicio {year}</AlertTitle>
+          <AlertDescription>
+            Datos previos no disponibles. Registre transacciones contables para generar sus declaraciones anuales.
+          </AlertDescription>
+        </Alert>
+      ) : summary ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <DeclarationCard
+            title="ISV"
+            declaration={summary.isv}
+            badge={summary.isv.amount >= 0 ? "Impuesto a pagar" : "Saldo a favor"}
+            badgeVariant={isvBadge}
+          />
+          <DeclarationCard
+            title="ISR"
+            declaration={summary.isr}
+            badge="Tarifa ISR 25%"
+            badgeVariant="default"
+          />
+          <DeclarationCard
+            title="Retenciones"
+            declaration={summary.retenciones}
+            badge="Retenciones del ejercicio"
+            badgeVariant="secondary"
+          />
+        </div>
+      ) : null}
     </div>
   );
 }
