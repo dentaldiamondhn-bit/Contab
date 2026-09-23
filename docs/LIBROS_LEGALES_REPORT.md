@@ -18,6 +18,7 @@
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
 | **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` (22 Sept 2026) | API | Datos reales | Generación automática |
+| **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | — | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -25,7 +26,7 @@
 |---|---|---|
 | Completitud Funcional | ~97% | Libros, SAR 221, DIAT y Declaraciones Anuales completos |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Exportación | ~93% | Declaraciones Anuales y los 4 libros legales exportan a Excel (Compras, Ventas, Retenciones, SAR y anuales, 22 Sept 2026); sin PDF profesional |
+| Exportación | ~93% | Declaraciones Anuales y los libros legales (Compras, Ventas, Retenciones, Mayor y Diario) exportan a Excel (23 Sept 2026); sin PDF profesional |
 | Cumplimiento SAR | ~65% | Formulario 221, DET y DIAT listos; sin envío en línea |
 | Integración Contable | ~40% | Retenciones sin asiento contable automático |
 
@@ -220,6 +221,27 @@
 
 ---
 
+### 2.8 Libro Mayor y Libro Diario
+
+**Estado: Completo (~95%)**
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/reports/general-ledger.ts` | Libro Mayor y Libro Diario automáticos: clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta (1-7xxx), transform + grouping desde trial-balance, formato Excel (23 Sept 2026) |
+| `app/companies/[id]/reports/general-ledger/page.tsx` | Página empresarial: toggle fuente Manual/Automática (contable), toggle de tipo de libro Mayor/Diario y exportación a Excel (23 Sept 2026) |
+
+#### Capacidades
+
+- Libro Mayor: agrupa por cuenta a nivel trial-balance (código, nombre, tipo, débito, crédito, saldo)
+- Libro Diario: desglose por asiento/transacción si el trial-balance trae el nivel de journalEntry; si no, agrupa por cuenta (fallback seguro, nunca rompe)
+- Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
+- Exportación a Excel (.xlsx) en ambos tipos (`Libro_Mayor_{empresa}_{año}-{mes}.xlsx` / `Libro_Diario_{empresa}_{año}-{mes}.xlsx`)
+- Exportación CSV/print y vista manual intactas en ambos tipos
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
@@ -342,4 +364,5 @@ Etapa 1 (Retenciones + Contabilidad)
 | Cambio | Detalle |
 |---|---|
 | Libro de Retenciones automático | `lib/reports/withholding-book.ts` (clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/withholding-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
+| Libro Mayor y Libro Diario automáticos | `lib/reports/general-ledger.ts` (clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta, transform + grouping desde trial-balance, formatos Excel de Mayor y Diario) + integración en `app/companies/[id]/reports/general-ledger/page.tsx` con toggle Manual/Automático (transacciones contables), toggle Mayor/Diario y exportación a Excel |
 | Declaraciones Anuales conectadas a datos reales | `lib/reports/annual-tax.ts` (cálculo ISV/ISR/Retenciones desde transacciones contables + formato Excel multi-hoja) + integración en `app/reports/annual-tax/page.tsx` con 3 tarjetas de montos reales, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
