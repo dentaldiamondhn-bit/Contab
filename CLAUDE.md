@@ -42,3 +42,6 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `lib/reports/income-statement.ts` — Shared income statement (P&L) utils (classification, transform, grouping, category margins, margin summary, run-rate projections, break-even)
 - `components/financials/IncomeStatementComparative.tsx` — Independent period comparatives (prev month / prev year) with variances
 - `app/companies/[id]/accounting/financial-statements/estado-resultados/page.tsx` — Margin analysis by category, projections (monthly/quarterly/annual, break-even) and integrated period comparatives
+- `lib/reports/cash-flow.ts` — Shared cash flow utils (classification by activity, transform, grouping, sources/uses analysis, run-rate projections, runway)
+- `components/financials/CashFlowComparative.tsx` — Independent period comparatives (prev month / prev year) with burn rate / runway analysis
+- `app/companies/[id]/accounting/financial-statements/flujo-efectivo/page.tsx` — Integrated sources/uses analysis, cash projections (monthly/quarterly/annual run-rate, 12-month projected balance) and period comparatives

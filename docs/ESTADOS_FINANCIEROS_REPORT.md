@@ -83,25 +83,28 @@
 
 ### 2.3 Flujo de Efectivo
 
-**Estado: Parcial (~50%)**
+**Estado: Completado (22 Sept 2026)**
 
 #### Archivos Implementados
 
 | Archivo | Propósito |
 |---|---|
-| `components/financials/CashFlowStatement.tsx` | Flujo de Efectivo: analiza vista `libro_diario`, clasifica en Operación/Inversión/Financiamiento, análisis de liquidez, CSV export |
-| `app/reports/flujo-efectivo/page.tsx` | Página de Flujo de Efectivo |
+| `lib/reports/cash-flow.ts` | Utilidades compartidas: clasificación por actividad (Operación/Inversión/Financiamiento), transformación para comparativos, agrupación por rubro, análisis de fuentes/usos, proyecciones de caja y runway (run-rate mensual/trimestral/anual, puntos de equilibrio de efectivo) |
+| `components/financials/CashFlowComparative.tsx` | Comparativos de período independientes (mes anterior / mismo mes año anterior) con variaciones y análisis de fuentes/usos + proyecciones |
+| `app/companies/[id]/accounting/financial-statements/flujo-efectivo/page.tsx` | Página de Flujo de Efectivo integrada: comparativos de período alternables, análisis de fuentes/usos, proyección de caja (run-rate con saldo proyectado y meses de runway) |
+| `components/financials/CashFlowStatement.tsx` | Flujo de Efectivo heredado: analiza vista `libro_diario` |
+| `app/reports/flujo-efectivo/page.tsx` | Página regulatoria de Flujo de Efectivo |
 | `app/api/reports/flujo-efectivo/route.ts` | API de datos |
 
 #### Vista de Supabase
 
 - `flujo_efectivo_mensual` — Ingresos vs egresos mensuales por tipo de comprobante
 
-#### Lo que Falta
+#### Items Resueltos (22 Sept 2026)
 
-- **Clasificación simplificada** (usa prefijos de código de cuenta en vez de clasificación real)
-- Sin flujo de efectivo proyectado
-- Sin análisis de fuentes/usos
+- ~~Sin comparativos de período~~ → Implementado: `CashFlowComparative.tsx` (mes anterior / mismo mes, año anterior) con variaciones
+- ~~Sin análisis de fuentes/usos~~ → Implementado: análisis de fuentes/usos por actividad en página y comparativo
+- ~~Sin flujo de efectivo proyectado~~ → Implementado: proyecciones por run-rate (mensual/trimestral/anual) con saldo proyectado y meses de runway en `lib/reports/cash-flow.ts`
 
 ---
 

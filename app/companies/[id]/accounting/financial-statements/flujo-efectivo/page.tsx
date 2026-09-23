@@ -6,8 +6,6 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
-import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
 import { 
   Select,
   SelectContent,
@@ -19,7 +17,6 @@ import {
   ArrowLeft, 
   Download, 
   Calendar, 
-  Building2,
   Printer,
   Wallet,
   TrendingUp,
@@ -27,16 +24,24 @@ import {
   AlertTriangle,
   DollarSign,
   ArrowUpRight,
-  ArrowDownRight
+  ArrowDownRight,
+  ArrowLeftRight,
+  Scale,
+  LineChart
 } from 'lucide-react';
-
-interface FlujoItem {
-  code: string;
-  name: string;
-  amount: number;
-  type: 'operacion' | 'inversion' | 'financiacion';
-  category: string;
-}
+import {
+  transformToFlujoEfectivo,
+  groupFlujoItems,
+  computeSourcesUses,
+  computeCashProjections,
+} from '@/lib/reports/cash-flow';
+import type {
+  FlujoItem,
+  FlujoEfectivoGrouped,
+  SourcesUses,
+  CashProjections,
+} from '@/lib/reports/cash-flow';
+import CashFlowComparative from '@/components/financials/CashFlowComparative';
 
 interface CompanyInfo {
   name: string;
@@ -60,6 +65,8 @@ export default function FlujoEfectivoPage() {
   });
   const [flujoData, setFlujoData] = useState<FlujoItem[]>([]);
   const [method, setMethod] = useState<'directo' | 'indirecto'>('directo');
+  const [showComparison, setShowComparison] = useState(false);
+  const [comparisonMode, setComparisonMode] = useState<'prev-month' | 'prev-year'>('prev-month');
 
   useEffect(() => {
     const fetchCompany = async () => {
@@ -120,122 +127,17 @@ export default function FlujoEfectivoPage() {
     }
   };
 
-  // Transformar datos del trial balance a estructura de Flujo de Efectivo
-  const transformToFlujoEfectivo = (data: any[]): FlujoItem[] => {
-    return data.map((item: any) => {
-      const account = item.account || {};
-      const code = account.code || item.code || '';
-      const name = account.name || item.name || 'Sin nombre';
-      const balance = parseFloat(item.balance || 0);
-      
-      // Clasificar por tipo según código para flujo de efectivo
-      let type: FlujoItem['type'];
-      let category: string;
-      
-      // Detectar si es una cuenta de caja/bancos (1101, 1102, etc.)
-      const isCashAccount = code.startsWith('110');
-      
-      if (isCashAccount) {
-        // Cuentas de efectivo - no se incluyen en el flujo, solo para conciliación
-        return null;
-      } else if (code.startsWith('4')) {
-        // Ingresos (4xxx) - Operación
-        type = 'operacion';
-        category = 'Cobros a Clientes';
-      } else if (code.startsWith('5')) {
-        // Costos (5xxx) - Operación
-        type = 'operacion';
-        category = 'Pagos a Proveedores';
-      } else if (code.startsWith('6')) {
-        // Gastos (6xxx) - Operación
-        type = 'operacion';
-        category = 'Gastos Operativos';
-      } else if (code.startsWith('11') && !code.startsWith('110')) {
-        // Otros activos corrientes (11xx excepto 110x) - Operación
-        type = 'operacion';
-        category = 'Cuentas por Cobrar';
-      } else if (code.startsWith('12')) {
-        // Activos no corrientes (12xx) - Inversión
-        type = 'inversion';
-        category = 'Propiedad, Planta y Equipo';
-      } else if (code.startsWith('21')) {
-        // Pasivos corrientes (21xx) - Operación
-        type = 'operacion';
-        category = 'Cuentas por Pagar';
-      } else if (code.startsWith('22')) {
-        // Pasivos no corrientes (22xx) - Financiación
-        type = 'financiacion';
-        category = 'Préstamos a Largo Plazo';
-      } else if (code.startsWith('3')) {
-        // Patrimonio (3xxx) - Financiación
-        type = 'financiacion';
-        category = 'Capital Social';
-      } else {
-        // Por defecto, operación
-        type = 'operacion';
-        category = 'Otros';
-      }
-      
-      return {
-        code,
-        name,
-        amount: Math.abs(balance),
-        type,
-        category
-      };
-    }).filter(item => item !== null) as FlujoItem[];
-  };
+  // Agrupar por secciones (implementado en lib/reports/cash-flow.ts → groupFlujoItems)
+  const groupedData = useMemo((): FlujoEfectivoGrouped => groupFlujoItems(flujoData), [flujoData]);
 
-  // Agrupar por secciones
-  const groupedData = useMemo(() => {
-    const operacion = flujoData.filter(i => i.type === 'operacion');
-    const inversion = flujoData.filter(i => i.type === 'inversion');
-    const financiacion = flujoData.filter(i => i.type === 'financiacion');
-    
-    // Para método directo, necesitamos identificar entradas vs salidas
-    // Simplificación: ingresos son entradas, costos/gastos son salidas
-    const entradasOperacion = operacion.filter(i => i.code.startsWith('4')).reduce((sum, i) => sum + i.amount, 0);
-    const salidasOperacion = operacion.filter(i => i.code.startsWith('5') || i.code.startsWith('6')).reduce((sum, i) => sum + i.amount, 0);
-    const netoOperacion = entradasOperacion - salidasOperacion;
-    
-    const entradasInversion = 0; // Venta de activos (no hay datos)
-    const salidasInversion = inversion.reduce((sum, i) => sum + i.amount, 0);
-    const netoInversion = entradasInversion - salidasInversion;
-    
-    const entradasFinanciacion = financiacion.filter(i => i.code.startsWith('22') || i.code.startsWith('3')).reduce((sum, i) => sum + i.amount, 0);
-    const salidasFinanciacion = 0; // Pagos de capital (no hay datos)
-    const netoFinanciacion = entradasFinanciacion - salidasFinanciacion;
-    
-    const netoTotal = netoOperacion + netoInversion + netoFinanciacion;
-    
-    // Simular saldo inicial y final
-    const saldoInicial = 5000; // Valor simulado
-    const saldoFinal = saldoInicial + netoTotal;
-    
-    // Burn rate (gastos mensuales)
-    const burnRate = salidasOperacion;
-    const mesesEfectivo = burnRate > 0 ? Math.floor(saldoFinal / burnRate) : 0;
-    
-    return {
-      operacion,
-      inversion,
-      financiacion,
-      entradasOperacion,
-      salidasOperacion,
-      netoOperacion,
-      entradasInversion,
-      salidasInversion,
-      netoInversion,
-      entradasFinanciacion,
-      salidasFinanciacion,
-      netoFinanciacion,
-      netoTotal,
-      saldoInicial,
-      saldoFinal,
-      burnRate,
-      mesesEfectivo
-    };
-  }, [flujoData]);
+  // Análisis de fuentes y usos de efectivo (lib/reports/cash-flow.ts → computeSourcesUses)
+  const sourcesUses = useMemo((): SourcesUses => computeSourcesUses(flujoData), [flujoData]);
+
+  // Proyección de caja por run-rate (lib/reports/cash-flow.ts → computeCashProjections)
+  const projections = useMemo(
+    (): CashProjections => computeCashProjections(groupedData, startDate, endDate),
+    [groupedData, startDate, endDate]
+  );
 
   // Formatear moneda
   const formatCurrency = (amount: number) => {
@@ -376,6 +278,36 @@ export default function FlujoEfectivoPage() {
                   Generar Flujo
                 </Button>
               </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-end gap-3 border-t border-gray-100 pt-4">
+              <Button
+                variant={showComparison ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setShowComparison(!showComparison)}
+              >
+                <ArrowLeftRight className="h-4 w-4 mr-2" />
+                Comparar
+              </Button>
+              {showComparison && (
+                <div className="space-y-2 min-w-[220px]">
+                  <Label htmlFor="comparisonMode" className="flex items-center">
+                    <ArrowLeftRight className="h-4 w-4 mr-2" />
+                    Comparar con
+                  </Label>
+                  <Select
+                    value={comparisonMode}
+                    onValueChange={(v: 'prev-month' | 'prev-year') => setComparisonMode(v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="prev-month">Mes anterior</SelectItem>
+                      <SelectItem value="prev-year">Mismo mes, año anterior</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -592,6 +524,136 @@ export default function FlujoEfectivoPage() {
                 <p className="text-2xl font-bold text-orange-700">{groupedData.mesesEfectivo}</p>
                 <p className="text-xs text-gray-600">meses de efectivo</p>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Comparativo de Períodos */}
+        {showComparison && (
+          <CashFlowComparative
+            tenantId={companyId}
+            startDate={startDate}
+            endDate={endDate}
+            currency={currency === 'USD' ? 'USD' : 'HNL'}
+            mode={comparisonMode}
+          />
+        )}
+
+        {/* Análisis de Fuentes y Usos */}
+        <Card className="mb-6">
+          <CardHeader className="bg-emerald-50 border-b">
+            <CardTitle className="text-lg text-emerald-900 flex items-center">
+              <Scale className="h-5 w-5 mr-2" />
+              Análisis de Fuentes y Usos
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-gray-100">
+              <div className="p-4">
+                <h4 className="text-sm font-semibold text-green-700 mb-2 flex items-center">
+                  <ArrowUpRight className="h-4 w-4 mr-1" />
+                  Fuentes de Efectivo
+                </h4>
+                {sourcesUses.fuentes.map((item) => (
+                  <div key={`${item.code}-${item.name}`} className="flex justify-between py-1 text-sm border-b border-gray-50">
+                    <span className="text-gray-600">
+                      <span className="text-xs text-gray-400 mr-1">{item.code}</span>
+                      {item.name}
+                    </span>
+                    <span className="font-medium text-green-600">+{formatCurrency(item.amount)}</span>
+                  </div>
+                ))}
+                {sourcesUses.fuentes.length === 0 && (
+                  <p className="text-gray-400 italic text-sm py-2">No hay fuentes de efectivo en este período</p>
+                )}
+                <div className="flex justify-between font-bold text-green-800 mt-2 pt-2 border-t border-emerald-100">
+                  <span>Total Fuentes</span>
+                  <span>{formatCurrency(sourcesUses.totalFuentes)}</span>
+                </div>
+              </div>
+              <div className="p-4">
+                <h4 className="text-sm font-semibold text-red-700 mb-2 flex items-center">
+                  <ArrowDownRight className="h-4 w-4 mr-1" />
+                  Usos de Efectivo
+                </h4>
+                {sourcesUses.usos.map((item) => (
+                  <div key={`${item.code}-${item.name}`} className="flex justify-between py-1 text-sm border-b border-gray-50">
+                    <span className="text-gray-600">
+                      <span className="text-xs text-gray-400 mr-1">{item.code}</span>
+                      {item.name}
+                    </span>
+                    <span className="font-medium text-red-600">({formatCurrency(item.amount)})</span>
+                  </div>
+                ))}
+                {sourcesUses.usos.length === 0 && (
+                  <p className="text-gray-400 italic text-sm py-2">No hay usos de efectivo en este período</p>
+                )}
+                <div className="flex justify-between font-bold text-red-800 mt-2 pt-2 border-t border-red-100">
+                  <span>Total Usos</span>
+                  <span>({formatCurrency(sourcesUses.totalUsos)})</span>
+                </div>
+              </div>
+            </div>
+            <div className="p-4 bg-gray-100 border-t">
+              <div className="flex justify-between font-bold text-gray-900">
+                <span>Neto (Fuentes − Usos)</span>
+                <span className={sourcesUses.neto >= 0 ? 'text-green-700' : 'text-red-700'}>
+                  {sourcesUses.neto >= 0 ? '+' : ''}{formatCurrency(sourcesUses.neto)}
+                </span>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Proyección de Caja */}
+        <Card className="mb-6">
+          <CardHeader className="bg-cyan-50 border-b">
+            <CardTitle className="text-lg text-cyan-900 flex items-center">
+              <LineChart className="h-5 w-5 mr-2" />
+              Proyección de Caja
+            </CardTitle>
+            <p className="text-sm text-gray-600">
+              Estimación por run-rate del período actual ({projections.elapsedRatio >= 1 ? 'período completo' : `${(projections.elapsedRatio * 100).toFixed(0)}% del mes`})
+            </p>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <p className="text-sm text-gray-600">Run-rate Mensual</p>
+                <p className={`text-lg font-bold ${projections.monthly >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.monthly)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <p className="text-sm text-gray-600">Run-rate Trimestral</p>
+                <p className={`text-lg font-bold ${projections.quarterly >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.quarterly)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <p className="text-sm text-gray-600">Run-rate Anual</p>
+                <p className={`text-lg font-bold ${projections.annual >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.annual)}
+                </p>
+              </div>
+              <div className="text-center border rounded-lg p-4 border-cyan-200">
+                <p className="text-sm text-gray-600">Saldo Proyectado (12 meses)</p>
+                <p className={`text-lg font-bold ${projections.saldoProyectadoAnual >= 0 ? 'text-green-700' : 'text-red-600'}`}>
+                  {formatCurrency(projections.saldoProyectadoAnual)}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-gray-500 border-t border-gray-100 pt-3">
+              <p>
+                Saldo proyectado a 1 mes:{' '}
+                <span className="font-medium text-gray-700">{formatCurrency(projections.saldoProyectadoMensual)}</span>
+              </p>
+              <p>
+                Punto de equilibrio:{' '}
+                <span className="font-medium text-gray-700">
+                  {projections.breakEven !== null ? formatCurrency(projections.breakEven) : 'N/A'}
+                </span>
+              </p>
             </div>
           </CardContent>
         </Card>

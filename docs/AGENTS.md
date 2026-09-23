@@ -25,6 +25,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | Balance Sheet Comparative | `lib/reports/balance-general.ts`, `components/financials/BalanceSheetComparative.tsx` | Period comparatives (prev month / prev year) with variances |
 | Income Statement (modern) | `app/companies/[id]/accounting/financial-statements/estado-resultados` | Estado de resultados per company: margins by category, projections, ISR 25%, Excel export |
 | Income Statement Comparative | `lib/reports/income-statement.ts`, `components/financials/IncomeStatementComparative.tsx` | Period comparatives (prev month / prev year) with variances, break-even |
+| Cash Flow Comparative | `lib/reports/cash-flow.ts`, `components/financials/CashFlowComparative.tsx` | Period comparatives (prev month / prev year), sources/uses analysis, cash projections & runway |
 | PDF Cache | `app/api/pdf-export/route.ts` | PDF generation with Supabase Storage caching |
 | Zod Validation | `lib/services/transaction-service-enhanced.ts` | Transaction payload validation |
 | Fiscal Middleware | `lib/middleware/fiscal-validation.middleware.ts` | CAI validation before saving |
