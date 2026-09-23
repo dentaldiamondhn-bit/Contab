@@ -137,7 +137,7 @@
 
 ### 2.5 Retenciones
 
-**Estado: Completo (~80%)**
+**Estado: Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -150,13 +150,23 @@
 | `app/withholding/page.tsx` | Página de gestión |
 | `app/api/withholding/route.ts` | API de retenciones |
 | `app/api/withholding-statistics/route.ts` | API de estadísticas |
+| `lib/reports/withholding-book.ts` | Libro de Retenciones automático: clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel (22 Sept 2026) |
+| `app/companies/[id]/reports/withholding-book/page.tsx` | Página empresarial: toggle fuente Manual/Automática (contable) y exportación a Excel (22 Sept 2026) |
 
 #### Tablas de Base de Datos
 
 - `Withholding` (Supabase) — type, invoiceNumber, invoiceDate, providerName, providerRTN, amount, withholdingRate, withholdingAmount, period, status, receiptNumber
 
+#### Capacidades
+
+- Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
+- Exportación a Excel (.xlsx)
+- Exportación CSV/PDF y vista manual intactas
+
 #### Lo que Falta
 
+- ~~Sin generación automática desde contabilidad~~ ✅ Generación automática desde transacciones contables (toggle Manual/Automático en `app/companies/[id]/reports/withholding-book/page.tsx`, 22 Sept 2026)
+- ~~Sin exportación a Excel~~ ✅ Exportación a Excel (.xlsx) desde `lib/reports/withholding-book.ts` + botón "Exportar Excel" en ambos modos (22 Sept 2026)
 - **Sin integración con asientos contables** (retenciones no generan póliza automática)
 - Sin libro de retenciones anual consolidado
 
@@ -300,3 +310,9 @@ Etapa 1 (Retenciones + Contabilidad)
 | Libro de Compras automático | `lib/reports/purchase-book.ts` (clasificación COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
 | Libro de Ventas automático | `lib/reports/sales-book.ts` (clasificación VENTA/INGRESO/IMPUESTO/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/sales-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
 | Formulario SAR 221 / DET | Completado al 100%: validación de completitud previa + carga automática al portal SAR (adaptador configurable, credenciales cifradas AES-256-GCM) — commit d42614a (22 Sept 2026) |
+
+## Actualizaciones de Libros Legales (23 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Libro de Retenciones automático | `lib/reports/withholding-book.ts` (clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/withholding-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
