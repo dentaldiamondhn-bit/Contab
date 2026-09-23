@@ -183,7 +183,7 @@ export default function PurchaseBookPage() {
       'Total'
     ].join(',');
 
-    const rows = filteredEntries.map(entry => [
+    const manualRows = filteredEntries.map(entry => [
       entry.invoice_date,
       entry.invoice_number,
       entry.supplier_rtn,
@@ -194,6 +194,18 @@ export default function PurchaseBookPage() {
       (entry.total_value / 100).toFixed(2)
     ].join(','));
 
+    const autoRows = autoItems.map(item => [
+      item.date || '',
+      item.code,
+      '',
+      `"${item.supplier || item.name}"`,
+      '',
+      item.amount.toFixed(2),
+      item.tax.toFixed(2),
+      item.total.toFixed(2)
+    ].join(','));
+
+    const rows = dataSource === 'auto' ? autoRows : manualRows;
     const csv = [headers, ...rows].join('\n');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -207,38 +219,43 @@ export default function PurchaseBookPage() {
   };
 
   const handleExportExcel = async () => {
-    const XLSX = await import('xlsx');
-    const exportItems: PurchaseBookItem[] =
-      dataSource === 'auto'
-        ? autoItems
-        : filteredEntries.map((e) => ({
-            code: e.invoice_number,
-            name: e.supplier_name,
-            type: 'COMPRA' as const,
-            amount: e.net_value / 100,
-            tax: e.tax_value / 100,
-            total: e.total_value / 100,
-            date: e.invoice_date,
-            supplier: e.supplier_name,
-            transactionId: e.id,
-          }));
-    const rows = formatPurchaseBookForExcel(exportItems);
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [
-      { wch: 30 },
-      { wch: 14 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 14 },
-      { wch: 12 },
-      { wch: 14 }
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, ws, 'Libro de Compras');
-    XLSX.writeFile(
-      workbook,
-      `Libro_Compras_${companyInfo.name.replace(/\s+/g, '_')}_${selectedYear}-${selectedMonth.toString().padStart(2, '0')}.xlsx`
-    );
+    try {
+      const XLSX = await import('xlsx');
+      const exportItems: PurchaseBookItem[] =
+        dataSource === 'auto'
+          ? autoItems
+          : filteredEntries.map((e) => ({
+              code: e.invoice_number,
+              name: e.supplier_name,
+              type: 'COMPRA' as const,
+              amount: e.net_value / 100,
+              tax: e.tax_value / 100,
+              total: e.total_value / 100,
+              date: e.invoice_date,
+              supplier: e.supplier_name,
+              transactionId: e.id,
+            }));
+      const rows = formatPurchaseBookForExcel(exportItems);
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      ws['!cols'] = [
+        { wch: 30 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 14 }
+      ];
+      const workbook = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(workbook, ws, 'Libro de Compras');
+      XLSX.writeFile(
+        workbook,
+        `Libro_Compras_${companyInfo.name.replace(/\s+/g, '_')}_${selectedYear}-${selectedMonth.toString().padStart(2, '0')}.xlsx`
+      );
+    } catch (error) {
+      console.error('Error exporting to Excel:', error);
+      alert('No se pudo generar el archivo Excel');
+    }
   };
 
   const months = [
@@ -294,13 +311,11 @@ export default function PurchaseBookPage() {
           </Button>
         </div>
         <div className="flex gap-2">
-          {dataSource === 'manual' && (
-            <Button variant="outline" onClick={handleExportCSV}>
-              <Download className="w-4 h-4 mr-2" />
-              Exportar CSV
-            </Button>
-          )}
-          <Button variant="outline" onClick={handleExportExcel}>
+          <Button variant="outline" onClick={handleExportCSV} title="Descargar Libro de Compras en CSV">
+            <Download className="w-4 h-4 mr-2" />
+            Exportar CSV
+          </Button>
+          <Button variant="outline" onClick={handleExportExcel} title="Descargar Libro de Compras en Excel">
             <FileSpreadsheet className="w-4 h-4 mr-2" />
             Exportar Excel
           </Button>
