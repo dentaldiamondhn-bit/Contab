@@ -78,7 +78,7 @@
 
 ### 2.3 Formulario SAR 221 (ISV)
 
-**Estado: Completo (~90%)**
+**Estado: Completo (100%)**
 
 #### Archivos Implementados
 
@@ -86,7 +86,7 @@
 |---|---|
 | `components/accounting/SARForm221.tsx` | Cálculo de Débito Fiscal (Ventas casillas 401-405) y Crédito Fiscal (Compras casillas 501-505), impuesto a pagar o saldo a favor, botón de generar archivo DET |
 | `components/accounting/AccountingBooks.tsx` | Pestaña SAR 221 integrada en visor de libros |
-| `lib/reports/det-sar.ts` | DET automático desde transacciones contables (trial-balance): `transformToDET`, `validateAgainstSARRanges`, `formatDETForSAR` (filas de 262 caracteres) (f328c39, 22 Sept 2026) |
+| `lib/reports/det-sar.ts` | DET automático desde transacciones contables (trial-balance): `transformToDET`, `validateAgainstSARRanges`, `formatDETForSAR` (filas de 262 caracteres) + `validateCompleteness` (completitud bloqueante/warnings) (f328c39, 22 Sept 2026) |
 
 #### Capacidades
 
@@ -97,13 +97,13 @@
 
 #### Lo que Falta
 
-- Sin carga automática del DET al portal SAR
+- ~~Sin carga automática del DET al portal SAR~~ ✅ Carga automática al portal SAR mediante adaptador configurable (credenciales cifradas AES-256-GCM por empresa, endpoint configurable, POST autenticado con retry/timeout, clasificación de errores RED/CREDENCIALES/PORTAL/CONFIG — ver §2.4)
 
 ---
 
 ### 2.4 Exportación DET (SAR)
 
-**Estado: Completo (~75%)**
+**Estado: Completo (100%)**
 
 #### Archivos Implementados
 
@@ -113,11 +113,12 @@
 | `lib/services/det-live-core.ts` | Especificación de formato SAR: registro de 262 caracteres, campos definidos (RTN, nombre, tipo/número/fecha documento, montos exento/gravado/impuesto/total) |
 | `app/det/page.tsx` | Página de exportación DET |
 | `app/api/det/route.ts` | API de generación DET |
+| `lib/services/det-uploader.ts` | Adaptador de carga DET→SAR: submitDETToSARR (POST autenticado FormData + Basic, timeout 15s + retry), DETUploadResult con errorHint clasificado |
 
 #### Lo que Falta
 
-- Sin carga automática a portal SAR
-- Sin validación de completitud antes de generar
+- ~~Sin carga automática a portal SAR~~ ✅ Carga automática al portal SAR mediante adaptador configurable (credenciales cifradas AES-256-GCM por empresa, endpoint configurable, POST autenticado con retry/timeout, clasificación de errores RED/CREDENCIALES/PORTAL/CONFIG)
+- ~~Sin validación de completitud antes de generar~~ ✅ Validación de completitud antes de generar (bloqueante si faltan datos, warnings permisivos)
 
 ---
 
@@ -178,7 +179,7 @@
 | 2 | Retenciones sin asiento contable | Duble registro manual | Alta |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
 | 4 | Sin declaraciones anuales consolidadas | Incumplimiento fiscal | Alta | ✅ En desarrollo - `app/reports/annual-tax/page.tsx` (página + API compiladas y desplegadas 21 Sept 2026) |
-| 5 | DET sin carga automática a SAR | Proceso manual | Media |
+| 5 | ~~DET sin carga automática a SAR~~ | ~~Proceso manual~~ | ✅ Implementado (adaptador configurable de carga DET→SAR, 22 Sept 2026) |
 
 ---
 
@@ -284,3 +285,4 @@ Etapa 1 (Retenciones + Contabilidad)
 | Cambio | Detalle |
 |---|---|
 | Libro de Compras automático | `lib/reports/purchase-book.ts` (clasificación COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
+| Formulario SAR 221 / DET | Completado al 100%: validación de completitud previa + carga automática al portal SAR (adaptador configurable, credenciales cifradas AES-256-GCM) — commit d42614a (22 Sept 2026) |
