@@ -35,7 +35,7 @@
 
 ### 2.1 Libro de Compras
 
-**Estado: Completo (~85%)**
+**Completo (~95%)**
 
 #### Archivos Implementados
 
@@ -44,15 +44,18 @@
 | `components/legal/PurchaseBook.tsx` | Libro de Compras: carga de vista `libro_compras`, filtros por rango de fechas, exportación CSV/PDF, totales de monto, crédito fiscal, CF pendiente, info fiscal SAR |
 | `app/reports/libros-compras-ventas/page.tsx` | Página de libros de compra/venta |
 | `app/api/reports/libro-compras/route.ts` | API de datos |
+| `lib/reports/purchase-book.ts` | Libro de Compras automático: clasificación COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance, formato Excel (22 Sept 2026) |
+| `app/companies/[id]/reports/purchase-book/page.tsx` | Página empresarial: toggle fuente Manual/Automática (contable) y exportación a Excel (22 Sept 2026) |
 
 #### Vista de Supabase
 
 - `libro_compras` — Desde tabla Invoice (invoicetype='EXPENSE'), muestra número, fecha, proveedor, RTN, subimpuesto, total
 
-#### Lo que Falta
+#### Capacidades
 
-- Sin exportación Excel
-- Sin generación automática desde transacciones contables
+- Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
+- Exportación a Excel (.xlsx)
+- Exportación CSV/PDF y vista manual intactas
 
 ---
 
@@ -75,7 +78,7 @@
 
 ### 2.3 Formulario SAR 221 (ISV)
 
-**Estado: Completo (~80%)**
+**Estado: Completo (~90%)**
 
 #### Archivos Implementados
 
@@ -83,11 +86,18 @@
 |---|---|
 | `components/accounting/SARForm221.tsx` | Cálculo de Débito Fiscal (Ventas casillas 401-405) y Crédito Fiscal (Compras casillas 501-505), impuesto a pagar o saldo a favor, botón de generar archivo DET |
 | `components/accounting/AccountingBooks.tsx` | Pestaña SAR 221 integrada en visor de libros |
+| `lib/reports/det-sar.ts` | DET automático desde transacciones contables (trial-balance): `transformToDET`, `validateAgainstSARRanges`, `formatDETForSAR` (filas de 262 caracteres) (f328c39, 22 Sept 2026) |
+
+#### Capacidades
+
+- Generación automática de DET desde transacciones contables (toggle Manual/Automático que trae el trial-balance del período y llena débito/crédito fiscal)
+- Validación contra rangos SAR: cada documento dentro de `[rangoInicial..rangoFinal]` del CAI, sin duplicados, correlativo consecutivo, rango no agotado; `errors` (fuera de rango/duplicado) y `warnings` (salto, rango sin configurar, datos agregados sin número de documento)
+- "Generar DET" no genera si hay errores de rango (avisa); con solo warnings genera avisando; descarga `.txt` (262 caracteres)
+- Rangos desde `api/companies/{id}/cai` (modelo `cAIAuthorization`); sin rango configurado → warning claro, no rompe
 
 #### Lo que Falta
 
-- Sin generación automática de DET desde datos de transacciones
-- Sin validación contra rangos SAR
+- Sin carga automática del DET al portal SAR
 
 ---
 
@@ -268,3 +278,9 @@ Etapa 1 (Retenciones + Contabilidad)
 | Uploader sin descargas | `components/accounting/ExcelBooksUploader.tsx` ya no incluye botones de descarga de templates (se consolidaron en la tab "Plantillas"); conserva la lista "Formatos soportados" |
 | Declaraciones Anuales | Página `/reports/annual-tax` (ISV/ISR/Retenciones) compilada, commiteada y desplegada en producción; siguiente paso: conectar datos reales |
 | Despliegue | Producción `app.contabhn.com` actualizada (commits `a80e6ea`, `b69025a`) |
+
+## Actualizaciones de Libros Legales (22 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Libro de Compras automático | `lib/reports/purchase-book.ts` (clasificación COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
