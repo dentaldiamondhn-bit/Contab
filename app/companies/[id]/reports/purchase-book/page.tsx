@@ -8,9 +8,18 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ChevronLeft, Download, Printer, FileText, Calendar, Calculator } from 'lucide-react';
+import { ChevronLeft, Download, Printer, FileText, Calendar, Calculator, FileSpreadsheet, Database } from 'lucide-react';
 
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
+import { transformToLibroCompras, groupPurchaseBookItems, computePurchaseBookTotals, formatPurchaseBookForExcel } from '@/lib/reports/purchase-book';
+import type { PurchaseBookItem } from '@/lib/reports/purchase-book';
+
+interface CompanyInfo {
+  name: string;
+  rtn: string;
+  address: string;
+}
+
 interface PurchaseBookEntry {
   id: string;
   invoice_date: string;
@@ -32,14 +41,58 @@ export default function PurchaseBookPage() {
 
   const [entries, setEntries] = useState<PurchaseBookEntry[]>([]);
   const [filteredEntries, setFilteredEntries] = useState<PurchaseBookEntry[]>([]);
+  const [autoItems, setAutoItems] = useState<PurchaseBookItem[]>([]);
+  const [dataSource, setDataSource] = useState<'auto' | 'manual'>('auto');
   const [loading, setLoading] = useState(true);
+  const [companyInfo, setCompanyInfo] = useState<CompanyInfo>({
+    name: '',
+    rtn: '',
+    address: ''
+  });
   
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
+  const startDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-01`;
+  const lastDayOfMonth = new Date(selectedYear, selectedMonth, 0).getDate();
+  const endDate = `${selectedYear}-${selectedMonth.toString().padStart(2, '0')}-${lastDayOfMonth.toString().padStart(2, '0')}`;
+
   useEffect(() => {
-    loadPurchaseBook();
-  }, [companyId, selectedMonth, selectedYear]);
+    const fetchCompany = async () => {
+      try {
+        const res = await fetch(`/api/companies/${companyId}`);
+        if (res.ok) {
+          const data = await res.json();
+          setCompanyInfo({
+            name: data.business_name || data.businessname || data.name || '',
+            rtn: data.business_rtn || data.businessrtn || data.rtn || '',
+            address: data.business_address || data.businessaddress || data.address || ''
+          });
+        } else {
+          const lr = await fetch(`/api/companies`);
+          if (lr.ok) {
+            const lj = await lr.json();
+            const list: any[] = lj.companies || lj || [];
+            const comp = list.find((c: any) => c.tenant_id === companyId || c.id === companyId);
+            if (comp) setCompanyInfo({
+              name: comp.business_name || comp.name || '',
+              rtn: comp.business_rtn || comp.rtn || '',
+              address: comp.business_address || comp.address || ''
+            });
+          }
+        }
+      } catch {}
+    };
+    fetchCompany();
+  }, [companyId]);
+
+  useEffect(() => {
+    if (dataSource === 'manual') {
+      loadPurchaseBook();
+    } else {
+      loadAutoBook();
+    }
+  }, [companyId, selectedMonth, selectedYear, dataSource]);
 
   useEffect(() => {
     // Filter by month and year
@@ -67,9 +120,38 @@ export default function PurchaseBookPage() {
     }
   };
 
+  const loadAutoBook = async () => {
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        const transformed = transformToLibroCompras(data || []);
+        setAutoItems(transformed);
+      }
+    } catch (error) {
+      console.error('Error loading automatic purchase book:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return `L ${(amount / 100).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
+
+  const formatMoney = (amount: number) => {
+    return new Intl.NumberFormat('es-HN', {
+      style: 'currency',
+      currency: 'HNL',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const groupedAuto = groupPurchaseBookItems(autoItems);
+  const autoTotals = computePurchaseBookTotals(groupedAuto);
 
   const formatRTN = (rtn: string) => {
     if (!rtn) return '-';
@@ -124,6 +206,41 @@ export default function PurchaseBookPage() {
     window.print();
   };
 
+  const handleExportExcel = async () => {
+    const XLSX = await import('xlsx');
+    const exportItems: PurchaseBookItem[] =
+      dataSource === 'auto'
+        ? autoItems
+        : filteredEntries.map((e) => ({
+            code: e.invoice_number,
+            name: e.supplier_name,
+            type: 'COMPRA' as const,
+            amount: e.net_value / 100,
+            tax: e.tax_value / 100,
+            total: e.total_value / 100,
+            date: e.invoice_date,
+            supplier: e.supplier_name,
+            transactionId: e.id,
+          }));
+    const rows = formatPurchaseBookForExcel(exportItems);
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [
+      { wch: 30 },
+      { wch: 14 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 12 },
+      { wch: 14 }
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, ws, 'Libro de Compras');
+    XLSX.writeFile(
+      workbook,
+      `Libro_Compras_${companyInfo.name.replace(/\s+/g, '_')}_${selectedYear}-${selectedMonth.toString().padStart(2, '0')}.xlsx`
+    );
+  };
+
   const months = [
     { value: 1, label: 'Enero' },
     { value: 2, label: 'Febrero' },
@@ -159,10 +276,33 @@ export default function PurchaseBookPage() {
             <p className="text-gray-500">Reporte mensual para declaración SAR</p>
           </div>
         </div>
+        <div className="flex items-center gap-1 border rounded-md p-1">
+          <Button
+            size="sm"
+            variant={dataSource === 'auto' ? 'default' : 'ghost'}
+            onClick={() => setDataSource('auto')}
+          >
+            <Database className="w-4 h-4 mr-1" />
+            Automático (contable)
+          </Button>
+          <Button
+            size="sm"
+            variant={dataSource === 'manual' ? 'default' : 'ghost'}
+            onClick={() => setDataSource('manual')}
+          >
+            Manual
+          </Button>
+        </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={handleExportCSV}>
-            <Download className="w-4 h-4 mr-2" />
-            Exportar CSV
+          {dataSource === 'manual' && (
+            <Button variant="outline" onClick={handleExportCSV}>
+              <Download className="w-4 h-4 mr-2" />
+              Exportar CSV
+            </Button>
+          )}
+          <Button variant="outline" onClick={handleExportExcel}>
+            <FileSpreadsheet className="w-4 h-4 mr-2" />
+            Exportar Excel
           </Button>
           <Button variant="outline" onClick={handlePrint}>
             <Printer className="w-4 h-4 mr-2" />
@@ -225,33 +365,65 @@ export default function PurchaseBookPage() {
       </Card>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Total Compras</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{filteredEntries.length}</div>
-            <div className="text-sm text-gray-500">facturas registradas</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Valor Neto Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(totals.net)}</div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">ISV Total</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-cyan-600">{formatCurrency(totals.tax)}</div>
-          </CardContent>
-        </Card>
-      </div>
+      {dataSource === 'auto' ? (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Registros Contables</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{autoItems.length}</div>
+              <div className="text-sm text-gray-500">cuentas de gasto con balance</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Base Neta Total</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatMoney(autoTotals.totalNeto)}</div>
+              <div className="text-sm text-gray-500">compras + gastos</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">ISV Total</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-cyan-600">{formatMoney(autoTotals.totalISV)}</div>
+              <div className="text-sm text-gray-500">{formatMoney(autoTotals.total)} incluido total</div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Total Compras</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{filteredEntries.length}</div>
+              <div className="text-sm text-gray-500">facturas registradas</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">Valor Neto Total</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(totals.net)}</div>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-gray-600">ISV Total</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold text-cyan-600">{formatCurrency(totals.tax)}</div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
       {/* Purchase Book Table */}
       <Card>
@@ -260,55 +432,113 @@ export default function PurchaseBookPage() {
             <FileText className="w-5 h-5" />
             Registro de Compras - {months.find(m => m.value === selectedMonth)?.label} {selectedYear}
           </CardTitle>
+          {dataSource === 'auto' && (
+            <p className="text-xs text-gray-500">Generado automáticamente desde transacciones contables</p>
+          )}
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8">Cargando...</div>
-          ) : filteredEntries.length === 0 ? (
-            <div className="text-center py-8 text-gray-500">
-              No hay compras registradas para el período seleccionado.
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b bg-gray-50">
-                    <th className="text-left py-3 px-2">No.</th>
-                    <th className="text-left py-3 px-2">Fecha</th>
-                    <th className="text-left py-3 px-2">Factura</th>
-                    <th className="text-left py-3 px-2">RTN Proveedor</th>
-                    <th className="text-left py-3 px-2">Nombre Proveedor</th>
-                    <th className="text-left py-3 px-2">CAI</th>
-                    <th className="text-right py-3 px-2">Valor Neto</th>
-                    <th className="text-right py-3 px-2">ISV</th>
-                    <th className="text-right py-3 px-2">Total</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEntries.map((entry, index) => (
-                    <tr key={entry.id} className="border-b hover:bg-gray-50">
-                      <td className="py-3 px-2">{index + 1}</td>
-                      <td className="py-3 px-2">{new Date(entry.invoice_date).toLocaleDateString()}</td>
-                      <td className="py-3 px-2 font-medium">{entry.invoice_number}</td>
-                      <td className="py-3 px-2 font-mono text-xs">{formatRTN(entry.supplier_rtn)}</td>
-                      <td className="py-3 px-2">{entry.supplier_name}</td>
-                      <td className="py-3 px-2 font-mono text-xs">{formatCAI(entry.cai)}</td>
-                      <td className="py-3 px-2 text-right">{formatCurrency(entry.net_value)}</td>
-                      <td className="py-3 px-2 text-right">{formatCurrency(entry.tax_value)}</td>
-                      <td className="py-3 px-2 text-right font-medium">{formatCurrency(entry.total_value)}</td>
+          ) : dataSource === 'auto' ? (
+            autoItems.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No hay compras registradas en las transacciones contables para el período seleccionado.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="text-left py-3 px-2">No.</th>
+                      <th className="text-left py-3 px-2">Código</th>
+                      <th className="text-left py-3 px-2">Cuenta</th>
+                      <th className="text-left py-3 px-2">Tipo</th>
+                      <th className="text-left py-3 px-2">Fecha</th>
+                      <th className="text-left py-3 px-2">Proveedor</th>
+                      <th className="text-right py-3 px-2">Base</th>
+                      <th className="text-right py-3 px-2">ISV</th>
+                      <th className="text-right py-3 px-2">Total</th>
                     </tr>
-                  ))}
-                </tbody>
-                <tfoot className="bg-gray-100 font-bold">
-                  <tr>
-                    <td colSpan={6} className="py-3 px-2 text-right">TOTALES:</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(totals.net)}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(totals.tax)}</td>
-                    <td className="py-3 px-2 text-right">{formatCurrency(totals.total)}</td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {autoItems.map((item, index) => (
+                      <tr key={`${item.code}-${index}`} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-2">{index + 1}</td>
+                        <td className="py-3 px-2 font-mono text-xs">{item.code}</td>
+                        <td className="py-3 px-2 font-medium">{item.name}</td>
+                        <td className="py-3 px-2">
+                          <Badge
+                            variant={item.type === 'COMPRA' ? 'default' : item.type === 'GASTO' ? 'secondary' : 'outline'}
+                          >
+                            {item.type}
+                          </Badge>
+                        </td>
+                        <td className="py-3 px-2">{item.date ? new Date(item.date).toLocaleDateString() : '-'}</td>
+                        <td className="py-3 px-2">{item.supplier || '-'}</td>
+                        <td className="py-3 px-2 text-right">{formatMoney(item.amount)}</td>
+                        <td className="py-3 px-2 text-right">{formatMoney(item.tax)}</td>
+                        <td className="py-3 px-2 text-right font-medium">{formatMoney(item.total)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-100 font-bold">
+                    <tr>
+                      <td colSpan={6} className="py-3 px-2 text-right">TOTALES:</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(autoTotals.totalNeto)}</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(autoTotals.totalISV)}</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(autoTotals.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )
+          ) : (
+            filteredEntries.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No hay compras registradas para el período seleccionado.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b bg-gray-50">
+                      <th className="text-left py-3 px-2">No.</th>
+                      <th className="text-left py-3 px-2">Fecha</th>
+                      <th className="text-left py-3 px-2">Factura</th>
+                      <th className="text-left py-3 px-2">RTN Proveedor</th>
+                      <th className="text-left py-3 px-2">Nombre Proveedor</th>
+                      <th className="text-left py-3 px-2">CAI</th>
+                      <th className="text-right py-3 px-2">Valor Neto</th>
+                      <th className="text-right py-3 px-2">ISV</th>
+                      <th className="text-right py-3 px-2">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredEntries.map((entry, index) => (
+                      <tr key={entry.id} className="border-b hover:bg-gray-50">
+                        <td className="py-3 px-2">{index + 1}</td>
+                        <td className="py-3 px-2">{new Date(entry.invoice_date).toLocaleDateString()}</td>
+                        <td className="py-3 px-2 font-medium">{entry.invoice_number}</td>
+                        <td className="py-3 px-2 font-mono text-xs">{formatRTN(entry.supplier_rtn)}</td>
+                        <td className="py-3 px-2">{entry.supplier_name}</td>
+                        <td className="py-3 px-2 font-mono text-xs">{formatCAI(entry.cai)}</td>
+                        <td className="py-3 px-2 text-right">{formatCurrency(entry.net_value)}</td>
+                        <td className="py-3 px-2 text-right">{formatCurrency(entry.tax_value)}</td>
+                        <td className="py-3 px-2 text-right font-medium">{formatCurrency(entry.total_value)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot className="bg-gray-100 font-bold">
+                    <tr>
+                      <td colSpan={6} className="py-3 px-2 text-right">TOTALES:</td>
+                      <td className="py-3 px-2 text-right">{formatCurrency(totals.net)}</td>
+                      <td className="py-3 px-2 text-right">{formatCurrency(totals.tax)}</td>
+                      <td className="py-3 px-2 text-right">{formatCurrency(totals.total)}</td>
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )
           )}
         </CardContent>
       </Card>
