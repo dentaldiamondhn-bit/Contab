@@ -29,11 +29,49 @@ export type RangoUsado = {
   correlativoActual: number;
 };
 
+export type CAIRange = {
+  cai: string;
+  inicio: number;
+  fin: number;
+  correlativoActual: number;
+};
+
 export type SARValidation = {
   ok: boolean;
   errors: string[];
   warnings: string[];
   rangosUsados: RangoUsado[];
+};
+
+export type CompletenessField = {
+  key: string;
+  label: string;
+  required: boolean;
+};
+
+export type SARCompletenessConfig = {
+  company: CompletenessField[];
+  caiSettings: CompletenessField[];
+  record: CompletenessField[];
+};
+
+export const detCompletenessConfig: SARCompletenessConfig = {
+  company: [
+    { key: 'rtn', label: 'RTN del emisor', required: true },
+    { key: 'name', label: 'Nombre del emisor', required: true },
+  ],
+  caiSettings: [
+    { key: 'cai', label: 'código CAI / punto de emisión', required: true },
+    { key: 'inicio', label: 'rango inicial autorizado del CAI', required: true },
+    { key: 'fin', label: 'rango final autorizado del CAI', required: true },
+    { key: 'correlativoActual', label: 'correlativo actual del punto de emisión', required: false },
+  ],
+  record: [
+    { key: 'fecha', label: 'fecha del documento', required: true },
+    { key: 'tipoDocumento', label: 'tipo de documento', required: true },
+    { key: 'numeroDocumento', label: 'número de documento', required: true },
+    { key: 'montos', label: 'montos del documento (exento, gravado, impuesto, total)', required: true },
+  ],
 };
 
 function round2(n: number): number {
@@ -234,7 +272,70 @@ export function validateAgainstSARRanges(
   return { ok: errors.length === 0, errors, warnings, rangosUsados };
 }
 
-export function formatDETForSAR(records: DETRecord[]): string[] {
+export function validateCompleteness(
+  records: DETRecord[],
+  context: { company?: { rtn?: string; name?: string }; cai?: CAIRange },
+  config: SARCompletenessConfig = detCompletenessConfig
+): SARValidation {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+
+  const company = context?.company || {};
+  config.company.forEach((field) => {
+    const value = (company as Record<string, unknown>)[field.key];
+    if (value === undefined || value === null || String(value).trim() === '') {
+      const message = `Falta ${field.label} de la empresa emisora (obligatorio para el archivo DET).`;
+      if (field.required) errors.push(message);
+      else warnings.push(message);
+    }
+  });
+
+  const cai = (context?.cai || {}) as Record<string, unknown>;
+  config.caiSettings.forEach((field) => {
+    const value = cai[field.key];
+    const empty =
+      value === undefined ||
+      value === null ||
+      typeof value === 'object' ||
+      (typeof value === 'number' && (!isFinite(value) || value === 0)) ||
+      String(value).trim() === '';
+    if (empty) {
+      const message = `Falta ${field.label} (obligatorio para generar el DET del punto de emisión).`;
+      if (field.required) errors.push(message);
+      else warnings.push(message);
+    }
+  });
+
+  const list = records || [];
+  list.forEach((record, index) => {
+    const numero = index + 1;
+    config.record.forEach((field) => {
+      let empty: boolean;
+      if (field.key === 'montos') {
+        empty = ['montoExento', 'montoGravado', 'impuesto', 'total'].some(
+          (key) => typeof (record as Record<string, unknown>)[key] !== 'number'
+            || !isFinite((record as Record<string, unknown>)[key] as number)
+        );
+      } else {
+        const value = (record as Record<string, unknown>)[field.key];
+        empty = value === undefined || value === null || String(value).trim() === '';
+      }
+      if (empty) {
+        const message = `Registro ${numero} (${record.nombre || record.numeroDocumento || 'sin nombre'}): falta ${field.label}.`;
+        if (field.required) errors.push(message);
+        else warnings.push(message);
+      }
+    });
+  });
+
+  if (list.length === 0) {
+    warnings.push('No hay registros DET generados para el período seleccionado.');
+  }
+
+  return { ok: errors.length === 0, errors, warnings, rangosUsados: [] };
+}
+
+export function formatDETForSAR(records: DETRecord[]): string {
   const spec = getDETFileSpec('PURCHASES');
   const lines: string[] = [];
 
@@ -267,5 +368,33 @@ export function formatDETForSAR(records: DETRecord[]): string[] {
     lines.push(line);
   });
 
-  return lines;
+  return lines.join('\n');
+}
+
+function sanitizeFileNamePart(value: string, fallback: string): string {
+  const cleaned = String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .trim()
+    .replace(/\s+/g, '_');
+  return cleaned || fallback;
+}
+
+export function getDETFileName(
+  record: DETRecord[] | DETRecord,
+  empresa: string,
+  cai?: string | CAIRange
+): string {
+  const records = Array.isArray(record) ? record : [record];
+  const caiCode = typeof cai === 'string' ? cai : String(cai?.cai || 'CAI');
+  const rangeCurrent = typeof cai === 'string' ? NaN : Number(cai?.correlativoActual);
+  const correlativo =
+    !isNaN(rangeCurrent) && rangeCurrent > 0
+      ? String(rangeCurrent)
+      : records
+          .map((r) => String(r.numeroDocumento || '').replace(/\D/g, ''))
+          .filter((digits) => digits !== '')
+          .pop() || String(records.length);
+  return `DET_${sanitizeFileNamePart(caiCode, 'CAI')}_${sanitizeFileNamePart(correlativo, '0')}_${sanitizeFileNamePart(empresa, 'empresa')}.txt`;
 }
