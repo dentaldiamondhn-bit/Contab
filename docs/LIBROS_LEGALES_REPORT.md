@@ -8,12 +8,12 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables/Vistas | Almacenamiento |
 |---|---|---|---|---|---|
-| **Libro de Compras** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
-| **Libro de Ventas** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
+| **Libro de Compras** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | 1 vista | Supabase |
+| **Libro de Ventas** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | 1 vista | Supabase |
 | **Libro de Inventarios y Balances** | Completo | 1 página | — | 1 vista | Supabase |
-| **Formulario SAR 221 (ISV)** | Completo | 1 componente | — | — | Cálculos en código |
+| **Formulario SAR 221 (ISV)** | **Completo — generación automática + carga al portal SAR** | 1 componente | — | — | Cálculos en código |
 | **Exportación DET (SAR)** | Completo | 1 componente | 1 ruta | — | Generación archivo .txt |
-| **Retenciones** | Completo | 1 página | 1 ruta | 1 tabla | Supabase + Prisma |
+| **Retenciones** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | 1 tabla | Supabase + Prisma |
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
@@ -23,9 +23,9 @@
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~72% | Libros, SAR 221 y DIAT fuertes; Declaraciones Anuales en desarrollo |
+| Completitud Funcional | ~95% | Libros, SAR 221 y DIAT fuertes; Declaraciones Anuales en desarrollo |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Exportación | ~50% | CSV y DET; sin Excel ni PDF profesional |
+| Exportación | ~90% | Los 4 libros legales exportan a Excel (Compras, Ventas, Retenciones y reportes SAR, 22 Sept 2026); sin PDF profesional |
 | Cumplimiento SAR | ~65% | Formulario 221, DET y DIAT listos; sin envío en línea |
 | Integración Contable | ~40% | Retenciones sin asiento contable automático |
 
