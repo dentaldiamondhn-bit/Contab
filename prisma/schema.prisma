@@ -11,6 +11,7 @@ datasource db {
 model Account {
   id          String   @id @default(cuid())
   tenantId    String   @map("tenant_id")
+  companyId   String?  @map("company_id")
   name        String
   code        String
   type        String
@@ -23,6 +24,7 @@ model Account {
 
   @@unique([code, tenantId], map: "unique_code_tenant")
   @@index([tenantId], map: "idx_account_tenant")
+  @@index([companyId], map: "idx_account_company")
   @@map("Account")
 }
 
@@ -43,6 +45,7 @@ model ExchangeRateHistory {
 model Transaction {
   id            String   @id @default(cuid())
   tenantId      String   @map("tenant_id")
+  companyId     String?  @map("company_id")
   date          DateTime @default(now())
   description   String
   reference     String?
@@ -59,6 +62,7 @@ model Transaction {
 
   @@unique([voucherType, voucherNumber, tenantId], map: "unique_voucher_tenant")
   @@index([tenantId], map: "idx_transaction_tenant")
+  @@index([companyId], map: "idx_transaction_company")
   @@map("Transaction")
 }
 
@@ -67,6 +71,7 @@ model JournalEntry {
   transactionId  String   @map("transaction_id")
   accountId      String   @map("account_id")
   tenantId       String   @map("tenant_id")
+  companyId      String?  @map("company_id")
   amount         BigInt
   originalAmount BigInt   @map("original_amount")
   currency       String   @default("HNL")
@@ -77,6 +82,7 @@ model JournalEntry {
   Tenant         Tenant   @relation(fields: [tenantId], references: [id])
 
   @@index([tenantId], map: "idx_entry_tenant")
+  @@index([companyId], map: "idx_entry_company")
   @@index([transactionId], map: "idx_entry_transaction")
   @@index([accountId], map: "idx_entry_account")
   @@map("JournalEntry")
@@ -284,6 +290,7 @@ model Plan {
 model Invoice {
   id              String    @id @default(cuid())
   tenantId        String    @map("tenantId")
+  companyId       String?   @map("company_id")
   invoiceNumber   String    @unique @map("invoiceNumber")
   invoiceType     String    @default("CUSTOMER") @map("invoiceType") // CUSTOMER, SUBSCRIPTION, EXPENSE
   status          String    @default("ACTIVE") // ACTIVE, PAID, CANCELLED, PENDING, OVERDUE
@@ -317,6 +324,7 @@ model Invoice {
   invoiceItems InvoiceItem[]
 
   @@index([tenantId], map: "idx_invoice_tenantid")
+  @@index([companyId], map: "idx_invoice_company")
   @@index([status], map: "idx_invoice_status")
   @@index([issueDate], map: "idx_invoice_issuedate")
   @@index([createdAt], map: "idx_invoice_createdat")
@@ -328,6 +336,7 @@ model Invoice {
 model InvoiceItem {
   id          String   @id @default(cuid())
   invoiceId   String   @map("invoiceId")
+  companyId   String?  @map("company_id")
   description String
   quantity    Decimal  @default(1)
   unitPrice   Decimal  @map("unitPrice")
@@ -343,6 +352,7 @@ model InvoiceItem {
   invoice Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   @@index([invoiceId], map: "idx_invoiceitem_invoiceid")
+  @@index([companyId], map: "idx_invoiceitem_company")
   @@map("InvoiceItem")
 }
 
