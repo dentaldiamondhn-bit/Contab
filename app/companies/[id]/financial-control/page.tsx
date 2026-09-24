@@ -496,8 +496,13 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
           setCustomKPIs([...apiKPIs, ...userKPIs]);
         }
 
-        // KPIs del panel: se derivan SOLO de datos reales (sin valores inventados).
-        // /kpis sigue devolviendo valores de demostración, así que se ignora su contenido.
+        // KPIs del panel: se cargan desde la API real (sin valores inventados).
+        const kpisResponse = await fetch(`/api/companies/${companyId}/kpis`);
+        let apiKPIs: any = null;
+        if (kpisResponse.ok) {
+          apiKPIs = await kpisResponse.json();
+        }
+
         const last = cashFlowData.length > 0 ? cashFlowData[cashFlowData.length - 1] : null;
         const totalFixed = Object.values(costsData.fixed || {}).reduce((sum: number, c: any) => sum + Number(c || 0), 0);
         const totalVariable = Object.values(costsData.variable || {}).reduce((sum: number, c: any) => sum + Number(c || 0), 0);
@@ -516,14 +521,14 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
         const maintenanceCost = costsData.fixed?.maintenance ? Number(costsData.fixed.maintenance) : null;
 
         setKPIs({
-          occupancyRate: null,        // no existe fuente real de ocupación
-          revenuePerUnit,
-          cac: null,                  // no existe fuente real de costo de adquisición
-          operatingMargin,
-          cashFlow: last ? Math.round((Number(last.netCashFlow) || 0) * 100) / 100 : null,
-          inventoryTurnover: null,    // no existe fuente real de rotación de inventario
-          maintenanceCost,
-          replacementFund: null
+          occupancyRate: apiKPIs?.occupancyRate ?? null,
+          revenuePerUnit: apiKPIs?.revenuePerUnit ?? revenuePerUnit,
+          cac: apiKPIs?.cac ?? null,
+          operatingMargin: apiKPIs?.operatingMargin ?? operatingMargin,
+          cashFlow: apiKPIs?.cashFlow != null ? apiKPIs.cashFlow : (last ? Math.round((Number(last.netCashFlow) || 0) * 100) / 100 : null),
+          inventoryTurnover: apiKPIs?.inventoryTurnover ?? null,
+          maintenanceCost: apiKPIs?.maintenanceCost != null ? apiKPIs.maintenanceCost : maintenanceCost,
+          replacementFund: apiKPIs?.replacementFund ?? null
         });
 
       } catch (error) {
