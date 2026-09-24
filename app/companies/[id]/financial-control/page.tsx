@@ -269,14 +269,8 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
     if (savedUnits) {
       setUnits(JSON.parse(savedUnits));
     } else {
-      // Default unit
-      setUnits([{
-        id: 'unit-1',
-        name: 'Unidad Principal',
-        revenue: 55000,
-        costs: 35000,
-        utilization: 85
-      }]);
+      // Sin unidades registradas: no se inventan valores por defecto
+      setUnits([]);
     }
   };
 
@@ -463,17 +457,11 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
       try {
         setLoading(true);
         
-        // Load KPIs
-        const kpisResponse = await fetch(`/api/companies/${companyId}/kpis`);
-        if (kpisResponse.ok) {
-          const kpisData = await kpisResponse.json();
-          setKPIs(kpisData);
-        }
-
-        // Load Costs
+        // Cargar costos reales (desde la base de datos)
         const costsResponse = await fetch(`/api/companies/${companyId}/costs`);
+        let costsData: any = { fixed: {}, variable: {} };
         if (costsResponse.ok) {
-          const costsData = await costsResponse.json();
+          costsData = await costsResponse.json();
           // Try to load from localStorage first
           const storageKey = `costs_${companyId}`;
           const savedCosts = localStorage.getItem(storageKey);
@@ -482,19 +470,21 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
             setFixedCosts(parsed.fixed);
             setVariableCosts(parsed.variable);
           } else {
-            setFixedCosts(costsData.fixed);
-            setVariableCosts(costsData.variable);
+            setFixedCosts(costsData.fixed || {});
+            setVariableCosts(costsData.variable || {});
           }
         }
 
-        // Load Cash Flow
+        // Cargar flujo de efectivo real (desde las transacciones)
         const cashFlowResponse = await fetch(`/api/companies/${companyId}/cashflow`);
+        let cashFlowData: any[] = [];
         if (cashFlowResponse.ok) {
-          const cashFlowData = await cashFlowResponse.json();
+          const raw = await cashFlowResponse.json();
+          cashFlowData = Array.isArray(raw) ? raw : [];
           setCashFlowData(cashFlowData);
         }
 
-        // Load Custom KPIs from API and merge with localStorage
+        // Cargar KPIs personalizados reales y combinarlos con los locales
         const customKPIsResponse = await fetch(`/api/companies/${companyId}/custom-kpis`);
         if (customKPIsResponse.ok) {
           const apiKPIs = await customKPIsResponse.json();
@@ -502,9 +492,39 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
           const storageKey = `customKPIs_${companyId}`;
           const savedKPIs = localStorage.getItem(storageKey);
           const userKPIs = savedKPIs ? JSON.parse(savedKPIs) : [];
-          // Combine API KPIs (defaults) with user-added KPIs
+          // Combine API KPIs (reales) with user-added KPIs
           setCustomKPIs([...apiKPIs, ...userKPIs]);
         }
+
+        // KPIs del panel: se derivan SOLO de datos reales (sin valores inventados).
+        // /kpis sigue devolviendo valores de demostración, así que se ignora su contenido.
+        const last = cashFlowData.length > 0 ? cashFlowData[cashFlowData.length - 1] : null;
+        const totalFixed = Object.values(costsData.fixed || {}).reduce((sum: number, c: any) => sum + Number(c || 0), 0);
+        const totalVariable = Object.values(costsData.variable || {}).reduce((sum: number, c: any) => sum + Number(c || 0), 0);
+        const revenue = Number(last?.income || 0);
+        const expenses = Number(last?.expenses || 0);
+        // Unidades registradas por el usuario (localStorage)
+        let registeredUnits: any[] = [];
+        try {
+          const savedUnitsKey = `units_${companyId}`;
+          const savedUnits = localStorage.getItem(savedUnitsKey);
+          if (savedUnits) registeredUnits = JSON.parse(savedUnits);
+        } catch { /* ignorar */ }
+
+        const operatingMargin = revenue > 0 ? Math.round(((revenue - expenses) / revenue) * 100) : null;
+        const revenuePerUnit = registeredUnits.length > 0 && revenue > 0 ? Math.round((revenue / registeredUnits.length) * 100) / 100 : null;
+        const maintenanceCost = costsData.fixed?.maintenance ? Number(costsData.fixed.maintenance) : null;
+
+        setKPIs({
+          occupancyRate: null,        // no existe fuente real de ocupación
+          revenuePerUnit,
+          cac: null,                  // no existe fuente real de costo de adquisición
+          operatingMargin,
+          cashFlow: last ? Math.round((Number(last.netCashFlow) || 0) * 100) / 100 : null,
+          inventoryTurnover: null,    // no existe fuente real de rotación de inventario
+          maintenanceCost,
+          replacementFund: null
+        });
 
       } catch (error) {
         console.error('Error loading financial data:', error);
@@ -527,11 +547,32 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
 
   const saveCosts = async () => {
     try {
+      // Persistir en la base de datos (tabla cost_payments)
+      const now = new Date();
+      const periodMonth = now.getMonth() + 1;
+      const periodYear = now.getFullYear();
+      const response = await fetch(`/api/companies/${companyId}/costs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fixed: fixedCosts || {},
+          variable: variableCosts || {},
+          periodMonth,
+          periodYear
+        }),
+      });
+
+      // Guardar también en localStorage como caché
       const storageKey = `costs_${companyId}`;
       localStorage.setItem(storageKey, JSON.stringify({
         fixed: fixedCosts,
         variable: variableCosts
       }));
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => null);
+        console.error('Error guardando costos en BD:', errorData);
+      }
 
       setEditingCosts(false);
       setFixedCostsOriginal(null);
@@ -917,7 +958,7 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
                 <div className="flex justify-between">
                   <span className="text-gray-600">Punto Equilibrio:</span>
                   <span className="font-medium text-green-600">
-                    {Math.round(calculateBreakeEvenPoint() / (kpis?.revenuePerUnit || 1))} días
+                    {kpis?.revenuePerUnit ? `${Math.round(calculateBreakeEvenPoint() / kpis.revenuePerUnit)} días` : 'Sin datos'}
                   </span>
                 </div>
               </div>
@@ -943,14 +984,14 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Tasa de Ocupación</span>
-                  <Badge variant={kpis?.occupancyRate >= 70 ? 'default' : 'secondary'}>
-                    {kpis?.occupancyRate || 0}%
+                  <Badge variant={(kpis?.occupancyRate ?? 0) >= 70 ? 'default' : 'secondary'}>
+                    {kpis?.occupancyRate != null ? `${kpis.occupancyRate}%` : 'Sin datos'}
                   </Badge>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
                     className="bg-green-500 h-2 rounded-full"
-                    style={{ width: `${kpis?.occupancyRate || 0}%` }}
+                    style={{ width: `${kpis?.occupancyRate != null ? kpis.occupancyRate : 0}%` }}
                   />
                 </div>
               </CardContent>
@@ -963,14 +1004,14 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Margen Operativo</span>
-                  <Badge variant={kpis?.operatingMargin >= 25 ? 'default' : 'secondary'}>
-                    {kpis?.operatingMargin || 0}%
+                  <Badge variant={(kpis?.operatingMargin ?? 0) >= 25 ? 'default' : 'secondary'}>
+                    {kpis?.operatingMargin != null ? `${kpis.operatingMargin}%` : 'Sin datos'}
                   </Badge>
                 </div>
                 <div className="w-full bg-gray-200 rounded-full h-2">
                   <div 
                     className="bg-green-500 h-2 rounded-full"
-                    style={{ width: `${Math.min(kpis?.operatingMargin || 0, 100)}%` }}
+                    style={{ width: `${Math.min(kpis?.operatingMargin != null ? kpis.operatingMargin : 0, 100)}%` }}
                   />
                 </div>
               </CardContent>
@@ -983,15 +1024,15 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               <CardContent className="space-y-4">
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Ingreso por Cubículo</span>
-                  <span className="font-medium">{formatCurrency(kpis?.revenuePerUnit || 0)}</span>
+                  <span className="font-medium">{kpis?.revenuePerUnit != null ? formatCurrency(kpis.revenuePerUnit) : 'Sin datos'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Costos por Cubículo</span>
-                  <span className="font-medium">{formatCurrency((kpis?.revenuePerUnit || 0) * 0.65)}</span>
+                  <span className="font-medium">{kpis?.revenuePerUnit != null ? formatCurrency(kpis.revenuePerUnit * 0.65) : 'Sin datos'}</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-gray-600">Utilización</span>
-                  <span className="font-medium">{kpis?.occupancyRate || 0}%</span>
+                  <span className="font-medium">{kpis?.occupancyRate != null ? `${kpis.occupancyRate}%` : 'Sin datos'}</span>
                 </div>
               </CardContent>
             </Card>
@@ -1460,13 +1501,13 @@ export default function FinancialControlPage({ params }: FinancialControlProps) 
               <div className="space-y-2">
                 <label className="text-sm text-gray-600">Ahorrado mensual:</label>
                 <div className="px-3 py-2 bg-gray-50 rounded-md">
-                  {formatCurrency((kpis?.revenuePerUnit || 0) * (replacementFund.percentage / 100))}
+                  {kpis?.revenuePerUnit != null ? formatCurrency(kpis.revenuePerUnit * (replacementFund.percentage / 100)) : 'Sin datos'}
                 </div>
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-gray-600">Total estimado en 5 años:</label>
                 <div className="px-3 py-2 bg-gray-50 rounded-md">
-                  {formatCurrency((kpis?.revenuePerUnit || 0) * 12 * 5 * (replacementFund.percentage / 100))}
+                  {kpis?.revenuePerUnit != null ? formatCurrency(kpis.revenuePerUnit * 12 * 5 * (replacementFund.percentage / 100)) : 'Sin datos'}
                 </div>
               </div>
               <div className="space-y-2">

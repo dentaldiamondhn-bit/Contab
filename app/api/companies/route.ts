@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
+import { db } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -50,43 +51,37 @@ export async function GET() {
       return NextResponse.json({ error: 'Error obteniendo empresas' }, { status: 500 });
     }
     
-    // Si no hay empresas en la BD, devolver datos de ejemplo
+    // Si no hay empresas en la BD, devolver lista vacía (sin datos de ejemplo)
     if (!companies || companies.length === 0) {
-      console.log('API: No companies found in database, returning mock data');
-      const companiesToReturn = [
-        {
-          id: 1,
-          business_name: 'Dental Diamond',
-          business_rtn: '08011999012345',
-          industry: 'Servicios Médicos',
-          regimen_tributario: 'Régimen General',
-          actividad_economica: 'Servicios Médicos',
-          direccion_fiscal: 'Colonia Palmira, Tegucigalpa',
-          telefono_fiscal: '+504 2234-5678',
-          email_fiscal: 'contacto@dentaldiamond.hn',
-          is_active: true,
-          created_at: '2024-01-15T10:30:00Z',
-          config_fiscal: null,
-        },
-        {
-          id: 2,
-          business_name: 'Empresa Ejemplo 2',
-          business_rtn: '08011999012346',
-          industry: 'Servicios Profesionales',
-          regimen_tributario: 'Régimen General',
-          actividad_economica: 'Servicios Profesionales',
-          direccion_fiscal: 'Colonia Palmira, Tegucigalpa',
-          telefono_fiscal: '+504 2234-5678',
-          email_fiscal: 'contacto@empresa-ejemplo.hn',
-          is_active: true,
-          created_at: '2024-01-15T10:30:00Z',
-          config_fiscal: null,
-        },
-      ];
-      
-      return NextResponse.json({ companies: companiesToReturn });
+      console.log('API: No companies found in database, returning empty list');
+      return NextResponse.json({ companies: [] });
     }
     
+    // Contar pólizas reales por tenant y cuentas contables por tenant
+    let polizasCount = 0;
+    let accountsCount = 0;
+
+    const { count: polizasRows, error: polizasError } = await directSupabase
+      .from('polizas')
+      .select('id', { count: 'exact', head: true })
+      .eq('tenant_id', tenantId);
+
+    if (polizasError) {
+      console.error('API: Error counting polizas:', polizasError);
+    } else {
+      polizasCount = Number(polizasRows ?? 0);
+    }
+
+    try {
+      const accountsRows = await db.$queryRawUnsafe<{ tenant_id: string; total: bigint }[]>(
+        `SELECT "tenant_id" AS tenant_id, COUNT(*)::bigint AS total FROM "Account" WHERE "tenant_id" = $1 GROUP BY "tenant_id"`,
+        tenantId
+      );
+      accountsCount = Number((accountsRows || []).reduce((sum, row) => sum + Number(row.total), 0) || 0);
+    } catch (countError) {
+      console.error('API: Error counting accounts:', countError);
+    }
+
     // Transformar campos de la BD al formato que espera el frontend
     console.log('API: Raw companies from database:', companies);
     
@@ -110,8 +105,8 @@ export async function GET() {
         created_at: company.created_at,
         config_fiscal: company.config_fiscal || null,
         _count: {
-          polizas: Math.floor(Math.random() * 200) + 50, // Random count for demo
-          accounts: Math.floor(Math.random() * 80) + 20
+          polizas: polizasCount,
+          accounts: accountsCount
         }
       };
     });
@@ -184,6 +179,27 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
     }
 
+    // Contar pólizas y cuentas reales para el tenant de la empresa actualizada
+    let polizasCount = 0;
+    let accountsCount = 0;
+    const companyTenantId = (updatedCompany as any).tenant_id;
+    try {
+      const [{ count: polizasRows }, accountsRows] = await Promise.all([
+        directSupabase
+          .from('polizas')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', companyTenantId),
+        db.$queryRawUnsafe<{ tenant_id: string; total: bigint }[]>(
+          `SELECT "tenant_id" AS tenant_id, COUNT(*)::bigint AS total FROM "Account" WHERE "tenant_id" = $1 GROUP BY "tenant_id"`,
+          companyTenantId
+        ).catch(() => []),
+      ]);
+      polizasCount = Number(polizasRows?.count ?? 0);
+      accountsCount = Number((accountsRows || []).reduce((sum, row) => sum + Number(row.total), 0) || 0);
+    } catch (countError) {
+      console.error('API: Error contando pólizas/cuentas:', countError);
+    }
+
     // Transformar la respuesta al formato que espera el frontend
     const responseCompany = {
       id: updatedCompany.id,
@@ -199,8 +215,8 @@ export async function PUT(request: Request) {
       created_at: updatedCompany.created_at,
       config_fiscal: updatedCompany.config_fiscal || null,
       _count: {
-        polizas: Math.floor(Math.random() * 200) + 50,
-        accounts: Math.floor(Math.random() * 80) + 20
+        polizas: polizasCount,
+        accounts: accountsCount
       }
     };
 

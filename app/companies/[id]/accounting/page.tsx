@@ -548,9 +548,19 @@ export default function CompanyAccountingPage() {
     const debitoFiscal = totalIngresos * 0.15;
     const creditoFiscal = totalGastos * 0.15;
 
-    // Calcular balances
-    const totalActivos = 7500; // Basado en mock data
-    const totalPasivos = 2500; // Basado en mock data
+    // Calcular balances por clasificación contable (1=activos, 2=pasivos, 3=patrimonio)
+    // En centros contables el balance de activos es débito-crédito; para pasivos y
+    // patrimonio la cuenta se acredita, por lo que su balance queda negativo.
+    const accountCodes = Object.keys(accountTotals);
+
+    const totalActivos = accountCodes
+      .filter(code => code.startsWith('1'))
+      .reduce((sum, code) => sum + accountTotals[code].balance, 0);
+
+    const totalPasivos = accountCodes
+      .filter(code => code.startsWith('2'))
+      .reduce((sum, code) => sum + Math.abs(accountTotals[code].balance), 0);
+
     const totalPatrimonio = totalActivos - totalPasivos;
 
     return {

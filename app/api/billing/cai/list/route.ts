@@ -1,12 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth, currentUser } from '@clerk/nextjs/server';
-
-// Solución definitiva: Almacenamiento en memoria para bypass completo de base de datos
-// Esto funciona independientemente de cualquier problema de conexión o constraints
-
-// Almacenamiento en memoria (simula base de datos)
-let caisMemoryStore: any[] = [];
-let nextId = 1;
+import { db } from '@/lib/db';
 
 export async function GET() {
   try {
@@ -23,29 +17,28 @@ export async function GET() {
       return NextResponse.json({ error: 'Usuario no asociado a un tenant' }, { status: 404 });
     }
 
-    console.log('🔍 GET CAIs - Tenant:', tenantId);
-    console.log('🔍 GET CAIs - Memory store length:', caisMemoryStore.length);
+    // CAIs reales desde la base de datos (tabla cai vía Prisma)
+    const cais = await (db as any).cAI.findMany({
+      where: { tenantId: tenantId },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    // Filtrar CAIs por tenant desde memoria
-    const tenantCais = caisMemoryStore.filter(cai => cai.tenantId === tenantId);
-    
     // Formatear para el frontend
-    const formattedCais = tenantCais.map(cai => ({
+    const formattedCais = (cais || []).map((cai: any) => ({
       id: cai.id,
       cai: cai.cai,
-      rangeStart: cai.rangeStart,
-      rangeEnd: cai.rangeEnd,
-      currentNumber: cai.currentNumber,
-      expiryDate: cai.expiryDate,
+      rangeStart: Number(cai.rangeStart),
+      rangeEnd: Number(cai.rangeEnd),
+      currentNumber: Number(cai.currentNumber),
+      expiryDate: cai.expiryDate ? new Date(cai.expiryDate).toISOString().split('T')[0] : '',
       isActive: cai.isActive,
-      establishmentCode: cai.establishmentCode || '001',
-      pointOfSaleCode: cai.pointOfSaleCode || '001',
-      economicActivity: cai.economicActivity || 'Servicios profesionales',
+      establishmentCode: '',
+      pointOfSaleCode: '',
+      economicActivity: '',
+      issueDate: cai.issueDate ? new Date(cai.issueDate).toISOString().split('T')[0] : '',
       createdAt: cai.createdAt,
       updatedAt: cai.updatedAt
     }));
-
-    console.log('🔍 GET CAIs - Formateados:', formattedCais.length);
 
     return NextResponse.json({
       success: true,
@@ -53,7 +46,7 @@ export async function GET() {
     });
 
   } catch (error) {
-    console.error('Error obteniendo CAIs (memoria):', error);
+    console.error('Error obteniendo CAIs:', error);
     return NextResponse.json({ 
       error: 'Error interno del servidor',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -68,7 +61,6 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Obtener tenantId de Clerk metadata
     const user = await currentUser();
     const tenantId = user?.publicMetadata?.tenantId || user?.privateMetadata?.tenantId;
     
@@ -77,32 +69,25 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    console.log('🔍 Datos recibidos en API (memoria):', body);
     
     const { 
       cai, 
       rangeStart, 
       rangeEnd, 
       currentNumber, 
-      expiryDate, 
-      establishmentCode,
-      pointOfSaleCode,
-      economicActivity
+      expiryDate,
+      isActive = true
     } = body;
-
-    console.log('🔍 Datos extraídos (memoria):', { cai, rangeStart, rangeEnd, currentNumber, expiryDate });
-    console.log('🔍 Longitud del CAI (memoria):', cai ? cai.length : 'undefined');
 
     // Validación básica
     if (!cai || !rangeStart || !rangeEnd || !expiryDate) {
-      console.log('❌ Error de validación - campos faltantes:', { cai: !!cai, rangeStart: !!rangeStart, rangeEnd: !!rangeEnd, expiryDate: !!expiryDate });
       return NextResponse.json({ 
         error: 'CAI, rangos y fecha de vencimiento son obligatorios' 
       }, { status: 400 });
     }
 
     // Validar que el rango sea válido
-    if (rangeStart >= rangeEnd) {
+    if (Number(rangeStart) >= Number(rangeEnd)) {
       return NextResponse.json({ 
         error: 'El rango inicial debe ser menor al rango final' 
       }, { status: 400 });
@@ -110,75 +95,60 @@ export async function POST(request: NextRequest) {
 
     // Validar longitud del CAI (entre 32 y 37 caracteres según diferentes formatos)
     if (cai.length < 32 || cai.length > 37) {
-      console.log('❌ Error de validación - longitud del CAI:', { length: cai.length, cai });
       return NextResponse.json({ 
         error: `El CAI debe tener entre 32 y 37 caracteres (tiene ${cai.length})` 
       }, { status: 400 });
     }
 
-    // Verificar si el CAI ya existe en memoria
-    const existingCai = caisMemoryStore.find(c => c.cai === cai && c.tenantId === tenantId);
+    // Verificar si el CAI ya existe para el tenant
+    const existingCai = await (db as any).cAI.findFirst({
+      where: { cai: cai, tenantId: tenantId }
+    });
     if (existingCai) {
       return NextResponse.json({ 
         error: 'Este CAI ya existe para el tenant actual' 
       }, { status: 400 });
     }
 
-    try {
-      // Crear nuevo CAI en memoria
-      const newCai = {
-        id: nextId++,
-        cai: cai,
-        rangeStart: Number(rangeStart),
-        rangeEnd: Number(rangeEnd),
-        currentNumber: Number(currentNumber || rangeStart),
-        expiryDate: expiryDate,
-        isActive: true,
-        establishmentCode: establishmentCode || '001',
-        pointOfSaleCode: pointOfSaleCode || '001',
-        economicActivity: economicActivity || 'Servicios profesionales',
+    // Crear CAI real en la base de datos
+    const newCai = await (db as any).cAI.create({
+      data: {
         tenantId: tenantId,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+        cai: cai,
+        rangeStart: BigInt(Number(rangeStart)),
+        rangeEnd: BigInt(Number(rangeEnd)),
+        currentNumber: BigInt(Number(currentNumber || rangeStart)),
+        issueDate: new Date(),
+        expiryDate: new Date(expiryDate),
+        isActive: isActive !== false
+      }
+    });
 
-      // Guardar en memoria
-      caisMemoryStore.push(newCai);
+    // Formatear respuesta para el frontend
+    const responseCai = {
+      id: newCai.id,
+      cai: newCai.cai,
+      rangeStart: Number(newCai.rangeStart),
+      rangeEnd: Number(newCai.rangeEnd),
+      currentNumber: Number(newCai.currentNumber),
+      expiryDate: newCai.expiryDate ? new Date(newCai.expiryDate).toISOString().split('T')[0] : '',
+      isActive: newCai.isActive,
+      establishmentCode: '',
+      pointOfSaleCode: '',
+      economicActivity: '',
+      issueDate: newCai.issueDate ? new Date(newCai.issueDate).toISOString().split('T')[0] : '',
+      createdAt: newCai.createdAt,
+      updatedAt: newCai.updatedAt
+    };
 
-      console.log('✅ CAI creado en memoria:', newCai);
-      console.log('🔍 Total CAIs en memoria:', caisMemoryStore.length);
+    return NextResponse.json({
+      success: true,
+      data: responseCai,
+      message: 'CAI creado correctamente'
+    });
 
-      // Formatear respuesta para el frontend
-      const responseCai = {
-        id: newCai.id,
-        cai: newCai.cai,
-        rangeStart: newCai.rangeStart,
-        rangeEnd: newCai.rangeEnd,
-        currentNumber: newCai.currentNumber,
-        expiryDate: newCai.expiryDate,
-        isActive: newCai.isActive,
-        establishmentCode: newCai.establishmentCode,
-        pointOfSaleCode: newCai.pointOfSaleCode,
-        economicActivity: newCai.economicActivity,
-        createdAt: newCai.createdAt,
-        updatedAt: newCai.updatedAt
-      };
-
-      return NextResponse.json({
-        success: true,
-        data: responseCai,
-        message: 'CAI creado correctamente (almacenamiento en memoria)'
-      });
-
-    } catch (insertError) {
-      console.error('Error creando CAI (memoria):', insertError);
-      return NextResponse.json({ 
-        error: 'Error interno del servidor',
-        details: insertError instanceof Error ? insertError.message : 'Unknown error'
-      }, { status: 500 });
-    }
   } catch (error) {
-    console.error('Error general en la API (memoria):', error);
+    console.error('Error creando CAI:', error);
     return NextResponse.json({ 
       error: 'Error interno del servidor',
       details: error instanceof Error ? error.message : 'Unknown error'

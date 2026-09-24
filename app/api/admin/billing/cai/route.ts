@@ -1,67 +1,30 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth, clerkClient } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
-
-// Obtener el CAI del sistema configurado
-function getSystemCAI() {
-  // Aquí deberíamos obtener de la base de datos o configuración
-  // Por ahora, usamos el CAI por defecto de ContabHN
-  
-  // Calcular fecha de expiración: 1 año desde hoy
-  const expiryDate = new Date();
-  expiryDate.setFullYear(expiryDate.getFullYear() + 1);
-  
-  return {
-    cai: 'DAF5-8D9A-4E6B-C2F1-9A3B-5E7F-8D9A',
-    rangeStart: 1,
-    rangeEnd: 1000,
-    currentNumber: 1,
-    expiryDate: expiryDate.toISOString(),
-    rtn: '05011991078006',
-    businessName: 'CONTAB HN',
-    businessAddress: 'Tegucigalpa, Honduras',
-    establishmentCode: '001',
-    pointOfSaleCode: '001',
-    economicActivity: '631100',
-    taxRate: 15
-  };
-}
+import { supabase } from '@/lib/supabase-db';
 
 export async function GET(
   req: NextRequest
 ) {
   try {
-    const { userId, sessionClaims } = await auth();
-
-    // Verificar autorización
+    const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    // Obtener email y rol del usuario desde Clerk
-    let email = '';
     let userRole: string | undefined;
-    if (userId) {
-      try {
-        const client = await clerkClient();
-        const user = await client.users.getUser(userId);
-        email = user.emailAddresses[0]?.emailAddress || '';
-        
-        // Check multiple metadata sources for role
-        userRole = 
-          user.publicMetadata?.role || 
-          user.unsafeMetadata?.role ||
-          (user.privateMetadata as any)?.role ||
-          (sessionClaims?.metadata as any)?.role;
-      } catch (error) {
-        console.error('Error getting user from Clerk:', error);
-      }
+    let email: string | undefined;
+
+    try {
+      const user = await currentUser();
+      userRole = (user?.publicMetadata as any)?.role;
+      email = user?.emailAddresses?.[0]?.emailAddress;
+    } catch (error) {
+      console.error('Error getting user from Clerk:', error);
     }
 
     const isSuperAdminEmail = email === 'sucachi.123@gmail.com';
     const isAuthorized = ['SUPER_ADMIN', 'SUPPORT'].includes(userRole as string) || isSuperAdminEmail;
-
-    console.log('CAI API - Auth check:', { userId, userRole, email, isAuthorized });
 
     if (!isAuthorized) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
@@ -74,43 +37,54 @@ export async function GET(
       return NextResponse.json({ error: 'Se requiere tenantId' }, { status: 400 });
     }
 
-    console.log('🔍 Buscando CAI para tenant:', tenantId);
+    // Obtener el CAI activo real del tenant desde la base de datos
+    const activeCai = await (db as any).cAI.findFirst({
+      where: {
+        tenantId: tenantId,
+        isActive: true,
+        expiryDate: { gte: new Date() }
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-    // Obtener el CAI del sistema configurado
-    const systemCaiConfig = getSystemCAI();
-    console.log('✅ CAI del sistema obtenido:', systemCaiConfig);
+    if (!activeCai) {
+      return NextResponse.json({
+        success: false,
+        cai: null,
+        message: 'El tenant no tiene un CAI activo configurado'
+      }, { status: 404 });
+    }
 
-    // Incrementar el número de factura para este tenant
-    // En un caso real, esto debería persistirse en base de datos
-    const nextInvoiceNumber = systemCaiConfig.currentNumber + 1;
-    
-    // Actualizar el número actual (simulado)
-    systemCaiConfig.currentNumber = nextInvoiceNumber;
+    // Obtener la configuración fiscal real del tenant
+    const { data: tenant } = await supabase
+      .from('Tenant')
+      .select('businessname, businessrtn, businessaddress, businessemail, phonenumber')
+      .eq('id', tenantId)
+      .single();
 
-    console.log('📈 Número de factura incrementado a:', nextInvoiceNumber);
+    const caiData = {
+      id: activeCai.id,
+      cai: activeCai.cai,
+      rangeStart: Number(activeCai.rangeStart),
+      rangeEnd: Number(activeCai.rangeEnd),
+      currentNumber: Number(activeCai.currentNumber),
+      expiryDate: activeCai.expiryDate,
+      isActive: activeCai.isActive === true,
+      isSystemWide: false,
+      rtn: tenant?.businessrtn || '',
+      businessName: tenant?.businessname || '',
+      businessAddress: tenant?.businessaddress || '',
+      establishmentCode: '',
+      pointOfSaleCode: '',
+      economicActivity: '',
+      taxRate: 15,
+      invoiceNumber: String(Number(activeCai.currentNumber) + 1),
+      sequenceNumber: Number(activeCai.currentNumber) + 1
+    };
 
     return NextResponse.json({
       success: true,
-      cai: {
-        id: 'system-cai',
-        cai: systemCaiConfig.cai,
-        rangeStart: systemCaiConfig.rangeStart,
-        rangeEnd: systemCaiConfig.rangeEnd,
-        currentNumber: nextInvoiceNumber,
-        expiryDate: systemCaiConfig.expiryDate,
-        isActive: true,
-        isSystemWide: true,
-        rtn: systemCaiConfig.rtn,
-        businessName: systemCaiConfig.businessName,
-        businessAddress: systemCaiConfig.businessAddress,
-        establishmentCode: systemCaiConfig.establishmentCode,
-        pointOfSaleCode: systemCaiConfig.pointOfSaleCode,
-        economicActivity: systemCaiConfig.economicActivity,
-        taxRate: systemCaiConfig.taxRate,
-        // Información adicional para la factura
-        invoiceNumber: nextInvoiceNumber.toString(),
-        sequenceNumber: nextInvoiceNumber
-      }
+      cai: caiData
     });
 
   } catch (error: any) {

@@ -1,55 +1,92 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
+import { db } from '@/lib/db';
+import { supabase } from '@/lib/supabase-db';
+
+function extractSerialNumber(invoiceNumber: string): number {
+  const match = invoiceNumber.match(/(\d+)\s*$/);
+  return match ? parseInt(match[1], 10) : 0;
+}
 
 export async function GET(
   req: NextRequest
 ) {
   try {
-    console.log('🔄 GET /api/admin/billing/cai/current - Iniciando...');
-    
     const { userId } = await auth();
-
-    // Verificar autorización básica
     if (!userId) {
-      console.log('❌ No userId provided');
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    console.log('✅ Usuario autenticado:', userId);
-
     const { searchParams } = new URL(req.url);
     const tenantId = searchParams.get('tenantId');
-
-    console.log('📋 TenantId:', tenantId);
 
     if (!tenantId) {
       return NextResponse.json({ error: 'Se requiere tenantId' }, { status: 400 });
     }
 
-    // CAI del sistema (datos por ahora, luego vendrán de la configuración)
+    // Obtener el CAI activo real del tenant desde la base de datos
+    const activeCai = await (db as any).cAI.findFirst({
+      where: {
+        tenantId: tenantId,
+        isActive: true,
+        expiryDate: { gte: new Date() }
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!activeCai) {
+      return NextResponse.json({
+        success: false,
+        cai: null,
+        message: 'El tenant no tiene un CAI activo configurado'
+      }, { status: 404 });
+    }
+
+    // Obtener la configuración fiscal real del tenant
+    const { data: tenant } = await supabase
+      .from('Tenant')
+      .select('businessname, businessrtn, businessaddress, businessemail, phonenumber')
+      .eq('id', tenantId)
+      .single();
+
+    // Número de factura: siguiente al último emitido (máximo entre el número
+    // actual persistido del CAI y la última factura registrada en la BD)
+    const { data: lastInvoices } = await (supabase as any)
+      .from('Invoice')
+      .select('invoiceNumber')
+      .eq('tenantId', tenantId)
+      .order('createdAt', { ascending: false })
+      .limit(20);
+
+    const maxSerialFromInvoices = (lastInvoices || []).reduce(
+      (max: number, inv: any) => Math.max(max, extractSerialNumber(inv.invoiceNumber || '')),
+      0
+    );
+
+    const currentNumber = Number(activeCai.currentNumber);
+    const nextNumber = Math.max(currentNumber, maxSerialFromInvoices) + 1;
+
     const caiData = {
-      id: 'system-cai',
-      cai: 'DAF5-8D9A-4E6B-C2F1-9A3B-5E7F-8D9A',
-      rangeStart: 1,
-      rangeEnd: 50,
-      currentNumber: Math.floor(Math.random() * 10) + 1, // Número aleatorio para demo
-      expiryDate: '2026-12-31T23:59:59.000Z',
-      isActive: true,
-      isSystemWide: true,
-      // Información fiscal del emisor
-      rtn: '05011991078006',
-      businessName: 'CONTAB HN',
-      businessAddress: 'Tegucigalpa, Honduras',
-      establishmentCode: '001',
-      pointOfSaleCode: '001',
-      economicActivity: '631100',
+      id: activeCai.id,
+      cai: activeCai.cai,
+      rangeStart: Number(activeCai.rangeStart),
+      rangeEnd: Number(activeCai.rangeEnd),
+      currentNumber: nextNumber,
+      expiryDate: activeCai.expiryDate,
+      isActive: activeCai.isActive === true,
+      isSystemWide: false,
+      // Información fiscal del emisor (real del tenant)
+      rtn: tenant?.businessrtn || '',
+      businessName: tenant?.businessname || '',
+      businessAddress: tenant?.businessaddress || '',
+      establishmentCode: '',
+      pointOfSaleCode: '',
+      economicActivity: '',
       taxRate: 15,
       // Información adicional para la factura
-      invoiceNumber: Math.floor(Math.random() * 10) + 1,
-      sequenceNumber: Math.floor(Math.random() * 10) + 1
+      invoiceNumber: String(nextNumber),
+      sequenceNumber: nextNumber
     };
-
-    console.log('✅ CAI generado:', caiData);
 
     return NextResponse.json({
       success: true,
@@ -57,7 +94,7 @@ export async function GET(
     });
 
   } catch (error: any) {
-    console.error('❌ Error obteniendo CAI:', error);
+    console.error('Error obteniendo CAI:', error);
     return NextResponse.json(
       { error: 'Error interno del servidor' },
       { status: 500 }

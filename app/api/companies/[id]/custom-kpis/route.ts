@@ -1,53 +1,82 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase as supabaseService } from '@/lib/supabase-db';
+
+// Obtener ingresos y número de transacciones reales por tenant
+async function getTicketPromedio(companyId: string): Promise<{ value: number | null; ingresos: number; transacciones: number }> {
+  let data: any[] = [];
+  let { data: tx, error } = await supabaseService
+    .from('Transaction')
+    .select('id, voucherType, voucher_type, totalAmount, total_amount')
+    .eq('tenant_id', companyId);
+
+  if (error || !tx || tx.length === 0) {
+    const alt = await supabaseService
+      .from('Transaction')
+      .select('id, voucherType, voucher_type, totalAmount, total_amount')
+      .eq('tenantId', companyId);
+    if (!alt.error && alt.data) {
+      tx = alt.data;
+    }
+  }
+
+  data = tx || [];
+
+  let ingresos = 0;
+  let transacciones = 0;
+  data.forEach((t: any) => {
+    const voucherType = t.voucherType || t.voucher_type;
+    const amount = Number(t.totalAmount ?? t.total_amount ?? 0) / 100;
+    if (voucherType === 'INGRESO') {
+      ingresos += amount;
+      transacciones += 1;
+    }
+  });
+
+  const value = transacciones > 0 ? Math.round((ingresos / transacciones) * 100) / 100 : null;
+  return { value, ingresos: Math.round(ingresos * 100) / 100, transacciones };
+}
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: companyId } = await params;
   try {
-    const mockCustomKpis = [
-      {
-        id: 'kpi-1',
-        name: 'ROI Marketing',
-        description: 'Retorno de inversión en marketing',
-        unit: '%',
-        value: 15.0,
-        target: 20.0,
-        category: 'custom',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'kpi-2',
-        name: 'Ticket Promedio',
-        description: 'Valor promedio por cliente',
-        unit: 'HNL',
-        value: 2500.0,
-        target: 3000.0,
-        category: 'custom',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      },
-      {
-        id: 'kpi-3',
-        name: 'Satisfacción Cliente',
-        description: 'Nivel de satisfacción del cliente',
-        unit: '%',
-        value: 85.0,
-        target: 90.0,
-        category: 'custom',
-        isActive: true,
-        createdAt: new Date().toISOString()
-      }
-    ];
+    // KPIs derivados de datos reales: solo los que tienen fuente en el sistema
+    const ticket = await getTicketPromedio(companyId);
 
-    return NextResponse.json(mockCustomKpis);
+    const kpis: any[] = [];
+
+    if (ticket.value !== null) {
+      kpis.push({
+        id: 'kpi-ticket-promedio',
+        name: 'Ticket Promedio',
+        description: 'Valor promedio de ingresos por transacción (dato real)',
+        unit: 'HNL',
+        value: ticket.value,
+        target: null,
+        category: 'custom',
+        isActive: true,
+        createdAt: new Date().toISOString()
+      });
+      kpis.push({
+        id: 'kpi-ingresos',
+        name: 'Ingresos Totales',
+        description: 'Suma de ingresos registrados (dato real)',
+        unit: 'HNL',
+        value: ticket.ingresos,
+        target: null,
+        category: 'custom',
+        isActive: true,
+        createdAt: new Date().toISOString()
+      });
+    }
+
+    // ROI de marketing y satisfacción no tienen fuente de datos real → no se inventan
+    return NextResponse.json(kpis);
   } catch (error) {
     console.error('Error fetching custom KPIs:', error);
-    return NextResponse.json(
-      { error: 'Failed to fetch custom KPIs' },
-      { status: 500 }
-    );
+    return NextResponse.json([]);
   }
 }
 
@@ -66,7 +95,9 @@ export async function POST(
       );
     }
 
-    const mockKPI = {
+    // No existe tabla de KPIs personalizados en la base de datos:
+    // se devuelve el KPI para que el navegador lo persista localmente.
+    const kpi = {
       id: `kpi-${Date.now()}`,
       name,
       description: description || null,
@@ -80,8 +111,8 @@ export async function POST(
 
     return NextResponse.json({
       success: true,
-      message: 'Custom KPI created successfully (mock)',
-      data: mockKPI
+      message: 'El KPI se almacenará en el navegador (no existe tabla de KPIs personalizados en el servidor)',
+      data: kpi
     });
   } catch (error) {
     console.error('Error creating custom KPI:', error);
@@ -97,9 +128,6 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    // TEMPORARY: Return mock response until database connection is fixed
-    console.log('Returning mock DELETE response for custom KPI due to database connection issues');
-    
     const { searchParams } = new URL(request.url);
     const kpiId = searchParams.get('id');
 
@@ -110,10 +138,10 @@ export async function DELETE(
       );
     }
 
-    // Simulate successful deletion
+    // Los KPIs personalizados viven solo en el navegador del usuario
     return NextResponse.json({
       success: true,
-      message: 'Custom KPI deleted successfully (mock)'
+      message: 'KPI eliminado del almacenamiento local del navegador'
     });
   } catch (error) {
     console.error('Error deleting custom KPI:', error);

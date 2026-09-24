@@ -1,42 +1,86 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { supabase as supabaseService } from '@/lib/supabase-db';
+
+// Meses de flujo a mostrar (últimos 6 meses reales)
+const MONTHS_TO_SHOW = 6;
 
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: companyId } = await params;
   try {
-    const mockCashFlow = [
-      {
-        month: '2026-01',
-        income: 450000,
-        expenses: 350000,
-        netCashFlow: 100000,
-        cumulativeCashFlow: 100000
-      },
-      {
-        month: '2026-02',
-        income: 480000,
-        expenses: 360000,
-        netCashFlow: 120000,
-        cumulativeCashFlow: 220000
-      },
-      {
-        month: '2026-03',
-        income: 520000,
-        expenses: 380000,
-        netCashFlow: 140000,
-        cumulativeCashFlow: 360000
-      },
-      {
-        month: '2026-04',
-        income: 500000,
-        expenses: 370000,
-        netCashFlow: 130000,
-        cumulativeCashFlow: 490000
-      }
-    ];
+    // Obtener transacciones reales del tenant para los últimos meses
+    const now = new Date();
+    const startDate = new Date(now.getFullYear(), now.getMonth() - (MONTHS_TO_SHOW - 1), 1);
 
-    return NextResponse.json(mockCashFlow);
+    let transactions: any[] = [];
+    let { data, error } = await supabaseService
+      .from('Transaction')
+      .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
+      .eq('tenant_id', companyId)
+      .gte('date', startDate.toISOString().split('T')[0]);
+
+    if (error || !data || data.length === 0) {
+      const alt = await supabaseService
+        .from('Transaction')
+        .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
+        .eq('tenantId', companyId)
+        .gte('date', startDate.toISOString().split('T')[0]);
+      if (!alt.error && alt.data) {
+        data = alt.data;
+      }
+    }
+
+    if (error && !data) {
+      console.error('Error fetching cash flow transactions:', error);
+      return NextResponse.json([]);
+    }
+
+    transactions = data || [];
+
+    // Agrupar por mes (YYYY-MM)
+    const months: Record<string, { income: number; expenses: number }> = {};
+
+    for (let i = MONTHS_TO_SHOW - 1; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`] = { income: 0, expenses: 0 };
+    }
+
+    transactions.forEach((t: any) => {
+      const rawDate = t.date || t.created_at;
+      if (!rawDate) return;
+      const date = new Date(rawDate);
+      if (isNaN(date.getTime())) return;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      if (!months[key]) return;
+
+      const voucherType = t.voucherType || t.voucher_type;
+      const amount = Number(t.totalAmount ?? t.total_amount ?? 0) / 100;
+      if (voucherType === 'INGRESO') {
+        months[key].income += amount;
+      } else if (voucherType === 'EGRESO') {
+        months[key].expenses += amount;
+      }
+    });
+
+    // Construir serie con neto y acumulado
+    let cumulative = 0;
+    const cashFlow = Object.entries(months)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([month, { income, expenses }]) => {
+        const netCashFlow = income - expenses;
+        cumulative += netCashFlow;
+        return {
+          month,
+          income: Math.round(income * 100) / 100,
+          expenses: Math.round(expenses * 100) / 100,
+          netCashFlow: Math.round(netCashFlow * 100) / 100,
+          cumulativeCashFlow: Math.round(cumulative * 100) / 100,
+        };
+      });
+
+    return NextResponse.json(cashFlow);
   } catch (error) {
     console.error('Error fetching cash flow:', error);
     return NextResponse.json(
@@ -61,10 +105,11 @@ export async function POST(
       );
     }
 
+    // El flujo de efectivo se calcula automáticamente desde las transacciones reales
     return NextResponse.json({
-      success: true,
-      message: 'Cash flow data updated successfully (mock)'
-    });
+      success: false,
+      error: 'El flujo de efectivo se calcula automáticamente desde las transacciones reales; no se puede sobrescribir manualmente.'
+    }, { status: 501 });
   } catch (error) {
     console.error('Error updating cash flow:', error);
     return NextResponse.json(

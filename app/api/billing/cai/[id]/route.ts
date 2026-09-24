@@ -1,48 +1,53 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { auth, currentUser } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 import { supabase } from '@/lib/supabase-db';
+
+async function getTenantId(): Promise<string | null> {
+  const { userId } = await auth();
+  if (!userId) return null;
+  const user = await currentUser();
+  return user?.publicMetadata?.tenantId || user?.privateMetadata?.tenantId || null;
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const tenantId = await getTenantId();
+    if (!tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    // Primero obtener el tenant asociado al usuario
-    const user = await (db as any).user.findUnique({
-      where: { id: userId },
-      select: { tenantid: true }
-    });
-
-    if (!user || !user.tenantid) {
-      return NextResponse.json({ error: 'Usuario no asociado a un tenant' }, { status: 404 });
     }
 
     const { id } = params;
     const body = await request.json();
-    const { 
-      cai, 
+
+    // Aceptar campos en camelCase (settings) o snake_case (legacy)
+    const {
+      cai,
+      rangeStart,
+      rangeEnd,
+      currentNumber,
+      expiryDate,
       start_number,
       end_number,
       current_number,
       expiration_date,
+      isActive = true,
       status,
-      establishmentCode = '001',
-      pointOfSaleCode = '001',
-      economicActivity = 'Servicios de software',
-      isActive = true
     } = body;
+
+    const start = Number(rangeStart ?? start_number);
+    const end = Number(rangeEnd ?? end_number);
+    const current = Number(currentNumber ?? current_number);
+    const exp = expiryDate || expiration_date;
 
     // Validar que el CAI exista y pertenezca al tenant
     const existingCai = await (db as any).cAI.findFirst({
       where: { 
         id: id,
-        tenantid: user.tenantid 
+        tenantId: tenantId 
       }
     });
 
@@ -53,53 +58,51 @@ export async function PUT(
     }
 
     // Validación básica
-    if (!cai || !cai.start_number || !cai.end_number || !cai.expiration_date) {
+    if (!cai || !start || !end || !exp) {
       return NextResponse.json({ 
         error: 'CAI, rango y fecha de vencimiento son obligatorios' 
       }, { status: 400 });
     }
 
     // Validar que el rango sea válido
-    if (cai.start_number >= cai.end_number) {
+    if (start >= end) {
       return NextResponse.json({ 
         error: 'El rango inicial debe ser menor al rango final' 
       }, { status: 400 });
     }
 
     // Validar que el número actual esté dentro del rango
-    if (cai.current_number < cai.start_number || cai.current_number > cai.end_number) {
+    if (current < start || current > end) {
       return NextResponse.json({ 
         error: 'El número actual debe estar dentro del rango especificado' 
       }, { status: 400 });
     }
 
-    // Actualizar CAI
+    // Actualizar CAI en la base de datos
     const updatedCai = await (db as any).cAI.update({
       where: { id: id },
       data: {
-        cai: cai.cai,
-        start_number: cai.start_number,
-        end_number: cai.end_number,
-        current_number: cai.current_number,
-        expiration_date: new Date(cai.expiration_date),
-        status: cai.status,
-        created_at: existingCai.created_at,
-        updated_at: new Date(),
+        cai: cai,
+        rangeStart: BigInt(start),
+        rangeEnd: BigInt(end),
+        currentNumber: BigInt(current),
+        expiryDate: new Date(exp),
+        isActive: status !== undefined ? Boolean(status) : isActive !== false,
       }
     });
 
     // Formatear respuesta
     const responseCai = {
       id: updatedCai.id,
-      cai: cai.cai,
-      rangeStart: Number(cai.start_number),
-      rangeEnd: Number(cai.end_number),
-      currentNumber: Number(cai.current_number),
-      expiryDate: cai.expiration_date.toISOString().split('T')[0],
-      isActive: cai.status,
-      establishmentCode,
-      pointOfSaleCode,
-      economicActivity,
+      cai: updatedCai.cai,
+      rangeStart: Number(updatedCai.rangeStart),
+      rangeEnd: Number(updatedCai.rangeEnd),
+      currentNumber: Number(updatedCai.currentNumber),
+      expiryDate: updatedCai.expiryDate ? new Date(updatedCai.expiryDate).toISOString().split('T')[0] : '',
+      isActive: updatedCai.isActive,
+      establishmentCode: '',
+      pointOfSaleCode: '',
+      economicActivity: '',
     };
 
     return NextResponse.json({
@@ -121,19 +124,9 @@ export async function DELETE(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const tenantId = await getTenantId();
+    if (!tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
-    }
-
-    // Primero obtener el tenant asociado al usuario
-    const user = await (db as any).user.findUnique({
-      where: { id: userId },
-      select: { tenantid: true }
-    });
-
-    if (!user || !user.tenantid) {
-      return NextResponse.json({ error: 'Usuario no asociado a un tenant' }, { status: 404 });
     }
 
     const { id } = params;
@@ -142,7 +135,7 @@ export async function DELETE(
     const existingCai = await (db as any).cAI.findFirst({
       where: { 
         id: id,
-        tenantid: user.tenantid 
+        tenantId: tenantId 
       }
     });
 
