@@ -16,7 +16,7 @@
 | **Retenciones** | **Completo — generación automática + asiento contable automático + exportación Excel** | 1 página | 2 rutas | 1 tabla | Supabase + Prisma |
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
-| **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
+| **DIAT** | **Completo (100%) — generación automática + carga automática al portal SAR ✅** | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
 | **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel + carga al portal SAR** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` + `lib/services/annual-tax-uploader.ts` + `app/api/accounting/annual-tax-upload/route.ts` (22-23 Sept 2026) | API | Datos reales | Generación automática + adaptador SAR |
 | **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | — | Supabase |
 
@@ -285,7 +285,7 @@
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
 | 3.1 | ~~Crear generador de DIAT~~ | ~~`lib/services/diat-generator.ts`~~ | ✅ Generador DIAT (16 Sept 2026) |
-| 3.2 | ~~UI para DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página DIAT + API (16 Sept 2026) |
+| 3.2 | ~~UI para DIAT~~ | ~~`app/diat/page.tsx`~~ → `app/companies/[id]/diat/page.tsx` + `components/DIATManager.tsx` | ✅ Página DIAT + API (16 Sept 2026); ✅ Carga automática al portal SAR con validación de completitud previa y código de seguimiento (23 Sept 2026) |
 | 3.3 | Declaración anual consolidada | `app/reports/annual-tax/page.tsx` | Reporte anual ✅ Implementado (datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 
 ### Etapa 4: Exportación y Cumplimiento
@@ -375,3 +375,4 @@ Etapa 1 (Retenciones + Contabilidad)
 | Retenciones → asiento contable automático balanceado | `lib/services/withholding-entries.ts` (`buildWithholdingJournalEntry`: débito gasto/costo + crédito retención por pagar, montos base × tasa, balanceado) + API `app/api/accounting/withholding-journal/route.ts` (POST crea póliza vía `createJournalTransaction` con deduplicado DUPLICADO, GET consulta el asiento) + toggle "Asiento automático ON/OFF" en `components/WithholdingManager.tsx` con "Ver asiento"/"Generar asiento ahora" y exportación Excel `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` |
 | Libro Mayor y Libro Diario automáticos | `lib/reports/general-ledger.ts` (clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta, transform + grouping desde trial-balance, formatos Excel de Mayor y Diario) + integración en `app/companies/[id]/reports/general-ledger/page.tsx` con toggle Manual/Automático (transacciones contables), toggle Mayor/Diario y exportación a Excel |
 | Declaraciones Anuales conectadas a datos reales | `lib/reports/annual-tax.ts` (cálculo ISV/ISR/Retenciones desde transacciones contables + formato Excel multi-hoja) + integración en `app/reports/annual-tax/page.tsx` con 3 tarjetas de montos reales, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
+| DIAT → conexión al portal SAR con carga automática cifrada | `lib/services/diat-uploader.ts` (`submitDiatToSARR` POST autenticado con FormData + Basic + timeout/retry, clasificación SUCCESS/CREDENCIALES/RED/PORTAL/CONFIG, `extractTrackingCode` de la respuesta del portal, `validateDiatCompleteness` errors bloqueantes/warnings permisivos; reutiliza el cifrado AES-256-GCM de `det-uploader`, sin duplicar) + API `app/api/accounting/diat-upload/route.ts` (get-config/save-config/test/upload, guardado en `system_settings` clave `diat_sar_config:{empresa}`, validación de completitud previa que bloquea la subida con errores, HTTP mapeado a SUCCESS 200 / CREDENCIALES 401 / RED 502 / PORTAL 503 / CONFIG 500, último envío guardado en `diat_sar_last_upload:{empresa}`) + integración en `components/DIATManager.tsx` con botones "Conectar al portal SAR" y "Subir DIAT al portal SAR", validación en pantalla (lista roja bloquea, warnings amarillos "puedes enviar igualmente") y estado de envío es-HN con código de seguimiento (23 Sept 2026) |
