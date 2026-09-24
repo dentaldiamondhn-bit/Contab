@@ -13,7 +13,7 @@
 | **Libro de Inventarios y Balances** | Completo | 1 página | — | 1 vista | Supabase |
 | **Formulario SAR 221 (ISV)** | **Completo — generación automática + carga al portal SAR** | 1 componente | — | — | Cálculos en código |
 | **Exportación DET (SAR)** | Completo | 1 componente | 1 ruta | — | Generación archivo .txt |
-| **Retenciones** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | 1 tabla | Supabase + Prisma |
+| **Retenciones** | **Completo — generación automática + asiento contable automático + exportación Excel** | 1 página | 2 rutas | 1 tabla | Supabase + Prisma |
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
@@ -28,7 +28,7 @@
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Exportación | ~93% | Declaraciones Anuales y los libros legales (Compras, Ventas, Retenciones, Mayor y Diario) exportan a Excel (23 Sept 2026); sin PDF profesional |
 | Cumplimiento SAR | ~75% | Formulario 221, DET, DIAT y Declaraciones Anuales con carga automática al portal SAR (credenciales cifradas AES-256-GCM, endpoint configurable); sin envío en línea para retenciones mensuales |
-| Integración Contable | ~40% | Retenciones sin asiento contable automático |
+| Integración Contable | ~100% | Retenciones generan asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos base × tasa, 23 Sept 2026) |
 
 ---
 
@@ -138,7 +138,7 @@
 
 ### 2.5 Retenciones
 
-**Estado: Completo (~95%)**
+**Estado: Completo (100%)**
 
 #### Archivos Implementados
 
@@ -153,6 +153,8 @@
 | `app/api/withholding-statistics/route.ts` | API de estadísticas |
 | `lib/reports/withholding-book.ts` | Libro de Retenciones automático: clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel (22 Sept 2026) |
 | `app/companies/[id]/reports/withholding-book/page.tsx` | Página empresarial: toggle fuente Manual/Automática (contable) y exportación a Excel (22 Sept 2026) |
+| `lib/services/withholding-entries.ts` | Asiento contable automático de retenciones: `buildWithholdingJournalEntry` (débito gasto/costo + crédito retención por pagar balanceado, montos base × tasa), clasificación IR/ISR/IGV/RETENCION, grouping + totales, formato Excel (23 Sept 2026) |
+| `app/api/accounting/withholding-journal/route.ts` | API de asientos de retenciones: POST crea la póliza (vía `createJournalTransaction`, deduplicado por retención con errorHint DUPLICADO) y GET consulta el asiento generado (23 Sept 2026) |
 
 #### Tablas de Base de Datos
 
@@ -161,6 +163,7 @@
 #### Capacidades
 
 - Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
+- Asiento contable automático al guardar la retención (toggle ON/OFF en el manager, `WithholdingManager`): débito a cuenta de gasto/costo + crédito a cuenta pasiva de retención por pagar, balanceado, con "Ver asiento", "Generar asiento ahora" para retenciones previas y exportación Excel `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` (23 Sept 2026)
 - Exportación a Excel (.xlsx)
 - Exportación CSV/PDF y vista manual intactas
 
@@ -168,7 +171,7 @@
 
 - ~~Sin generación automática desde contabilidad~~ ✅ Generación automática desde transacciones contables (toggle Manual/Automático en `app/companies/[id]/reports/withholding-book/page.tsx`, 22 Sept 2026)
 - ~~Sin exportación a Excel~~ ✅ Exportación a Excel (.xlsx) desde `lib/reports/withholding-book.ts` + botón "Exportar Excel" en ambos modos (22 Sept 2026)
-- **Sin integración con asientos contables** (retenciones no generan póliza automática)
+- ~~**Sin integración con asientos contables** (retenciones no generan póliza automática)~~ ✅ Asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos base × tasa) al guardar/regenerar la retención, API `app/api/accounting/withholding-journal` + `lib/services/withholding-entries.ts` + exportación Excel de asientos (23 Sept 2026)
 - Sin libro de retenciones anual consolidado
 
 ---
@@ -252,7 +255,7 @@
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
-| 2 | Retenciones sin asiento contable | Duble registro manual | Alta |
+| 2 | ~~Retenciones sin asiento contable~~ | ~~Duble registro manual~~ | ✅ Resuelto (asiento automático balanceado, débito gasto + crédito retención por pagar, 23 Sept 2026) |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
 | 4 | ~~Sin declaraciones anuales consolidadas~~ | ~~Incumplimiento fiscal~~ | ✅ Implementado (conectado a datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 | 5 | ~~DET sin carga automática a SAR~~ | ~~Proceso manual~~ | ✅ Implementado (adaptador configurable de carga DET→SAR, 22 Sept 2026) |
@@ -265,7 +268,7 @@
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | Crear asiento contable automático al registrar retención | `lib/services/withholding-service.ts` | Asiento automático |
+| 1.1 | ~~Crear asiento contable automático al registrar retención~~ | ~~`lib/services/withholding-service.ts`~~ | ✅ Asiento automático balanceado (`lib/services/withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts`, toggle en `WithholdingManager`, exportación Excel de asientos; 23 Sept 2026) |
 | 1.2 | Generar libro de retenciones anual | `components/legal/WithholdingBook.tsx` | Libro anual |
 | 1.3 | Integrar retenciones con balanza de comprobación | `lib/reports/trial-balance.ts` | Retenciones en balanza |
 
@@ -369,5 +372,6 @@ Etapa 1 (Retenciones + Contabilidad)
 | Cambio | Detalle |
 |---|---|
 | Libro de Retenciones automático | `lib/reports/withholding-book.ts` (clasificación RETENCION/IR/ISR/IGV/OTRO, transform + grouping desde trial-balance, formato Excel) + integración en `app/companies/[id]/reports/withholding-book/page.tsx` con toggle Manual/Automático (transacciones contables) y exportación a Excel |
+| Retenciones → asiento contable automático balanceado | `lib/services/withholding-entries.ts` (`buildWithholdingJournalEntry`: débito gasto/costo + crédito retención por pagar, montos base × tasa, balanceado) + API `app/api/accounting/withholding-journal/route.ts` (POST crea póliza vía `createJournalTransaction` con deduplicado DUPLICADO, GET consulta el asiento) + toggle "Asiento automático ON/OFF" en `components/WithholdingManager.tsx` con "Ver asiento"/"Generar asiento ahora" y exportación Excel `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` |
 | Libro Mayor y Libro Diario automáticos | `lib/reports/general-ledger.ts` (clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta, transform + grouping desde trial-balance, formatos Excel de Mayor y Diario) + integración en `app/companies/[id]/reports/general-ledger/page.tsx` con toggle Manual/Automático (transacciones contables), toggle Mayor/Diario y exportación a Excel |
 | Declaraciones Anuales conectadas a datos reales | `lib/reports/annual-tax.ts` (cálculo ISV/ISR/Retenciones desde transacciones contables + formato Excel multi-hoja) + integración en `app/reports/annual-tax/page.tsx` con 3 tarjetas de montos reales, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
