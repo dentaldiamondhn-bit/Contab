@@ -20,6 +20,7 @@
 | **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel + carga al portal SAR** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` + `lib/services/annual-tax-uploader.ts` + `app/api/accounting/annual-tax-upload/route.ts` (22-23 Sept 2026) | API | Datos reales | Generación automática + adaptador SAR |
 | **Login único al portal SAR (Anuales / DET-SAR 221 / DIAT)** | **Completo — sesión única verificada en vivo contra el portal, compartida por los 3 subidores, con auto-reverificación al vencer y cierre de sesión** | 1 componente + 1 ruta + 1 servicio (23 Sept 2026) | 1 ruta API | — | Supabase (system_settings) |
 | **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | — | Supabase |
+| **Cash flow → comparativos trimestrales automáticos (Q1–Q4 + totales + Δ Q4−Q1 + Excel)** | **Completo (100%)** | 1 página | 1 ruta | — | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -253,6 +254,30 @@
 
 ---
 
+### 2.9 Comparativos Trimestrales Automáticos de Flujo de Caja
+
+**Estado: Completo (100%)**
+
+Segmentación trimestral automática desde los movimientos reales del trial-balance, flujo por trimestre reutilizando la clasificación de cash-flow, matriz comparativa Q1⇄Q4, mejor/peor trimestre y exportación a Excel.
+
+#### Archivos Implementados
+
+| Archivo | Propósito |
+|---|---|
+| `lib/reports/cash-flow-comparatives.ts` | Comparativos trimestrales automáticos: `TrialBalanceItem`/`QuarterlyCashFlow`, `splitTrialsIntoQuarters` (Q1 01-01→03-31, Q2 04-01→06-30, Q3 07-01→09-30, Q4 10-01→12-31 según la fecha real de cada movimiento), `buildCashFlowComparatives` (reutiliza `transformToFlujoEfectivo` + `groupFlujoItems` de `cash-flow.ts` por trimestre — sin duplicar la clasificación —, saldo inicial encadenado al cierre del trimestre anterior, totales y mejor/peor trimestre por flujo neto), `formatCashFlowComparativesForExcel` (cabecera `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']`, filas de flujo + subtotales + saldos, moneda es-HN) y `exportCashFlowComparativesToExcel` (`aoa_to_sheet` + `XLSX.writeFile`, `FlujoCaja_ComparativoQ1Q4_{año}_{empresa}.xlsx`) |
+| `app/api/accounting/cash-flow-comparatives/route.ts` | GET (tenantId + fiscalYear → movimientos reales del trial-balance segmentados por trimestre + totales + mejor/peor trimestre) y POST (genera y descarga el Excel real, contrato Content-Disposition del patrón export-audit) |
+| `app/reports/cash-flow-comparatives/page.tsx` | Página: selector de año fiscal (default año actual), matriz comparativa Q1⇄Q4, badges es-HN "Mejor trimestre"/"Peor trimestre", botón "Exportar a Excel (.xlsx)" y estados es-HN (Generando comparativo / Sin movimientos / Trimestres sin datos) |
+
+#### Capacidades
+
+- Segmentación por trimestre (Q1..Q4) del año fiscal de HN (año calendario) sobre la fecha real de cada movimiento contable (Transaction.date)
+- Flujo de caja por trimestre reutilizando la misma clasificación de actividad de `lib/reports/cash-flow.ts` (operación/inversión/financiamiento), sin duplicar lógica
+- Saldo inicial encadenado: apertura Q1 = saldo inicial que computa el flujo de caja; apertura Qn = cierre Q(n-1); cierre = apertura + flujo neto
+- Matriz comparativa Q1⇄Q4 (Concepto | Q1 | Q2 | Q3 | Q4 | Total | Δ Q4−Q1), totales de operación/inversión/financiamiento/flujo neto/saldos y mejor/peor trimestre
+- Exportación a Excel (.xlsx) real por POST con nombre `FlujoCaja_ComparativoQ1Q4_{año}_{empresa}.xlsx`
+
+---
+
 ## 3. Problemas Críticos
 
 | # | Problema | Impacto | Prioridad |
@@ -380,3 +405,4 @@ Etapa 1 (Retenciones + Contabilidad)
 | Declaraciones Anuales conectadas a datos reales | `lib/reports/annual-tax.ts` (cálculo ISV/ISR/Retenciones desde transacciones contables + formato Excel multi-hoja) + integración en `app/reports/annual-tax/page.tsx` con 3 tarjetas de montos reales, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
 | DIAT → conexión al portal SAR con carga automática cifrada | `lib/services/diat-uploader.ts` (`submitDiatToSARR` POST autenticado con FormData + Basic + timeout/retry, clasificación SUCCESS/CREDENCIALES/RED/PORTAL/CONFIG, `extractTrackingCode` de la respuesta del portal, `validateDiatCompleteness` errors bloqueantes/warnings permisivos; reutiliza el cifrado AES-256-GCM de `det-uploader`, sin duplicar) + API `app/api/accounting/diat-upload/route.ts` (get-config/save-config/test/upload, guardado en `system_settings` clave `diat_sar_config:{empresa}`, validación de completitud previa que bloquea la subida con errores, HTTP mapeado a SUCCESS 200 / CREDENCIALES 401 / RED 502 / PORTAL 503 / CONFIG 500, último envío guardado en `diat_sar_last_upload:{empresa}`) + integración en `components/DIATManager.tsx` con botones "Conectar al portal SAR" y "Subir DIAT al portal SAR", validación en pantalla (lista roja bloquea, warnings amarillos "puedes enviar igualmente") y estado de envío es-HN con código de seguimiento (23 Sept 2026) |
 | Login único verificado al portal SAR (Anuales / DET-SAR 221 / DIAT) | `lib/services/sar-session.ts` (verifySARCredentials valida en vivo las credenciales contra el portal antes de conectar: POST FormData + Basic + timeout 15s, clasifica CREDENCIALES_INVALIDAS/PORTAL_NO_DISPONIBLE/CONFIG_INCOMPLETA/CONECTADO con vencimiento 24 h; sesión única cifrada AES-256-GCM `sar_session:{empresa}` con encrypt/decrypt, isSARSessionValid y getLiveSARSession que reverifica con credenciales guardadas al vencer) + API `app/api/accounting/sar-session/route.ts` (GET sin sessionToken público / POST persiste sesión y sincroniza credenciales de los 3 subidores preservando metodo/tipoDeclaracion/periodo / DELETE cierra sesión; HTTP 200 CONECTADO / 401 CREDENCIALES_INVALIDAS / 502 PORTAL_NO_DISPONIBLE / 422 CONFIG_INCOMPLETA) + `components/accounting/SARSessionPanel.tsx` (panel único en equipo: "Iniciar sesión en el portal SAR", "Verificar y conectar", estados "Sesión verificada"/"Credenciales inválidas"/"Sesión vencida — reconectar"/"Cerrar sesión"; bloquea subida sin sesión CONECTADO) + wrappers `getLiveSARSession`+`isSARSessionValid` en det-upload, annual-tax-upload y diat-upload (sin sesión → `SESION_NO_VERIFICADA`, no envían) (23 Sept 2026) |
+| Cash flow → comparativos trimestrales automáticos (Q1–Q4) con exportación a Excel | `lib/reports/cash-flow-comparatives.ts` (segmentación Q1–Q4 desde los movimientos reales del trial-balance, flujo por trimestre reutilizando la clasificación de `cash-flow.ts` — sin duplicar —, saldos encadenados, mejor/peor trimestre y formato Excel es-HN con `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']`) + API `app/api/accounting/cash-flow-comparatives/route.ts` (GET comparativo real por trimestre, POST descarga real del .xlsx) + página `app/reports/cash-flow-comparatives/page.tsx` (selector de año fiscal, matriz comparativa Q1⇄Q4, badges mejor/peor trimestre y exportación a Excel) |
