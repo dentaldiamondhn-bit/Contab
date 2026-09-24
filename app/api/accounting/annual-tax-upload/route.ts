@@ -4,6 +4,7 @@ import { db } from '@/lib/db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { encryptSARConfig } from '@/lib/services/det-uploader';
 import { submitAnnualTaxToSARR, validateAnnualTaxCompleteness } from '@/lib/services/annual-tax-uploader';
+import { getLiveSARSession, isSARSessionValid } from '@/lib/services/sar-session';
 import type {
   AnnualSARUploadConfig,
   AnnualTaxDeclarationType,
@@ -287,6 +288,17 @@ export async function POST(request: NextRequest) {
 
     const { summary, company, tipo } = body || {};
     const companyInfo = { rtn: company?.rtn, nombre: company?.nombre };
+
+    const sessionState = await getLiveSARSession(tenantId);
+    if (!isSARSessionValid(sessionState.session)) {
+      return NextResponse.json({
+        ok: false,
+        status: 'SESION',
+        errorHint: 'SESION_NO_VERIFICADA',
+        message: 'No hay una sesión verificada con el portal SAR — conecta primero',
+        error: 'No hay una sesión verificada con el portal SAR — conecta primero',
+      });
+    }
 
     const completeness = validateAnnualTaxCompleteness(summary, companyInfo);
     if (completeness.errors.length > 0) {

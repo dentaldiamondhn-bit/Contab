@@ -3,6 +3,7 @@ import { auth } from '@clerk/nextjs/server';
 import { db } from '@/lib/db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { submitDETToSARR } from '@/lib/services/det-uploader';
+import { getLiveSARSession, isSARSessionValid } from '@/lib/services/sar-session';
 import type { SARUploadConfig } from '@/lib/services/det-uploader';
 
 const ERROR_HINTS: Record<string, string> = {
@@ -97,6 +98,17 @@ export async function POST(request: NextRequest) {
         { ok: false, errorHint: 'CONFIG', error: 'Empresa no encontrada o sin permiso' },
         { status: 404 }
       );
+    }
+
+    const sessionState = await getLiveSARSession(tenantId);
+    if (!isSARSessionValid(sessionState.session)) {
+      return NextResponse.json({
+        ok: false,
+        status: 'SESION',
+        errorHint: 'SESION_NO_VERIFICADA',
+        message: 'No hay una sesión verificada con el portal SAR — conecta primero',
+        error: 'No hay una sesión verificada con el portal SAR — conecta primero',
+      });
     }
 
     const config = await readSARConfig(tenantId);

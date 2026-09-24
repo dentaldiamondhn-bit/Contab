@@ -7,28 +7,23 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertTitle, AlertDescription } from '@/components/ui/alert';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import {
   ArrowLeftRight,
   Building2,
   CheckCircle2,
   CloudUpload,
   Download,
-  Eye,
-  EyeOff,
   FileText,
-  KeyRound,
   Landmark,
   Loader2,
-  Pencil,
   Printer,
   RefreshCw,
   ShieldAlert,
-  Wifi,
   XCircle,
 } from 'lucide-react';
 import { buildDiatDelta, DiatDelta } from '@/lib/services/diat-delta';
+import SARSessionPanel from './accounting/SARSessionPanel';
+import type { SARConnectionStatus } from '@/lib/services/sar-session';
 
 interface DiatDeclarante {
   companyId: string;
@@ -147,13 +142,6 @@ function fmt(amount: number): string {
   }).format(amount || 0);
 }
 
-type DiatSarStatus = {
-  configured: boolean;
-  endpoint: string;
-  usuario: string;
-  hasPassword: boolean;
-};
-
 type DiatUploadOutcome = {
   ok: boolean;
   status?: string;
@@ -188,21 +176,7 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
   const [deltaLoading, setDeltaLoading] = useState(false);
   const [deltaError, setDeltaError] = useState<string | null>(null);
 
-  const [sarStatus, setSarStatus] = useState<DiatSarStatus | null>(null);
-  const [loadingSar, setLoadingSar] = useState(false);
-  const [showSarForm, setShowSarForm] = useState(false);
-  const [sarEndpoint, setSarEndpoint] = useState('');
-  const [sarUsuario, setSarUsuario] = useState('');
-  const [sarPassword, setSarPassword] = useState('');
-  const [showSarPassword, setShowSarPassword] = useState(false);
-  const [savingSar, setSavingSar] = useState(false);
-  const [sarMessage, setSarMessage] = useState<{ ok: boolean; text: string } | null>(null);
-  const [testingConnection, setTestingConnection] = useState(false);
-  const [connectionResult, setConnectionResult] = useState<{
-    ok: boolean;
-    errorHint?: string;
-    bodyPreview?: string;
-  } | null>(null);
+  const [sarSessionStatus, setSarSessionStatus] = useState<SARConnectionStatus | null>(null);
   const [uploadingDiat, setUploadingDiat] = useState(false);
   const [uploadResult, setUploadResult] = useState<DiatUploadOutcome | null>(null);
 
@@ -367,104 +341,6 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
     setTimeout(() => printWindow.print(), 300);
   };
 
-  const loadSarStatus = useCallback(async () => {
-    if (!companyId) return;
-    setLoadingSar(true);
-    try {
-      const res = await fetch('/api/accounting/diat-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: companyId, action: 'get-config' }),
-      });
-      const data = await res.json();
-      if (data && data.configured) {
-        setSarStatus({
-          configured: true,
-          endpoint: data.endpoint || '',
-          usuario: data.usuario || '',
-          hasPassword: !!data.hasPassword,
-        });
-      } else {
-        setSarStatus({ configured: false, endpoint: '', usuario: '', hasPassword: false });
-      }
-    } catch {
-      setSarStatus({ configured: false, endpoint: '', usuario: '', hasPassword: false });
-    } finally {
-      setLoadingSar(false);
-    }
-  }, [companyId]);
-
-  useEffect(() => {
-    loadSarStatus();
-  }, [loadSarStatus]);
-
-  const openSarConfigForm = () => {
-    setSarEndpoint(sarStatus?.endpoint || '');
-    setSarUsuario(sarStatus?.usuario || '');
-    setSarPassword('');
-    setSarMessage(null);
-    setConnectionResult(null);
-    setShowSarForm(true);
-  };
-
-  const saveSarConfig = async () => {
-    if (!companyId) return;
-    if (!sarEndpoint.trim() || !sarUsuario.trim()) {
-      setSarMessage({ ok: false, text: 'El endpoint y el usuario del portal SAR son obligatorios.' });
-      return;
-    }
-    setSavingSar(true);
-    try {
-      const res = await fetch('/api/accounting/diat-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          tenantId: companyId,
-          action: 'save-config',
-          endpoint: sarEndpoint.trim(),
-          usuario: sarUsuario.trim(),
-          password: sarPassword,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.ok) {
-        setSarMessage({ ok: false, text: data?.error || 'No se pudo guardar la configuración SAR.' });
-        return;
-      }
-      setSarStatus({
-        configured: true,
-        endpoint: sarEndpoint.trim(),
-        usuario: sarUsuario.trim(),
-        hasPassword: true,
-      });
-      setSarMessage({ ok: true, text: 'Config guardada (clave cifrada AES-256-GCM).' });
-      setShowSarForm(false);
-    } catch {
-      setSarMessage({ ok: false, text: 'Error de red al guardar la configuración SAR.' });
-    } finally {
-      setSavingSar(false);
-    }
-  };
-
-  const testSarConnection = async () => {
-    if (!companyId) return;
-    setTestingConnection(true);
-    setConnectionResult(null);
-    try {
-      const res = await fetch('/api/accounting/diat-upload', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tenantId: companyId, action: 'test' }),
-      });
-      const data = await res.json();
-      setConnectionResult({ ok: !!data?.ok, errorHint: data?.status, bodyPreview: data?.bodyPreview });
-    } catch {
-      setConnectionResult({ ok: false, errorHint: 'RED' });
-    } finally {
-      setTestingConnection(false);
-    }
-  };
-
   const validateReportOnClient = (r: DiatReport | null): ClientValidation => {
     const errors: string[] = [];
     const warnings: string[] = [];
@@ -544,6 +420,8 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
         return 'Configuración incompleta';
       case 'INCOMPLETO':
         return 'Faltan datos requeridos para el envío';
+      case 'SESION_SIN_VERIFICAR':
+        return 'No hay una sesión verificada con el portal SAR — conecta primero.';
       default:
         return 'No se pudo completar la operación.';
     }
@@ -627,178 +505,33 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
       <Card className="border-cyan-200">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
           <div className="flex items-center space-x-2">
-            <KeyRound className="h-5 w-5 text-cyan-600" />
-            <CardTitle className="text-base">Conexión al portal SAR</CardTitle>
+            <CloudUpload className="h-5 w-5 text-cyan-600" />
+            <CardTitle className="text-base">Subir DIAT al portal SAR</CardTitle>
           </div>
-          <Badge
-            variant={sarStatus?.configured ? 'default' : 'outline'}
-            className={
-              sarStatus?.configured
-                ? 'bg-emerald-600 text-xs max-w-[280px] overflow-hidden text-ellipsis whitespace-nowrap'
-                : 'text-xs'
-            }
-          >
-            {sarStatus?.configured ? `Conectado - ${sarStatus.endpoint}` : 'No configurada'}
-          </Badge>
+          {sarSessionStatus === 'CONECTADO' ? (
+            <Badge className="bg-emerald-600">
+              <CheckCircle2 className="h-3 w-3 mr-1" />
+              Sesión SAR verificada
+            </Badge>
+          ) : sarSessionStatus === 'SESION_VENCIDA' ? (
+            <Badge variant="destructive">
+              <XCircle className="h-3 w-3 mr-1" />
+              Sesión vencida — Iniciar sesión
+            </Badge>
+          ) : (
+            <Badge variant="outline">No conectado</Badge>
+          )}
         </CardHeader>
         <CardContent className="pt-0 space-y-4">
-          {loadingSar && <p className="text-sm text-slate-500">Cargando configuración SAR...</p>}
-
-          {!loadingSar && sarStatus && !sarStatus.configured && (
-            <Alert className="border-amber-200 bg-amber-50 text-amber-800">
-              <ShieldAlert className="h-4 w-4 text-amber-600" />
-              <AlertTitle className="text-amber-900">Sin conexión al portal SAR configurada</AlertTitle>
-              <AlertDescription>
-                Configure el endpoint del portal SAR y sus credenciales para subir el DIAT (clave
-                cifrada AES-256-GCM).
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {!loadingSar && sarStatus?.configured && (
-            <div className="space-y-1 text-sm text-slate-700">
-              <div>
-                <span className="font-medium">Endpoint:</span>{' '}
-                <span className="font-mono break-all">{sarStatus.endpoint}</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">Usuario:</span>
-                <span>{sarStatus.usuario}</span>
-                <Badge variant="secondary">Clave cifrada AES-256-GCM</Badge>
-              </div>
-              <div className="pt-2 flex flex-wrap gap-2">
-                <Button variant="outline" size="sm" onClick={testSarConnection} disabled={testingConnection}>
-                  {testingConnection ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Wifi className="h-4 w-4 mr-2" />
-                  )}
-                  Probar conexión
-                </Button>
-                <Button variant="outline" size="sm" onClick={openSarConfigForm}>
-                  <Pencil className="h-4 w-4 mr-2" />
-                  Editar
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {!loadingSar && sarStatus && !sarStatus.configured && (
-            <Button onClick={openSarConfigForm}>
-              <KeyRound className="h-4 w-4 mr-2" />
-              Conectar al portal SAR
-            </Button>
-          )}
-
-          {showSarForm && (
-            <div className="border rounded-lg p-4 space-y-3 bg-slate-50">
-              <div className="space-y-2">
-                <Label htmlFor="diat-sar-endpoint">Endpoint del portal SAR</Label>
-                <Input
-                  id="diat-sar-endpoint"
-                  type="text"
-                  value={sarEndpoint}
-                  onChange={(e) => setSarEndpoint(e.target.value)}
-                  placeholder="https://api.sar.gob.hn/... (URL del portal o API)"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="diat-sar-usuario">Usuario</Label>
-                <Input
-                  id="diat-sar-usuario"
-                  type="text"
-                  value={sarUsuario}
-                  onChange={(e) => setSarUsuario(e.target.value)}
-                  placeholder="Usuario del portal SAR"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="diat-sar-password">Contraseña</Label>
-                <div className="flex items-center space-x-2">
-                  <Input
-                    id="diat-sar-password"
-                    type={showSarPassword ? 'text' : 'password'}
-                    value={sarPassword}
-                    onChange={(e) => setSarPassword(e.target.value)}
-                    placeholder={
-                      sarStatus?.configured
-                        ? '•••••••• (dejar vacío para mantener)'
-                        : 'Contraseña del portal SAR'
-                    }
-                    className="flex-1"
-                  />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    onClick={() => setShowSarPassword((value) => !value)}
-                    aria-label={showSarPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
-                  >
-                    {showSarPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </Button>
-                </div>
-              </div>
-              <div className="flex items-center gap-2">
-                <Button onClick={saveSarConfig} disabled={savingSar}>
-                  {savingSar ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <KeyRound className="h-4 w-4 mr-2" />
-                  )}
-                  Guardar (cifrado)
-                </Button>
-                <Button variant="ghost" onClick={() => setShowSarForm(false)}>
-                  Cancelar
-                </Button>
-              </div>
-              <div>
-                <Badge variant="outline" className="text-[11px]">
-                  Clave cifrada AES-256-GCM
-                </Badge>
-              </div>
-              {sarMessage && (
-                <Badge
-                  variant={sarMessage.ok ? 'default' : 'destructive'}
-                  className={sarMessage.ok ? 'bg-emerald-600' : ''}
-                >
-                  {sarMessage.text}
-                </Badge>
-              )}
-            </div>
-          )}
-
-          {connectionResult && (
-            <div>
-              {connectionResult.ok ? (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge className="bg-emerald-600">
-                    <CheckCircle2 className="h-3 w-3 mr-1" />
-                    Conexión exitosa con el portal SAR
-                  </Badge>
-                </div>
-              ) : (
-                <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="destructive">
-                    {sarErrorLabel(connectionResult.errorHint)}
-                  </Badge>
-                  <Button variant="outline" size="sm" onClick={testSarConnection} disabled={testingConnection}>
-                    Reintentar
-                  </Button>
-                </div>
-              )}
-              {connectionResult.bodyPreview && (
-                <p className="text-xs text-slate-500 mt-1 break-words">
-                  Respuesta del portal: {connectionResult.bodyPreview}
-                </p>
-              )}
-            </div>
-          )}
+          <SARSessionPanel companyId={companyId} onStatusChange={setSarSessionStatus} />
 
           <div className="border-t pt-3 space-y-3">
             <div className="flex flex-wrap items-center gap-2">
               <Button
                 onClick={uploadDiatToPortal}
-                disabled={uploadingDiat || !report || clientValidation.errors.length > 0}
+                disabled={
+                  uploadingDiat || !report || clientValidation.errors.length > 0 || sarSessionStatus !== 'CONECTADO'
+                }
               >
                 {uploadingDiat ? (
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -807,13 +540,14 @@ export default function DIATManager({ companyId }: DIATManagerProps) {
                 )}
                 {uploadingDiat ? 'Subiendo DIAT...' : 'Subir DIAT al portal SAR'}
               </Button>
-              {sarStatus?.configured && (
-                <Badge className="bg-emerald-600">
-                  <CheckCircle2 className="h-3 w-3 mr-1" />
-                  Conexión SAR configurada
-                </Badge>
-              )}
             </div>
+
+            {sarSessionStatus !== 'CONECTADO' && (
+              <p className="flex items-center gap-1.5 text-sm text-red-700">
+                <ShieldAlert className="h-4 w-4" />
+                Sesión vencida — Iniciar sesión
+              </p>
+            )}
 
             {!uploadingDiat && report && clientValidation.errors.length > 0 && (
               <Alert variant="destructive">

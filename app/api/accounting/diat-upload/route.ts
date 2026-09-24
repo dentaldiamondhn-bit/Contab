@@ -9,6 +9,7 @@ import {
   submitDiatToSARR,
   validateDiatCompleteness,
 } from '@/lib/services/diat-uploader';
+import { getLiveSARSession, isSARSessionValid } from '@/lib/services/sar-session';
 import type { DiatConfig, DiatUploadStatus } from '@/lib/services/diat-uploader';
 
 const CONFIG_CATEGORY = 'sar';
@@ -354,6 +355,17 @@ export async function POST(request: NextRequest) {
         ...result,
         error: !result.ok ? ERROR_HINTS[result.status] : undefined,
         statusCode: HTTP_BY_STATUS[result.status],
+      });
+    }
+
+    const sessionState = await getLiveSARSession(tenantId);
+    if (!isSARSessionValid(sessionState.session)) {
+      return NextResponse.json({
+        ok: false,
+        status: 'SESION',
+        errorHint: 'SESION_NO_VERIFICADA',
+        message: 'No hay una sesión verificada con el portal SAR — conecta primero',
+        error: 'No hay una sesión verificada con el portal SAR — conecta primero',
       });
     }
 
