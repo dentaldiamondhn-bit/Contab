@@ -19,6 +19,8 @@
 | **Reversión de Asientos** | Completo | `/accounting/reversals` | 1 ruta (GET/POST/PUT) | 1 tabla | Supabase |
 | **Asientos Recurrentes** | Completo | `/accounting/recurring-entries` | 2 rutas (CRUD + execute) | 2 tablas | Supabase |
 | **Validación de Catálogo** | Completo | `/accounting/validate-catalog` | 1 ruta | — | Cálculos en código |
+| **Asiento automático de retención** | Completo (23 Sept 2026) | `components/WithholdingManager.tsx` (toggle persistido `withholding_auto_entry:{tenant}`) | 1 ruta (`app/api/accounting/withholding-journal/route.ts`) | `Withholding` | Supabase |
+| **Libro Mayor y Libro Diario automáticos** | Completo (23 Sept 2026) | `app/companies/[id]/reports/general-ledger/page.tsx` | 2 rutas (`trial-balance` agregado + `trial-balance-detailed`) | — | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -403,3 +405,13 @@ Balance de apertura automático (Etapa 3.2): traslada saldos de cierre sin captu
 | UI | Página de apertura: tarjeta con año + vista previa (cuentas, debe/haber, badge cuadrado) + aplicar con confirmación; fix de bug: el cálculo cliente guardaba decimales en columna de centavos (×100) |
 | Tests | `tests/accounting/opening-balance.test.mjs` (7) + `opening-auto-route.test.mjs` (3); `npm test` → 75 pass |
 | Build | `next build` → `EXIT=0` |
+
+## Actualizaciones de Registros Contables (23 Sept 2026)
+
+La jornada del 23 de Septiembre de 2026 cerró la integración contable de retenciones, los libros Mayor/Diario automáticos y el insert de `journal-service`. Detalle por archivos en `docs/LIBROS_LEGALES_REPORT.md` §2.5 (§Retenciones), §2.8 (§Libro Mayor/Diario) y §2.9 (comparativos).
+
+| Cambio | Detalle |
+|---|---|
+| Asiento contable automático de retención | `lib/services/withholding-entries.ts` (`buildWithholdingJournalEntry`: débito gasto/costo + crédito retención por pagar, balanceado, montos base × tasa) + `app/api/accounting/withholding-journal/route.ts` (POST crea la póliza vía `createJournalTransaction` con deduplicado DUPLICADO; montos normalizados de **centavos → lempiras** en la póliza para no duplicar 100× en libros y balanza; GET consulta el asiento) + toggle "Asiento automático ON/OFF" **real y persistido por empresa** en `components/WithholdingManager.tsx` (localStorage `withholding_auto_entry:{tenant}`, verificado en el componente). Exportación Excel de los asientos `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` — commits `e2d3361` + `af42c46` |
+| Libro Mayor y Libro Diario automáticos desde transacciones | `lib/reports/general-ledger.ts` (clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta, transform + grouping desde trial-balance, `transformToLibroDiario` con desglose entry-level cuando el item trae `journalEntry`/`date`, formatos Excel Mayor y Diario) + feeder detallado `app/api/accounting/trial-balance-detailed/route.ts` (cada movimiento con `journalEntry`+`date`+`reference` (=`voucherNumber`) y cuenta, todos los `voucherType`, ordenado por fecha) + página `app/companies/[id]/reports/general-ledger/page.tsx` (toggle Manual/Automático, toggle Mayor/Diario, exportación Excel) — commits `92cda55` + `af42c46` |
+| Fix `createJournalTransaction` (insert en Supabase) | `lib/services/journal-service.ts`: antes el insert generaba solo `tenantId`/`totalAmount` (montos en unidades) y omitía `id`, `functionalAmount`, `originalTotal`, `createdAt`/`updatedAt`; la BD real exige esos campos y el POST fallaba al persistir asientos manuales y automáticos (retenciones, notas NC/ND). Ahora el servicio genera `id` UUID (`crypto.randomUUID()`), `functionalAmount`/`originalTotal`/`createdAt`/`updatedAt` y montos en **centavos** (patrón de `transaction-service-enhanced.ts`/`ExcelBooksUploader`/reversals), verificado con recorrido real de datos (insert + readback + limpieza OK contra Supabase). Pruebas `tests/accounting/journal-service.test.mjs` actualizadas a centavos — commit `ae11f9c` |

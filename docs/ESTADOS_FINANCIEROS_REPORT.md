@@ -14,6 +14,7 @@
 | **Balanza de Comprobación** | Completo | 1 página | 2 rutas | 1 vista + 1 API | Supabase |
 | **Ratios Financieros** | ✅ Completo | `app/reports/ratios/page.tsx` + API | 1 ruta | Datos reales | Cálculo automático |
 | **Comparativos de Período** | ✅ Balance General (21 Sept 2026) | FinancialStatements + `BalanceSheetComparative.tsx` | trial-balance (2 rangos) | — | Datos reales |
+| **Cash Flow → Comparativos Trimestrales (Q1–Q4)** | ✅ Completo (23 Sept 2026) | `app/reports/cash-flow-comparatives/page.tsx` | 1 ruta (`app/api/accounting/cash-flow-comparatives/route.ts`) | — | Datos reales (trial-balance) |
 
 ### 1.2 Métricas de Madurez
 
@@ -22,7 +23,7 @@
 | Completitud Funcional | ~75% (Balance General completo) | Balance de Comprobación 6 columnas funcional con RPCs; Balances de Apertura disponibles; los 3 estados financieros tienen datos reales; FinancialStatements conectado a API real |
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Estabilidad y Validaciones | ~55% | Validación de balance (Activos = Pasivos + Patrimonio) implementada |
-| Exportación | ~80% | Balance General con Excel (.xlsx) y PDF real (21 Sept 2026); resto de estados solo CSV |
+| Exportación | ~80% | Balance General con Excel (.xlsx) y PDF real (21 Sept 2026); Estados y Flujo con comparativos; cash flow trimestral con Excel es-HN (23 Sept 2026); resto de estados solo CSV |
 | Ratios Financieros | ~95% | 15 ratios automáticas + dashboard UI; razón corriente/prueba ácida/efectivo/capital de trabajo integrados en Balance General | Dashboard implementado |
 
 ---
@@ -105,6 +106,18 @@
 - ~~Sin comparativos de período~~ → Implementado: `CashFlowComparative.tsx` (mes anterior / mismo mes, año anterior) con variaciones
 - ~~Sin análisis de fuentes/usos~~ → Implementado: análisis de fuentes/usos por actividad en página y comparativo
 - ~~Sin flujo de efectivo proyectado~~ → Implementado: proyecciones por run-rate (mensual/trimestral/anual) con saldo proyectado y meses de runway en `lib/reports/cash-flow.ts`
+
+### 2.3.1 Comparativos trimestrales automáticos de Flujo de Caja (Q1–Q4) — Completo (23 Sept 2026)
+
+Segmentación trimestral automática desde los movimientos reales del trial-balance, flujo por trimestre reutilizando la clasificación de cash-flow, matriz comparativa Q1⇄Q4, mejor/peor trimestre y exportación a Excel.
+
+| Archivo | Propósito |
+|---|---|
+| `lib/reports/cash-flow-comparatives.ts` | `splitTrialsIntoQuarters` (Q1 01-01→03-31, Q2 04-01→06-30, Q3 07-01→09-30, Q4 10-01→12-31 según la fecha real de cada movimiento), `buildCashFlowComparatives` (reutiliza `transformToFlujoEfectivo` + `groupFlujoItems` de `cash-flow.ts` por trimestre — sin duplicar la clasificación —, saldo inicial encadenado al cierre del trimestre anterior, totales y mejor/peor trimestre por flujo neto), formato Excel `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']` y exportación `FlujoCaja_ComparativoQ1Q4_{año}_{empresa}.xlsx` |
+| `app/api/accounting/cash-flow-comparatives/route.ts` | GET (tenantId + fiscalYear → segmentación Q1–Q4 real + totales + mejor/peor trimestre) y POST (descarga del Excel real). Fix `89fad97`: clave de la sección de financiamiento corregida para que Flujo Neto de Financiamiento/totales se calculen sobre datos reales |
+| `app/reports/cash-flow-comparatives/page.tsx` | Selector de año fiscal (default año actual), matriz comparativa Q1⇄Q4, badges "Mejor trimestre"/"Peor trimestre" y botón "Exportar a Excel (.xlsx)" con estados es-HN |
+
+Capacidades: segmentación por trimestre del año fiscal de HN sobre la fecha real del movimiento (`Transaction.date`); clasificación de actividad de flujo de caja reutilizada de `lib/reports/cash-flow.ts`; apertura Q1 = saldo inicial del flujo, apertura Qn = cierre de Q(n-1), cierre = apertura + flujo neto.
 
 ---
 
@@ -232,3 +245,10 @@ Etapa 1 (Conexión de Datos)
 | Exportación PDF | PDF real (jsPDF + html2canvas) ya disponible e incluye el comparativo cuando está activado |
 | Ratios de liquidez integrados | Tarjeta "Ratios de Liquidez" en el Balance General: razón corriente, prueba ácida (sin inventario 13xx), razón de efectivo (11xx) y capital de trabajo, con semáforo de salud |
 | Utilidades compartidas | `lib/reports/balance-general.ts`: clasificación por código (1/11-13/2/21-23/3), transformación de balanza y agrupación reutilizadas por página y componente |
+
+## Actualizaciones de Estados Financieros (23 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Cash flow → comparativos trimestrales automáticos (Q1–Q4) | `lib/reports/cash-flow-comparatives.ts` (segmentación Q1–Q4 desde la fecha real de cada movimiento del trial-balance, flujo por trimestre reutilizando la clasificación de `cash-flow.ts`, saldos encadenados, mejor/peor trimestre, formato Excel es-HN `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']`) + `app/api/accounting/cash-flow-comparatives/route.ts` (GET comparativo real por trimestre / POST descarga real del .xlsx `FlujoCaja_ComparativoQ1Q4_{año}_{empresa}.xlsx`) + página `app/reports/cash-flow-comparatives/page.tsx` (selector de año fiscal, matriz comparativa, badges y exportación) — commit `a9ce620` |
+| Fix sección de financiamiento | `89fad97`: correcta clave de la sección neta de financiamiento para que Flujo Neto de Financiamiento y totales se computen de datos reales (no de claves inexistentes) |

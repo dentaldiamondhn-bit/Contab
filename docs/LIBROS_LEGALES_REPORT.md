@@ -286,7 +286,7 @@ Segmentación trimestral automática desde los movimientos reales del trial-bala
 |---|---|---|---|
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
 | 2 | ~~Retenciones sin asiento contable~~ | ~~Duble registro manual~~ | ✅ Resuelto (asiento automático balanceado, débito gasto + crédito retención por pagar en **lempiras**, sin 100× en libros, 23 Sept 2026) |
-| 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
+| 3 | ~~Libros sin generación automática desde contabilidad~~ | ~~Dependencia de carga manual~~ | ✅ Resuelto (Libro de Compras/Ventas 22 Sep, Retenciones 23 Sep, Mayor y Diario 23 Sept 2026 — todos automáticos desde transacciones + exportación Excel) |
 | 4 | ~~Sin declaraciones anuales consolidadas~~ | ~~Incumplimiento fiscal~~ | ✅ Implementado (conectado a datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 | 5 | ~~DET sin carga automática a SAR~~ | ~~Proceso manual~~ | ✅ Implementado (adaptador configurable de carga DET→SAR, 22 Sept 2026) |
 

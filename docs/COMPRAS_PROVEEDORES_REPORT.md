@@ -14,7 +14,7 @@
 | **Devoluciones** | No Iniciado | 0 | 0 | 0 | — |
 | **Listas de Precios** | No Iniciado | 0 | 0 | 0 | — |
 | **Dashboard de Compras** | Completo | 1 página | 1 ruta | — | Supabase |
-| **Libro de Compras Legal** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
+| **Libro de Compras Legal** | Completo — automático desde transacciones + exportación Excel (22 Sept 2026) | 2 páginas (manual `app/api/reports/libro-compras` + automática `app/companies/[id]/reports/purchase-book`) | 2 rutas (`reports/libro-compras` + trial-balance) | 1 vista | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -203,7 +203,7 @@
 |---|---|---|---|
 | 3.1 | Generar asiento contable por compra (obligatorio) | `lib/services/purchase-accounting.ts` | Asiento automático |
 | 3.2 | Generar asiento contable por pago | `lib/services/payment-accounting.ts` | Asiento automático |
-| 3.3 | Integración con libro de compras legal | `lib/services/legal-books.ts` | Auto-generación |
+| 3.3 | ~~Integración con libro de compras legal~~ | ~~`lib/services/legal-books.ts`~~ → `lib/reports/purchase-book.ts` + `app/companies/[id]/reports/purchase-book/page.tsx` | ✅ Auto-generación del Libro de Compras desde transacciones contables + exportación Excel (22 Sept 2026) |
 
 ### Etapa 4: Devoluciones y Reportes
 
@@ -260,3 +260,10 @@
 | Middleware Clerk | `/api/suppliers`, `/api/purchases/*` y `/api/purchases/payments` son rutas **protegidas**: `auth.protect()` → HTTP 404 sin sesión; se propaga `x-tenant-id` |
 | DDL vía SQL Editor | Sin acceso DDL directo (`DATABASE_URL` → ENOTFOUND); tablas nuevas y migraciones se aplican en el SQL Editor de Supabase |
 | DIAT | El reporte DIAT (`lib/services/diat-generator.ts`, ver `docs/DIAT_REPORT.md`) consume `Purchase` + proveedor para las compras del período |
+
+## Actualizaciones de Compras (22-23 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Libro de Compras automático desde contabilidad | `lib/reports/purchase-book.ts` (clasificación COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance del mes/año, formato Excel es-HN) + integración en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle fuente **Manual/Automática** y exportación a Excel; la vista manual (`app/api/reports/libro-compras`, CSV/PDF) se mantiene intacta. Fechas (última fecha de movimiento) alineadas en el libro (22 Sept 2026) |
+| Alineación de fechas en libros | `app/api/accounting/trial-balance/route.ts` incluye la última fecha de movimiento por cuenta y el libro de compras la muestra en vez de `'-'` (fix `af42c46`, 23 Sept 2026) |

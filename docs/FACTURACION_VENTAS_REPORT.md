@@ -14,7 +14,7 @@
 | **Cotizaciones/Proformas** | No Iniciado | 0 | 0 | 0 | — |
 | **Órdenes de Venta** | No Iniciado | 0 | 0 | 0 | — |
 | **Dashboard de Ventas** | Completo | 1 dashboard | 1 ruta | — | Supabase |
-| **Libro de Ventas Legal** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
+| **Libro de Ventas Legal** | Completo — automático desde transacciones + exportación Excel (22 Sept 2026) | 2 páginas (manual `app/api/reports/libro-ventas` + automática `app/companies/[id]/reports/sales-book`) | 2 rutas (`reports/libro-ventas` + trial-balance) | 1 vista | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -291,3 +291,11 @@ Etapa 1 (Consolidación + PDF)
 | Fix env `SUPABASE_URL` | `app/api/companies/route.ts` usaba `SUPABASE_URL` (inexistente → 500); ahora usa `NEXT_PUBLIC_SUPABASE_URL`. No existe `SUPABASE_URL` |
 | Consolidación esquema | Migración 007: `invoice`/`invoiceitem`/`invoices`/`invoice_items` eliminadas; canónico `Invoice`/`InvoiceItem` (DECIMAL). Prisma realineado |
 | Middleware Clerk | Rutas no públicas ejecutan `auth.protect()` → HTTP 404 a no autenticados; inyecta `x-tenant-id`. Públicas: `/auth/*`, `/api/auth/*`, `/api/admin/plans-public`, `/api/paypal/*`, `/api/webhooks/*`, `/api/accounting/uploaded-files`, `/api/accounting/excel-upload` (`trial-balance` salió el 17 Sept 2026) |
+
+## Actualizaciones de Facturación y Ventas (22-23 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Libro de Ventas automático desde contabilidad | `lib/reports/sales-book.ts` (clasificación VENTA/INGRESO/IMPUESTO/OTRO, transform + grouping desde trial-balance del mes/año, formato Excel es-HN) + integración en `app/companies/[id]/reports/sales-book/page.tsx` con toggle fuente **Manual/Automática** y exportación a Excel; la vista manual (`app/api/reports/libro-ventas`, CSV/PDF) se mantiene intacta (22 Sept 2026) |
+| CAI y facturación conectados a datos reales | `app/api/billing/cai/[id]/route.ts`, `app/api/billing/cai/list/route.ts`, `app/api/admin/billing/cai/route.ts`, `app/api/admin/billing/cai/current/route.ts` y `app/api/admin/billing/invoices/route.ts` + `sync-config.ts` devuelven agregados reales de la base de datos (sin cifras fabricadas de demo); mismo cambio en companies/cash flow/costos/KPIs/revisiones legales — commit `fcc8534` (23 Sept 2026). Ver también `docs/CONTROL_FINANCIERO_REPORT.md` §2.5 |
+| Alineación de fechas en libros | `app/api/accounting/trial-balance/route.ts` incluye la última fecha de movimiento por cuenta y el libro de ventas la muestra en vez de `'-'` (fix `af42c46`, 23 Sept 2026) |

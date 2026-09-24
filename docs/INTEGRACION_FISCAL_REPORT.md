@@ -1,6 +1,6 @@
 ﻿# Reporte de Estado y Plan de Ejecución: Integración Fiscal
 
-> **Actualizado:** 18 de Septiembre de 2026
+> **Actualizado:** 23 de Septiembre de 2026
 
 ## 1. Estado Actual del Código
 
@@ -9,30 +9,32 @@
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
 | **ISV (Impuesto Sobre Ventas)** | Completo | 1 página | 3 rutas | Config en Prisma | Prisma |
-| **Retenciones** | Completo | 1 página | 2 rutas | 1 tabla | Supabase |
+| **Retenciones (+ asiento contable automático)** | Completo | 1 página | 2 rutas + `accounting/withholding-journal` | 1 tabla (`Withholding`) | Supabase |
 | **CAI (Control de Autorización)** | Completo | 1 página | 6 rutas | 2 tablas | Supabase + Prisma |
 | **Declaraciones Mensuales (SAR)** | Completo | 1 página | 1 ruta | 1 vista | Supabase |
+| **DET-SAR 221 → carga automática al portal SAR** | Completo (23 Sept 2026) | `components/accounting/SARForm221.tsx` + `components/accounting/SARSessionPanel.tsx` | `app/api/accounting/det-upload/route.ts` + `app/api/accounting/sar-config/route.ts` | `system_settings` (config cifrada) | Supabase |
 | **ISR (Impuesto Sobre Renta)** | Completo | En reportes | 1 ruta | — | Cálculos |
 | **Tax Helper (Asistente)** | Completo | 1 página | 3 rutas | — | Prisma |
 | **Configuración de Impuestos** | Completo | 1 página | 3 rutas | 2 tablas | Prisma + Supabase |
-| **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (companies, libro_ventas, Purchase) |
+| **DIAT (+ carga automática al portal SAR)** | Completo (16 Sept; carga SAR 23 Sept 2026) | 1 página | 2 rutas (`/api/diat` + `accounting/diat-upload`) | — | Supabase (companies, libro_ventas, Purchase) |
 | **Notas de Crédito/Débito (SAR)** | Completo | 1 página | 2 rutas | 1 tabla (`InvoiceNote`) | Supabase |
 | **Validación Fiscal (CAI)** | ✅ Implementado | — | 1 middleware | — | — |
+| **Declaraciones Anuales (ISV/ISR/Retenciones)** | Completo (datos reales + Excel + carga SAR, 22-23 Sept 2026) | `app/reports/annual-tax/page.tsx` | `app/api/accounting/annual-tax-upload/route.ts` (+ `lib/reports/annual-tax.ts`) | Datos reales | Supabase |
+| **Sesión única verificada al portal SAR (Anuales/DET-221/DIAT)** | Completo (23 Sept 2026) | `components/accounting/SARSessionPanel.tsx` | `app/api/accounting/sar-session/route.ts` | `system_settings` (`sar_session:{empresa}`) | Supabase |
+| **Envío en Línea SAR** | Completo — 3 subidores cifrados (Anuales, DET-SAR 221, DIAT) con sesión única verificada (23 Sept 2026) | SARForm221 + annual-tax + DIATManager | `annual-tax-upload`, `det-upload`, `diat-upload`, `sar-session` | config cifrada AES-256-GCM | Supabase |
 | **DIN** | No Iniciado | 0 | 0 | 0 | — |
 | **TCA** | No Iniciado | 0 | 0 | 0 | — |
 | **Impresora Fiscal** | No Iniciado | 0 | 0 | 0 | — |
 | **Señales de Cancelación** | No Iniciado | 0 | 0 | 0 | — |
-| **Declaraciones Anuales** | No Iniciado | 0 | 0 | 0 | — |
-| **Envío en Línea SAR** | No Iniciado | 0 | 0 | 0 | — |
 
 ### 1.2 Métricas de Madurez
 
 | Métrica | Valor | Observación |
 |---|---|---|
-| Completitud Funcional | ~75% | ISV, retenciones, CAI, DIAT y notas NC/ND sólidos; sin DIN, TCA, impresora fiscal |
+| Completitud Funcional | ~85% | ISV, retenciones (con asiento), CAI, DIAT (con carga SAR), notas NC/ND, Declaraciones Anuales (datos reales + Excel + carga SAR) y sesión única SAR sólidos; sin DIN, TCA, impresora fiscal |
 | Cobertura de Pruebas | 0% | No existen pruebas |
-| Cumplimiento SAR | ~70% | Formulario 221, DET, DIAT y notas NC/ND listos; sin envío en línea |
-| Integración Contable | ~70% | Tax Helper genera asientos; notas NC/ND generan asiento AJUSTE; retenciones no generan asiento |
+| Cumplimiento SAR | ~75% | Formulario 221, DET, DIAT y Declaraciones Anuales con carga automática al portal SAR (credenciales cifradas AES-256-GCM, endpoint configurable, sesión única verificada); retenciones mensuales sin envío en línea |
+| Integración Contable | ~90% | Tax Helper genera asientos; notas NC/ND generan asiento AJUSTE; **retenciones generan asiento automático** (débito gasto/costo + crédito retención por pagar, 23 Sept 2026) |
 | Legislación Honduras | ~70% | ISV 15%/18%, ISR progresivo, retenciones 1%/12.5% implementados |
 
 ---
@@ -97,7 +99,7 @@
 
 #### Lo que Falta
 
-- **Sin generación de asiento contable automático** por retención
+- ~~**Sin generación de asiento contable automático** por retención~~ ✅ Implementado (23 Sept 2026): `lib/services/withholding-entries.ts` (`buildWithholdingJournalEntry`, débito gasto/costo + crédito retención por pagar balanceado) + `app/api/accounting/withholding-journal/route.ts` (POST crea la póliza vía `createJournalTransaction`, montos en **lempiras** sin 100×, deduplicado DUPLICADO; GET consulta el asiento) + toggle persistido en `WithholdingManager.tsx` y exportación Excel de asientos — commits `e2d3361` + `af42c46`. Detalle en `docs/LIBROS_LEGALES_REPORT.md` §2.5
 
 ---
 
@@ -135,7 +137,7 @@
 
 | Archivo | Propósito |
 |---|---|
-| `components/accounting/SARForm221.tsx` | Formulario 221: Débito Fiscal (casillas 401-405) y Crédito Fiscal (501-505), impuesto a pagar o saldo a favor |
+| `components/accounting/SARForm221.tsx` | Formulario 221: Débito Fiscal (casillas 401-405) y Crédito Fiscal (501-505), impuesto a pagar o saldo a favor; generación DET y **carga automática del DET al portal SAR** (23 Sept 2026) |
 | `components/TaxReportingPage.tsx` | Reporte mensual: período, tablas de ventas/compras con ISV, resumen de pago SAR |
 | `lib/services/tax-reporting.ts` | Generación de reportes mensuales para declaraciones SAR, exportación CSV |
 | `lib/services/det-live-core.ts` | Formato SAR: registro 262 caracteres, campos definidos |
@@ -146,6 +148,8 @@
 | `app/api/det/route.ts` | API de DET |
 | `app/api/reports/resumen-isv/route.ts` | API resumen ISV |
 | `app/api/reports/declaracion-mensual/route.ts` | API declaración mensual |
+| `lib/services/det-uploader.ts` + `app/api/accounting/det-upload/route.ts` + `app/api/accounting/sar-config/route.ts` | Carga automática DET-SAR 221 al portal SAR: `submitDETToSARR` (POST autenticado FormData + Basic, timeout 15s + retry, errorHint RED/CREDENCIALES/PORTAL/CONFIG) sobre credenciales cifradas AES-256-GCM por empresa y endpoint configurable guardado en `system_settings` (`sar_config:{empresa}`); la ruta re-exige la sesión única verificada (`SESION_NO_VERIFICADA` si no hay sesión) — commit `d42614a` |
+| `components/accounting/SARSessionPanel.tsx` + `lib/services/sar-session.ts` + `app/api/accounting/sar-session/route.ts` | Sesión única verificada al portal SAR compartida por las 3 subidas (Anuales, DET-SAR 221 y DIAT): credenciales validadas en vivo (POST FormData + Basic, timeout 15s), sesión cifrada AES-256-GCM en `system_settings` clave `sar_session:{empresa}` con vencimiento 24 h y auto-reverificación, panel único que bloquea la subida sin estado `CONECTADO` — commit `e50d617`. Detalle en §6.3 |
 
 #### Vistas de Supabase
 
@@ -186,7 +190,7 @@
 
 ### 2.7 DIAT (Declaración Informativa de Actividades)
 
-**Estado: Completo (~70%)**
+**Estado: Completo (~90%)** — no queda envío en línea pendiente (carga automática al portal SAR desde 23 Sept 2026).
 
 #### Archivos Implementados
 
@@ -194,19 +198,19 @@
 |---|---|
 | `lib/services/diat-generator.ts` | Generador: período mensual, agrupación por tasa/CAI/proveedor, resumen de liquidación |
 | `app/api/diat/route.ts` | API GET `?companyId=&period=` — retorna `{success, data: {companyId, availablePeriods, report}}` |
-| `components/DIATManager.tsx` | UI: declarante, selector de período, KPIs, tablas de ventas/compras, CSV e impresión |
+| `components/DIATManager.tsx` | UI: declarante, selector de período, KPIs, tablas de ventas/compras, CSV/impresión, **"Conectar al portal SAR" y "Subir DIAT al portal SAR" con validación de completitud y código de seguimiento** (23 Sept 2026) |
 | `app/companies/[id]/diat/page.tsx` | Página DIAT por empresa |
+| `lib/services/diat-uploader.ts` + `app/api/accounting/diat-upload/route.ts` | Carga automática DIAT→SAR cifrada (AES-256-GCM), `validateDiatCompleteness` y `extractTrackingCode`; config en `diat_sar_config:{empresa}` y último envío en `diat_sar_last_upload:{empresa}` — commit `f590680`. Detalle completo en `docs/DIAT_REPORT.md` §6.3 |
 
 #### Fuentes de Datos
 
 - Declarante: `companies` (por `tenant_id`, luego `id` → nombre, RTN, domicilio, régimen)
-- Ventas: `libro_ventas` (fecha, total, CAI) — hoy sin registros cargados
+- Ventas: `libro_ventas` (fecha, total, CAI) — **PENDIENTE (datos, no código)**: sin registros cargados; al poblarse el libro, las ventas y la DIAT subida reflejarán datos reales
 - Compras: `Purchase` (tenant `1` + `company_id`) — gravado por tasa fiscal (0/15/18/otras), canceladas excluidas
 
 #### Lo que Falta
 
-- Poblar `libro_ventas` para que las ventas reflejen datos reales
-- Envío en línea a SAR
+- ~~Envío en línea a SAR~~ ✅ Implementado (23 Sept 2026): carga automática cifrada al portal SAR con validación de completitud previa y código de seguimiento (commit `f590680`, sesión única `e50d617`)
 
 ---
 
@@ -267,9 +271,9 @@ Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito si
 | 2 | Sin DIN | Sin identificación numérica fiscal | Alta |
 | 3 | Sin TCA | Sin control de acceso fiscal | Alta |
 | 4 | Sin impresora fiscal | Imposible emitir comprobantes fiscales | Alta |
-| 5 | Retenciones sin asiento contable | Duble registro | Alta |
-| 6 | Sin declaraciones anuales | Incumplimiento fiscal | Media |
-| 7 | Sin envío en línea SAR | Proceso manual | Media |
+| 5 | ~~Retenciones sin asiento contable~~ | ~~Doble registro~~ | ✅ Resuelto (23 Sept 2026: `withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts`, asiento balanceado en lempiras — commits `e2d3361`+`af42c46`) |
+| 6 | ~~Sin declaraciones anuales~~ | ~~Incumplimiento fiscal~~ | ✅ Resuelto (22-23 Sept 2026: `lib/reports/annual-tax.ts` + `app/reports/annual-tax/page.tsx` con datos reales + Excel + carga al portal SAR — commits `cad7739`+`d59c74f`) |
+| 7 | ~~Sin envío en línea SAR~~ | ~~Proceso manual~~ | ✅ Resuelto (23 Sept 2026: 3 subidores cifrados — Declaraciones Anuales `d59c74f`, DET-SAR 221 `d42614a`, DIAT `f590680` — con sesión única verificada al portal SAR `e50d617`) |
 
 ---
 
@@ -289,7 +293,7 @@ Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito si
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 2.1 | Asiento contable automático por retención | `lib/services/withholding-accounting.ts` | Asiento |
+| 2.1 | ~~Asiento contable automático por retención~~ | ~~`lib/services/withholding-accounting.ts`~~ → `lib/services/withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts` | ✅ Asiento automático balanceado (23 Sept 2026, montos en lempiras) |
 | 2.2 | Asiento contable por ISV cobrado | `lib/services/isv-accounting.ts` | Asiento |
 | 2.3 | Conciliación fiscal-contable | `lib/services/tax-reconciliation.ts` | Validación |
 
@@ -305,8 +309,8 @@ Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito si
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 4.1 | Declaración anual consolidada | `lib/services/annual-declaration.ts` | Anual |
-| 4.2 | Envío en línea a SAR | `lib/services/sar-submission.ts` | Envío |
+| 4.1 | ~~Declaración anual consolidada~~ | ~~`lib/services/annual-declaration.ts`~~ → `lib/reports/annual-tax.ts` + `app/reports/annual-tax/page.tsx` | ✅ Declaraciones Anuales (ISV/ISR/Retenciones) con datos reales + Excel (22 Sept 2026) |
+| 4.2 | ~~Envío en línea a SAR~~ | ~~`lib/services/sar-submission.ts`~~ → `lib/services/annual-tax-uploader.ts` + `det-uploader.ts` + `diat-uploader.ts` + `sar-session.ts` | ✅ 3 subidores cifrados con sesión única verificada (23 Sept 2026) |
 | 4.3 | Dashboard de cumplimiento fiscal | `app/fiscal-compliance/page.tsx` | Dashboard |
 
 ### Etapa 5: QA
@@ -325,9 +329,40 @@ Resuelve el item crítico de Facturación y Ventas (Notas de Crédito/Débito si
 | Etapa 1: DIAT (✅) + Notas NC/ND (✅) + Compliance SAR | 1 tarea | Media | 1 semana |
 | Etapa 2: Contabilidad | 3 tareas | Media | 2-3 semanas |
 | Etapa 3: DIN/TCA/Fiscal | 3 tareas | Alta | 3-4 semanas |
-| Etapa 4: Declaraciones | 3 tareas | Alta | 2-3 semanas |
+| Etapa 4: Declaraciones | 3 tareas | Alta | ✅ 4.1 y 4.2 completadas (22-23 Sept 2026); 4.3 pendiente |
 | Etapa 5: QA | 2 tareas | Media | 1-2 semanas |
 | **Total** | **12 tareas** | — | **9-14 semanas** |
+
+---
+
+## 6. Carga automática al portal SAR (23 Sept 2026)
+
+Tres subidores cifrados (Declaraciones Anuales, DET-SAR 221 y DIAT) comparten una **sesión única verificada en vivo contra el portal SAR**.
+
+### 6.1 Declaraciones Anuales
+
+- `lib/services/annual-tax-uploader.ts`: `submitAnnualTaxToSARR` (POST/PUT autenticado FormData + Basic, timeout 15s + retry, `validateAnnualTaxCompleteness` errors bloqueantes/warnings permisivos, errorHint RED/CREDENCIALES/PORTAL/CONFIG) sobre credenciales cifradas AES-256-GCM.
+- `app/api/accounting/annual-tax-upload/route.ts`: `get-config`/`save-config`/`test`/`upload`; config cifrada en `system_settings` clave `annual_tax_sar_config:{empresa}`; el `upload` valida completitud (con errors NO envía y devuelve `validationErrors`; solo warnings envía + `warnings`; éxito devuelve `summaryPreview` con los montos reales enviados).
+- Commits: `d59c74f` (carga), `cad7739` (datos reales + Excel).
+
+### 6.2 DET-SAR 221
+
+- `lib/services/det-uploader.ts`: `submitDETToSARR` (POST autenticado FormData + Basic, timeout 15s + retry, DETUploadResult con errorHint clasificado).
+- `app/api/accounting/det-upload/route.ts` (envío) + `app/api/accounting/sar-config/route.ts` (config cifrada AES-256-GCM por empresa, endpoint configurable, guardada en `system_settings` clave `sar_config:{empresa}`).
+- Commit: `d42614a`.
+
+### 6.3 DIAT
+
+- `lib/services/diat-uploader.ts`: `submitDiatToSARR` (POST autenticado FormData + Basic, timeout/retry, clasificación SUCCESS/CREDENCIALES/RED/PORTAL/CONFIG, `extractTrackingCode` para el código de seguimiento) y `validateDiatCompleteness`.
+- `app/api/accounting/diat-upload/route.ts`: `get-config`/`save-config`/`test`/`upload`; config en `diat_sar_config:{empresa}` y último envío en `diat_sar_last_upload:{empresa}`; mapeo HTTP SUCCESS 200 / CREDENCIALES 401 / RED 502 / PORTAL 503 / CONFIG 500.
+- Commit: `f590680`. Detalle completo en `docs/DIAT_REPORT.md` §6.3.
+
+### Sesión única verificada (compartida por 6.1/6.2/6.3)
+
+- `lib/services/sar-session.ts`: `verifySARCredentials` valida las credenciales en vivo contra el portal (POST FormData usuario/clave/periodo/formulario ISV DECLARACION_ANUAL + Basic + timeout 15s; `SESSION_DEFAULT_TTL_MS = 24 h`); sesión cifrada AES-256-GCM en `system_settings` clave `sar_session:{empresa}`; `isSARSessionValid` y `getLiveSARSession` (auto-reverificación con credenciales guardadas al vencer).
+- `app/api/accounting/sar-session/route.ts`: GET (estado público sin sessionToken) / POST (persiste sesión y sincroniza credenciales de los 3 subidores preservando metodo/tipoDeclaracion/periodo) / DELETE (cierre); HTTP mapeado: CONECTADO 200 / CREDENCIALES_INVALIDAS 401 / PORTAL_NO_DISPONIBLE 502 / CONFIG_INCOMPLETA 422.
+- `components/accounting/SARSessionPanel.tsx`: panel único montado en las 3 pantallas que bloquea la subida salvo estado `CONECTADO`; las rutas de upload incluyen `getLiveSARSession`+`isSARSessionValid` y devuelven `SESION_NO_VERIFICADA` sin conectar.
+- Commit: `e50d617`.
 
 ---
 
@@ -392,3 +427,15 @@ if (!result.valid) {
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
 | Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
 | 0 vulnerabilidades npm | Todas las dependencias auditadas y resueltas |
+
+## Actualizaciones de Integración Fiscal (23 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Declaraciones Anuales → carga automática al portal SAR | `lib/services/annual-tax-uploader.ts` + `app/api/accounting/annual-tax-upload/route.ts` (`get-config`/`save-config`/`test`/`upload`, config cifrada AES-256-GCM en `system_settings`, `validateAnnualTaxCompleteness` bloqueante/warnings, HTTP mapeado, `summaryPreview` con los montos reales) — commit `d59c74f` |
+| DET-SAR 221 → carga automática al portal SAR | `lib/services/det-uploader.ts` (`submitDETToSARR`) + `app/api/accounting/det-upload/route.ts` + `app/api/accounting/sar-config/route.ts` (config cifrada por empresa `sar_config:{empresa}`, endpoint configurable) — commit `d42614a` |
+| DIAT → conexión al portal SAR con carga automática cifrada | `lib/services/diat-uploader.ts` (`submitDiatToSARR`, `extractTrackingCode`, `validateDiatCompleteness`) + `app/api/accounting/diat-upload/route.ts` + botones en `components/DIATManager.tsx` — commit `f590680` |
+| Sesión única verificada al portal SAR (Anuales / DET-SAR 221 / DIAT) | `lib/services/sar-session.ts` (verificación en vivo, sesión cifrada 24 h, auto-reverificación) + `app/api/accounting/sar-session/route.ts` + `components/accounting/SARSessionPanel.tsx` + wrappers en las 3 rutas de upload (`SESION_NO_VERIFICADA`) — commit `e50d617` |
+| Retenciones → asiento contable automático | `lib/services/withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts` (póliza balanceada en lempiras, deduplicado) + toggle persistido en `WithholdingManager.tsx` — commits `e2d3361`+`af42c46` |
+| Fix insert `createJournalTransaction` | `lib/services/journal-service.ts` genera `id`/`functionalAmount`/`originalTotal`/`createdAt`/`updatedAt` en centavos para persistir asientos manuales y automáticos en Supabase — commit `ae11f9c` |
+| Cash flow comparativos trimestrales (Q1–Q4) | `lib/reports/cash-flow-comparatives.ts` + `app/api/accounting/cash-flow-comparatives/route.ts` + `app/reports/cash-flow-comparatives/page.tsx` con exportación Excel — commits `a9ce620`+`89fad97` (ver `docs/ESTADOS_FINANCIEROS_REPORT.md` §2.3.1) |
