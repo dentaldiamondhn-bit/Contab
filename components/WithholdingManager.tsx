@@ -166,6 +166,19 @@ export default function WithholdingManager() {
 
   useEffect(() => { loadData(); }, [loadData]);
 
+  useEffect(() => {
+    if (!currentTenant?.id || typeof window === 'undefined') return;
+    const saved = window.localStorage.getItem(`withholding_auto_entry:${currentTenant.id}`);
+    setShowAutoEntry(saved === null ? true : saved === '1');
+  }, [currentTenant?.id]);
+
+  const persistAutoEntry = (value: boolean) => {
+    setShowAutoEntry(value);
+    if (currentTenant?.id && typeof window !== 'undefined') {
+      window.localStorage.setItem(`withholding_auto_entry:${currentTenant.id}`, value ? '1' : '0');
+    }
+  };
+
   const updateCalculation = (amount: string, type: WithholdingType) => {
     const val = parseFloat(amount);
     if (!isNaN(val) && val > 0) {
@@ -240,7 +253,9 @@ export default function WithholdingManager() {
         const created = await createWithholding(payload);
         setShowForm(false);
         resetForm();
-        if (created?.id) await generateEntry(created);
+        if (created?.id) {
+          if (showAutoEntry) await generateEntry(created);
+        }
         loadData();
       }
     } catch (error) {
@@ -464,16 +479,18 @@ export default function WithholdingManager() {
         </div>
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex items-center gap-1 border rounded-md p-1">
-            <Button size="sm" variant={showAutoEntry ? 'default' : 'ghost'} onClick={() => setShowAutoEntry(true)}>
+            <Button size="sm" variant={showAutoEntry ? 'default' : 'ghost'} onClick={() => persistAutoEntry(true)}>
               <Database className="w-4 h-4 mr-1" />
               Asiento automático ON
             </Button>
-            <Button size="sm" variant={!showAutoEntry ? 'default' : 'ghost'} onClick={() => setShowAutoEntry(false)}>
+            <Button size="sm" variant={!showAutoEntry ? 'default' : 'ghost'} onClick={() => persistAutoEntry(false)}>
               OFF
             </Button>
           </div>
-          {showAutoEntry && (
+          {showAutoEntry ? (
             <Badge className="bg-green-100 text-green-800">Genera asiento contable al guardar la retención</Badge>
+          ) : (
+            <Badge variant="outline">No genera asiento automático al guardar; se puede generar manualmente</Badge>
           )}
           <Button variant="outline" onClick={handleExportEntryExcel} disabled={exportingEntries} title="Exportar asientos de retenciones a Excel">
             {exportingEntries ? <RefreshCw className="animate-spin w-4 h-4 mr-2" /> : <FileSpreadsheet className="w-4 h-4 mr-2" />}

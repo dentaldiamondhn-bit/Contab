@@ -19,7 +19,7 @@
 | **DIAT** | **Completo (100%) — generación automática + carga automática al portal SAR ✅** | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
 | **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel + carga al portal SAR** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` + `lib/services/annual-tax-uploader.ts` + `app/api/accounting/annual-tax-upload/route.ts` (22-23 Sept 2026) | API | Datos reales | Generación automática + adaptador SAR |
 | **Login único al portal SAR (Anuales / DET-SAR 221 / DIAT)** | **Completo — sesión única verificada en vivo contra el portal, compartida por los 3 subidores, con auto-reverificación al vencer y cierre de sesión** | 1 componente + 1 ruta + 1 servicio (23 Sept 2026) | 1 ruta API | — | Supabase (system_settings) |
-| **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | — | Supabase |
+| **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel; Diario desglosa pólizas reales por fecha/referencia** | 1 página | 2 rutas (agregado + detallado) | — | Supabase |
 | **Cash flow → comparativos trimestrales automáticos (Q1–Q4 + totales + Δ Q4−Q1 + Excel)** | **Completo (100%)** | 1 página | 1 ruta | — | Supabase |
 
 ### 1.2 Métricas de Madurez
@@ -30,7 +30,7 @@
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Exportación | ~93% | Declaraciones Anuales y los libros legales (Compras, Ventas, Retenciones, Mayor y Diario) exportan a Excel (23 Sept 2026); sin PDF profesional |
 | Cumplimiento SAR | ~75% | Formulario 221, DET, DIAT y Declaraciones Anuales con carga automática al portal SAR (credenciales cifradas AES-256-GCM, endpoint configurable); sin envío en línea para retenciones mensuales |
-| Integración Contable | ~100% | Retenciones generan asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos base × tasa, 23 Sept 2026) |
+| Integración Contable | ~100% | Retenciones generan asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos en **lempiras** normalizados — sin 100× en libros y balanza, 23 Sept 2026) |
 
 ---
 
@@ -165,7 +165,7 @@
 #### Capacidades
 
 - Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
-- Asiento contable automático al guardar la retención (toggle ON/OFF en el manager, `WithholdingManager`): débito a cuenta de gasto/costo + crédito a cuenta pasiva de retención por pagar, balanceado, con "Ver asiento", "Generar asiento ahora" para retenciones previas y exportación Excel `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` (23 Sept 2026)
+- Asiento contable automático al guardar la retención (toggle ON/OFF **real y persistido por empresa** en localStorage `withholding_auto_entry:{tenant}` en el manager, `WithholdingManager`): débito a cuenta de gasto/costo + crédito a cuenta pasiva de retención por pagar, balanceado, montos en **lempiras** (normalizados en `app/api/accounting/withholding-journal/route.ts`; la balanza y los libros ya no muestran 100×), con "Ver asiento", "Generar asiento ahora" para retenciones previas y exportación Excel `Asientos_Retenciones_{empresa}_{año}-{mes}.xlsx` (23 Sept 2026)
 - Exportación a Excel (.xlsx)
 - Exportación CSV/PDF y vista manual intactas
 
@@ -173,7 +173,7 @@
 
 - ~~Sin generación automática desde contabilidad~~ ✅ Generación automática desde transacciones contables (toggle Manual/Automático en `app/companies/[id]/reports/withholding-book/page.tsx`, 22 Sept 2026)
 - ~~Sin exportación a Excel~~ ✅ Exportación a Excel (.xlsx) desde `lib/reports/withholding-book.ts` + botón "Exportar Excel" en ambos modos (22 Sept 2026)
-- ~~**Sin integración con asientos contables** (retenciones no generan póliza automática)~~ ✅ Asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos base × tasa) al guardar/regenerar la retención, API `app/api/accounting/withholding-journal` + `lib/services/withholding-entries.ts` + exportación Excel de asientos (23 Sept 2026)
+- ~~**Sin integración con asientos contables** (retenciones no generan póliza automática)~~ ✅ Asiento contable automático balanceado (débito gasto/costo + crédito retención por pagar, montos base × tasa **en lempiras**, sin 100× en libros) al guardar/regenerar la retención, API `app/api/accounting/withholding-journal` + `lib/services/withholding-entries.ts` + exportación Excel de asientos (23 Sept 2026)
 - Sin libro de retenciones anual consolidado
 
 ---
@@ -241,13 +241,14 @@
 
 | Archivo | Propósito |
 |---|---|
-| `lib/reports/general-ledger.ts` | Libro Mayor y Libro Diario automáticos: clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta (1-7xxx), transform + grouping desde trial-balance, formato Excel (23 Sept 2026) |
+| `lib/reports/general-ledger.ts` | Libro Mayor y Libro Diario automáticos: clasificación ACTIVO/PASIVO/PATRIMONIO/INGRESO/GASTO por prefijo de cuenta (1-7xxx), transform + grouping desde trial-balance (agregado y detallado), `transformToLibroDiario` con desglose entry-level cuando el item trae `journalEntry`/`date`, formato Excel (23 Sept 2026) |
+| `app/api/accounting/trial-balance-detailed/route.ts` | Feeder detallado para el Libro Diario: devuelve cada movimiento de `JournalEntry` con su `journalEntry`, `date` (fecha real de `Transaction`), `reference` (`voucherNumber`) y cuenta, para todos los `voucherType`, en el rango del período, ordenado por fecha (23 Sept 2026) |
 | `app/companies/[id]/reports/general-ledger/page.tsx` | Página empresarial: toggle fuente Manual/Automática (contable), toggle de tipo de libro Mayor/Diario y exportación a Excel (23 Sept 2026) |
 
 #### Capacidades
 
-- Libro Mayor: agrupa por cuenta a nivel trial-balance (código, nombre, tipo, débito, crédito, saldo)
-- Libro Diario: desglose por asiento/transacción si el trial-balance trae el nivel de journalEntry; si no, agrupa por cuenta (fallback seguro, nunca rompe)
+- Libro Mayor: agrega por cuenta desde el trial-balance agregado (código, nombre, tipo, débito, crédito, saldo); cada cuenta muestra la última fecha de movimiento del período
+- Libro Diario: desglose **real por póliza/transacción** desde el feeder detallado `trial-balance-detailed` — cada fila trae `journalEntry`+`date`+`reference` y `transformToLibroDiario` muestra fecha real del documento y referencia (voucherNumber); si un feed no trae el nivel entry-level, cae al fallback por cuenta (nunca rompe)
 - Generación automática desde transacciones contables (modo Automático, trial-balance del mes/año seleccionados)
 - Exportación a Excel (.xlsx) en ambos tipos (`Libro_Mayor_{empresa}_{año}-{mes}.xlsx` / `Libro_Diario_{empresa}_{año}-{mes}.xlsx`)
 - Exportación CSV/print y vista manual intactas en ambos tipos
@@ -283,7 +284,7 @@ Segmentación trimestral automática desde los movimientos reales del trial-bala
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
 | 1 | ~~Sin DIAT~~ | ~~Incumplimiento SAR~~ | ✅ Implementado (16 Sept 2026) |
-| 2 | ~~Retenciones sin asiento contable~~ | ~~Duble registro manual~~ | ✅ Resuelto (asiento automático balanceado, débito gasto + crédito retención por pagar, 23 Sept 2026) |
+| 2 | ~~Retenciones sin asiento contable~~ | ~~Duble registro manual~~ | ✅ Resuelto (asiento automático balanceado, débito gasto + crédito retención por pagar en **lempiras**, sin 100× en libros, 23 Sept 2026) |
 | 3 | Libros sin generación automática desde contabilidad | Dependencia de carga manual | Alta |
 | 4 | ~~Sin declaraciones anuales consolidadas~~ | ~~Incumplimiento fiscal~~ | ✅ Implementado (conectado a datos reales desde transacciones contables + exportación Excel, 22 Sept 2026) |
 | 5 | ~~DET sin carga automática a SAR~~ | ~~Proceso manual~~ | ✅ Implementado (adaptador configurable de carga DET→SAR, 22 Sept 2026) |
@@ -296,16 +297,16 @@ Segmentación trimestral automática desde los movimientos reales del trial-bala
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 1.1 | ~~Crear asiento contable automático al registrar retención~~ | ~~`lib/services/withholding-service.ts`~~ | ✅ Asiento automático balanceado (`lib/services/withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts`, toggle en `WithholdingManager`, exportación Excel de asientos; 23 Sept 2026) |
-| 1.2 | Generar libro de retenciones anual | `components/legal/WithholdingBook.tsx` | Libro anual |
-| 1.3 | Integrar retenciones con balanza de comprobación | `lib/reports/trial-balance.ts` | Retenciones en balanza |
+| 1.1 | ~~Crear asiento contable automático al registrar retención~~ | ~~`lib/services/withholding-service.ts`~~ | ✅ Asiento automático balanceado (`lib/services/withholding-entries.ts` + `app/api/accounting/withholding-journal/route.ts`, toggle persistido en `WithholdingManager`, montos en lempiras, exportación Excel de asientos; 23 Sept 2026) |
+| 1.2 | Libro de retenciones (mensual y anual consolidado) | `lib/reports/withholding-book.ts` + `app/reports/annual-tax/page.tsx` | Libros mensual/anual desde transacciones contables |
+| 1.3 | Integrar retenciones con balanza de comprobación | `app/api/accounting/trial-balance/route.ts` | ✅ Retenciones en balanza (montos en lempiras, deduplicado por retención) |
 
 ### Etapa 2: Generación Automática de Libros
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 2.1 | Auto-generar Libro de Ventas desde transacciones | `lib/services/books-generator.ts` | Generación automática |
-| 2.2 | Auto-generar Libro de Compras desde transacciones | `lib/services/books-generator.ts` | Generación automática |
+| 2.1 | ~~Auto-generar Libro de Ventas desde transacciones~~ | ~~`lib/services/books-generator.ts`~~ → `lib/reports/sales-book.ts` + `app/api/accounting/trial-balance/route.ts` | ✅ Generación automática (22 Sept 2026) |
+| 2.2 | ~~Auto-generar Libro de Compras desde transacciones~~ | ~~`lib/services/books-generator.ts`~~ → `lib/reports/purchase-book.ts` + `app/api/accounting/trial-balance/route.ts` | ✅ Generación automática (22 Sept 2026) |
 | 2.3 | Validación de completitud antes de generar DET | `lib/services/det-live-core.ts` | Validaciones ✅ |
 
 ### Etapa 3: DIAT y Declaraciones (DIAT ✅)
@@ -406,3 +407,4 @@ Etapa 1 (Retenciones + Contabilidad)
 | DIAT → conexión al portal SAR con carga automática cifrada | `lib/services/diat-uploader.ts` (`submitDiatToSARR` POST autenticado con FormData + Basic + timeout/retry, clasificación SUCCESS/CREDENCIALES/RED/PORTAL/CONFIG, `extractTrackingCode` de la respuesta del portal, `validateDiatCompleteness` errors bloqueantes/warnings permisivos; reutiliza el cifrado AES-256-GCM de `det-uploader`, sin duplicar) + API `app/api/accounting/diat-upload/route.ts` (get-config/save-config/test/upload, guardado en `system_settings` clave `diat_sar_config:{empresa}`, validación de completitud previa que bloquea la subida con errores, HTTP mapeado a SUCCESS 200 / CREDENCIALES 401 / RED 502 / PORTAL 503 / CONFIG 500, último envío guardado en `diat_sar_last_upload:{empresa}`) + integración en `components/DIATManager.tsx` con botones "Conectar al portal SAR" y "Subir DIAT al portal SAR", validación en pantalla (lista roja bloquea, warnings amarillos "puedes enviar igualmente") y estado de envío es-HN con código de seguimiento (23 Sept 2026) |
 | Login único verificado al portal SAR (Anuales / DET-SAR 221 / DIAT) | `lib/services/sar-session.ts` (verifySARCredentials valida en vivo las credenciales contra el portal antes de conectar: POST FormData + Basic + timeout 15s, clasifica CREDENCIALES_INVALIDAS/PORTAL_NO_DISPONIBLE/CONFIG_INCOMPLETA/CONECTADO con vencimiento 24 h; sesión única cifrada AES-256-GCM `sar_session:{empresa}` con encrypt/decrypt, isSARSessionValid y getLiveSARSession que reverifica con credenciales guardadas al vencer) + API `app/api/accounting/sar-session/route.ts` (GET sin sessionToken público / POST persiste sesión y sincroniza credenciales de los 3 subidores preservando metodo/tipoDeclaracion/periodo / DELETE cierra sesión; HTTP 200 CONECTADO / 401 CREDENCIALES_INVALIDAS / 502 PORTAL_NO_DISPONIBLE / 422 CONFIG_INCOMPLETA) + `components/accounting/SARSessionPanel.tsx` (panel único en equipo: "Iniciar sesión en el portal SAR", "Verificar y conectar", estados "Sesión verificada"/"Credenciales inválidas"/"Sesión vencida — reconectar"/"Cerrar sesión"; bloquea subida sin sesión CONECTADO) + wrappers `getLiveSARSession`+`isSARSessionValid` en det-upload, annual-tax-upload y diat-upload (sin sesión → `SESION_NO_VERIFICADA`, no envían) (23 Sept 2026) |
 | Cash flow → comparativos trimestrales automáticos (Q1–Q4) con exportación a Excel | `lib/reports/cash-flow-comparatives.ts` (segmentación Q1–Q4 desde los movimientos reales del trial-balance, flujo por trimestre reutilizando la clasificación de `cash-flow.ts` — sin duplicar —, saldos encadenados, mejor/peor trimestre y formato Excel es-HN con `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']`) + API `app/api/accounting/cash-flow-comparatives/route.ts` (GET comparativo real por trimestre, POST descarga real del .xlsx) + página `app/reports/cash-flow-comparatives/page.tsx` (selector de año fiscal, matriz comparativa Q1⇄Q4, badges mejor/peor trimestre y exportación a Excel) |
+| Arreglo integración libros↔asientos | (i) Asiento de retención normalizado a **lempiras** en `app/api/accounting/withholding-journal/route.ts` (POST divide centavos→lempiras al armar la póliza; GET ya no re-divide: sin doble división, sin 100× en Mayor/Diario/Compras/Retenciones/Anuales ni doble `-100` en panel); (ii) Libro Diario con **desglose real de pólizas por fecha/referencia** vía feeder detallado `app/api/accounting/trial-balance-detailed/route.ts` (movimientos con `journalEntry`+`date`+`reference` ordenados por fecha, todos los voucherType) conectado a `app/companies/[id]/reports/general-ledger/page.tsx` solo en vista Diario (Mayor intacto sobre el trial-balance agregado); (iii) toggle "Asiento automático" **real y persistido por empresa** en `components/WithholdingManager.tsx` (localStorage `withholding_auto_entry:{tenant}`; OFF no genera asiento y el badge lo aclara, botón "Generar asiento ahora" se mantiene); (iv) trial-balance agregado incluye la **última fecha de movimiento por cuenta** (`app/api/accounting/trial-balance/route.ts`) y los libros Compras/Ventas/Retenciones la muestran en vez de `'-'`; (v) doc alineado (23 Sept 2026) |

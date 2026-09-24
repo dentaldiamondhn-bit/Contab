@@ -53,7 +53,7 @@ async function loadExistingEntry(
 function toJournalEntryPayload(transaction: any, balanceado: boolean) {
   const entries = Array.isArray(transaction?.JournalEntry) ? transaction.JournalEntry : [];
   const lines = (entries as any[]).map((e: any) => {
-    const amount = Math.abs(parseFloat(e?.amount) || 0) / 100;
+    const amount = Math.abs(parseFloat(e?.amount) || 0);
     const isDebit = e?.type === 'DEBIT' || (parseFloat(e?.amount) || 0) > 0;
     return {
       accountCode: e?.Account?.code || '',
@@ -166,7 +166,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const retAmount = Math.round(item.retencion);
+    const retAmount = round2(item.retencion / 100);
     const performedBy =
       request.headers.get('x-user-id') ||
       request.headers.get('x-user-email') ||
@@ -207,13 +207,13 @@ export async function POST(request: NextRequest) {
         {
           accountCode: expense.code,
           accountName: expense.name,
-          amount: retAmount / 100,
+          amount: retAmount,
           type: 'DEBIT',
         },
         {
           accountCode: liability.code,
           accountName: liability.name,
-          amount: retAmount / 100,
+          amount: retAmount,
           type: 'CREDIT',
         },
       ],

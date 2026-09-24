@@ -138,10 +138,6 @@ export default function PurchaseBookPage() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return `L ${(amount / 100).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   const formatMoney = (amount: number) => {
     return new Intl.NumberFormat('es-HN', {
       style: 'currency',
@@ -189,9 +185,9 @@ export default function PurchaseBookPage() {
       entry.supplier_rtn,
       `"${entry.supplier_name}"`,
       entry.cai || '',
-      (entry.net_value / 100).toFixed(2),
-      (entry.tax_value / 100).toFixed(2),
-      (entry.total_value / 100).toFixed(2)
+      entry.net_value.toFixed(2),
+      entry.tax_value.toFixed(2),
+      entry.total_value.toFixed(2)
     ].join(','));
 
     const autoRows = autoItems.map(item => [
@@ -228,9 +224,9 @@ export default function PurchaseBookPage() {
               code: e.invoice_number,
               name: e.supplier_name,
               type: 'COMPRA' as const,
-              amount: e.net_value / 100,
-              tax: e.tax_value / 100,
-              total: e.total_value / 100,
+              amount: e.net_value,
+              tax: e.tax_value,
+              total: e.total_value,
               date: e.invoice_date,
               supplier: e.supplier_name,
               transactionId: e.id,
@@ -426,7 +422,7 @@ export default function PurchaseBookPage() {
               <CardTitle className="text-sm font-medium text-gray-600">Valor Neto Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{formatCurrency(totals.net)}</div>
+              <div className="text-2xl font-bold">{formatMoney(totals.net)}</div>
             </CardContent>
           </Card>
           <Card>
@@ -434,7 +430,7 @@ export default function PurchaseBookPage() {
               <CardTitle className="text-sm font-medium text-gray-600">ISV Total</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-cyan-600">{formatCurrency(totals.tax)}</div>
+              <div className="text-2xl font-bold text-cyan-600">{formatMoney(totals.tax)}</div>
             </CardContent>
           </Card>
         </div>
@@ -537,18 +533,18 @@ export default function PurchaseBookPage() {
                         <td className="py-3 px-2 font-mono text-xs">{formatRTN(entry.supplier_rtn)}</td>
                         <td className="py-3 px-2">{entry.supplier_name}</td>
                         <td className="py-3 px-2 font-mono text-xs">{formatCAI(entry.cai)}</td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(entry.net_value)}</td>
-                        <td className="py-3 px-2 text-right">{formatCurrency(entry.tax_value)}</td>
-                        <td className="py-3 px-2 text-right font-medium">{formatCurrency(entry.total_value)}</td>
+                        <td className="py-3 px-2 text-right">{formatMoney(entry.net_value)}</td>
+                        <td className="py-3 px-2 text-right">{formatMoney(entry.tax_value)}</td>
+                        <td className="py-3 px-2 text-right font-medium">{formatMoney(entry.total_value)}</td>
                       </tr>
                     ))}
                   </tbody>
                   <tfoot className="bg-gray-100 font-bold">
                     <tr>
                       <td colSpan={6} className="py-3 px-2 text-right">TOTALES:</td>
-                      <td className="py-3 px-2 text-right">{formatCurrency(totals.net)}</td>
-                      <td className="py-3 px-2 text-right">{formatCurrency(totals.tax)}</td>
-                      <td className="py-3 px-2 text-right">{formatCurrency(totals.total)}</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(totals.net)}</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(totals.tax)}</td>
+                      <td className="py-3 px-2 text-right">{formatMoney(totals.total)}</td>
                     </tr>
                   </tfoot>
                 </table>
@@ -568,13 +564,13 @@ export default function PurchaseBookPage() {
         </CardHeader>
         <CardContent className="space-y-2 text-sm">
           <p>
-            <strong>Valor Neto Total:</strong> {formatCurrency(totals.net)} - Base imponible para ISV
+            <strong>Valor Neto Total:</strong> {formatMoney(totals.net)} - Base imponible para ISV
           </p>
           <p>
-            <strong>ISV Total:</strong> {formatCurrency(totals.tax)} - Crédito fiscal del período
+            <strong>ISV Total:</strong> {formatMoney(totals.tax)} - Crédito fiscal del período
           </p>
           <p>
-            <strong>Total Compras:</strong> {formatCurrency(totals.total)} - Incluye ISV
+            <strong>Total Compras:</strong> {formatMoney(totals.total)} - Incluye ISV
           </p>
           <p className="text-xs text-gray-600 mt-4">
             Este reporte cumple con el formato requerido por el SAR para la declaración mensual del Impuesto Sobre Ventas (ISV).

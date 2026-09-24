@@ -93,7 +93,7 @@ export default function GeneralLedgerPage() {
     } else {
       loadAutoBook();
     }
-  }, [companyId, selectedMonth, selectedYear, dataSource]);
+  }, [companyId, selectedMonth, selectedYear, dataSource, bookType]);
 
   useEffect(() => {
     // Filter by period (YYYY-MM)
@@ -133,14 +133,23 @@ export default function GeneralLedgerPage() {
   const loadAutoBook = async () => {
     setLoading(true);
     try {
-      const response = await fetch(
-        `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
-      );
-      if (response.ok) {
-        const data = await response.json();
-        const transformed = transformToLibroMayor(data || []);
-        setLedgerItems(transformed);
-        setDiaryRows(transformToLibroDiario(data || []));
+      if (isMayor) {
+        const response = await fetch(
+          `/api/accounting/trial-balance?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setLedgerItems(transformToLibroMayor(data || []));
+          setDiaryRows(transformToLibroDiario(data || []));
+        }
+      } else {
+        const response = await fetch(
+          `/api/accounting/trial-balance-detailed?tenantId=${companyId}&startDate=${startDate}T00:00:00Z&endDate=${endDate}T23:59:59Z`
+        );
+        if (response.ok) {
+          const data = await response.json();
+          setDiaryRows(transformToLibroDiario(data || []));
+        }
       }
     } catch (error) {
       console.error('Error loading automatic book:', error);

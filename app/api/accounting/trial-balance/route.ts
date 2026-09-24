@@ -59,9 +59,11 @@ export async function GET(request: NextRequest) {
       debit: number;
       credit: number;
       balance: number;
+      lastDate: string;
     }>();
     
     transactions?.forEach((transaction: any) => {
+      const txDate = transaction.date || '';
       transaction.JournalEntry?.forEach((entry: any) => {
         if (!entry.Account) return;
         
@@ -81,12 +83,14 @@ export async function GET(request: NextRequest) {
             existing.credit += absAmount;
           }
           existing.balance = existing.debit - existing.credit;
+          if (String(txDate) > String(existing.lastDate)) existing.lastDate = txDate;
         } else {
           accountBalances.set(accountId, {
             account: entry.Account,
             debit: isDebit ? absAmount : 0,
             credit: isDebit ? 0 : absAmount,
             balance: isDebit ? absAmount : -absAmount,
+            lastDate: txDate,
           });
         }
       });
@@ -100,6 +104,7 @@ export async function GET(request: NextRequest) {
         debit: item.debit,
         credit: item.credit,
         balance: item.balance,
+        date: item.lastDate,
       }))
       .sort((a, b) => a.account.code.localeCompare(b.account.code));
     
