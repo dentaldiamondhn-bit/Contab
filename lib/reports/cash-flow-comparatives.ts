@@ -154,7 +154,7 @@ function investingNet(q: QuarterlyCashFlow): number {
 }
 
 function financingNet(q: QuarterlyCashFlow): number {
-  return round2((q.sections.financiacion || []).reduce((s, i) => s + i.amount, 0));
+  return round2((q.sections.financing || []).reduce((s, i) => s + i.amount, 0));
 }
 
 export function buildCashFlowComparatives(
