@@ -179,8 +179,13 @@ export async function createJournalTransaction(
   const voucherNumber = await getNextVoucherNumber(client, tenantId, voucherType);
   const currency = input.currency || 'HNL';
   const exchangeRate = input.exchangeRate !== undefined ? num(input.exchangeRate) : 24.7;
+  // Montos en centavos: id/functionalAmount/originalTotal/createdAt/updatedAt los exige la BD real
+  // (mismo patrón que los flujos que escriben: ExcelBooksUploader, reversals, transaction-service-enhanced).
+  const totalAmountCents = Math.round(totalDebit * 100);
+  const nowIso = now.toISOString();
 
   const txInsert = (client.from('Transaction').insert({
+    id: crypto.randomUUID(),
     tenantId,
     date: dateIso,
     description: input.description.trim(),
@@ -188,7 +193,11 @@ export async function createJournalTransaction(
     voucherNumber,
     currency,
     exchangeRate,
-    totalAmount: totalDebit,
+    totalAmount: totalAmountCents,
+    functionalAmount: totalAmountCents,
+    originalTotal: totalAmountCents,
+    createdAt: nowIso,
+    updatedAt: nowIso,
   }) as unknown as {
     select(): { single(): Promise<{ data: unknown; error: unknown }> };
   })
@@ -202,17 +211,22 @@ export async function createJournalTransaction(
   }
   const txId = (transaction as { id: string }).id;
 
-  const rows = lines.map((l) => ({
-    transactionId: txId,
-    accountId: l.accountId,
-    tenantId,
-    amount: l.debit > 0 ? l.debit : -l.credit,
-    originalAmount: l.debit > 0 ? l.debit : l.credit,
-    type: l.debit > 0 ? 'DEBIT' : 'CREDIT',
-    currency,
-    exchangeRate,
-    description: l.description,
-  }));
+  const rows = lines.map((l) => {
+    const signedCents = Math.round((l.debit > 0 ? l.debit : -l.credit) * 100);
+    const absCents = Math.round((l.debit > 0 ? l.debit : l.credit) * 100);
+    return {
+      id: crypto.randomUUID(),
+      transactionId: txId,
+      accountId: l.accountId,
+      tenantId,
+      amount: signedCents,
+      originalAmount: absCents,
+      type: l.debit > 0 ? 'DEBIT' : 'CREDIT',
+      currency,
+      exchangeRate,
+      description: l.description,
+    };
+  });
   const jeInsert = (client.from('JournalEntry').insert(rows) as unknown as {
     select(): Promise<{ data: unknown; error: unknown }>;
   }).select();
@@ -253,7 +267,7 @@ export async function createJournalTransaction(
         voucherNumber,
         date: dateIso,
         description: l.description,
-        amount: l.debit > 0 ? l.debit : -l.credit,
+        amount: Math.round((l.debit > 0 ? l.debit : -l.credit) * 100),
         currency,
       },
       performed_by: opts?.performedBy || 'system',

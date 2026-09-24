@@ -90,7 +90,7 @@ test('crear póliza: valida tenant, cuentas, inserta con signos y tipos', async 
   assert.equal(res.transaction.tenantId, 'T1');
   assert.equal(res.transaction.voucherType, 'DIARIO');
   assert.equal(res.transaction.voucherNumber, 1);
-  assert.equal(res.transaction.totalAmount, 100);
+  assert.equal(res.transaction.totalAmount, 10000);
   assert.equal(store.Transaction.length, 1);
   assert.equal(store.JournalEntry.length, 2);
   assert.equal((store.account_audit_log || []).length, 2);
@@ -100,10 +100,10 @@ test('crear póliza: valida tenant, cuentas, inserta con signos y tipos', async 
   assert.equal(audit.performed_by, 'audit@test.com');
 
   const [débito, crédito] = store.JournalEntry;
-  assert.equal(débito.amount, 100);
+  assert.equal(débito.amount, 10000);
   assert.equal(débito.type, 'DEBIT');
   assert.equal(débito.transactionId, res.transaction.id);
-  assert.equal(crédito.amount, -100);
+  assert.equal(crédito.amount, -10000);
   assert.equal(crédito.type, 'CREDIT');
 
   const txInsert = calls.insert.find((c) => c.table === 'Transaction');
@@ -177,6 +177,7 @@ test('fecha inválida se rechaza', async () => {
       { ...input([line('a1', 5, true), line('a2', 5, false)]), date: 'no-fecha' },
     ),
     /date inválida/,
+  );
 });
 
 test('validación: monto mayor a cero en todas las líneas', () => {
@@ -224,9 +225,10 @@ test('createJournalTransaction: validación de balance global', async () => {
 });
 
 test('createJournalTransaction: auditoría con performedBy personalizable', async () => {
-  const { db } = makeFakeDb({
+  const { db, store } = makeFakeDb({
     accounts: [
       { id: 'a1', tenantId: 'T1' },
+      { id: 'a2', tenantId: 'T1' },
     ],
   });
   const res = await createJournalTransaction(
