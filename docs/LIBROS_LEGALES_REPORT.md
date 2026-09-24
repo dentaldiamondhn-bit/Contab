@@ -17,7 +17,7 @@
 | **ISV (Impuesto Sobre Ventas)** | Parcial | 1 página | 2 rutas | Config en Prisma | Supabase + Prisma |
 | **Cierre Anual** | Parcial | 1 página | 3 rutas | Config | Prisma |
 | **DIAT** | Completo | 1 página | 1 ruta | — | Supabase (libro_ventas, Purchase, companies) |
-| **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` (22 Sept 2026) | API | Datos reales | Generación automática |
+| **Declaraciones Anuales** | **Completo — declaraciones automáticas desde transacciones contables + exportación Excel + carga al portal SAR** | `app/reports/annual-tax/page.tsx` + `lib/reports/annual-tax.ts` + `lib/services/annual-tax-uploader.ts` + `app/api/accounting/annual-tax-upload/route.ts` (22-23 Sept 2026) | API | Datos reales | Generación automática + adaptador SAR |
 | **Libro Mayor y Libro Diario** | **Completo — generación automática + exportación Excel** | 1 página | 1 ruta | — | Supabase |
 
 ### 1.2 Métricas de Madurez
@@ -27,7 +27,7 @@
 | Completitud Funcional | ~97% | Libros, SAR 221, DIAT y Declaraciones Anuales completos |
 | Cobertura de Pruebas | 0% | No existen pruebas |
 | Exportación | ~93% | Declaraciones Anuales y los libros legales (Compras, Ventas, Retenciones, Mayor y Diario) exportan a Excel (23 Sept 2026); sin PDF profesional |
-| Cumplimiento SAR | ~65% | Formulario 221, DET y DIAT listos; sin envío en línea |
+| Cumplimiento SAR | ~75% | Formulario 221, DET, DIAT y Declaraciones Anuales con carga automática al portal SAR (credenciales cifradas AES-256-GCM, endpoint configurable); sin envío en línea para retenciones mensuales |
 | Integración Contable | ~40% | Retenciones sin asiento contable automático |
 
 ---
@@ -203,8 +203,10 @@
 
 | Archivo | Propósito |
 |---|---|
-| `app/reports/annual-tax/page.tsx` | Página de Declaraciones Anuales: 3 tarjetas (ISV/ISR/Retenciones) con montos reales desde transacciones contables, selector de año y botón "Exportar a Excel" (22 Sept 2026) |
+| `app/reports/annual-tax/page.tsx` | Página de Declaraciones Anuales: 3 tarjetas (ISV/ISR/Retenciones) con montos reales desde transacciones contables, selector de año, botón "Exportar a Excel" y conexión al portal SAR (configurar, probar conexión y subir declaraciones) (22-23 Sept 2026) |
 | `lib/reports/annual-tax.ts` | Declaraciones Anuales automáticas: clasificación por prefijo de cuenta, transform + grouping desde trial-balance, cálculo ISV (débito − crédito fiscal efectivo), ISR 25% y retenciones (reusa `withholding-book.ts`), formato Excel multi-hoja |
+| `lib/services/annual-tax-uploader.ts` | Adaptador de carga de Declaraciones Anuales → portal SAR: `submitAnnualTaxToSARR` (POST/PUT autenticado FormData + Basic, timeout 15s + retry, errorHint clasificado RED/CREDENCIALES/PORTAL/CONFIG) sobre credenciales cifradas AES-256-GCM + `validateAnnualTaxCompleteness` (errors bloqueantes / warnings permisivos) (23 Sept 2026) |
+| `app/api/accounting/annual-tax-upload/route.ts` | API de conexión SAR de declaraciones anuales: `get-config`, `save-config` (cifra credenciales por empresa en `system_settings` clave `annual_tax_sar_config:{empresa}`), `test` (round-trip de credenciales) y `upload` (validateAnnualTaxCompleteness → si hay errors NO envía y devuelve `validationErrors`; solo warnings envía + `warnings`; éxito devuelve `summaryPreview` con los montos reales enviados) (23 Sept 2026) |
 
 #### Capacidades
 
@@ -213,11 +215,14 @@
 - ISR: ingresos gravados (REVENUE) − deducciones (EXPENSE 5/6xxx) × tarifa corporativa 25%
 - Retenciones: misma clasificación/agrupación que `lib/reports/withholding-book.ts` sobre balances de cuentas LIABILITY de retención
 - Exportación a Excel (.xlsx) con 3 hojas (ISV/ISR/Retenciones), nombre `Declaraciones_Anuales_{empresa}_{año}.xlsx`
+- Conexión al portal SAR por empresa (endpoint configurable http(s), credenciales cifradas AES-256-GCM con `SAR_ENC_KEY`, método POST/PUT, periodo y tipo de declaración configurados, guardado en `system_settings` como `annual_tax_sar_config:{empresa}`)
+- Carga automática al portal SAR: `submitAnnualTaxToSARR` envía rtn, nombreDelContribuyente, periodo (año), formulario, totalISV_impuestoAPagar_o_saldoAFavor, baseISR, tasaISR (25), impuestoISR y retenciones_totales; con retry/timeout y clasificación de errores RED/CREDENCIALES/PORTAL/CONFIG
+- Validación previa de completitud (`validateAnnualTaxCompleteness`): errors bloquean la subida (falta RTN/nombre del emisor, base ISV/ISR o montos de retenciones); warnings (montos en cero) no bloquean — solo avisan y la declaración se sube igual
 
 #### Lo que Falta
 
 - ~~Datos reales pendientes~~ ✅ Conectado a datos reales desde transacciones contables + exportación Excel (22 Sept 2026)
-- Sin envío en línea al portal SAR
+- ~~Sin envío en línea al portal SAR~~ ✅ Carga automática al portal SAR (adaptador configurable `lib/services/annual-tax-uploader.ts` + API `app/api/accounting/annual-tax-upload/route.ts`, validación de completitud previa y conexión configurable con credenciales cifradas AES-256-GCM, 23 Sept 2026)
 
 ---
 
