@@ -135,11 +135,13 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {occupancyData?.summary?.averageOccupancyRate || 0}%
+              {occupancyData?.summary?.averageOccupancyRate != null
+                ? `${occupancyData.summary.averageOccupancyRate}%`
+                : 'Sin datos'}
             </div>
             <p className="text-xs text-cyan-600 flex items-center mt-1">
-              <TrendingUp className="h-3 w-3 mr-1" />
-              +10% horas rentadas
+              <Users className="h-3 w-3 mr-1" />
+              {occupancyData?.summary?.totalAtenciones ?? 0} atenciones · {occupancyData?.summary?.clientesAtendidos ?? 0} clientes
             </p>
           </CardContent>
         </Card>
@@ -214,27 +216,28 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
               </CardContent>
             </Card>
 
-            {/* Horas Totales Rentadas */}
+            {/* Actividad del Período */}
             <Card>
               <CardHeader>
                 <CardTitle className="text-lg flex items-center gap-2">
                   <Clock className="h-5 w-5 text-cyan-600" />
-                  Horas Rentadas
+                  Actividad del Período
                 </CardTitle>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">
-                  {occupancyData?.summary?.totalHoursRented || 0} hrs
+                  {occupancyData?.summary?.totalAtenciones ?? 0}
                 </div>
                 <p className="text-sm text-gray-600 mt-2">
-                  de {occupancyData?.summary?.totalHoursAvailable || 0} hrs disponibles
+                  atenciones registradas en el período
                 </p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-3">
-                  <div 
-                    className="bg-cyan-600 h-2 rounded-full" 
-                    style={{ width: `${occupancyData?.summary?.averageOccupancyRate || 0}%` }}
-                  />
+                <div className="flex justify-between mt-2 text-sm text-gray-600">
+                  <span>Clientes atendidos: {occupancyData?.summary?.clientesAtendidos ?? 0}</span>
+                  <span>Nuevos: {occupancyData?.summary?.clientesNuevos ?? 0}</span>
                 </div>
+                <p className="text-xs text-gray-500 mt-3">
+                  El sistema no registra capacidad horaria de consultorio; la ocupación (%) no está disponible.
+                </p>
               </CardContent>
             </Card>
           </div>
@@ -362,75 +365,149 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
         </TabsContent>
 
         <TabsContent value="occupancy" className="space-y-6">
-          {/* Mapa de Calor de Horarios */}
+          {/* Aviso honesto de fuente */}
+          <div className="p-4 bg-cyan-50 rounded-lg border border-cyan-200">
+            <p className="text-sm text-cyan-800">
+              El sistema no registra capacidad horaria ni horarios de consultorio, por lo que las tasas de ocupación
+              no están disponibles. Los datos mostrados provienen de facturación real del período.
+            </p>
+          </div>
+
+          {/* Distribución de atenciones por hora */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Clock className="h-5 w-5 text-cyan-600" />
-                Mapa de Calor - Ocupación por Horario
+                Atenciones por Hora del Día
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
-                {occupancyData?.heatmapByHour?.map((slot: any, idx: number) => (
-                  <div 
-                    key={idx}
-                    className={`p-3 rounded-lg text-center ${
-                      slot.demand === 'pico' ? 'bg-red-100 border-red-300' :
-                      slot.demand === 'alta' ? 'bg-orange-100 border-orange-300' :
-                      slot.demand === 'media' ? 'bg-yellow-100 border-yellow-300' :
-                      'bg-green-100 border-green-300'
-                    } border`}
-                  >
-                    <p className="text-xs text-gray-600">{slot.hour}</p>
-                    <p className="text-lg font-bold">{slot.occupancy}%</p>
-                    <Badge className={`text-xs ${
-                      slot.demand === 'pico' ? 'bg-red-500' :
-                      slot.demand === 'alta' ? 'bg-orange-500' :
-                      slot.demand === 'media' ? 'bg-yellow-500' :
-                      'bg-green-500'
-                    }`}>{slot.demand}</Badge>
-                  </div>
-                ))}
-              </div>
-              <p className="text-sm text-gray-600 mt-4">
-                💡 <strong>Insight:</strong> Horarios 8PM-10PM tienen baja ocupación. 
-                Considerar oferta con 20% de descuento para aumentar demanda.
-              </p>
+              {occupancyData?.heatmapByHour?.length ? (
+                <div className="grid grid-cols-4 md:grid-cols-8 gap-2">
+                  {occupancyData.heatmapByHour.map((slot: any, idx: number) => {
+                    const max = Math.max(...occupancyData.heatmapByHour.map((s: any) => s.facturas));
+                    const rel = max > 0 ? slot.facturas / max : 0;
+                    const colorClass =
+                      rel >= 0.75 ? 'bg-red-100 border-red-300' :
+                      rel >= 0.5 ? 'bg-orange-100 border-orange-300' :
+                      rel >= 0.25 ? 'bg-yellow-100 border-yellow-300' :
+                      'bg-green-100 border-green-300';
+                    return (
+                      <div key={idx} className={`p-3 rounded-lg text-center ${colorClass} border`}>
+                        <p className="text-xs text-gray-600">{slot.hour}</p>
+                        <p className="text-lg font-bold">{slot.facturas}</p>
+                        <p className="text-xs text-gray-500">atenciones</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 py-6 text-center">
+                  Sin datos registrados en el período.
+                </p>
+              )}
             </CardContent>
           </Card>
 
-          {/* Retención de Arrendatarios */}
+          {/* Distribución por día de la semana */}
           <Card>
             <CardHeader>
               <CardTitle className="text-lg flex items-center gap-2">
                 <Users className="h-5 w-5 text-cyan-600" />
-                Retención de Arrendatarios
+                Atenciones por Día de la Semana
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {occupancyData?.occupancyByDay?.length ? (
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                  {occupancyData.occupancyByDay.map((d: any, idx: number) => (
+                    <div key={idx} className="p-3 bg-gray-50 rounded-lg text-center">
+                      <p className="text-sm text-gray-600 capitalize">{d.day}</p>
+                      <p className="text-lg font-bold">{d.facturas}</p>
+                      <p className="text-xs text-gray-500">atenciones</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-gray-500 py-6 text-center">
+                  Sin datos registrados en el período.
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Estacionalidad mensual */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-cyan-600" />
+                Atenciones por Mes (últimos 6 meses)
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-2 text-left">Mes</th>
+                      <th className="px-4 py-2 text-right">Atenciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {occupancyData?.seasonality?.months?.map((m: any, idx: number) => (
+                      <tr key={idx} className="border-b">
+                        <td className="px-4 py-3 font-medium">{m.month}</td>
+                        <td className="px-4 py-3 text-right">{m.facturas}</td>
+                      </tr>
+                    ))}
+                    {(!occupancyData?.seasonality?.months || occupancyData.seasonality.months.length === 0) && (
+                      <tr>
+                        <td colSpan={2} className="px-4 py-6 text-center text-gray-500">
+                          Sin datos registrados.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Retención de Clientes */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5 text-cyan-600" />
+                Retención de Clientes
               </CardTitle>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                 <div className="p-4 bg-cyan-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Tasa de Retención</p>
-                  <p className="text-2xl font-bold text-cyan-600">{occupancyData?.summary?.retentionRate || 0}%</p>
+                  <p className="text-sm text-gray-600">Clientes Recurrentes</p>
+                  <p className="text-2xl font-bold text-cyan-600">
+                    {occupancyData?.summary?.retentionRate != null ? `${occupancyData.summary.retentionRate}%` : 'Sin datos'}
+                  </p>
                 </div>
                 <div className="p-4 bg-green-50 rounded-lg">
                   <p className="text-sm text-gray-600">Antigüedad Promedio</p>
-                  <p className="text-2xl font-bold text-green-600">{occupancyData?.tenantRetention?.averageTenure || 0} meses</p>
+                  <p className="text-2xl font-bold text-green-600">
+                    {occupancyData?.tenantRetention?.averageTenure != null ? `${occupancyData.tenantRetention.averageTenure} meses` : 'Sin datos'}
+                  </p>
                 </div>
                 <div className="p-4 bg-purple-50 rounded-lg">
-                  <p className="text-sm text-gray-600">Arrendatarios Recurrentes</p>
-                  <p className="text-2xl font-bold text-purple-600">{occupancyData?.tenantRetention?.returningTenants || 0}</p>
+                  <p className="text-sm text-gray-600">Clientes Recurrentes</p>
+                  <p className="text-2xl font-bold text-purple-600">{occupancyData?.tenantRetention?.returningTenants ?? 0}</p>
                 </div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50">
                     <tr>
-                      <th className="px-4 py-2 text-left">Arrendatario</th>
-                      <th className="px-4 py-2 text-center">Meses</th>
+                      <th className="px-4 py-2 text-left">Cliente</th>
+                      <th className="px-4 py-2 text-center">Meses de Antigüedad</th>
                       <th className="px-4 py-2 text-center">Estado</th>
-                      <th className="px-4 py-2 text-right">Ingresos Generados</th>
+                      <th className="px-4 py-2 text-right">Ingresos del Período</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -446,6 +523,13 @@ export default function BusinessReportsPage({ params }: BusinessReportsPageProps
                         <td className="px-4 py-2 text-right">{formatCurrency(tenant.revenue)}</td>
                       </tr>
                     ))}
+                    {(!occupancyData?.tenantRetention?.retentionByTenant || occupancyData.tenantRetention.retentionByTenant.length === 0) && (
+                      <tr>
+                        <td colSpan={4} className="px-4 py-6 text-center text-gray-500">
+                          No hay atenciones registradas para este período.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
