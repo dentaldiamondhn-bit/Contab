@@ -7,6 +7,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     
     const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id");
+    const companyId = searchParams.get("companyId") || searchParams.get("company_id");
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined;
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined;
     
@@ -32,6 +33,9 @@ export async function GET(request: NextRequest) {
       query = query.eq("tenantId", tenantId);
     } else {
       query = query.in("tenantId", ['1', 'tenant_001']);
+    }
+    if (companyId) {
+      query = query.eq("company_id", companyId);
     }
     
     if (startDate) {

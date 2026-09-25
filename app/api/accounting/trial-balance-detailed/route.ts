@@ -8,12 +8,14 @@ function toTenantId(
   return (
     searchParams.get("tenantId") ||
     searchParams.get("companyId") ||
+    searchParams.get("company_id") ||
     request.headers.get("x-tenant-id")
   );
 }
 
 async function fetchDetailed(
   tenantId: string,
+  companyId: string | undefined,
   startDate: Date | undefined,
   endDate: Date | undefined
 ): Promise<any[]> {
@@ -25,7 +27,9 @@ async function fetchDetailed(
       );
     if (startDate) q = q.gte("date", startDate.toISOString());
     if (endDate) q = q.lte("date", endDate.toISOString());
-    q = q.eq(col, tenantId).order("date", { ascending: true });
+    q = q.eq(col, tenantId);
+    if (companyId) q = q.eq("company_id", companyId);
+    q = q.order("date", { ascending: true });
     return await q;
   };
 
@@ -39,6 +43,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const tenantId = toTenantId(request);
+    const companyId = searchParams.get("companyId") || searchParams.get("company_id");
     const startDate = searchParams.get("startDate")
       ? new Date(searchParams.get("startDate")!)
       : undefined;
@@ -53,7 +58,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const transactions = await fetchDetailed(tenantId, startDate, endDate);
+    const transactions = await fetchDetailed(tenantId, companyId, startDate, endDate);
 
     const items: any[] = [];
     (transactions || []).forEach((tx: any) => {

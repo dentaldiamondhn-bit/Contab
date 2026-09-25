@@ -1,9 +1,15 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { db } from '@/lib/db';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId') || searchParams.get('company_id');
+
+    // Helper para agregar filtro de company_id (snake_case en BD), patrón visto en tenant-admin/dashboard
+    const withCompany = (query: any) => companyId ? query.eq('company_id', companyId) : query;
+
     // Get current month stats
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -12,6 +18,7 @@ export async function GET() {
     // Get transaction count for current month
     const currentMonthTransactions = await db.transaction.count({
       where: {
+        ...(companyId ? { company_id: companyId } : {}),
         date: {
           gte: startOfMonth,
           lte: endOfMonth,
@@ -20,19 +27,33 @@ export async function GET() {
     });
 
     // Get total transactions
-    const totalTransactions = await db.transaction.count();
+    const totalTransactions = await db.transaction.count({
+      where: {
+        ...(companyId ? { company_id: companyId } : {}),
+      },
+    });
 
     // Get total accounts
-    const totalAccounts = await db.account.count();
+    const totalAccounts = await db.account.count({
+      where: {
+        ...(companyId ? { company_id: companyId } : {}),
+      },
+    });
 
-    // Sum real ingresos (voucherType INGRESO) and egresos (EGRESO) in céntimos
+    // Sum real ingresos (voucherType INGRESO) and egresos (EGRESO) en céntimos
     const ingresos = await db.transaction.aggregate({
       _sum: { totalAmount: true },
-      where: { voucherType: 'INGRESO' },
+      where: {
+        ...(companyId ? { company_id: companyId } : {}),
+        voucherType: 'INGRESO',
+      },
     });
     const egresos = await db.transaction.aggregate({
       _sum: { totalAmount: true },
-      where: { voucherType: 'EGRESO' },
+      where: {
+        ...(companyId ? { company_id: companyId } : {}),
+        voucherType: 'EGRESO',
+      },
     });
 
     const totalRevenue = Number(ingresos._sum.totalAmount || 0n) / 100;
@@ -42,9 +63,9 @@ export async function GET() {
     // Tasa de cobro real desde la tabla de facturas (pagos recibidos / facturado)
     let collectionRate = 0;
     try {
-      const { data: invoices, error } = await getSupabaseServer()
-        .from('Invoice')
-        .select('total, status');
+      const supabase = getSupabaseServer();
+      const query = companyId ? supabase.from('Invoice').select('total, status').eq('company_id', companyId) : supabase.from('Invoice').select('total, status');
+      const { data: invoices, error } = await query;
 
       if (!error && invoices) {
         const paidRevenue = invoices
