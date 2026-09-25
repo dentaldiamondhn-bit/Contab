@@ -44,22 +44,22 @@ export default function DashboardPage() {
   const readIsImpersonatingCookie = () =>
     typeof document !== 'undefined' && document.cookie.includes('impersonated_tenant_id=');
 
-   useEffect(() => {
-     // Si estamos en modo impersonación (cookie seteada por TenantContext o manualmente),
-     // no redirigir por rol de administrador — el usuario está viendo el dashboard como cliente.
-     if (!user || !isLoaded || !mounted || readIsImpersonatingCookie()) return;
-     
-     // Check multiple sources for role metadata (same as in auth-utils)
-     const userRole = user.publicMetadata?.role ||
-                     user.unsafeMetadata?.role ||
-                     (user as any).privateMetadata?.role;
-                     
-     if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
-       router.replace('/admin/dashboard');
-     } else if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'TENANT_ADMIN') {
-       router.replace('/tenant-admin/dashboard');
-     }
-   }, [user, isLoaded, mounted, router]);
+useEffect(() => {
+      // Si estamos en modo impersonación (cookie seteada por TenantContext o manualmente),
+      // no redirigir por rol de administrador — el usuario está viendo el dashboard como cliente.
+      if (!user || !isLoaded || !mounted || readIsImpersonatingCookie()) return;
+      
+      // Check multiple sources for role metadata (same as in auth-utils)
+      const userRole = user.publicMetadata?.role ||
+                      user.unsafeMetadata?.role ||
+                      (user as any).privateMetadata?.role;
+          
+      if (userRole === 'SUPER_ADMIN' || userRole === 'SUPPORT') {
+        router.replace('/admin/dashboard');
+      } else if (userRole === 'ADMIN' || userRole === 'MANAGER' || userRole === 'TENANT_ADMIN') {
+        router.replace('/tenant-admin/dashboard');
+      }
+    }, [user, isLoaded, mounted, router, currentCompany]);
 
     // Mostrar loading mientras se verifica el rol (incluye isLoaded para que Clerk termine de hidratar)
     console.log('[DashboardPage] render check:', { user: !!user, isLoaded, mounted, currentTenant: !!currentTenant, userRole: user?.publicMetadata?.role });

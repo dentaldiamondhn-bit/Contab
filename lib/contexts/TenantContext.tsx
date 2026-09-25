@@ -301,6 +301,7 @@ export function TenantProvider({ children, initialTenants = [] }: TenantProvider
   const setCompany = (company: Company) => {
     console.log('DEBUG setCompany called with:', company);
     setCurrentCompanyState(company);
+    router.push(`/companies/${company.id}?companyId=${company.id}`);
     if (typeof window !== 'undefined') {
       localStorage.setItem('selected_company', JSON.stringify(company));
     }

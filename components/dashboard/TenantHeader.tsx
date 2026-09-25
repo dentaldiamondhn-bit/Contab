@@ -153,7 +153,10 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                     value={currentCompany.id}
                     onChange={(e) => {
                       const found = companies.find(c => c.id === e.target.value);
-                      if (found) setCompany(found);
+                      if (found) {
+                        setCompany(found);
+                        router.push(`/companies/${found.id}?companyId=${found.id}`);
+                      }
                     }}
                     className="h-9 px-3 py-1.5 bg-cyan-600/50 border-cyan-500/50 text-white text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 appearance-none pr-8 bg-[url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22m6 9 6 6 6-6%22/%3E%3C/svg%3E')] bg-right-2 bg-no-repeat"
                   >
