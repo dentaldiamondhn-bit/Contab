@@ -10,15 +10,24 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
+    // Obtener companyId de query param para filtrado adicional
+    const { searchParams } = new URL(request.url);
+    const companyIdQuery = searchParams.get('companyId');
+
     // Obtener transacciones reales del tenant para los últimos meses
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - (MONTHS_TO_SHOW - 1), 1);
 
     let transactions: any[] = [];
-    let { data, error } = await supabaseService
+    let query = supabaseService
       .from('Transaction')
-      .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
-      .eq('tenant_id', companyId)
+      .select('id, voucherType, voucher_type, totalAmount, total_amount, date');
+    if (companyIdQuery) {
+      query = query.eq('company_id', companyIdQuery);
+    } else {
+      query = query.eq('tenant_id', companyId);
+    }
+    let { data, error } = await query
       .gte('date', startDate.toISOString().split('T')[0]);
 
     if (error || !data || data.length === 0) {

@@ -21,7 +21,7 @@ export async function GET(request: Request) {
       .eq('tenantId', tenantId);
 
     if (companyId) {
-      query = query.eq('companyId', companyId);
+      query = query.eq('company_id', companyId);
     }
 
     const { data: invoices, error } = await query;

@@ -7,11 +7,20 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
+    // Obtener companyId de query param para filtrado adicional
+    const { searchParams } = new URL(request.url);
+    const companyIdQuery = searchParams.get('companyId');
+
     // Costos reales desde la tabla cost_payments del tenant
-    const { data, error } = await supabaseService
+    let costQuery = supabaseService
       .from('cost_payments')
-      .select('cost_type, cost_key, amount')
-      .eq('tenant_id', companyId);
+      .select('cost_type, cost_key, amount');
+    if (companyIdQuery) {
+      costQuery.eq('company_id', companyIdQuery);
+    } else {
+      costQuery.eq('tenant_id', companyId);
+    }
+    const { data, error } = await costQuery;
 
     if (error) {
       console.error('Error fetching costs:', error);
@@ -60,7 +69,7 @@ export async function POST(
 
     Object.entries(fixed).forEach(([key, value]) => {
       rows.push({
-        tenant_id: companyId,
+        tenant_id: companyIdQuery || companyId,
         cost_type: 'fixed',
         cost_key: key,
         amount: Number(value) || 0,
@@ -69,7 +78,7 @@ export async function POST(
     });
     Object.entries(variable).forEach(([key, value]) => {
       rows.push({
-        tenant_id: companyId,
+        tenant_id: companyIdQuery || companyId,
         cost_type: 'variable',
         cost_key: key,
         amount: Number(value) || 0,

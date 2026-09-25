@@ -92,6 +92,7 @@ export interface CreateJournalInput {
   voucherType?: VoucherType;
   reference?: string;
   entries: JournalEntryInput[];
+  companyId?: string;
 }
 
 // ---------------------------------------------------------------------------

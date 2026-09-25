@@ -12,7 +12,7 @@ async function getTenantFromRequest(request: NextRequest) {
   if (!tenantId) {
     return null;
   }
- 
+  
   return { id: tenantId };
 }
 
@@ -185,8 +185,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
 
+    // Merge companyId from query param into body if present
+    // Esto permite que companyId venga por query string y sea usado por createJournalTransaction
+    const mergedBody = body && body.companyId === undefined ? { ...body, companyId: tenant.companyId } : body;
+
     // Validación básica (el servicio revalida a fondo: balance, cuentas, fecha)
-    if (!body || typeof body !== "object") {
+    if (!mergedBody || typeof mergedBody !== "object") {
       return NextResponse.json({ error: "Cuerpo inválido" }, { status: 400 });
     }
 
@@ -198,7 +202,7 @@ export async function POST(request: NextRequest) {
     const { transaction, entries } = await createJournalTransaction(
       supabaseService,
       tenant.id,
-      body,
+      mergedBody,
       { performedBy },
     );
 

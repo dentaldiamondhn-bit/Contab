@@ -172,7 +172,7 @@ export async function POST(request: NextRequest) {
       request.headers.get('x-user-email') ||
       'system';
 
-    const { transaction, entries } = await createJournalTransaction(
+const { transaction, entries } = await createJournalTransaction(
       supabaseService,
       tenantId,
       {
@@ -191,9 +191,10 @@ export async function POST(request: NextRequest) {
             accountId: liability.id,
             amount: retAmount,
             isDebit: false,
-            description: `Retención ${item.tipoRetencion} ${round2(item.tasa * 100)}% por pagar`,
+            description: `Retención ${item.tasa * 100}% por pagar`,
           },
         ],
+        companyId: body?.companyId || undefined,
       },
       { performedBy }
     );

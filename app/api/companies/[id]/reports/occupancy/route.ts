@@ -80,6 +80,10 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
+    // Obtener companyId de query param para filtrado adicional
+    const { searchParams } = new URL(request.url);
+    const companyIdQuery = searchParams.get('companyId');
+
     // Período actual (mes en curso), mismo patrón que kpis
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -90,20 +94,30 @@ export async function GET(
 
     // Facturas reales del tenant (se omiten anuladas)
     let invoices: any[] = [];
-    let { data: invData, error: invError } = await supabaseService
+    let query = supabaseService
       .from('Invoice')
       .select(
         'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id'
-      )
-      .eq('tenantId', companyId);
+      );
+    if (companyIdQuery) {
+      query = query.eq('company_id', companyIdQuery);
+    } else {
+      query = query.eq('tenantId', companyId);
+    }
+    let { data: invData, error: invError } = await query;
 
     if (invError || !invData || invData.length === 0) {
-      const alt = await supabaseService
+      const altQuery = supabaseService
         .from('Invoice')
         .select(
           'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id'
-        )
-        .eq('tenant_id', companyId);
+        );
+      if (companyIdQuery) {
+        altQuery.eq('company_id', companyIdQuery);
+      } else {
+        altQuery.eq('tenantId', companyId);
+      }
+      const alt = await altQuery;
       if (!alt.error && alt.data) {
         invData = alt.data;
       }

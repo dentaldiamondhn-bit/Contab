@@ -15,11 +15,19 @@ export async function GET(
 
     // Transacciones reales del tenant en el período
     let transactions: any[] = [];
-    let { data: txData, error: txError } = await supabaseService
+    const { searchParams } = new URL(request.url);
+    const companyId = searchParams.get('companyId');
+    let query = supabaseService
       .from('Transaction')
-      .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
-      .eq('tenant_id', companyId)
+      .select('id, voucherType, voucher_type, totalAmount, total_amount, date');
+    if (companyId) {
+      query = query.eq('company_id', companyId);
+    } else {
+      query = query.eq('tenant_id', companyId);
+    }
+    let { data: txData, error: txError } = await query
       .gte('date', startOfMonth.toISOString().split('T')[0]);
+
 
     if (txError || !txData || txData.length === 0) {
       const alt = await supabaseService
@@ -52,16 +60,23 @@ export async function GET(
 
     // Facturación y cobros reales desde Invoice (se omiten anuladas)
     let invoices: any[] = [];
-    let { data: invData, error: invError } = await supabaseService
+    const { searchParams } = new URL(request.url);
+    const companyIdQuery = searchParams.get('companyId');
+    let query = supabaseService
       .from('Invoice')
-      .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id')
-      .eq('tenantId', companyId);
+      .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id');
+    if (companyIdQuery) {
+      query = query.eq('company_id', companyIdQuery);
+    } else {
+      query = query.eq('tenantId', companyId);
+    }
+    let { data: invData, error: invError } = await query;
 
     if (invError || !invData || invData.length === 0) {
       const alt = await supabaseService
         .from('Invoice')
         .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id')
-        .eq('tenant_id', companyId);
+        .eq('tenantId', companyId);
       if (!alt.error && alt.data) {
         invData = alt.data;
       }
@@ -100,10 +115,15 @@ export async function GET(
 
     // Costo de mantenimiento real desde cost_payments
     let maintenanceCost: number | null = null;
-    const { data: costRows, error: costsError } = await supabaseService
+    const costQuery = supabaseService
       .from('cost_payments')
-      .select('cost_type, cost_key, amount')
-      .eq('tenant_id', companyId)
+      .select('cost_type, cost_key, amount');
+    if (companyIdQuery) {
+      costQuery.eq('company_id', companyIdQuery);
+    } else {
+      costQuery.eq('tenant_id', companyId);
+    }
+    const { data: costRows, error: costsError } = await costQuery
       .eq('cost_key', 'maintenance');
     if (!costsError && costRows && costRows.length > 0) {
       maintenanceCost = Math.round(

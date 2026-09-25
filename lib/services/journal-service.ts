@@ -184,9 +184,11 @@ export async function createJournalTransaction(
   const totalAmountCents = Math.round(totalDebit * 100);
   const nowIso = now.toISOString();
 
+  const txCompanyId = input.companyId || null;
   const txInsert = (client.from('Transaction').insert({
     id: crypto.randomUUID(),
     tenantId,
+    companyId: txCompanyId,
     date: dateIso,
     description: input.description.trim(),
     voucherType,
@@ -219,6 +221,7 @@ export async function createJournalTransaction(
       transactionId: txId,
       accountId: l.accountId,
       tenantId,
+      companyId: input.companyId || null,
       amount: signedCents,
       originalAmount: absCents,
       type: l.debit > 0 ? 'DEBIT' : 'CREDIT',
