@@ -14,14 +14,15 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '@/components/ui/table';
-import { AlertTriangle, Plus, Download, Pencil } from 'lucide-react';
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { AlertTriangle, Plus, Download, Pencil, Upload, FileText } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface Warehouse {
   id: string;
@@ -48,6 +49,7 @@ interface StockRow {
 export default function WarehousesManager({ companyId }: { companyId: string }) {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [stock, setStock] = useState<StockRow[]>([]);
+  const [locationCounts, setLocationCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [missingMigration, setMissingMigration] = useState(false);
@@ -61,6 +63,11 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
   const [formLocation, setFormLocation] = useState('');
   const [formDescription, setFormDescription] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message?: string; errors?: { row: number; message: string }[]; warnings?: { row: number; message: string }[] } | null>(null);
 
   const base = `/api/companies/${companyId}/inventory/warehouses`;
   const stockUrl = (wh: string) =>
@@ -89,6 +96,7 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
         }
         setWarehouses(whBody.data.warehouses || []);
         setStock(stockBody.data.stock || []);
+        setLocationCounts(stockBody.data.locationCounts || {});
       } catch (e) {
         setError(e instanceof Error ? e.message : 'Error al cargar');
       } finally {
@@ -167,6 +175,73 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
     }
   };
 
+  const TEMPLATE_HEADERS = ['code', 'name', 'location', 'description'];
+  const TEMPLATE_SAMPLE = ['PRINCIPAL', 'Bodega Principal', 'Edificio Principal - Planta Baja', 'Almacén principal'];
+
+  const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
+    const rows = [TEMPLATE_HEADERS, TEMPLATE_SAMPLE];
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Almacenes');
+      XLSX.writeFile(wb, 'plantilla_almacenes.xlsx');
+      return;
+    }
+    const escapeCsv = (v: string) => {
+      const s = String(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = '\ufeff' + rows.map(row => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_almacenes.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      setImportResult({ success: true, message: 'Seleccione un archivo para continuar' });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('tenantId', companyId);
+      const res = await fetch(`${base}/import`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setImportResult({
+          success: true,
+          message: data.message || 'Importación completada',
+          errors: data.errors || [],
+          warnings: data.warnings || [],
+        });
+        loadAll(filterWarehouse);
+        setTimeout(() => {
+          setShowImportModal(false);
+          setImportFile(null);
+          setImportResult(null);
+        }, 1200);
+      } else {
+        setImportResult({ success: false, message: data?.error || 'Error al importar el archivo' });
+      }
+    } catch (e) {
+      console.error('Warehouses import exception:', e);
+      setImportResult({ success: false, message: 'Error al importar el archivo' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const filteredStock = stock.filter(
     (r) =>
       search === '' ||
@@ -227,10 +302,26 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h2 className="text-xl font-bold">Almacenes</h2>
-        <Button onClick={openCreate} className="flex items-center gap-2">
-          <Plus className="w-4 h-4" /> Nuevo Almacén
-        </Button>
+        <div>
+          <h2 className="text-xl font-bold">Almacenes</h2>
+          <p className="text-sm text-gray-500">
+            Bodegas y centros de distribución para el control de stock
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => { setImportFile(null); setImportResult(null); setShowImportModal(true); }}>
+            <Upload className="w-4 h-4 mr-2" /> Subir Archivo
+          </Button>
+          <Button variant="outline" onClick={() => handleDownloadTemplate('xlsx')}>
+            <Download className="w-4 h-4 mr-2" /> Plantilla Excel
+          </Button>
+          <Button variant="outline" onClick={() => handleDownloadTemplate('csv')}>
+            <FileText className="w-4 h-4 mr-2" /> Plantilla CSV
+          </Button>
+          <Button onClick={openCreate} className="flex items-center gap-2">
+            <Plus className="w-4 h-4" /> Nuevo Almacén
+          </Button>
+        </div>
       </div>
 
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -292,33 +383,60 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {warehouses.map((w) => (
-          <Card key={w.id} className={!w.is_active ? 'opacity-60' : ''}>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-base">{w.name}</CardTitle>
-              <Badge variant={w.is_active ? 'default' : 'secondary'}>
-                {w.is_active ? 'Activo' : 'Inactivo'}
-              </Badge>
-            </CardHeader>
-            <CardContent>
-              <p className="text-sm text-gray-500">Código: {w.code}</p>
-              {w.location && <p className="text-sm text-gray-500">{w.location}</p>}
-              <p className="text-sm font-medium mt-2">
-                Stock: {stock.filter((r) => r.warehouse_id === w.id).reduce((s, r) => s + r.stock, 0)} uds.
-              </p>
-              <div className="flex gap-2 mt-3">
-                <Button variant="outline" size="sm" onClick={() => openEdit(w)}>
-                  <Pencil className="w-3 h-3 mr-1" /> Editar
-                </Button>
-                <Button variant="outline" size="sm" onClick={() => toggleActive(w)}>
-                  {w.is_active ? 'Desactivar' : 'Activar'}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Almacenes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <table className="w-full">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Código</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Nombre</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Ubicación</th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Ubicaciones</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Stock</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Estado</th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">Acciones</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {warehouses.map((w) => (
+                <tr key={w.id} className={!w.is_active ? 'opacity-60 hover:bg-gray-50' : 'hover:bg-gray-50'}>
+                  <td className="px-4 py-3 text-sm font-medium">{w.code}</td>
+                  <td className="px-4 py-3 text-sm">
+                    <div className="font-medium">{w.name}</div>
+                    {w.description && <div className="text-xs text-gray-500">{w.description}</div>}
+                  </td>
+                  <td className="px-4 py-3 text-sm">{w.location || '—'}</td>
+                  <td className="px-4 py-3 text-sm text-center font-medium">
+                    {locationCounts[w.id] ?? 0}
+                    {locationCounts[w.id] ? (
+                      <span className="block text-xs text-gray-400">ubicac.</span>
+                    ) : null}
+                  </td>
+                  <td className="px-4 py-3 text-sm text-right font-medium">
+                    {stock.filter((r) => r.warehouse_id === w.id).reduce((s, r) => s + r.stock, 0)} uds.
+                  </td>
+                  <td className="px-4 py-3 text-sm">
+                    <Badge variant={w.is_active ? 'default' : 'secondary'}>
+                      {w.is_active ? 'Activo' : 'Inactivo'}
+                    </Badge>
+                  </td>
+                  <td className="px-4 py-3 text-sm text-center">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(w)}>
+                      <Pencil className="w-3 h-3 mr-1" /> Editar
+                    </Button>
+                    <Button variant="outline" size="sm" className="ml-1" onClick={() => toggleActive(w)}>
+                      {w.is_active ? 'Desactivar' : 'Activar'}
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -354,45 +472,130 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
               Sin movimientos registrados por almacén. Los movimientos con almacén asignado aparecen aquí.
             </p>
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Almacén</TableHead>
-                  <TableHead>Producto</TableHead>
-                  <TableHead className="text-right">Stock</TableHead>
-                  <TableHead className="text-right">Mínimo</TableHead>
-                  <TableHead className="text-right">Valorizado</TableHead>
-                  <TableHead>Estado</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {filteredStock.map((r, i) => (
-                  <TableRow key={`${r.warehouse_id}-${r.product_id}-${i}`}>
-                    <TableCell>
-                      <div className="font-medium">{r.warehouse_name}</div>
-                      <div className="text-xs text-gray-500">{r.warehouse_code}</div>
-                    </TableCell>
-                    <TableCell>
-                      <div className="font-medium">{r.product_code}</div>
-                      <div className="text-xs text-gray-500">{r.product_name}</div>
-                    </TableCell>
-                    <TableCell className="text-right font-medium">{r.stock}</TableCell>
-                    <TableCell className="text-right">{r.min_stock}</TableCell>
-                    <TableCell className="text-right">{formatCurrency(r.stock * r.unit_cost)}</TableCell>
-                    <TableCell>
-                      {r.low_stock ? (
-                        <Badge variant="destructive">Bajo stock</Badge>
-                      ) : (
-                        <Badge variant="default">OK</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <table className="w-full">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Almacén</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Producto</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Stock</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Mínimo</th>
+                    <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">Valorizado</th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">Estado</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {filteredStock.map((r, i) => (
+                    <tr key={`${r.warehouse_id}-${r.product_id}-${i}`} className="hover:bg-gray-50">
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-medium">{r.warehouse_name}</div>
+                        <div className="text-xs text-gray-500">{r.warehouse_code}</div>
+                        {locationCounts[r.warehouse_id] != null && (
+                          <div className="text-xs text-gray-500">
+                            {locationCounts[r.warehouse_id] || 0} ubicacion{locationCounts[r.warehouse_id] === 1 ? '' : 'es'}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        <div className="font-medium">{r.product_code}</div>
+                        <div className="text-xs text-gray-500">{r.product_name}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-right font-medium">{r.stock}</td>
+                      <td className="px-4 py-3 text-sm text-right">{r.min_stock}</td>
+                      <td className="px-4 py-3 text-sm text-right">{formatCurrency(r.stock * r.unit_cost)}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {r.low_stock ? (
+                          <Badge variant="destructive">Bajo stock</Badge>
+                        ) : (
+                          <Badge variant="default">OK</Badge>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
           )}
         </CardContent>
       </Card>
+
+      {/* Import Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar Almacenes desde Archivo</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription className="text-sm">
+                Suba un archivo <strong>CSV</strong> o <strong>Excel (.xlsx / .xls)</strong> con los almacenes.
+                Requiere las columnas <code className="font-mono text-xs bg-muted px-1 rounded">code</code> y{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">name</code>. Los códigos ya existentes
+                se omiten automáticamente.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-gray-500">Descargue la plantilla para ver el formato:</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('xlsx')}>
+                  <Download className="w-4 h-4 mr-2" /> Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('csv')}>
+                  <Download className="w-4 h-4 mr-2" /> CSV
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Archivo</Label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls,.txt"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportResult(null);
+                }}
+              />
+            </div>
+
+            {importResult && (
+              <>
+                <Alert variant={importResult.success ? 'default' : 'destructive'}>
+                  <AlertDescription>
+                    {importResult.message}
+                    {importResult.errors && importResult.errors.length > 0 && (
+                      <div className="mt-2 space-y-1 max-h-40 overflow-y-auto text-sm">
+                        {importResult.errors.map((err, i) => (
+                          <div key={i} className="text-xs">Fila {err.row > 0 ? err.row : '—'}: {err.message}</div>
+                        ))}
+                      </div>
+                    )}
+                  </AlertDescription>
+                </Alert>
+                {importResult.warnings && importResult.warnings.length > 0 && (
+                  <Alert className="border-yellow-300 bg-yellow-50 text-yellow-800">
+                    <AlertDescription>
+                      <div className="font-medium text-sm mb-1">Avisos:</div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto text-sm">
+                        {importResult.warnings.map((warn, i) => (
+                          <div key={i} className="text-xs">Fila {warn.row > 0 ? warn.row : '—'}: {warn.message}</div>
+                        ))}
+                      </div>
+                    </AlertDescription>
+                  </Alert>
+                )}
+              </>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportModal(false)}>Cerrar</Button>
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? 'Importando...' : 'Importar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

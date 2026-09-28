@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Consulta simplificada sin filtros
     const { data: allCai, error: allError } = await supabase

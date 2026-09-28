@@ -11,6 +11,8 @@
 | **Movimientos de Inventario** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Alertas de Stock** | Parcial | En página | 1 ruta | — | Cálculos en código |
 | **Reportes de Inventario** | Completo | 1 componente | 1 ruta | — | Supabase |
+| **Dashboard de Inventario** | Completo (28 Sept 2026) | 1 página + 1 componente | 1 ruta | — | Supabase |
+| **Ubicación (física) de Producto** | Completo (28 Sept 2026) | En página + kardex + dashboard | 1 ruta | Columna `location` en `product` | Supabase |
 | **Categorías y Paquetes** | Parcial | En página | 0 rutas | — | Supabase |
 | **Importación Masiva** | Completo | En página | — | — | Excel/CSV |
 | **Almacenes** | Completo (Etapa 2) | 1 tab + componente | 2 rutas | 1 tabla (`warehouse`) | Supabase |
@@ -48,7 +50,7 @@
 
 #### Tablas de Base de Datos
 
-- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id
+- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, location, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id
 
 > Las tablas legacy `Product` (PascalCase) y `products` (plural) y la **vista** `Products` fueron eliminadas en la migración 008 (16 Sept 2026). Backups: `_backup_product_008`, `_backup_products_008`.
 
@@ -106,6 +108,26 @@
 | `components/inventory/InventoryReports.tsx` | Resumen, valoración por categoría, rotación, stock muerto, KPIs, CSV export |
 | `components/legal/InventoryBalanceBook.tsx` | Libro legal de inventarios y balances |
 | `app/api/dashboard/inventory-stats/route.ts` | API de estadísticas |
+
+#### Dashboard de Inventario (28 Sept 2026)
+
+| Archivo | Propósito |
+|---|---|
+| `app/api/companies/[id]/inventory/stats/route.ts` | API de estadísticas: KPIs, tendencia mensual, entradas/salidas por período, categorías, top 10 productos por valor, stock por almacén, 20 movimientos recientes. Params `months=3/6/12` y `warehouseId` (multiempresa) |
+| `components/inventory/InventoryDashboard.tsx` | UI con Recharts (KPIs, gráficos de tendencia/IN-OUT/categorías), filtros por período y almacén, exportación CSV client-side; muestra ubicación en "Top Productos" y "Movimientos Recientes" |
+| `app/companies/[id]/inventory/dashboard/page.tsx` | Página del dashboard |
+| `app/companies/[id]/modules/page.tsx`, `components/RoleBasedSidebar.tsx` | Accesos rápidos al dashboard (`/inventory/dashboard`) desde módulos y sidebar |
+| Botón "Dashboard" en `app/companies/[id]/inventory/page.tsx` | Acceso directo desde la página de inventario |
+
+#### Ubicación Física de Producto (28 Sept 2026)
+
+| Cambio | Detalle |
+|---|---|
+| Migración | `prisma/migrations/015_product_location.sql` — `ALTER TABLE product ADD COLUMN IF NOT EXISTS location TEXT` + índice `idx_product_location` (idempotente; ⚠️ ejecutar en SQL Editor de Supabase) |
+| API | `app/api/inventory/products/route.ts` — POST y PATCH aceptan y persisten `location` |
+| UI | Tabla de productos con columna **Ubicación** (entre Unidad y Stock, muestra "—" si está vacía), campo "Ubicación" en modales de crear/editar y en el reset del formulario (`app/companies/[id]/inventory/page.tsx`) |
+| Kardex | `app/companies/[id]/inventory/kardex/page.tsx` — muestra ubicación en el selector de producto y en el panel de información del producto seleccionado |
+| Dashboard | `location` incluida en el select de la API de stats y mostrada en "Top Productos" y "Movimientos Recientes" |
 
 #### Lo que Falta
 
@@ -213,3 +235,45 @@ Etapa 2 completada: almacenes funcionales, stock por almacén derivado del karde
 | Variaciones de inventario (17 Sept 2026) | `aggregateStockAt` + `periodFlows` en `transfer-calc.ts`; `getInventoryVariations` (stock acumulado al cierre de cada mes + flujos IN/OUT por almacén/producto) + `GET .../inventory/variations?from=&to=[&warehouseId=]` + tab "Variaciones" (`InventoryVariations` con filtros, badges y CSV) |
 | Build | `next build` → `EXIT=0`, 6 rutas registradas |
 | ⚠️ Pendiente del usuario | Ejecutar `supabase/WAREHOUSE_LOGISTICS.sql` en el SQL Editor de Supabase (sin acceso DDL directo); la UI muestra aviso con esta instrucción si falta la migración |
+
+## Actualizaciones de Dashboard y Ubicación (28 Sept 2026)
+
+Dashboard de inventario creado y columna de ubicación física de producto añadida a lo largo de inventario, kardex y dashboard.
+
+| Cambio | Detalle |
+|---|---|
+| Dashboard | **Nuevo** `app/api/companies/[id]/inventory/stats/route.ts` (KPIs, tendencia mensual, IN/OUT, categorías, top 10 por valor, stock por almacén, movimientos recientes; `months=3/6/12` y `warehouseId`) + `components/inventory/InventoryDashboard.tsx` (Recharts, filtros período/almacén, export CSV) + `app/companies/[id]/inventory/dashboard/page.tsx` |
+| Enlaces | Módulo Inventario en `modules/page.tsx` y sidebar (`RoleBasedSidebar.tsx`) apuntan a `/inventory/dashboard`; botón "Dashboard" en la cabecera de la página de inventario |
+| Columna `location` | Migración `prisma/migrations/015_product_location.sql` (idempotente, columna TEXT + índice); API `app/api/inventory/products/route.ts` (POST/PATCH) la persiste; columna **Ubicación** en la tabla y campo en modales de crear/editar (`inventory/page.tsx`) |
+| Kardex | `kardex/page.tsx` muestra la ubicación en el selector de producto y en el panel de información |
+| TypeScript | `tsc --noEmit` sin errores en archivos de inventario y dashboard |
+| ⚠️ Pendiente del usuario | Ejecutar `prisma/migrations/015_product_location.sql` en el SQL Editor de Supabase (sin acceso DDL directo) y reiniciar el dev server |
+
+## Actualizaciones de Fotos de Producto (28 Sept 2026)
+
+Fotos para los productos del inventario (bucket público `product-photos` + columna `image_url`).
+
+| Cambio | Detalle |
+|---|---|
+| Migración | `prisma/migrations/016_product_image_url.sql` — `ALTER TABLE product ADD COLUMN IF NOT EXISTS image_url TEXT` (idempotente) |
+| Bucket | `supabase/PRODUCT_PHOTOS.sql` — bucket público `product-photos` (5MB, JPG/PNG/GIF/WebP) + policies INSERT/UPDATE/SELECT/DELETE |
+| API | **Nuevo** `app/api/inventory/products/image/route.ts` — POST sube la imagen, obtiene URL pública y persiste `image_url` (con `productId` opcional para productos existentes); DELETE elimina el archivo y limpia la columna |
+| API productos | `app/api/inventory/products/route.ts` — POST/PATCH aceptan `imageUrl` (mapeado a `image_url`) |
+| UI | **Nuevo** `components/inventory/ProductPhotoUploader.tsx` (preview + subir/cambiar/quitar, validaciones de tipo y 5MB); columna **Foto** con miniatura en la tabla y widget en modales de crear/editar (`app/companies/[id]/inventory/page.tsx`) |
+| TypeScript | `tsc --noEmit` sin errores en los archivos de fotos e inventario |
+| ⚠️ Pendiente del usuario | Ejecutar `prisma/migrations/016_product_image_url.sql` y `supabase/PRODUCT_PHOTOS.sql` en el SQL Editor de Supabase y reiniciar el dev server |
+
+## Actualizaciones de Tabla Maestra de Ubicaciones (28 Sept 2026)
+
+Tabla maestra `product_location` para administrar las ubicaciones físicas y vincularlas a los productos.
+
+| Cambio | Detalle |
+|---|---|
+| Migración | `prisma/migrations/017_location_master.sql` — tabla `product_location` (tenant_id, company_id, code, name, aisle, shelf, description, is_active, timestamps) + `ALTER TABLE product ADD COLUMN IF NOT EXISTS location_id TEXT` + índices (idempotente) |
+| RLS | `supabase/LOCATION_MASTER.sql` — políticas SELECT/INSERT/UPDATE/DELETE por tenant en `product_location` |
+| Servicio | **Nuevo** `lib/services/location-service.ts` — `listLocations` (activeOnly + conteo de productos por ubicación), `createLocation`, `updateLocation` (editar/activar/desactivar), `deleteLocation` (desvincula productos); detección de migración pendiente |
+| API | **Nuevo** `app/api/companies/[id]/inventory/locations/route.ts` (GET/POST) y `[locationId]/route.ts` (PUT/DELETE) |
+| API productos | `app/api/inventory/products/route.ts` — POST/PATCH aceptan `locationId` (→ `location_id`); GET con `select('*')` ya devuelve `location_id` |
+| UI | **Nuevo** `components/inventory/LocationsManager.tsx` (pestaña CRUD: código, nombre, pasillo, estante, contador de productos, activar/desactivar/eliminar); nueva pestaña **Ubicaciones** en `app/companies/[id]/inventory/page.tsx`; el formulario de producto usa un Select alimentado por las ubicaciones maestras (fallback a texto libre si no hay) en los modales de crear/editar |
+| TypeScript | `tsc --noEmit` sin errores |
+| ⚠️ Pendiente del usuario | Ejecutar `prisma/migrations/017_location_master.sql` y `supabase/LOCATION_MASTER.sql` en el SQL Editor de Supabase y reiniciar el dev server |

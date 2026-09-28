@@ -120,6 +120,7 @@ model Tenant {
   cai           CAI[]
   SystemConfig  SystemConfig[]
   supportTickets SupportTicket[]
+  suppliers     Supplier[]
 
   @@map("Tenant")
 }
@@ -287,6 +288,39 @@ model Plan {
   @@map("Plan")
 }
 
+model Supplier {
+  id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  rtn             String   @unique @map("rtn")
+  name            String   @map("name")
+  commercialName  String?  @map("commercial_name")
+  email           String?  @unique @map("email")
+  phone           String?  @map("phone")
+  mobile          String?  @map("mobile")
+  address         String?  @map("address")
+  city            String?  @map("city")
+  country         String   @default("HN") @map("country")
+  category        String?  @map("category")
+  paymentTerms    String?  @map("payment_terms")
+  paymentMethod   String?  @map("payment_method")
+  bankName        String?  @map("bank_name")
+  bankAccount     String?  @map("bank_account")
+  accountType     String?  @map("account_type")
+  isActive        Boolean  @default(true) @map("is_active")
+  isPreferred     Boolean  @default(false) @map("is_preferred")
+  tenantId        String?  @map("tenant_id")
+  companyId       String?  @map("company_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  priceHistory SupplierPriceHistory[]
+
+  @@unique([rtn, tenantId], map: "unique_supplier_rtn_tenant")
+  @@index([tenantId], map: "idx_supplier_tenant")
+  @@index([companyId], map: "idx_supplier_company")
+  @@map("Supplier")
+}
+
 model Invoice {
   id              String    @id @default(cuid())
   tenantId        String    @map("tenantId")
@@ -445,4 +479,26 @@ model PeriodClosingBalance {
   @@unique([tenantId, periodStart, periodEnd], map: "unique_period_closing")
   @@index([tenantId], map: "idx_period_closing_tenant")
   @@map("period_closing_balances")
+}
+
+model SupplierPriceHistory {
+  id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  tenantId          String   @map("tenant_id")
+  supplierId        String   @map("supplier_id")
+  productId         String?  @map("product_id")
+  price             Decimal  @map("price")
+  currency          String   @default("HNL") @map("currency")
+  effectiveDate     DateTime @map("effective_date")
+  expiryDate        DateTime? @map("expiry_date")
+  notes             String?  @map("notes")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId], map: "idx_supplier_price_tenant")
+  @@index([supplierId], map: "idx_supplier_price_supplier")
+  @@index([productId], map: "idx_supplier_price_product")
+  @@index([effectiveDate], map: "idx_supplier_price_effective")
+  @@map("supplier_price_history")
+
+  supplier      Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 }

@@ -7,11 +7,15 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 import WarehousesManager from '@/components/inventory/WarehousesManager';
 import TransfersManager from '@/components/inventory/TransfersManager';
 import InventoryVariations from '@/components/inventory/InventoryVariations';
+import ProductPhotoUploader from '@/components/inventory/ProductPhotoUploader';
+import LocationsManager from '@/components/inventory/LocationsManager';
+import * as XLSX from 'xlsx';
 import {
   Package,
   AlertTriangle,
@@ -27,6 +31,10 @@ import {
   BarChart3,
   X,
   ChevronLeft,
+  Upload,
+  Download,
+  FileText,
+  Menu,
 } from 'lucide-react';
 import {
   Dialog,
@@ -35,6 +43,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Select,
   SelectContent,
@@ -58,6 +72,9 @@ interface Product {
   alert_message?: string;
   lot_number?: string;
   expiration_date?: string;
+  location?: string;
+  location_id?: string;
+  image_url?: string;
 }
 
 interface InventoryAlert {
@@ -101,7 +118,12 @@ export default function InventoryPage() {
     expiringSoon: 0,
   });
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message?: string; errors?: { row: number; message: string }[] } | null>(null);
   const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [newProduct, setNewProduct] = useState({
     code: '',
     name: '',
@@ -117,6 +139,9 @@ export default function InventoryPage() {
     productType: 'product',
     valuationMethod: 'weighted_average',
     warehouseId: '',
+    location: '',
+    locationId: '',
+    imageUrl: '',
     isService: false,
   });
   const [showEditModal, setShowEditModal] = useState(false);
@@ -131,6 +156,9 @@ export default function InventoryPage() {
     taxRate: '15',
     productType: 'product',
     valuationMethod: 'weighted_average',
+    location: '',
+    locationId: '',
+    imageUrl: '',
     isActive: true,
   });
 
@@ -146,6 +174,9 @@ export default function InventoryPage() {
       taxRate: '15',
       productType: product.product_type || 'product',
       valuationMethod: product.valuation_method || 'weighted_average',
+      location: product.location || '',
+      locationId: product.location_id || '',
+      imageUrl: product.image_url || '',
       isActive: true,
     });
     setShowEditModal(true);
@@ -169,6 +200,9 @@ export default function InventoryPage() {
           taxRate: editForm.taxRate ? parseInt(editForm.taxRate) : 15,
           productType: editForm.productType,
           valuationMethod: editForm.valuationMethod,
+          location: editForm.location,
+          locationId: editForm.locationId,
+          imageUrl: editForm.imageUrl,
           isActive: editForm.isActive,
         }),
       });
@@ -210,6 +244,17 @@ export default function InventoryPage() {
       setProducts(productsData);
       setAlerts(alertsData.alerts);
       setMovements(movementsData);
+
+      // Cargar ubicaciones para el formulario de producto
+      try {
+        const locationsRes = await fetch(`/api/companies/${companyId}/inventory/locations`);
+        const locationsBody = await locationsRes.json();
+        if (locationsRes.ok && locationsBody.success) {
+          setLocations(locationsBody.data.locations || []);
+        }
+      } catch {
+        /* sin ubicaciones maestras */
+      }
 
       // Calcular estadísticas
       const totalValue = productsData.reduce(
@@ -272,6 +317,109 @@ export default function InventoryPage() {
     }
   };
 
+  const TEMPLATE_HEADERS = [
+    'code',
+    'name',
+    'description',
+    'unit',
+    'unit_price',
+    'current_cost',
+    'current_stock',
+    'min_stock',
+    'max_stock',
+    'tax_rate',
+    'product_type',
+    'valuation_method',
+    'location',
+    'is_service',
+  ];
+
+  const TEMPLATE_SAMPLE = [
+    'PRD-001',
+    'Producto de Ejemplo',
+    'Descripción del producto',
+    'Unidad',
+    '250',
+    '150',
+    '50',
+    '10',
+    '100',
+    '15',
+    'product',
+    'weighted_average',
+    'Estante A',
+    'false',
+  ];
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
+    const rows = [TEMPLATE_HEADERS, TEMPLATE_SAMPLE];
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Productos');
+      XLSX.writeFile(wb, 'plantilla_productos.xlsx');
+      return;
+    }
+    const escapeCsv = (v: string) => {
+      const s = String(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = '\ufeff' + rows.map(row => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_productos.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      setImportResult({ success: true, message: 'Seleccione un archivo para continuar' });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('tenantId', companyId);
+      const res = await fetch('/api/inventory/products/import', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setImportResult({
+          success: true,
+          message: data.message || 'Importación completada',
+          errors: data.errors || [],
+        });
+        loadInventoryData();
+        setTimeout(() => {
+          setShowImportModal(false);
+          setImportFile(null);
+          setImportResult(null);
+        }, 1200);
+      } else {
+        setImportResult({ success: false, message: data.error || 'Error al importar el archivo' });
+      }
+    } catch (error) {
+      console.error('Frontend: Import exception:', error);
+      setImportResult({ success: false, message: 'Error al importar el archivo' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   const handleCreateProduct = async () => {
     try {
       const res = await fetch('/api/inventory/products', {
@@ -291,6 +439,9 @@ export default function InventoryPage() {
           productType: newProduct.productType,
           valuationMethod: newProduct.valuationMethod,
           warehouseId: newProduct.warehouseId,
+          location: newProduct.location,
+          locationId: newProduct.locationId,
+          imageUrl: newProduct.imageUrl,
           isService: newProduct.isService,
         }),
       });
@@ -313,6 +464,9 @@ export default function InventoryPage() {
           productType: 'product',
           valuationMethod: 'weighted_average',
           warehouseId: warehouses[0]?.id || '',
+          location: '',
+          locationId: '',
+          imageUrl: '',
           isService: false,
         });
         loadInventoryData();
@@ -342,23 +496,56 @@ export default function InventoryPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            size="sm"
-            onClick={() => router.push(`/companies/${companyId}/modules`)}
+            onClick={() => router.push(`/companies/${companyId}/inventory/dashboard`)}
           >
-            <ChevronLeft className="h-4 w-4 mr-2" />
-            Menú
+            <BarChart3 className="w-4 h-4 mr-2" />
+            Dashboard
           </Button>
           <Button
-            variant="outline"
-            onClick={() => router.push(`/companies/${companyId}/inventory/kardex`)}
+            onClick={() => setShowCreateModal(true)}
+            className="bg-cyan-600 hover:bg-cyan-700"
           >
-            <History className="w-4 h-4 mr-2" />
-            Kardex
-          </Button>
-          <Button onClick={() => setShowCreateModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             Nuevo Producto
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="h-10 px-3">
+                <Menu className="w-4 h-4 mr-2" />
+                Menú
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" side="bottom" className="w-64" forceMount>
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/modules`)}>
+                <ChevronLeft className="w-4 h-4 mr-2" />
+                Menú Principal
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/inventory/dashboard`)}>
+                <BarChart3 className="w-4 h-4 mr-2" />
+                Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/inventory/kardex`)}>
+                <History className="w-4 h-4 mr-2" />
+                Kardex
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowCreateModal(true)} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
+                <Plus className="w-4 h-4 mr-2" />
+                Nuevo Producto
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={openImportModal}>
+                <Upload className="w-4 h-4 mr-2" />
+                Subir Archivo
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownloadTemplate('xlsx')}>
+                <FileText className="w-4 h-4 mr-2" />
+                Plantilla Excel (.xlsx)
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleDownloadTemplate('csv')}>
+                <FileText className="w-4 h-4 mr-2" />
+                Plantilla CSV
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -427,6 +614,7 @@ export default function InventoryPage() {
           </TabsTrigger>
           <TabsTrigger value="movements">Movimientos</TabsTrigger>
           <TabsTrigger value="warehouses">Almacenes</TabsTrigger>
+          <TabsTrigger value="locations">Ubicaciones</TabsTrigger>
           <TabsTrigger value="transfers">Traslados</TabsTrigger>
           <TabsTrigger value="variations">Variaciones</TabsTrigger>
         </TabsList>
@@ -454,6 +642,9 @@ export default function InventoryPage() {
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                      Foto
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
                       Código
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
@@ -461,6 +652,9 @@ export default function InventoryPage() {
                     </th>
                     <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
                       Unidad
+                    </th>
+                    <th className="px-4 py-3 text-left text-sm font-medium text-gray-600">
+                      Ubicación
                     </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
                       Stock
@@ -482,9 +676,23 @@ export default function InventoryPage() {
                 <tbody className="divide-y">
                   {getFilteredProducts().map((product) => (
                     <tr key={product.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-3">
+                        {product.image_url ? (
+                          <img
+                            src={product.image_url}
+                            alt={product.name}
+                            className="w-10 h-10 rounded-lg object-cover border border-gray-200"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-gray-100 border border-gray-200 flex items-center justify-center">
+                            <Package className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-sm font-medium">{product.code}</td>
                       <td className="px-4 py-3 text-sm">{product.name}</td>
                       <td className="px-4 py-3 text-sm">{product.unit || 'Unidad'}</td>
+                      <td className="px-4 py-3 text-sm">{product.location || '—'}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         {product.current_stock} / {product.min_stock} min
                       </td>
@@ -654,6 +862,10 @@ export default function InventoryPage() {
           <WarehousesManager companyId={companyId} />
         </TabsContent>
 
+        <TabsContent value="locations" className="space-y-4">
+          <LocationsManager companyId={companyId} />
+        </TabsContent>
+
         <TabsContent value="transfers" className="space-y-4">
           <TransfersManager companyId={companyId} />
         </TabsContent>
@@ -662,6 +874,73 @@ export default function InventoryPage() {
           <InventoryVariations companyId={companyId} />
         </TabsContent>
       </Tabs>
+
+      {/* Import Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar Productos desde Archivo</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription className="text-sm">
+                Suba un archivo <strong>CSV</strong> o <strong>Excel (.xlsx / .xls)</strong> con los productos.
+                Requiere la columna <code className="font-mono text-xs bg-muted px-1 rounded">name</code>. El{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">code</code> es opcional (se autogenera
+                como PROD-xxx). Los códigos ya existentes se omiten automáticamente. Si ingresa stock inicial,
+                se registra el movimiento de entrada correspondiente.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-gray-500">Descargue la plantilla para ver el formato:</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('xlsx')}>
+                  <Download className="w-4 h-4 mr-2" /> Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('csv')}>
+                  <Download className="w-4 h-4 mr-2" /> CSV
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Archivo</Label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls,.txt"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportResult(null);
+                }}
+              />
+            </div>
+
+            {importResult && (
+              <Alert variant={importResult.success ? 'default' : 'destructive'}>
+                <AlertDescription>
+                  {importResult.message}
+                  {importResult.errors && importResult.errors.length > 0 && (
+                    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto text-sm">
+                      {importResult.errors.map((err, i) => (
+                        <div key={i} className="text-xs">Fila {err.row > 0 ? err.row : '—'}: {err.message}</div>
+                      ))}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportModal(false)}>Cerrar</Button>
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? 'Importando...' : 'Importar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Create Product Modal */}
       <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
@@ -674,6 +953,15 @@ export default function InventoryPage() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 space-y-2">
+              <Label>Foto del Producto</Label>
+              <ProductPhotoUploader
+                imageUrl={newProduct.imageUrl}
+                tenantId={companyId}
+                onImageUrlChange={(url) => setNewProduct({ ...newProduct, imageUrl: url })}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Código (Auto-generado si se deja vacío)</Label>
               <Input
@@ -889,6 +1177,42 @@ export default function InventoryPage() {
                 </SelectContent>
               </Select>
             </div>
+
+            <div className="space-y-2">
+              <Label>Ubicación</Label>
+              {locations.length > 0 ? (
+                <Select
+                  value={newProduct.locationId}
+                  onValueChange={(value) => {
+                    const loc = locations.find((l) => l.id === value);
+                    setNewProduct({
+                      ...newProduct,
+                      locationId: value,
+                      location: loc ? loc.name : '',
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar ubicación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                        {l.aisle ? ` — ${l.aisle}` : ''}
+                        {l.shelf ? ` / ${l.shelf}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder="Ej: Estante A, Pasillo 1, Bodega principal..."
+                  value={newProduct.location}
+                  onChange={(e) => setNewProduct({ ...newProduct, location: e.target.value })}
+                />
+              )}
+            </div>
           </div>
 
           <DialogFooter>
@@ -913,6 +1237,16 @@ export default function InventoryPage() {
           </DialogHeader>
 
           <div className="grid grid-cols-2 gap-4 py-4">
+            <div className="col-span-2 space-y-2">
+              <Label>Foto del Producto</Label>
+              <ProductPhotoUploader
+                imageUrl={editForm.imageUrl}
+                tenantId={companyId}
+                productId={editingProduct?.id}
+                onImageUrlChange={(url) => setEditForm({ ...editForm, imageUrl: url })}
+              />
+            </div>
+
             <div className="space-y-2">
               <Label>Código</Label>
               <Input value={editingProduct?.code || ''} disabled className="bg-gray-100" />
@@ -1017,6 +1351,42 @@ export default function InventoryPage() {
                   <SelectItem value="specific">Costo Específico</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Ubicación</Label>
+              {locations.length > 0 ? (
+                <Select
+                  value={editForm.locationId}
+                  onValueChange={(value) => {
+                    const loc = locations.find((l) => l.id === value);
+                    setEditForm({
+                      ...editForm,
+                      locationId: value,
+                      location: loc ? loc.name : '',
+                    });
+                  }}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccionar ubicación" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations.map((l) => (
+                      <SelectItem key={l.id} value={l.id}>
+                        {l.name}
+                        {l.aisle ? ` — ${l.aisle}` : ''}
+                        {l.shelf ? ` / ${l.shelf}` : ''}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  placeholder="Ej: Estante A, Pasillo 1, Bodega principal..."
+                  value={editForm.location}
+                  onChange={(e) => setEditForm({ ...editForm, location: e.target.value })}
+                />
+              )}
             </div>
           </div>
 

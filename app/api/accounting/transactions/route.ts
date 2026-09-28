@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 import { supabase as supabaseService } from "@/lib/supabase-db";
 import { createJournalTransaction } from "@/lib/services/journal-service";
 import { integrateSaleWithInventory } from "@/lib/services/inventory-integration";
@@ -29,7 +29,7 @@ export async function GET(request: NextRequest) {
     }
      
     // 1) Intentar RPC (si existe)
-    const supabaseAnon = createSupabaseClient();
+    const supabaseAnon = getSupabaseServer();
     const rpcRes = await (supabaseAnon as any).rpc('get_transactions_with_entries', {
         p_tenant_id: tenant.id,
         p_start_date: searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : null,

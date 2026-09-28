@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createSupabaseClient } from '@/lib/supabase/client';
+import { currentUser } from '@clerk/nextjs/server';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { getAuthUser } from '@/lib/auth-middleware';
 
 export async function GET() {
@@ -10,7 +11,7 @@ export async function GET() {
       return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
     }
 
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Intentar obtener el usuario existente
     let { data, error } = await supabase
@@ -21,8 +22,11 @@ export async function GET() {
 
     if (error) {
       // Usuario no existe, crear uno nuevo
-      const clerkUser = authUser.user;
-      const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress || '';
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return NextResponse.json({ error: 'No se pudo cargar el usuario de Clerk' }, { status: 500 });
+      }
+      const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress || authUser.email || '';
       
       const { data: inserted, error: insertError } = await supabase
         .from('users')
@@ -41,7 +45,7 @@ export async function GET() {
 
       if (inserted) {
         data = inserted;
-      } else if (!inserted && error) {
+      } else if (!inserted && insertError) {
         console.error('❌ Error creando usuario:', { error: insertError?.message });
         return NextResponse.json({ error: 'Error creando usuario', detail: insertError?.message }, { status: 500 });
       }

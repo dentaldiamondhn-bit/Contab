@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 // Helper para obtener tenantId del request
 async function getTenantFromRequest(request: NextRequest) {
@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
     
     console.log("📚 API: bookType=", bookType, "startDate=", startDate, "endDate=", endDate, "filterType=", filterType);
 
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     let functionName = '';
     let params: any = { p_tenant_id: tenant.id };
 
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
     // Las vistas en PostgreSQL se actualizan automáticamente cuando se consultan
     // Pero podemos forzar una consulta para asegurar que estén sincronizadas
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
 
     // Verificar que todas las funciones estén disponibles
     const functions = [

@@ -324,6 +324,29 @@ export async function getWarehouseStock(
   );
 }
 
+export async function getWarehouseLocationCounts(
+  companyId: string,
+  tenantHint?: string | null,
+): Promise<Map<string, number>> {
+  const supabase = getSupabaseServer();
+  const tenantId = await resolveTenant(companyId, tenantHint);
+  const { data, error } = await supabase
+    .from('product_location')
+    .select('warehouse_id')
+    .eq('tenant_id', tenantId)
+    .not('warehouse_id', 'is', null);
+  if (error) {
+    if (isMigrationMissingError(error)) return new Map();
+    throw error;
+  }
+  const map = new Map<string, number>();
+  for (const row of data || []) {
+    const wid = (row as { warehouse_id?: string }).warehouse_id;
+    if (wid) map.set(wid, (map.get(wid) || 0) + 1);
+  }
+  return map;
+}
+
 // ---------- Traslados ----------
 
 async function warehouseName(supabase: ReturnType<typeof getSupabaseServer>, id: string): Promise<string> {

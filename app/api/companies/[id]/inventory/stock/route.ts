@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getWarehouseStock } from '@/lib/services/warehouse-service';
+import { getWarehouseStock, getWarehouseLocationCounts } from '@/lib/services/warehouse-service';
 
 function tenantHint(request: NextRequest): string | null {
   return (
@@ -24,7 +24,12 @@ export async function GET(
       warehouseId: searchParams.get('warehouseId') || undefined,
       productId: searchParams.get('productId') || undefined,
     });
-    return NextResponse.json({ success: true, data: { companyId, stock } });
+    const locationCounts = await getWarehouseLocationCounts(companyId, tenantHint(request));
+    const locationCountPlain: Record<string, number> = {};
+    for (const [wid, count] of locationCounts.entries()) {
+      locationCountPlain[wid] = count;
+    }
+    return NextResponse.json({ success: true, data: { companyId, stock, locationCounts: locationCountPlain } });
   } catch (error) {
     console.error('Error in warehouse stock API:', error);
     const message = error instanceof Error ? error.message : 'Error interno';

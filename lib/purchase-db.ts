@@ -188,6 +188,11 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
     }
   }
 
+  // Track supplier price history (best-effort, never blocks the purchase)
+  if (purchase.supplier_id && items.length > 0) {
+    await recordSupplierPriceHistory(supabase, purchase.supplier_id, items, tenantId, purchase.invoice_date);
+  }
+
   // Journal entry (best-effort, never blocks the purchase)
   const journalEntryResult = await createPurchaseJournalEntry(supabase, purchase, items, tenantId, companyId);
   if (journalEntryResult) {
@@ -195,6 +200,37 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
   }
 
   return { data: transformPurchase({ ...purchase, items, journal_entry_id: journalEntryResult?.id }), error: null };
+}
+
+export async function recordSupplierPriceHistory(
+  supabase: SupabaseClient,
+  supplierId: string,
+  items: any[],
+  tenantId: string,
+  invoiceDate?: string
+) {
+  const effectiveDate = invoiceDate ? new Date(invoiceDate + 'T00:00:00').toISOString() : new Date().toISOString();
+
+  const rows = items
+    .filter((item: any) => item.product_id || item.product_name || item.description)
+    .map((item: any) => ({
+      tenant_id: tenantId,
+      supplier_id: supplierId,
+      product_id: item.product_id || null,
+      price: Math.round(Number(item.unit_price) || 0),
+      currency: 'HNL',
+      effective_date: effectiveDate,
+      notes: `Registrado en compra - ${item.product_name || item.description || 'Producto'}${item.invoice_number ? ` (Factura ${item.invoice_number})` : ''}`,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (rows.length === 0) return;
+
+  const { error } = await supabase.from('supplier_price_history').insert(rows);
+  if (error) {
+    console.error('Error recording supplier price history:', error);
+  }
 }
 
 export async function updatePurchase(supabase: SupabaseClient, id: string, body: any) {

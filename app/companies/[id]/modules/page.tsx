@@ -66,7 +66,7 @@ const modules = [
     icon: Package,
     color: 'text-teal-600',
     bgColor: 'bg-teal-50',
-    path: '/inventory',
+    path: '/inventory/dashboard',
     status: 'active'
   },
   {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 // Helper para obtener tenantId del request
 async function getTenantFromRequest(request: NextRequest) {
@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     }
     
     // Crear cliente Supabase
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Obtener cuentas usando la función específica
     const rpcParams = tenant.id === '1' ? { p_tenant_id: 'tenant_001' } : { p_tenant_id: tenant.id };

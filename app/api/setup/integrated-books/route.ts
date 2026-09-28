@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 import { readFileSync } from "fs";
 import { join } from "path";
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const sqlPath = join(process.cwd(), 'INTEGRAR_LIBROS_INGRESOS_EGRESOS.sql');
     const sqlContent = readFileSync(sqlPath, 'utf8');
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Dividir el SQL en declaraciones individuales
     const statements = sqlContent

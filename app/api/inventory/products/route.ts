@@ -74,6 +74,9 @@ export async function PATCH(request: NextRequest) {
       taxRate,
       productType,
       valuationMethod,
+      location,
+      locationId,
+      imageUrl,
       isActive,
     } = body;
 
@@ -101,6 +104,9 @@ export async function PATCH(request: NextRequest) {
     if (taxRate !== undefined) updateData.tax_rate = taxRate;
     if (productType !== undefined) updateData.product_type = productType;
     if (valuationMethod !== undefined) updateData.valuation_method = valuationMethod;
+    if (location !== undefined) updateData.location = location;
+    if (locationId !== undefined) updateData.location_id = locationId || null;
+    if (imageUrl !== undefined) updateData.image_url = imageUrl;
     if (isActive !== undefined) updateData.is_active = isActive;
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
@@ -157,6 +163,9 @@ export async function POST(request: NextRequest) {
       productType = 'product',
       valuationMethod = 'weighted_average',
       warehouseId,
+      location,
+      locationId,
+      imageUrl,
       isService = false,
     } = body;
     const tenantId = body.tenantId || body.tenant_id || new URL(request.url).searchParams.get("tenantId") || new URL(request.url).searchParams.get("companyId") || "1";
@@ -218,6 +227,9 @@ export async function POST(request: NextRequest) {
         product_type: productType,
         valuation_method: valuationMethod,
         warehouse_id: warehouseId,
+        location: location || null,
+        location_id: locationId || null,
+        image_url: imageUrl || null,
         is_service: isService,
         is_active: true,
       })

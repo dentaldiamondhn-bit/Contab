@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export async function POST(request: NextRequest) {
   try {
@@ -14,7 +14,7 @@ export async function POST(request: NextRequest) {
       );
     }
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Subir comprobante a Supabase Storage
     const fileName = `receipt-${paymentLinkId}-${Date.now()}.${receipt.name.split('.').pop()}`;
@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const paymentLinkId = searchParams.get("paymentLinkId");
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     let query = supabase
       .from("PaymentLink")

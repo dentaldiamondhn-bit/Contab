@@ -432,7 +432,7 @@ export default function RoleBasedSidebar() {
       return { ...item, href: `/companies/${tenantId}/modules` };
     }
     if (item.name === 'Inventario') {
-      return { ...item, href: `/companies/${tenantId}/inventory` };
+      return { ...item, href: `/companies/${tenantId}/inventory/dashboard` };
     }
     if (item.name === 'Mi Empresa') {
       return { ...item, href: `/companies/${tenantId}` };

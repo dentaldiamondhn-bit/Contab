@@ -12,9 +12,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, Building2, Phone, Mail, MapPin, History, CreditCard, AlertCircle, ChevronLeft, Trash2, Edit, Menu, FileText, ShoppingCart, BarChart3 } from 'lucide-react';
+import { Search, Plus, Building2, Phone, Mail, MapPin, History, CreditCard, AlertCircle, ChevronLeft, Trash2, Edit, Menu, FileText, ShoppingCart, BarChart3, Upload, Download } from 'lucide-react';
 
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
+import SupplierPriceHistory from '@/components/purchasing/SupplierPriceHistory';
+import * as XLSX from 'xlsx';
 interface Supplier {
   id: string;
   rtn: string;
@@ -62,6 +64,11 @@ export default function SuppliersPage() {
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
   const [supplierPurchases, setSupplierPurchases] = useState<Purchase[]>([]);
   const [rtnError, setRtnError] = useState('');
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{ success: boolean; message?: string; errors?: { row: number; message: string }[] } | null>(null);
 
   const [formData, setFormData] = useState({
     rtn: '',
@@ -112,13 +119,6 @@ export default function SuppliersPage() {
   };
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (!params.get("from")) {
-      router.replace(`/companies/${companyId}/purchases/dashboard`);
-    }
-  }, [companyId]);
-
-  useEffect(() => {
     loadSuppliers();
   }, [companyId]);
 
@@ -165,6 +165,118 @@ export default function SuppliersPage() {
       }
     } catch (error) {
       console.error('Error loading purchases:', error);
+    }
+  };
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const TEMPLATE_HEADERS = [
+    'rtn',
+    'name',
+    'commercial_name',
+    'email',
+    'phone',
+    'mobile',
+    'address',
+    'city',
+    'country',
+    'supplier_type',
+    'category',
+    'payment_terms',
+    'payment_method',
+    'bank_name',
+    'bank_account',
+    'account_type',
+    'is_active',
+    'is_preferred',
+  ];
+
+  const TEMPLATE_SAMPLE = [
+    '0801-1990-123456-7',
+    'Proveedor Ejemplo S. de R.L.',
+    'Proveedor Ejemplo',
+    'proveedor@email.com',
+    '2222-3333',
+    '8888-9999',
+    'Col. Palmira, Ave. D',
+    'Tegucigalpa',
+    'Honduras',
+    'merchandise',
+    'Menudeo',
+    '30',
+    'transfer',
+    'Banco Ficohsa',
+    '1234567890',
+    'checking',
+    'true',
+    'false',
+  ];
+
+  const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
+    const rows = [TEMPLATE_HEADERS, TEMPLATE_SAMPLE];
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Proveedores');
+      XLSX.writeFile(wb, 'plantilla_proveedores.xlsx');
+      return;
+    }
+    const escapeCsv = (v: string) => {
+      const s = String(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = '\ufeff' + rows.map(row => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_proveedores.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      setImportResult({ success: true, message: 'Seleccione un archivo para continuar' });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      formData.append('companyId', companyId);
+      const res = await fetch('/api/suppliers/import', {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        const result = {
+          success: true,
+          message: data.message || 'Importación completada',
+          errors: data.errors || [],
+        };
+        setImportResult(result);
+        loadSuppliers();
+        setTimeout(() => {
+          setShowImportModal(false);
+          setImportFile(null);
+          setImportResult(null);
+        }, 1200);
+      } else {
+        setImportResult({ success: false, message: data.error || 'Error al importar el archivo' });
+      }
+    } catch (error) {
+      console.error('Frontend: Import exception:', error);
+      setImportResult({ success: false, message: 'Error al importar el archivo' });
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -388,6 +500,18 @@ export default function SuppliersPage() {
             <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
               <Plus className="w-4 h-4 mr-2" />
               Nuevo Proveedor
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={openImportModal}>
+              <Upload className="w-4 h-4 mr-2" />
+              Subir Archivo
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDownloadTemplate('xlsx')}>
+              <FileText className="w-4 h-4 mr-2" />
+              Plantilla Excel (.xlsx)
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => handleDownloadTemplate('csv')}>
+              <FileText className="w-4 h-4 mr-2" />
+              Plantilla CSV
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -894,11 +1018,81 @@ export default function SuppliersPage() {
                   </div>
                 )}
               </div>
+
+              <div className="pt-4 border-t">
+                <SupplierPriceHistory supplierId={selectedSupplier.id} tenantId={companyId} />
+              </div>
             </div>
           )}
 
           <DialogFooter>
             <Button onClick={() => setShowDetailModal(false)}>Cerrar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar Proveedores desde Archivo</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription className="text-sm">
+                Suba un archivo <strong>CSV</strong> o <strong>Excel (.xlsx / .xls)</strong> con los proveedores.
+                Requiere las columnas <code className="font-mono text-xs bg-muted px-1 rounded">rtn</code> y{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">name</code>. Las filas con RTN ya
+                existente se omiten automáticamente.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-gray-500">Descargue la plantilla para ver el formato:</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('xlsx')}>
+                  <Download className="w-4 h-4 mr-2" /> Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('csv')}>
+                  <Download className="w-4 h-4 mr-2" /> CSV
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Archivo</Label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls,.txt"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportResult(null);
+                }}
+              />
+            </div>
+
+            {importResult && (
+              <Alert variant={importResult.success ? 'default' : 'destructive'}>
+                <AlertDescription>
+                  {importResult.message}
+                  {importResult.errors && importResult.errors.length > 0 && (
+                    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto text-sm">
+                      {importResult.errors.map((err, i) => (
+                        <div key={i} className="text-xs">Fila {err.row > 0 ? err.row : '—'}: {err.message}</div>
+                      ))}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportModal(false)}>Cerrar</Button>
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? 'Importando...' : 'Importar'}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -63,15 +63,15 @@ export async function GET(
     const url2 = new URL(request.url);
     const searchParams2 = url2.searchParams;
     const companyIdQuery = searchParams2.get('companyId');
-    let query = supabaseService
+    let invoiceQuery = supabaseService
       .from('Invoice')
       .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id');
     if (companyIdQuery) {
-      query = query.eq('company_id', companyIdQuery);
+      invoiceQuery = invoiceQuery.eq('company_id', companyIdQuery);
     } else {
-      query = query.eq('tenantId', companyId);
+      invoiceQuery = invoiceQuery.eq('tenantId', companyId);
     }
-    let { data: invData, error: invError } = await query;
+    let { data: invData, error: invError } = await invoiceQuery;
 
     if (invError || !invData || invData.length === 0) {
       const alt = await supabaseService

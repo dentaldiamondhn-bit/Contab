@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export async function GET(request: NextRequest) {
   try {
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     const tenantId = request.headers.get("x-tenant-id") || new URL(request.url).searchParams.get("tenantId") || "1";
     
     // Obtener el CAI vigente actual — tenant-aware, con maybeSingle para no dar 500 si no hay
@@ -100,7 +100,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { cai, startNumber, endNumber, expirationDate } = body;
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Obtener tenantId del header (establecido por middleware)
     const tenantId = request.headers.get("x-tenant-id") || "1";

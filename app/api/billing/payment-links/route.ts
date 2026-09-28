@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createSupabaseClient } from "@/lib/supabase/client";
+import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export async function POST(request: NextRequest) {
   try {
     const { invoiceId, invoiceNumber, amount, currency, bankAccountId, paymentUrl, qrCode } = await request.json();
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     // Crear enlace de pago
     const { data: paymentLink, error } = await (supabase as any)
@@ -66,7 +66,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
     
-    const supabase = createSupabaseClient();
+    const supabase = getSupabaseServer();
     
     let query = supabase
       .from("PaymentLink")

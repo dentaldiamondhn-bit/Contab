@@ -32,6 +32,7 @@ interface Product {
   name: string;
   current_stock: number;
   current_cost: number;
+  location?: string;
 }
 
 interface Movement {
@@ -135,7 +136,7 @@ export default function KardexPage() {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => router.push(`/companies/${companyId}/inventory`)}
+            onClick={() => router.push(`/companies/${companyId}/inventory/dashboard`)}
           >
             <ArrowLeft className="h-4 w-4 mr-2" />
             Volver
@@ -161,6 +162,7 @@ export default function KardexPage() {
                   {products.map((product) => (
                     <SelectItem key={product.id} value={product.id}>
                       {product.code} - {product.name}
+                      {product.location ? ` (${product.location})` : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -208,6 +210,9 @@ export default function KardexPage() {
                   </h3>
                   <p className="text-gray-600">
                     Stock Actual: <strong>{selectedProductData.current_stock}</strong> unidades
+                    {selectedProductData.location ? (
+                      <> &nbsp;•&nbsp; Ubicación: <strong>{selectedProductData.location}</strong></>
+                    ) : null}
                   </p>
                 </div>
               </div>
