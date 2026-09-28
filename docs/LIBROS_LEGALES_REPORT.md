@@ -410,3 +410,34 @@ Etapa 1 (Retenciones + Contabilidad)
 | Cash flow → comparativos trimestrales automáticos (Q1–Q4) con exportación a Excel | `lib/reports/cash-flow-comparatives.ts` (segmentación Q1–Q4 desde los movimientos reales del trial-balance, flujo por trimestre reutilizando la clasificación de `cash-flow.ts` — sin duplicar —, saldos encadenados, mejor/peor trimestre y formato Excel es-HN con `['Concepto','Q1','Q2','Q3','Q4','Total','Δ Q4−Q1']`) + API `app/api/accounting/cash-flow-comparatives/route.ts` (GET comparativo real por trimestre, POST descarga real del .xlsx) + página `app/reports/cash-flow-comparatives/page.tsx` (selector de año fiscal, matriz comparativa Q1⇄Q4, badges mejor/peor trimestre y exportación a Excel) |
 | Arreglo integración libros↔asientos | (i) Asiento de retención normalizado a **lempiras** en `app/api/accounting/withholding-journal/route.ts` (POST divide centavos→lempiras al armar la póliza; GET ya no re-divide: sin doble división, sin 100× en Mayor/Diario/Compras/Retenciones/Anuales ni doble `-100` en panel); (ii) Libro Diario con **desglose real de pólizas por fecha/referencia** vía feeder detallado `app/api/accounting/trial-balance-detailed/route.ts` (movimientos con `journalEntry`+`date`+`reference` ordenados por fecha, todos los voucherType) conectado a `app/companies/[id]/reports/general-ledger/page.tsx` solo en vista Diario (Mayor intacto sobre el trial-balance agregado); (iii) toggle "Asiento automático" **real y persistido por empresa** en `components/WithholdingManager.tsx` (localStorage `withholding_auto_entry:{tenant}`; OFF no genera asiento y el badge lo aclara, botón "Generar asiento ahora" se mantiene); (iv) trial-balance agregado incluye la **última fecha de movimiento por cuenta** (`app/api/accounting/trial-balance/route.ts`) y los libros Compras/Ventas/Retenciones la muestran en vez de `'-'`; (v) doc alineado (23 Sept 2026) |
 | Fix `createJournalTransaction`: insert de `Transaction` con `id`/`functionalAmount` | `lib/services/journal-service.ts` el insert generaba solo `tenantId`/`totalAmount` (montos en unidades) y omitía `id`, `functionalAmount`, `originalTotal`, `createdAt`/`updatedAt` → la BD real exige esos campos y el POST fallaba al persistir asientos manuales y automáticos (retenciones, notas NC/ND). Ahora el servicio genera `id` UUID, `functionalAmount`/`originalTotal`/`createdAt`/`updatedAt` y montos en **centavos** (patrón de `transaction-service-enhanced.ts`/`ExcelBooksUploader`/`reversals`), verificado con recorrido real de datos (insert + readback + limpieza OK contra Supabase). Pruebas `tests/accounting/journal-service.test.mjs` actualizadas a centavos (23 Sept 2026) |
+
+---
+
+## Empresa-scope: tenant=seguridad, empresa=dato
+
+### Contrato de id: tenantId + companyId/company_id
+
+El identificador compuesto para operaciones empresariales sigue el contrato:
+**tenantId + companyId (campo company_id en tablas de la migración 012)**
+
+- `tenantId`: identifica el tenant/arrendatario en el sistema multi-tenant
+- `companyId` / `company_id`: identifica la empresa específica dentro del tenant
+- El filtro **AND** se aplica cuando ambos ids están provistos: `WHERE tenantId = X AND company_id = Y`
+- Cuando solo provee `tenantId` (sin company_id): resultado abarca todas las empresas del tenant (comportamiento legacy)
+- Cuando solo provee `company_id` (sin tenantId): búsqueda entre todas las empresas (no recomendado, requiere validación adicional)
+- El campo `company_id` en tablas de la migración 012 (`Invoice`, `Transaction`, `JournalEntry`, `Account`, `InvoiceItem`, `InvoicePayment`, `InvoiceNote`, `User`, `BankAccount`, `Product`, `SalesConfig`) permite el filtrado empresa-scope
+
+### Regla de filtro AND cuándo el id se provee
+
+| escenario | filtro SQL | comportamiento |
+|---|---|---|
+| tenantId + companyId ambos proveídos | `WHERE tenantId = X AND company_id = Y` | Datos aislados por empresa, RLS activo |
+| solo tenantId provisto | `WHERE tenantId = X` | Todos los datos del tenant (modo multi-empresa sin asignación automática) |
+| solo companyId provisto | `WHERE company_id = Y` | Datos de una empresa sin contexto de tenant (requiere validación) |
+| ninguno provisto | sin filtro de empresa | Comportamiento legacy, todos los registros visibles |
+
+### Changelog 23 Sept 2026
+
+| Cambio | Detalle |
+|---|---|
+| Fix cambio de empresa: empresa-scope en schema + filtros + switcher navega/re-dispara + invoice-stats columna corregida | Actualización del schema con company_id en tablas de migración 012; filtros AND implementados en queries de dashboard y financial-statistics; switcher de empresa en navbar ahora navega y re-dispara eventos company-scope; columna de invoice-stats corregida de formato monetario en `app/companies/[id]/accounting/financial-statements/estado-resultados/page.tsx` |

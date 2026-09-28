@@ -4,7 +4,7 @@ import { createSupabaseClient } from "@/lib/supabase/client";
 export async function GET(request: NextRequest) {
   try {
     const supabase = createSupabaseClient();
-    const tenantId = request.headers.get("x-tenant-id") || new URL(request.url).searchParams.get("tenantId") || new URL(request.url).searchParams.get("companyId") || "1";
+    const tenantId = request.headers.get("x-tenant-id") || new URL(request.url).searchParams.get("tenantId") || "1";
     
     // Obtener el CAI vigente actual — tenant-aware, con maybeSingle para no dar 500 si no hay
     let { data: cai, error } = await supabase
@@ -102,13 +102,16 @@ export async function POST(request: NextRequest) {
     
     const supabase = createSupabaseClient();
     
-    // Desactivar CAIs anteriores
+    // Obtener tenantId del header (establecido por middleware)
+    const tenantId = request.headers.get("x-tenant-id") || "1";
+    
+    // Desactivar CAIs anteriores para el tenant actual
     await (supabase as any)
       .from("cai")
       .update({ status: 'inactive' })
-      .eq("tenant_id", "1");
+      .eq("tenant_id", tenantId);
     
-    // Crear nuevo CAI
+    // Crear nuevo CAI para el tenant actual
     const { data, error } = await (supabase as any)
       .from("cai")
       .insert({
@@ -118,7 +121,7 @@ export async function POST(request: NextRequest) {
         issue_date: new Date().toISOString().split('T')[0],
         expiration_date: expirationDate,
         status: 'active',
-        tenant_id: '1'
+        tenant_id: tenantId
       })
       .select()
       .single();
