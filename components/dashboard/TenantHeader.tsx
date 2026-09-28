@@ -5,6 +5,7 @@ import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/lib/contexts/TenantContext";
 import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useClerk } from "@clerk/nextjs";
@@ -24,6 +25,7 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
   const { currentTenant, tenants: contextTenants, isSuperAdmin, isImpersonating, exitImpersonation, companies, currentCompany, setCompany } = useTenant();
   const { user } = useUser();
   const { signOut } = useClerk();
+  const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [mounted, setMounted] = useState(false);

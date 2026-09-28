@@ -79,3 +79,47 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 - `prisma/migrations/014_supplier_price_history.sql`, `supabase/014_supplier_price_history_rls.sql` — **Nuevos**: tabla `supplier_price_history` + RLS (ejecutar en SQL Editor de Supabase)
 - `app/api/suppliers/price-history/route.ts` — **Nuevo**: historial de precios por proveedor
 - `components/purchasing/SupplierPriceHistory.tsx` — **Nuevo**: UI de historial de precios en Compras
+
+### Update (28 Sept 2026) — Dashboard de Facturación y Ventas
+- `app/api/companies/[id]/billing/stats/route.ts` — **Nuevo**: API de stats del dashboard de facturación (KPIs: emitidas/pagadas/pendientes/vencidas, ingresos, ISV, por cobrar, crecimiento; tendencia mensual, distribución por estado, top 5 clientes, top 10 productos vía InvoiceItem, 10 facturas recientes; params `months=3|6|12` y `status`). Filtra por `tenantId` (la tabla `Invoice` no tiene `company_id` en la BD; los montos se guardan en lempiras, no en centavos).
+- `components/billing/BillingDashboard.tsx` — **Nuevo**: Dashboard de facturación/ventas (Recharts, filtro de período, export CSV, menú a Módulos)
+- `app/companies/[id]/billing/dashboard/page.tsx` — **Nuevo**: página del dashboard
+- `app/companies/[id]/modules/page.tsx` — módulo `invoicing` ahora apunta a `/billing/dashboard` (antes `/billing/pos`, que no existía)
+- Nota: `components/sales/SalesDashboard.tsx` está **huérfano** y roto (usa tablas inexistentes `AccountReceivable`/`Customer`, divide montos por 100 y no filtra por tenant); no está referenciado. No borrar sin confirmación.
+
+### Update (28 Sept 2026) — Configuración de Factura
+- `app/api/companies/[id]/billing/config/route.ts` — **Nuevo**: API unificada GET+PUT de config de factura por empresa/tenant. GET devuelve emisor (Tenant + companies), logo (signed URL desde bucket `company-logos`), lista de CAI (`cai` snake_case real) y settings JSon (`system_config` key `invoice_settings`). PUT persiste emisor en columnas canónicas de `Tenant`/`companies`, `logourl`, y hace upsert de `system_config`. **No depende de localStorage ni de las rutas rotas.**
+- `app/api/companies/[id]/billing/config/cai/route.ts` — **Nuevo**: GET lista + POST crea CAI (valida longitud 32-37, rango, correlativo y unicidad por tenant; escribe la tabla `cai` con `status` TEXT `'active'/'inactive'` como usa la emisión).
+- `app/api/companies/[id]/billing/config/cai/[caiId]/route.ts` — **Nuevo**: PUT edita y DELETE elimina CAI (bloquea si hay facturas asociadas).
+- `app/api/companies/[id]/billing/config/logo/route.ts` — **Nuevo**: POST sube logo al bucket `company-logos` en `{tenantId}/logo-{ts}.{ext}` y devuelve path+signed URL.
+- `components/billing/InvoiceSettings.tsx` — **Nuevo**: UI de configuración con 4 tabs (Emisor + logo, CAI/Talonarios con CRUD en modal, Impresión con footer/QR/barcode/moneda/idioma, Impuestos ISV).
+- `app/companies/[id]/billing/settings/page.tsx` — **Nuevo**: página de configuración de la factura.
+- `components/billing/BillingDashboard.tsx` — botón **Configurar Factura** (header + menú) → `/companies/[id]/billing/settings`.
+- Pendiente de aplicar en BD: nada nuevo (usa columnas existentes de `Tenant`, `companies`, `cai`, `system_config`).
+
+### Update (28 Sept 2026) — Multi-impuestos
+- `app/api/companies/[id]/billing/config/route.ts` — `tax` ahora incluye `taxes: TaxEntry[]` (id, name, rate, isDefault, isActive). `sanitizeTaxes()` valida/normaliza (filtra tasas fuera de 0-100, genera ids); en PUT, `defaultRate` se sincroniza con el impuesto marcado como principal. Default de arranque: ISV 15% (principal) e ISV 18%.
+- `components/billing/InvoiceSettings.tsx` — pestaña **Impuestos** reescrita: agregar/eliminar múltiples impuestos, editar nombre y tasa, marcar uno como **Principal** y activar/desactivar cada uno.
+
+### Update (28 Sept 2026) — Preview de factura
+- `components/billing/InvoicePreviewLive.tsx` — **Nuevo**: preview en vivo de la factura al pie de la página de configuración. Refleja datos reales guardados (emisor, logo, CAI activo, impuestos, ajustes de impresión) con items de ejemplo; muestra QR/código de barras según config, texto de pie, moneda y aviso si no hay CAI.
+- `components/billing/InvoiceSettings.tsx` — monta `<InvoicePreviewLive>` al final de la página (se actualiza en vivo, sin necesidad de guardar) usando `activeCai` = CAI activo o el primero disponible.
+
+### Update (28 Sept 2026) — Fix POST CAI 400
+- `components/billing/InvoiceSettings.tsx` — **Fix**: `Number('')` producía `0` y disparaba 400 ("El número actual debe estar dentro del rango") al dejar vacío *Correlativo Actual*. Ahora convierte campos vacíos a `undefined` (`toNumber`) para que el backend aplique sus defaults, valida en cliente con mensajes por campo y **mantiene el modal abierto** mostrando el error en un bloque rojo (`caiError`) en vez de cerrarlo.
+- `app/api/companies/[id]/billing/config/cai/route.ts` — **Fix**: `currentNumber = num(body.currentNumber) || rangeStart` (antes `num(body.currentNumber ?? body.rangeStart ?? 0)`, que no caía al fallback cuando llegaba `0`).
+
+### Update (28 Sept 2026) — Fix esquema real de la tabla `cai`
+- **La tabla `cai` tiene DOS esquemas superpuestos** (verificado contra Supabase): el español de `supabase/create_cai_talonarios_fixed.sql` (`cai_number` VARCHAR NOT NULL UNIQUE, `company_id`, `fecha_asignacion`, `fecha_limite_emision`, `rango_inicial`, `rango_final`, `cantidad_recibos`, `recibos_utilizados`, `recibos_disponibles`, `estado` 'activo'/'inactivo', `current_correlative`) y el legacy en inglés agregado por `FIX_COLUMNS.sql` (`cai`, `start_number`, `end_number`, `current_number`, `issue_date`, `expiration_date`, `status` 'active'/'inactive', `tenant_id`).
+- **La emisión de facturas depende del esquema legacy**: `app/api/billing/invoices/route.ts` actualiza `current_number` filtrando por `cai` + `tenant_id`. Por eso hay que escribir AMBOS, no solo uno.
+- `app/api/companies/[id]/billing/config/cai/route.ts` — POST ahora insierte las dos convenciones de columnas (POST 500 `null value in column "cai_number"` resuelto); el chequeo de duplicados usa `.or('cai.eq.X,cai_number.eq.X')`; el GET lee ambas y resuelve por prioridad `cai`→`cai_number`, `start_number`→`rango_inicial`, `status`→`estado` ('active'/'activo'), `expiration_date`→`fecha_limite_emision`.
+- `app/api/companies/[id]/billing/config/cai/[caiId]/route.ts` — PUT actualiza ambos esquemas (sincroniza `cai_number`, `rango_*`, `current_correlative`, `recibos_*`, `estado`); DELETE cuenta facturas usando los códigos de `cai` y `cai_number`.
+- `app/api/companies/[id]/billing/config/route.ts` — `CaiRow` con campos opcionales de ambos esquemas y mismo mapeo con fallback en el GET.
+- Nota: los CAIinsertados por la app satisfy NOT NULL de ambos esquemas; no se requiere migración.
+
+### Update (28 Sept 2026) — Email/RTN del emisor sin sufijos
+- **Bug**: `lib/actions/onboarding.ts` creaba el tenant con `email+<tenantCode>@dominio` y `<rtn>-<timestamp>` para evadir el UNIQUE de `Tenant.businessemail`. Esos valores se imprimían en las facturas (`dentaldiamondhn+TEST1DS@gmail.com`, RTN `0101-0220-312304-1789620883990`).
+- `lib/billing/issuer-sanitizer.ts` — **Nuevo**: `sanitizeBusinessEmail()` (quita `+algo` antes del `@`) y `sanitizeBusinessRTN()` (acepta 14 dígitos, `4-4-6` con guiones, ambos con o sin sufijo numérico; no toca placeholders `TEMP-*`).
+- `app/api/companies/[id]/billing/config/route.ts` — el GET sanea `businessEmail` y `businessRTN` del emisor, así que la factura y el preview ya muestran los valores reales aunque la fila siga alterada.
+- `lib/actions/onboarding.ts` — **Fix raíz**: guarda el email y el RTN reales (`String(...).trim()`), sin `+code` ni `-timestamp`. Nuevo helper `insertTenantWithFiscalFallback()`: inserta con los valores reales y, solo ante error `23505` (unique_violation), reintenta una vez con el sufijo `+<tenantId>` para no romper el onboarding. Aplicado en los 2 sitios de creación de tenant.
+- `prisma/migrations/020_tenant_fiscal_data_not_unique.sql` — **Nuevo, PENDIENTE de ejecutar en Supabase**: quita el UNIQUE `Tenant_New_businessemail_key` (deja índice no único) y limpia los valores alterados con `regexp_replace`. Es idempotente. **No se puede aplicar desde la app**: no hay RPC de DDL (`exec_sql`/`execute_sql` no existen) y el UNIQUE bloquea el update por REST (verificado: 409 `23505`).

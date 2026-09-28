@@ -11,6 +11,42 @@ interface BankAccount {
   accountType: string;
   currency: string;
 }
+
+/**
+ * Inserta el tenant con el email y el RTN reales del negocio (son los datos que
+ * se imprimen en las facturas, no deben llevar sufijos).
+ *
+ * `Tenant.businessemail` es UNIQUE en la BD, asi que si otro tenant ya usa ese
+ * correo se reintenta una sola vez con el sufijo `+<tenantCode>` en vez de abortar
+ * el onboarding. Idem para el RTN.
+ */
+async function insertTenantWithFiscalFallback(
+  tenantData: Record<string, unknown>
+): Promise<{ data: any; error: any }> {
+  const client = supabase as any;
+  const first = await client.from('Tenant').insert([tenantData]).select().single();
+  if (!first.error || first.error.code !== '23505') return first;
+
+  // 23505 = unique_violation: reintento con los valores uniquely qualified.
+  const tenantId = String(tenantData.id || '');
+  const withSuffix: Record<string, unknown> = { ...tenantData };
+  const email = String(tenantData.businessemail || '');
+  if (email.includes('@') && !email.includes(`+${tenantId}@`)) {
+    const [local, domain] = email.split('@');
+    const variant = `${local}+${tenantId}@${domain}`;
+    withSuffix.businessemail = variant;
+    withSuffix.business_email = variant;
+  }
+  const rtn = String(tenantData.businessrtn || '');
+  if (rtn && !rtn.startsWith('TEMP-') && !rtn.endsWith(String(tenantId))) {
+    const variantRtn = `${rtn}-${tenantId}`;
+    withSuffix.businessrtn = variantRtn;
+    withSuffix.business_rtn = variantRtn;
+  }
+  if (withSuffix.businessemail === tenantData.businessemail) return first;
+
+  return client.from('Tenant').insert([withSuffix]).select().single();
+}
  
 interface Tax {
   rate: number;
@@ -198,8 +234,8 @@ const userLastName = user?.lastName ||
       
       // Crear nuevo tenant
       const tenantId = generateTenantCode(data.companyData.name);
-      const uniqueRtn = data.companyData.rtn ? `${data.companyData.rtn}-${Date.now()}` : `TEMP-${tenantId}-${Date.now()}`;
-      const uniqueEmail = data.companyData.email ? `${data.companyData.email.split('@')[0]}+${tenantId}@${data.companyData.email.split('@')[1]}` : `admin+${tenantId}@temp.com`;
+      const uniqueRtn = data.companyData.rtn ? String(data.companyData.rtn).trim() : '';
+      const uniqueEmail = data.companyData.email ? String(data.companyData.email).trim() : '';
       const onboardingPhone = data.companyData.companyPhone || data.companyData.clientPhone || data.companyData.contactPhone || '';
       const tenantData = {
         id: tenantId,
@@ -242,11 +278,7 @@ const userLastName = user?.lastName ||
       console.log('📊 Tenant data to insert:', JSON.stringify(tenantData, null, 2));
       
       // Use simple insert (creating new tenant)
-      const { data: newTenant, error: tenantError } = await supabase
-        .from('Tenant')
-        .insert([tenantData])
-        .select()
-        .single();
+      const { data: newTenant, error: tenantError } = await insertTenantWithFiscalFallback(tenantData);
 
       if (tenantError || !newTenant) {
         console.error('❌ Error creando tenant:', tenantError);
@@ -339,8 +371,8 @@ const userLastName = user?.lastName ||
       
       // Crear nuevo tenant para usuario existente
       const tenantId = generateTenantCode(data.companyData.name);
-      const uniqueRtn = data.companyData.rtn ? `${data.companyData.rtn}-${Date.now()}` : `TEMP-${tenantId}-${Date.now()}`;
-      const uniqueEmail = data.companyData.email ? `${data.companyData.email.split('@')[0]}+${tenantId}@${data.companyData.email.split('@')[1]}` : `admin+${tenantId}@temp.com`;
+      const uniqueRtn = data.companyData.rtn ? String(data.companyData.rtn).trim() : '';
+      const uniqueEmail = data.companyData.email ? String(data.companyData.email).trim() : '';
       const onboardingPhone2 = data.companyData.companyPhone || data.companyData.clientPhone || data.companyData.contactPhone || '';
       const tenantData = {
         id: tenantId,
@@ -385,11 +417,7 @@ const userLastName = user?.lastName ||
       console.log('🔧 Company Name:', data.companyData.name);
       
       // Use simple insert (creating new tenant)
-      const { data: newTenant, error: tenantError } = await supabase
-        .from('Tenant')
-        .insert([tenantData])
-        .select()
-        .single();
+      const { data: newTenant, error: tenantError } = await insertTenantWithFiscalFallback(tenantData);
 
       if (tenantError || !newTenant) {
         console.error('❌ Error creando tenant para usuario existente:', tenantError);

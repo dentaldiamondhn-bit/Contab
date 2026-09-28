@@ -56,7 +56,7 @@ const modules = [
     icon: Receipt,
     color: 'text-orange-600',
     bgColor: 'bg-orange-50',
-    path: '/billing/pos',
+    path: '/billing/dashboard',
     status: 'active'
   },
   {
