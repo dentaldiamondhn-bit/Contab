@@ -15,7 +15,8 @@ export async function GET(
 
     // Transacciones reales del tenant en el período
     let transactions: any[] = [];
-    const { searchParams } = new URL(request.url);
+    const url = new URL(request.url);
+    const searchParams = url.searchParams;
     const companyId = searchParams.get('companyId');
     let query = supabaseService
       .from('Transaction')
@@ -58,10 +59,10 @@ export async function GET(
     ingresos = Math.round(ingresos * 100) / 100;
     egresos = Math.round(egresos * 100) / 100;
 
-    // Facturación y cobros reales desde Invoice (se omiten anuladas)
     let invoices: any[] = [];
-    const { searchParams } = new URL(request.url);
-    const companyIdQuery = searchParams.get('companyId');
+    const url2 = new URL(request.url);
+    const searchParams2 = url2.searchParams;
+    const companyIdQuery = searchParams2.get('companyId');
     let query = supabaseService
       .from('Invoice')
       .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id');
