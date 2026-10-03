@@ -593,3 +593,57 @@ PERIOD_LOCKS.sql
 **Status**: Production Ready  
 **Last Updated**: 17 de Septiembre de 2026  
 **Compatible**: Next.js 16.3.5, Prisma 5, React 19
+
+---
+
+## Documentacion operativa y estado actual (28 Sept 2026)
+
+### Donde leer que
+| Archivo | Para que |
+|---|---|
+| `AGENTS.md` (raiz) | **Reglas invariantes**: tenant, lempiras, correlativo, esquema real, migraciones, verificacion. Leelo antes de tocar codigo. |
+| `CLAUDE.md` | **Diario de cambios**: que se arreglo, cuando y con que prueba. |
+| `docs/*_REPORT.md` | Reporte de estado por modulo (facturacion, inventario, contabilidad, RRHH, etc.). |
+| `docs/AGENTS.md` | Referencia rapida de las mejoras "Enterprise" y comandos de despliegue. |
+
+### Estado del typecheck
+El baseline del proyecto es de **481 errores de TypeScript preexistentes** (era 483; bajó
+2 al corregir rutas mal filtradas en la auditoría de aislamiento). Un cambio solo esta
+bien si el total no sube de 481. El typecheck global no sirve como prueba de exito.
+
+### Migraciones: estado real (28 Septiembre 2026)
+Los `.sql` de `prisma/migrations/` **no se aplican solos**: hay que correrlos en el
+**SQL Editor de Supabase**.
+
+**Aplicadas: 018, 019, 020, 021, 022, 023, 024, 024b, 025 y 026.** Verificado contra
+la BD: `product_location.image_url`, `product_location.warehouse_id` e
+`InvoiceItem.product_id` existen, o sea 018, 019 y 021 **ya se habían aplicado** y este
+documento estaba desactualizado al decir lo contrario.
+
+Lo que sigue pendiente:
+
+- **La 027, que aún no existe**: rehacer las **42 vistas de reportes** (`libro_ventas`,
+  `libro_mayor`, `balance_general`, `balanza_comprobacion`, `estado_resultados`) para que
+  filtren por `company_id`. Se leen de tablas ya aisladas pero hoy **mezclan empresas**.
+  Bloquea la vista consolidada del Empresario.
+- **51 tablas** sin `company_id` (las que no tenían `tenant_id`): `AccountReceivable`,
+  `BookClosing`, `Reconciliation`, `payment_vouchers`, `asset_*`, `itr_produccion`.
+- **42 rutas API** que filtran por `tenant_id` en vez de `company_id`.
+
+Detalle completo en [`AISLAMIENTO_EMPRESAS.md`](./AISLAMIENTO_EMPRESAS.md).
+
+
+### Bugs conocidos abiertos
+- `app/api/billing/invoices/route.ts` manda los importes **x100** al asiento contable,
+  aunque las facturas estan en lempiras.
+- El asiento de cobros (`payment-receipts`) asume venta a credito; en una venta de caja el
+  credito a `1103` no tendria debito previo.
+- `stock_quantity` no se sincroniza al vender (`current_stock` si es la fuente real).
+- El envio de correo necesita `RESEND_API_KEY` y `EMAIL_FROM` en `.env.local`; sin eso
+  responde 503.
+
+### Verificacion contra la base real
+Los cambios de esquema y de logique de negocio se prueban **contra Supabase**, no de
+palabra: se insertan filas de prueba, se comprueba el comportamiento y se borran, y se comprueba
+que la base quedo como estaba. Las rutas API no se pueden probar por HTTP sin sesion de
+Clerk (el `middleware.ts` devuelve HTML, no JSON).

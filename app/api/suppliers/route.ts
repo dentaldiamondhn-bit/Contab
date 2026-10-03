@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { TENANT_ID } from '@/lib/purchase-db';
+import { exigirEmpresa } from '@/lib/purchase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 const SUPPLIER_COLUMNS = [
   'rtn',
@@ -23,9 +24,22 @@ const SUPPLIER_COLUMNS = [
   'is_preferred',
 ];
 
-function buildInsert(body: any) {
+/**
+ * La empresa la decide SIEMPRE el contexto. Se eliminaron los tres caminos por los
+ * que la fila acababa en la empresa equivocada:
+ *
+ * 1. `buildInsert` fijaba `tenant_id` a un `'1'` y tomaba `company_id` del cuerpo
+ *    sin comprobar nada, asi que un POST escribia el proveedor donde dijera el
+ *    cliente.
+ * 2. El GET aceptaba `?tenantId` **como si fuera `company_id`**: son columnas de
+ *    convenciones distintas (`"1"` vs `73d5bbf7-...`). Cuando no venia ninguno de
+ *    los dos, no ponia filtro de empresa y devolvia los proveedores de todas.
+ * 3. PATCH y DELETE filtraban solo por `.eq('id', id)`.
+ */
+function buildInsert(body: any, empresa: { tenantId: string; companyId: string }) {
   const row: any = {
-    tenant_id: TENANT_ID,
+    tenant_id: empresa.tenantId,
+    company_id: empresa.companyId,
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   };
@@ -34,9 +48,6 @@ function buildInsert(body: any) {
     if (body[col] !== undefined) row[col] = body[col];
   }
 
-  if (body.companyId) row.company_id = body.companyId;
-  else if (body.company_id) row.company_id = body.company_id;
-
   if (row.is_active === undefined) row.is_active = true;
 
   return row;
@@ -44,18 +55,14 @@ function buildInsert(body: any) {
 
 export async function GET(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId') || searchParams.get('tenantId');
     const search = searchParams.get('search');
 
     let query = getSupabaseServer()
       .from('Supplier')
       .select('*')
-      .eq('tenant_id', TENANT_ID);
-
-    if (companyId) {
-      query = query.eq('company_id', companyId);
-    }
+      .eq('company_id', empresa.companyId);
 
     if (search) {
       const term = search.toLowerCase();
@@ -71,6 +78,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data || []);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error fetching suppliers:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -78,11 +87,12 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
 
     const { data, error } = await getSupabaseServer()
       .from('Supplier')
-      .insert(buildInsert(body))
+      .insert(buildInsert(body, empresa))
       .select()
       .single();
 
@@ -93,6 +103,8 @@ export async function POST(request: Request) {
 
     return NextResponse.json(data, { status: 201 });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error creating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -100,10 +112,26 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
     const { id } = body;
     if (!id) {
       return NextResponse.json({ error: 'id requerido' }, { status: 400 });
+    }
+
+    const supabase = getSupabaseServer();
+
+    // Comprobar pertenencia ANTES de escribir: con solo `.eq('company_id')` en el
+    // UPDATE, un id ajeno no encontraria fila y devolveria 0 afectadas, pero un
+    // cliente que reintentara sin ese chequeo veria como un "exito" silencioso.
+    const { data: actual } = await supabase
+      .from('Supplier')
+      .select('id')
+      .eq('id', id)
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
+    if (!actual) {
+      return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 404 });
     }
 
     const updates: any = {};
@@ -112,10 +140,11 @@ export async function PATCH(request: Request) {
     }
     updates.updated_at = new Date().toISOString();
 
-    const { data, error } = await getSupabaseServer()
+    const { data, error } = await supabase
       .from('Supplier')
       .update(updates)
       .eq('id', id)
+      .eq('company_id', empresa.companyId)
       .select()
       .single();
 
@@ -126,6 +155,8 @@ export async function PATCH(request: Request) {
 
     return NextResponse.json(data);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error updating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -133,6 +164,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -140,15 +172,38 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'id requerido' }, { status: 400 });
     }
 
-    const { error } = await getSupabaseServer().from('Supplier').delete().eq('id', id);
+    const supabase = getSupabaseServer();
+
+    const { data: actual } = await supabase
+      .from('Supplier')
+      .select('id')
+      .eq('id', id)
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
+    if (!actual) {
+      return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 404 });
+    }
+
+    const { error } = await supabase
+      .from('Supplier')
+      .delete()
+      .eq('id', id)
+      .eq('company_id', empresa.companyId);
 
     if (error) {
       console.error('Error deleting supplier:', error);
-      return NextResponse.json({ error: 'No se puede eliminar: tiene compras o pagos asociados' }, { status: 400 });
+      // Antes TODO error devolvia este mensaje, asi que un fallo de red o de
+      // permisos se reportaba como "tiene compras asociadas".
+      return NextResponse.json(
+        { error: 'No se puede eliminar: tiene compras o pagos asociados', detail: error.message },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error deleting supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

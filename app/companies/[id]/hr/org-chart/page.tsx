@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
+import ArchivoPrivado from '@/components/hr/ArchivoPrivado';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -270,8 +271,11 @@ export default function OrgChartPage() {
       setUploadingPhoto(employeeId);
       const formData = new FormData();
       formData.append('file', file);
-      formData.append('folder', `${companyId}/photos`);
-      formData.append('bucket', 'employee-photos');
+      // Antes mandaba `folder` y `bucket`, que la ruta ignora (el bucket lo decide
+      // el servidor por `type`): sin `employeeId` y `type` devolvia 400 y la foto
+      // nunca se subia. El `folder` con el id de empresa tampoco era el path real.
+      formData.append('employeeId', employeeId);
+      formData.append('type', 'photo');
 
       const res = await fetch(`/api/companies/${companyId}/hr/storage`, {
         method: 'POST',
@@ -279,7 +283,8 @@ export default function OrgChartPage() {
       });
 
       if (res.ok) {
-        const { url } = await res.json();
+        // Se guarda el PATH, no la URL firmada (los buckets son privados).
+        const { path } = await res.json() as { path: string };
         const emp = employees.find(e => e.id === employeeId);
         if (emp) {
           await fetch(`/api/companies/${companyId}/employees`, {
@@ -310,13 +315,13 @@ export default function OrgChartPage() {
               languages: '',
               certifications: '',
               otherSkills: '',
-              photo: url,
+              photo: path,
               cv: '',
               hrDocuments: [],
             })
           });
           setEmployees(prev => prev.map(e =>
-            e.id === employeeId ? { ...e, photo: url } : e
+            e.id === employeeId ? { ...e, photo: path } : e
           ));
         }
       }
@@ -376,7 +381,7 @@ export default function OrgChartPage() {
         );
 
         if (!emp) {
-          errors.push(`Línea ${i + 1}: Empleado "${cols[empNameIdx]}" no encontrado`);
+          errors.push(`LÃ­nea ${i + 1}: Empleado "${cols[empNameIdx]}" no encontrado`);
           continue;
         }
 
@@ -386,11 +391,11 @@ export default function OrgChartPage() {
             `${e.firstName} ${e.lastName}`.toLowerCase().includes(mgrName)
           );
           if (!mgr) {
-            errors.push(`Línea ${i + 1}: Jefe "${cols[mgrNameIdx]}" no encontrado`);
+            errors.push(`LÃ­nea ${i + 1}: Jefe "${cols[mgrNameIdx]}" no encontrado`);
             continue;
           }
           if (mgr.id === emp.id) {
-            errors.push(`Línea ${i + 1}: "${cols[empNameIdx]}" no puede reportarse a sí mismo`);
+            errors.push(`LÃ­nea ${i + 1}: "${cols[empNameIdx]}" no puede reportarse a sÃ­ mismo`);
             continue;
           }
           mgrId = mgr.id;
@@ -431,9 +436,9 @@ export default function OrgChartPage() {
             })
           });
           if (res.ok) success++;
-          else errors.push(`Línea ${i + 1}: Error al guardar`);
+          else errors.push(`LÃ­nea ${i + 1}: Error al guardar`);
         } catch {
-          errors.push(`Línea ${i + 1}: Error de conexión`);
+          errors.push(`LÃ­nea ${i + 1}: Error de conexiÃ³n`);
         }
       }
 
@@ -447,7 +452,7 @@ export default function OrgChartPage() {
   };
 
   const downloadCSVTemplate = () => {
-    const csv = 'empleado,jefe\nJuan Pérez,María García\nCarlos López,Juan Pérez\nAna Martínez,María García';
+    const csv = 'empleado,jefe\nJuan PÃ©rez,MarÃ­a GarcÃ­a\nCarlos LÃ³pez,Juan PÃ©rez\nAna MartÃ­nez,MarÃ­a GarcÃ­a';
     const blob = new Blob([csv], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -495,7 +500,7 @@ export default function OrgChartPage() {
             
             {node.employee.photo ? (
               <div className="relative group">
-                <img src={node.employee.photo} alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow" />
+                <ArchivoPrivado valor={node.employee.photo} bucket="employee-photos" modo="img" alt="" className="w-10 h-10 rounded-full object-cover border-2 border-white shadow" />
                 <button
                   onClick={() => handlePhotoClick(node.employee.id)}
                   className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
@@ -538,7 +543,7 @@ export default function OrgChartPage() {
                 {node.employee.position || 'Sin puesto'}
                 {node.employee.department && (
                   <>
-                    <span className="text-gray-300">•</span>
+                    <span className="text-gray-300">â€¢</span>
                     <Building2 className="h-3 w-3" />
                     {node.employee.department}
                   </>
@@ -573,12 +578,12 @@ export default function OrgChartPage() {
                   onChange={(e) => setSelectedManager(e.target.value)}
                   className="text-sm border rounded px-2 py-1 max-w-[200px]"
                 >
-                  <option value="">Sin jefe (raíz)</option>
+                  <option value="">Sin jefe (raÃ­z)</option>
                   {employees
                     .filter(e => e.id !== node.employee.id && !isDescendant(node.employee.id, e.id))
                     .map(e => (
                       <option key={e.id} value={e.id}>
-                        {e.firstName} {e.lastName} — {e.position || 'Sin puesto'}
+                        {e.firstName} {e.lastName} â€” {e.position || 'Sin puesto'}
                       </option>
                     ))}
                 </select>
@@ -670,7 +675,7 @@ export default function OrgChartPage() {
                       <div className="flex items-center gap-2">
                         {emp.photo ? (
                           <div className="relative group">
-                            <img src={emp.photo} alt="" className="w-8 h-8 rounded-full object-cover" />
+                            <ArchivoPrivado valor={emp.photo} bucket="employee-photos" modo="img" alt="" className="w-8 h-8 rounded-full object-cover" />
                             <button
                               onClick={() => handlePhotoClick(emp.id)}
                               className="absolute inset-0 bg-black/50 rounded-full opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
@@ -708,7 +713,7 @@ export default function OrgChartPage() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 text-sm">{emp.position || '—'}</td>
+                    <td className="px-4 py-3 text-sm">{emp.position || 'â€”'}</td>
                     <td className="px-4 py-3 text-sm">
                       {isEditing ? (
                         <div className="flex items-center gap-1">
@@ -732,7 +737,7 @@ export default function OrgChartPage() {
                           </Button>
                         </div>
                       ) : (
-                        <span className="text-blue-600">{mgrName || <span className="text-gray-400">—</span>}</span>
+                        <span className="text-blue-600">{mgrName || <span className="text-gray-400">â€”</span>}</span>
                       )}
                     </td>
                     <td className="px-4 py-3 text-sm">
@@ -785,7 +790,7 @@ export default function OrgChartPage() {
             Organigrama de Empleados
           </h1>
           <p className="text-gray-500">
-            {totalCount} empleados activos • {buildTree.filter(n => !n.employee.reportsTo).length} raíces
+            {totalCount} empleados activos â€¢ {buildTree.filter(n => !n.employee.reportsTo).length} raÃ­ces
           </p>
         </div>
         <div className="flex gap-2">
@@ -800,8 +805,8 @@ export default function OrgChartPage() {
       <Card className="bg-blue-50 border-blue-200">
         <CardContent className="pt-4">
           <p className="text-sm text-blue-800">
-            <strong>¿Cómo funciona?</strong> Define quién reporta a quién usando el botón "Asignar Jefe" o "Cambiar Jefe".
-            Los empleados sin jefe directo se muestran como raíces del organigrama. Puede usar la vista de árbol o lista.
+            <strong>Â¿CÃ³mo funciona?</strong> Define quiÃ©n reporta a quiÃ©n usando el botÃ³n "Asignar Jefe" o "Cambiar Jefe".
+            Los empleados sin jefe directo se muestran como raÃ­ces del organigrama. Puede usar la vista de Ã¡rbol o lista.
           </p>
         </CardContent>
       </Card>
@@ -841,7 +846,7 @@ export default function OrgChartPage() {
             className={`px-3 py-2 text-sm ${view === 'tree' ? 'bg-blue-600 text-white' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
           >
             <Network className="h-4 w-4 mr-1 inline" />
-            Árbol
+            Ãrbol
           </button>
           <button
             onClick={() => setView('list')}
@@ -899,7 +904,7 @@ export default function OrgChartPage() {
             <div className="text-2xl font-bold text-blue-600">
               {buildTree.filter(n => !n.employee.reportsTo).length}
             </div>
-            <p className="text-xs text-gray-500">Empleados raíz (sin jefe)</p>
+            <p className="text-xs text-gray-500">Empleados raÃ­z (sin jefe)</p>
           </CardContent>
         </Card>
         <Card>
@@ -936,7 +941,7 @@ export default function OrgChartPage() {
               <div className="flex items-center justify-between">
                 <CardTitle className="flex items-center gap-2">
                   <FileSpreadsheet className="h-5 w-5" />
-                  Importar Jerarquía desde CSV
+                  Importar JerarquÃ­a desde CSV
                 </CardTitle>
                 <Button variant="ghost" size="sm" onClick={() => { setShowImportCSV(false); setCsvData(''); setImportResult(null); }}>
                   <X className="h-4 w-4" />
@@ -961,7 +966,7 @@ export default function OrgChartPage() {
                 <textarea
                   value={csvData}
                   onChange={(e) => setCsvData(e.target.value)}
-                  placeholder="empleado,jefe&#10;Juan Pérez,María García&#10;Carlos López,Juan Pérez"
+                  placeholder="empleado,jefe&#10;Juan PÃ©rez,MarÃ­a GarcÃ­a&#10;Carlos LÃ³pez,Juan PÃ©rez"
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm font-mono h-32"
                 />
               </div>

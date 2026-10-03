@@ -22,7 +22,7 @@ model Account {
   updatedAt   DateTime @updatedAt @map("updated_at")
   Tenant      Tenant   @relation(fields: [tenantId], references: [id])
 
-  @@unique([code, tenantId], map: "unique_code_tenant")
+  @@unique([code, companyId], map: "Account_company_id_code_key")
   @@index([tenantId], map: "idx_account_tenant")
   @@index([companyId], map: "idx_account_company")
   @@map("Account")

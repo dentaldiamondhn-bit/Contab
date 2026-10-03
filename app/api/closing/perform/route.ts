@@ -26,12 +26,27 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    // El cierre es POR EMPRESA. El tenant sale de la cuenta de patrimonio; la
+    // empresa se resuelve desde `companies`. Si el tenant tiene varias empresas
+    // (TEST1DS) no se puede inferir: se deja null y el trigger de la 029 lo
+    // rechaza, en vez de cerrar la empresa equivocada en silencio.
+    const supabaseScope = getSupabaseServer();
+    const cuentaPatrimonio = await db.account.findUnique({ where: { id: equityAccountId } });
+    const tenantIdScope = cuentaPatrimonio?.tenantId ? String(cuentaPatrimonio.tenantId) : null;
+    let companyIdScope: string | null = null;
+    if (tenantIdScope) {
+      const { data: empresas } = await (supabaseScope as any)
+        .from('companies').select('id').eq('tenant_id', tenantIdScope);
+      companyIdScope = empresas?.length === 1 ? empresas[0].id : null;
+    }
+
     // Candado unificado: si el año ya está cerrado (month=0), rechaza
     try {
-      const supabase = getSupabaseServer();
-      // Intenta inferir tenant del equityAccount o del body si viene
-      const tenantId = (await db.account.findUnique({ where: { id: equityAccountId } }))?.tenantId || 'unknown';
-      if (tenantId !== 'unknown') await assertYearOpen(supabase as any, String(tenantId), year);
+      if (tenantIdScope) {
+        await assertYearOpen(supabaseScope as any, tenantIdScope, year, {
+          companyId: companyIdScope,
+        });
+      }
     } catch (e) {
       if (e instanceof Error && /cerrado|bloqueado/.test(e.message)) {
         return NextResponse.json({ error: e.message }, { status: 403 });
@@ -41,11 +56,10 @@ export async function POST(request: Request) {
     // Perform the year-end closing (legacy) + marca anual en period_locks para el Wizard unificado
     const closingTransaction = await performYearEndClosing(year, equityAccountId, closedBy);
     try {
-      const supabase = getSupabaseServer();
-      const tenantId2 = (await db.account.findUnique({ where: { id: equityAccountId } }))?.tenantId;
-      if (tenantId2) {
-        await (supabase as any).from('period_locks').upsert({
-          tenant_id: String(tenantId2),
+      if (tenantIdScope) {
+        await (supabaseScope as any).from('period_locks').upsert({
+          tenant_id: tenantIdScope,
+          company_id: companyIdScope,
           year,
           month: 0,
           status: 'closed',
@@ -53,7 +67,7 @@ export async function POST(request: Request) {
           closed_at: new Date().toISOString(),
           notes: `Cierre anual ${year} (via /api/closing/perform)`,
           updated_at: new Date().toISOString(),
-        }, { onConflict: 'tenant_id,year,month' });
+        }, { onConflict: 'company_id,year,month' });
       }
     } catch {}
 

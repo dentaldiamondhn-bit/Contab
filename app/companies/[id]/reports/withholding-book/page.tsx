@@ -71,7 +71,9 @@ export default function WithholdingBookPage() {
           if (lr.ok) {
             const lj = await lr.json();
             const list: any[] = lj.companies || lj || [];
-            const comp = list.find((c: any) => c.tenant_id === companyId || c.id === companyId);
+            // Solo por companies.id: test 1 y test 2 comparten TEST1DS, asi que
+            // buscar por 	enant_id primero devolvia la fila de la otra empresa.
+            const comp = list.find((c: any) => c.id === companyId);
             if (comp) setCompanyInfo({
               name: comp.business_name || comp.name || '',
               rtn: comp.business_rtn || comp.rtn || '',

@@ -137,7 +137,11 @@ CREATE TABLE IF NOT EXISTS "User" (
   avatarurl    TEXT
 );
 
-CREATE INDEX IF NOT EXISTS idx_user_email ON "User" (email);
+-- Unico por (email, tenantid), NO solo por email: en multi-tenant un correo puede
+-- ser usuario de varios tenants. Debe coincidir con FULL_SETUP.sql, que es donde
+-- estaba en UNIQUE(email) y reventaba con 23505. Ver la nota larga ahi.
+DROP INDEX IF EXISTS idx_user_email;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email_tenant ON "User" (email, tenantid);
 CREATE INDEX IF NOT EXISTS idx_user_tenant ON "User" (tenantid);
 CREATE INDEX IF NOT EXISTS idx_user_authid ON "User" (authid);
 CREATE INDEX IF NOT EXISTS idx_user_role ON "User" (role);

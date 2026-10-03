@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { TENANT_ID } from '@/lib/purchase-db';
+import { exigirEmpresa } from '@/lib/purchase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -181,9 +182,15 @@ function parseExcelToRecords(buffer: Buffer): { canonicalColumns: string[]; reco
 
 export async function POST(req: NextRequest) {
   try {
+    // El `companyId` del formulario ya no decide nada: la empresa la fija el
+    // contexto. Antes, sin ese campo, las filas se insertaban con
+    // `company_id: null`, invisibles para todo filtro por empresa, y ademas el
+    // dedup de abajo comparaba contra los proveedores de todas las empresas, asi
+    // que un RTN ya usado en otra empresa hacia omitir la fila aqui.
+    const empresa = exigirEmpresa(await contextoDeEmpresa(req));
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const companyId = (formData.get('companyId') as string) || null;
 
     if (!file) {
       return NextResponse.json({ error: 'Se requiere un archivo (CSV o Excel)' }, { status: 400 });
@@ -218,9 +225,11 @@ export async function POST(req: NextRequest) {
     let existingRtns = new Set<string>();
     let existingEmails = new Set<string>();
     {
-      let q = getSupabaseServer().from('Supplier').select('rtn, email').eq('tenant_id', TENANT_ID);
-      if (companyId) q = q.eq('company_id', companyId);
-      const { data: existing, error: existingErr } = await q.limit(5000);
+      const { data: existing, error: existingErr } = await getSupabaseServer()
+        .from('Supplier')
+        .select('rtn, email')
+        .eq('company_id', empresa.companyId)
+        .limit(5000);
       if (!existingErr && existing) {
         existingRtns = new Set(existing.map((e: any) => cleanDigits(e.rtn)));
         existingEmails = new Set(
@@ -262,8 +271,8 @@ export async function POST(req: NextRequest) {
       const paymentTermsNum = parseInt(r.payment_terms, 10);
 
       rowsToInsert.push({
-        tenant_id: TENANT_ID,
-        company_id: companyId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
         rtn: rtnRaw,
         name,
         commercial_name: r.commercial_name || null,
@@ -324,6 +333,8 @@ export async function POST(req: NextRequest) {
         (errors.length ? `, ${errors.length} con errores` : ''),
     });
   } catch (error: any) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('suppliers/import error', error);
     return NextResponse.json({ error: error?.message ?? 'Error interno' }, { status: 500 });
   }

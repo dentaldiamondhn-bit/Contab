@@ -30,18 +30,19 @@ export interface CreateAccountData {
   parentId?: string;
 }
 
-// Función para obtener el siguiente número de póliza por tenant
-export async function getNextVoucherNumber(voucherType: string, tenantId: string): Promise<number> {
+// Función para obtener el siguiente número de póliza por empresa.
+// El aislamiento real es `company_id` (un tenant puede tener varias empresas):
+// sin `companyId` el correlativo se calculaba entre empresas.
+export async function getNextVoucherNumber(voucherType: string, tenantId: string, companyId?: string | null): Promise<number> {
   try {
     const lastTransaction = await db.transaction.findFirst({
-      where: { 
+      where: {
         voucherType,
-        // Aquí necesitaríamos agregar tenantId a la tabla Transaction
-        // Por ahora, usamos el filtro existente
+        ...(companyId ? { companyId } : { tenantId }),
       },
       orderBy: { voucherNumber: 'desc' },
     });
-    
+
     return lastTransaction ? lastTransaction.voucherNumber + 1 : 1;
   } catch (error) {
     console.error("Error getting next voucher number:", error);
@@ -352,7 +353,12 @@ export async function getTrialBalance(startDate?: Date, endDate?: Date) {
 }
 
 // Obtener libro mayor
-export async function getGeneralLedger(accountId: string, startDate?: Date, endDate?: Date) {
+export async function getGeneralLedger(
+  accountId: string,
+  startDate?: Date,
+  endDate?: Date,
+  scope?: { tenantId?: string | null; companyId?: string | null },
+) {
   // const session = await auth();
   // if (!session?.user) {
   //   redirect("/login");
@@ -360,6 +366,13 @@ export async function getGeneralLedger(accountId: string, startDate?: Date, endD
 
   try {
     const where: any = {
+      // Aislamiento real por empresa (`company_id`); sin empresa, se degrada al
+      // tenant. Antes no filtraba y devolvía el mayor de todas las empresas.
+      ...(scope?.companyId
+        ? { companyId: scope.companyId }
+        : scope?.tenantId
+          ? { tenantId: scope.tenantId }
+          : {}),
       entries: {
         some: {
           accountId: accountId,

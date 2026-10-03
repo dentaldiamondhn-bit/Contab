@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
-    }
+    // Contexto validado (antes aceptaba `?tenantId` sin comprobar pertenencia).
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get("limit") || "50");
@@ -22,7 +21,7 @@ export async function GET(request: NextRequest) {
     let query = supabaseService
       .from("account_audit_log")
       .select("*", { count: "exact" })
-      .eq("tenant_id", tenantId)
+      .match(scope)
       .order("performed_at", { ascending: false });
 
     if (action) {
@@ -58,6 +57,7 @@ export async function GET(request: NextRequest) {
           .from("Account")
           .select("code, name")
           .eq("id", log.account_id)
+          .match(scope)
           .single();
         return {
           ...log,
@@ -79,6 +79,8 @@ export async function GET(request: NextRequest) {
       totalPages: Math.ceil((count || 0) / limit)
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in audit-logs GET:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

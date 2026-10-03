@@ -83,16 +83,16 @@ const GOAL_STATUS: Record<string, { label: string; color: string; bg: string }> 
 
 const IMPROVEMENT_AREAS = [
   { id: 'puntualidad', title: 'Puntualidad y Asistencia', metric: 'asistencia', unit: 'porcentaje', description: 'Mejorar la puntualidad en las entradas y reducir ausencias injustificadas' },
-  { id: 'calidad', title: 'Calidad del Trabajo', metric: 'calidad', unit: 'calificacion', description: 'Elevar la calidad y precisión de las tareas asignadas' },
-  { id: 'comunicacion', title: 'Comunicación', metric: 'comunicacion', unit: 'calificacion', description: 'Mejorar la comunicación oral y escrita con el equipo y clientes' },
-  { id: 'equipo', title: 'Trabajo en Equipo', metric: 'colaboracion', unit: 'calificacion', description: 'Fomentar la colaboración y el trabajo coordinado con compañeros' },
+  { id: 'calidad', title: 'Calidad del Trabajo', metric: 'calidad', unit: 'calificacion', description: 'Elevar la calidad y precisiÃ³n de las tareas asignadas' },
+  { id: 'comunicacion', title: 'ComunicaciÃ³n', metric: 'comunicacion', unit: 'calificacion', description: 'Mejorar la comunicaciÃ³n oral y escrita con el equipo y clientes' },
+  { id: 'equipo', title: 'Trabajo en Equipo', metric: 'colaboracion', unit: 'calificacion', description: 'Fomentar la colaboraciÃ³n y el trabajo coordinado con compaÃ±eros' },
   { id: 'productividad', title: 'Productividad', metric: 'productividad', unit: 'porcentaje', description: 'Incrementar la cantidad y eficiencia de las tareas completadas' },
-  { id: 'liderazgo', title: 'Liderazgo', metric: 'liderazgo', unit: 'calificacion', description: 'Desarrollar habilidades de guía, motivación y toma de decisiones' },
-  { id: 'normas', title: 'Cumplimiento de Normas', metric: 'cumplimiento', unit: 'porcentaje', description: 'Respetar y aplicar las políticas y procedimientos de la empresa' },
-  { id: 'tecnicas', title: 'Habilidades Técnicas', metric: 'habilidades', unit: 'calificacion', description: 'Fortalecer conocimientos y destrezas técnicas del puesto' },
-  { id: 'clientes', title: 'Atención al Cliente', metric: 'servicio', unit: 'calificacion', description: 'Mejorar la experiencia y satisfacción del cliente' },
-  { id: 'iniciativa', title: 'Iniciativa y Proactividad', metric: 'iniciativa', unit: 'calificacion', description: 'Tomar acción sin esperar instrucciones, proponer mejoras' },
-  { id: 'organizacion', title: 'Organización y Orden', metric: 'organizacion', unit: 'calificacion', description: 'Mantener el área de trabajo y tareas debidamente organizadas' },
+  { id: 'liderazgo', title: 'Liderazgo', metric: 'liderazgo', unit: 'calificacion', description: 'Desarrollar habilidades de guÃ­a, motivaciÃ³n y toma de decisiones' },
+  { id: 'normas', title: 'Cumplimiento de Normas', metric: 'cumplimiento', unit: 'porcentaje', description: 'Respetar y aplicar las polÃ­ticas y procedimientos de la empresa' },
+  { id: 'tecnicas', title: 'Habilidades TÃ©cnicas', metric: 'habilidades', unit: 'calificacion', description: 'Fortalecer conocimientos y destrezas tÃ©cnicas del puesto' },
+  { id: 'clientes', title: 'AtenciÃ³n al Cliente', metric: 'servicio', unit: 'calificacion', description: 'Mejorar la experiencia y satisfacciÃ³n del cliente' },
+  { id: 'iniciativa', title: 'Iniciativa y Proactividad', metric: 'iniciativa', unit: 'calificacion', description: 'Tomar acciÃ³n sin esperar instrucciones, proponer mejoras' },
+  { id: 'organizacion', title: 'OrganizaciÃ³n y Orden', metric: 'organizacion', unit: 'calificacion', description: 'Mantener el Ã¡rea de trabajo y tareas debidamente organizadas' },
   { id: 'adaptabilidad', title: 'Adaptabilidad al Cambio', metric: 'adaptabilidad', unit: 'calificacion', description: 'Capacidad para ajustarse a nuevas situaciones, herramientas o procesos' },
 ]
 
@@ -150,8 +150,8 @@ export default function PipPage() {
   async function fetchData() {
     try {
       const [plansRes, empRes] = await Promise.all([
-        fetch(`/api/companies/${companyId}/hr/pip`, { headers: { 'x-tenant-id': companyId } }),
-        fetch(`/api/companies/${companyId}/hr/payroll/employees`, { headers: { 'x-tenant-id': companyId } }),
+        fetch(`/api/companies/${companyId}/hr/pip`),
+        fetch(`/api/companies/${companyId}/hr/payroll/employees`),
       ])
       if (plansRes.ok) {
         const plansData = await plansRes.json()
@@ -183,7 +183,7 @@ export default function PipPage() {
     try {
       const res = await fetch(`/api/companies/${companyId}/hr/pip`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           employeeId: form.employeeId,
           title: form.title,
@@ -221,7 +221,7 @@ export default function PipPage() {
     try {
       const res = await fetch(`/api/companies/${companyId}/hr/pip`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: planId, status }),
       })
       const data = await res.json()
@@ -241,7 +241,7 @@ export default function PipPage() {
     try {
       const res = await fetch(`/api/companies/${companyId}/hr/pip`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedPlan.id,
           title: form.title,
@@ -278,7 +278,7 @@ export default function PipPage() {
     try {
       const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           pipPlanId: selectedPlan.id,
           goalId: evalForm.goalId || null,
@@ -300,11 +300,10 @@ export default function PipPage() {
   }
 
   async function handleDeletePlan(planId: string) {
-    if (!confirm('¿Eliminar este plan PIP?')) return
+    if (!confirm('Â¿Eliminar este plan PIP?')) return
     try {
       const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${planId}`, {
         method: 'DELETE',
-        headers: { 'x-tenant-id': companyId },
       })
       if (res.ok) {
         setSelectedPlan(null)
@@ -401,7 +400,7 @@ export default function PipPage() {
     filteredPlans.forEach(plan => {
       const empName = getEmployeeName(plan.employeeId)
       ;(plan.pip_goals || []).forEach((g: any) => {
-        const key = g.title || g.metric || 'Sin área'
+        const key = g.title || g.metric || 'Sin Ã¡rea'
         if (!areaCounts[key]) areaCounts[key] = { title: key, count: 0, met: 0, inProgress: 0, pending: 0, employees: {}, planIds: new Set() }
         areaCounts[key].count++
         if (plan.employeeId) areaCounts[key].employees[plan.employeeId] = { name: empName, id: plan.employeeId }
@@ -453,7 +452,7 @@ export default function PipPage() {
                     onChange={e => setForm(prev => ({ ...prev, employeeId: e.target.value }))}>
                     <option value="">Seleccionar empleado...</option>
                     {employees.filter(e => e.status === 'active' || e.status === 'activo').map(emp => (
-                      <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name} — {emp.department || 'Sin depto'} ({emp.employee_code})</option>
+                      <option key={emp.id} value={emp.id}>{emp.first_name} {emp.last_name} â€” {emp.department || 'Sin depto'} ({emp.employee_code})</option>
                     ))}
                   </select>
                   {form.employeeId && (() => {
@@ -462,7 +461,7 @@ export default function PipPage() {
                     return (
                       <div className="mt-2 bg-gray-50 border rounded-md p-3 text-sm space-y-1">
                         <div className="font-medium text-gray-700">{emp.first_name} {emp.last_name}</div>
-                        <div className="text-gray-500">Código: {emp.employee_code}</div>
+                        <div className="text-gray-500">CÃ³digo: {emp.employee_code}</div>
                         <div className="text-gray-500">Departamento: {emp.department || 'N/A'}</div>
                         <div className="text-gray-500">Puesto: {emp.position || 'N/A'}</div>
                         {emp.supervisor && (
@@ -479,13 +478,13 @@ export default function PipPage() {
                   })()}
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Título del Plan</label>
+                  <label className="block text-sm font-medium mb-1">TÃ­tulo del Plan</label>
                   <input type="text" className="w-full border rounded-md px-3 py-2" value={form.title}
                     onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Ej: Plan de Mejoramiento - Desempeño" />
+                    placeholder="Ej: Plan de Mejoramiento - DesempeÃ±o" />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-1">Descripción</label>
+                  <label className="block text-sm font-medium mb-1">DescripciÃ³n</label>
                   <textarea className="w-full border rounded-md px-3 py-2" rows={3} value={form.description}
                     onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))}
                     placeholder="Objetivo general del plan de mejoramiento..." />
@@ -506,7 +505,7 @@ export default function PipPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Observaciones Generales</label>
                   <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
-                    placeholder="Observaciones sobre el desempeño del empleado..."
+                    placeholder="Observaciones sobre el desempeÃ±o del empleado..."
                     value={form.observations}
                     onChange={e => setForm(prev => ({ ...prev, observations: e.target.value }))} />
                 </div>
@@ -521,7 +520,7 @@ export default function PipPage() {
 
               <div className="border-t pt-4">
                 <h3 className="font-semibold flex items-center gap-2 mb-3">
-                  <AlertTriangle className="h-4 w-4" /> Áreas a Mejorar (clic para agregar como meta)
+                  <AlertTriangle className="h-4 w-4" /> Ãreas a Mejorar (clic para agregar como meta)
                 </h3>
                 <div className="grid grid-cols-3 gap-2 mb-4">
                   {IMPROVEMENT_AREAS.map(area => {
@@ -555,7 +554,7 @@ export default function PipPage() {
                     </div>
                     <p className="text-sm text-gray-600 mb-3">{selectedArea.description}</p>
                     <div className="mb-3">
-                      <label className="block text-xs font-medium text-gray-600 mb-1">Descripción del área</label>
+                      <label className="block text-xs font-medium text-gray-600 mb-1">DescripciÃ³n del Ã¡rea</label>
                       <p className="text-sm text-gray-700">{selectedArea.description}</p>
                     </div>
                     <p className="text-xs text-gray-500 mb-3">Las observaciones y compromisos se toman de los campos principales del formulario.</p>
@@ -591,19 +590,19 @@ export default function PipPage() {
                 {showCustomArea ? (
                   <div className="bg-gray-50 border rounded-md p-3 mb-2">
                     <div className="grid grid-cols-3 gap-2 mb-2">
-                      <input className="border rounded px-2 py-1 text-sm" placeholder="Nombre del área"
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="Nombre del Ã¡rea"
                         value={customArea.title} onChange={e => setCustomArea(p => ({ ...p, title: e.target.value }))} />
-                      <input className="border rounded px-2 py-1 text-sm" placeholder="Descripción"
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="DescripciÃ³n"
                         value={customArea.description} onChange={e => setCustomArea(p => ({ ...p, description: e.target.value }))} />
-                      <input className="border rounded px-2 py-1 text-sm" placeholder="Métrica (ej: eficiencia)"
+                      <input className="border rounded px-2 py-1 text-sm" placeholder="MÃ©trica (ej: eficiencia)"
                         value={customArea.metric} onChange={e => setCustomArea(p => ({ ...p, metric: e.target.value }))} />
                     </div>
                     <div className="flex items-center gap-2">
                       <select className="border rounded px-2 py-1 text-sm" value={customArea.unit}
                         onChange={e => setCustomArea(p => ({ ...p, unit: e.target.value }))}>
-                        <option value="calificacion">Calificación (0-100)</option>
+                        <option value="calificacion">CalificaciÃ³n (0-100)</option>
                         <option value="porcentaje">Porcentaje</option>
-                        <option value="dias">Días</option>
+                        <option value="dias">DÃ­as</option>
                         <option value="horas">Horas</option>
                         <option value="unidades">Unidades</option>
                       </select>
@@ -634,7 +633,7 @@ export default function PipPage() {
                   </div>
                 ) : (
                   <Button size="sm" variant="outline" onClick={() => setShowCustomArea(true)}>
-                    <Plus className="h-3 w-3 mr-1" /> Agregar Área Personalizada
+                    <Plus className="h-3 w-3 mr-1" /> Agregar Ãrea Personalizada
                   </Button>
                 )}
               </div>
@@ -663,12 +662,12 @@ export default function PipPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Título</label>
+                        <label className="block text-xs text-gray-600 mb-1">TÃ­tulo</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.title}
-                          onChange={e => updateGoal(idx, 'title', e.target.value)} placeholder="Título de la meta" />
+                          onChange={e => updateGoal(idx, 'title', e.target.value)} placeholder="TÃ­tulo de la meta" />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Métrica</label>
+                        <label className="block text-xs text-gray-600 mb-1">MÃ©trica</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.metric}
                           onChange={e => updateGoal(idx, 'metric', e.target.value)} placeholder="Ej: asistencia, ventas, calidad" />
                       </div>
@@ -682,21 +681,21 @@ export default function PipPage() {
                         <select className="w-full border rounded px-2 py-1 text-sm" value={goal.unit}
                           onChange={e => updateGoal(idx, 'unit', e.target.value)}>
                           <option value="porcentaje">Porcentaje</option>
-                          <option value="dias">Días</option>
+                          <option value="dias">DÃ­as</option>
                           <option value="horas">Horas</option>
                           <option value="unidades">Unidades</option>
-                          <option value="calificacion">Calificación (0-100)</option>
+                          <option value="calificacion">CalificaciÃ³n (0-100)</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Fecha Límite</label>
+                        <label className="block text-xs text-gray-600 mb-1">Fecha LÃ­mite</label>
                         <input type="date" className="w-full border rounded px-2 py-1 text-sm" value={goal.dueDate}
                           onChange={e => updateGoal(idx, 'dueDate', e.target.value)} />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Descripción</label>
+                        <label className="block text-xs text-gray-600 mb-1">DescripciÃ³n</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.description}
-                          onChange={e => updateGoal(idx, 'description', e.target.value)} placeholder="Descripción de la meta" />
+                          onChange={e => updateGoal(idx, 'description', e.target.value)} placeholder="DescripciÃ³n de la meta" />
                       </div>
                     </div>
                   </div>
@@ -739,12 +738,12 @@ export default function PipPage() {
                     value={getEmployeeName(form.employeeId)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium mb-1">Título del Plan</label>
+                  <label className="block text-sm font-medium mb-1">TÃ­tulo del Plan</label>
                   <input type="text" className="w-full border rounded-md px-3 py-2" value={form.title}
                     onChange={e => setForm(prev => ({ ...prev, title: e.target.value }))} />
                 </div>
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium mb-1">Descripción</label>
+                  <label className="block text-sm font-medium mb-1">DescripciÃ³n</label>
                   <textarea className="w-full border rounded-md px-3 py-2" rows={3} value={form.description}
                     onChange={e => setForm(prev => ({ ...prev, description: e.target.value }))} />
                 </div>
@@ -764,7 +763,7 @@ export default function PipPage() {
                 <div>
                   <label className="block text-sm font-medium mb-1">Observaciones Generales</label>
                   <textarea className="w-full border rounded-md px-3 py-2 text-sm" rows={3}
-                    placeholder="Observaciones sobre el desempeño del empleado..."
+                    placeholder="Observaciones sobre el desempeÃ±o del empleado..."
                     value={form.observations}
                     onChange={e => setForm(prev => ({ ...prev, observations: e.target.value }))} />
                 </div>
@@ -801,12 +800,12 @@ export default function PipPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Título</label>
+                        <label className="block text-xs text-gray-600 mb-1">TÃ­tulo</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.title}
                           onChange={e => updateGoal(idx, 'title', e.target.value)} />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Métrica</label>
+                        <label className="block text-xs text-gray-600 mb-1">MÃ©trica</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.metric}
                           onChange={e => updateGoal(idx, 'metric', e.target.value)} />
                       </div>
@@ -825,19 +824,19 @@ export default function PipPage() {
                         <select className="w-full border rounded px-2 py-1 text-sm" value={goal.unit}
                           onChange={e => updateGoal(idx, 'unit', e.target.value)}>
                           <option value="porcentaje">Porcentaje</option>
-                          <option value="dias">Días</option>
+                          <option value="dias">DÃ­as</option>
                           <option value="horas">Horas</option>
                           <option value="unidades">Unidades</option>
-                          <option value="calificacion">Calificación (0-100)</option>
+                          <option value="calificacion">CalificaciÃ³n (0-100)</option>
                         </select>
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Fecha Límite</label>
+                        <label className="block text-xs text-gray-600 mb-1">Fecha LÃ­mite</label>
                         <input type="date" className="w-full border rounded px-2 py-1 text-sm" value={goal.dueDate}
                           onChange={e => updateGoal(idx, 'dueDate', e.target.value)} />
                       </div>
                       <div>
-                        <label className="block text-xs text-gray-600 mb-1">Descripción</label>
+                        <label className="block text-xs text-gray-600 mb-1">DescripciÃ³n</label>
                         <input className="w-full border rounded px-2 py-1 text-sm" value={goal.description}
                           onChange={e => updateGoal(idx, 'description', e.target.value)} />
                       </div>
@@ -993,11 +992,11 @@ export default function PipPage() {
           <Card className="mb-6">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <FileText className="h-5 w-5" /> Descripción
+                <FileText className="h-5 w-5" /> DescripciÃ³n
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <p className="text-gray-700">{selectedPlan.description || 'Sin descripción'}</p>
+              <p className="text-gray-700">{selectedPlan.description || 'Sin descripciÃ³n'}</p>
               <div className="flex gap-4 mt-3 text-sm text-gray-500">
                 <span>Inicio: {new Date(selectedPlan.startDate).toLocaleDateString('es-HN')}</span>
                 <span>Fin: {new Date(selectedPlan.endDate).toLocaleDateString('es-HN')}</span>
@@ -1080,7 +1079,7 @@ export default function PipPage() {
                                   try {
                                     const res = await fetch(`/api/companies/${companyId}/hr/pip/evaluations`, {
                                       method: 'POST',
-                                      headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json' },
                                       body: JSON.stringify({
                                         pipPlanId: selectedPlan.id,
                                         goalId: g.id,
@@ -1138,7 +1137,7 @@ export default function PipPage() {
                 </CardTitle>
                 {selectedPlan.status === 'active' && (
                   <Button size="sm" onClick={() => setShowEvalForm(true)}>
-                    <Plus className="h-3 w-3 mr-1" /> Nueva Evaluación
+                    <Plus className="h-3 w-3 mr-1" /> Nueva EvaluaciÃ³n
                   </Button>
                 )}
               </div>
@@ -1146,13 +1145,13 @@ export default function PipPage() {
             <CardContent>
               {showEvalForm && (
                 <div className="bg-blue-50 border border-blue-200 rounded-md p-4 mb-4">
-                  <h4 className="font-medium mb-3">Nueva Evaluación</h4>
+                  <h4 className="font-medium mb-3">Nueva EvaluaciÃ³n</h4>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs text-gray-600 mb-1">Meta (opcional)</label>
                       <select className="w-full border rounded px-2 py-1 text-sm" value={evalForm.goalId}
                         onChange={e => setEvalForm(prev => ({ ...prev, goalId: e.target.value }))}>
-                        <option value="">Evaluación general</option>
+                        <option value="">EvaluaciÃ³n general</option>
                         {goals.map((g: any) => (
                           <option key={g.id} value={g.id}>{g.title}</option>
                         ))}
@@ -1164,7 +1163,7 @@ export default function PipPage() {
                         onChange={e => setEvalForm(prev => ({ ...prev, evaluationDate: e.target.value }))} />
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-600 mb-1">Calificación (0-100)</label>
+                      <label className="block text-xs text-gray-600 mb-1">CalificaciÃ³n (0-100)</label>
                       <input type="number" min="0" max="100" className="w-full border rounded px-2 py-1 text-sm" value={evalForm.score}
                         onChange={e => setEvalForm(prev => ({ ...prev, score: parseInt(e.target.value) || 0 }))} />
                     </div>
@@ -1209,10 +1208,10 @@ export default function PipPage() {
                           </div>
                           <div>
                             <div className="text-sm font-medium">
-                              {ev.pip_goals?.title || 'Evaluación General'}
+                              {ev.pip_goals?.title || 'EvaluaciÃ³n General'}
                             </div>
                             <div className="text-xs text-gray-500">
-                              {new Date(ev.evaluationDate || ev.evaluation_date).toLocaleDateString('es-HN')} • {ev.evaluator}
+                              {new Date(ev.evaluationDate || ev.evaluation_date).toLocaleDateString('es-HN')} â€¢ {ev.evaluator}
                             </div>
                           </div>
                         </div>
@@ -1285,7 +1284,7 @@ export default function PipPage() {
           <button
             className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${activeTab === 'stats' ? 'border-cyan-500 text-cyan-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
             onClick={() => setActiveTab('stats')}>
-            <BarChart3 className="h-4 w-4 inline mr-1" /> Estadísticas por Área
+            <BarChart3 className="h-4 w-4 inline mr-1" /> EstadÃ­sticas por Ãrea
           </button>
         </div>
 
@@ -1298,7 +1297,7 @@ export default function PipPage() {
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <CardTitle className="flex items-center gap-2">
-                      <BarChart3 className="h-5 w-5" /> Frecuencia de Áreas de Mejoramiento
+                      <BarChart3 className="h-5 w-5" /> Frecuencia de Ãreas de Mejoramiento
                     </CardTitle>
                     <div className="flex items-center gap-2">
                       <select
@@ -1308,7 +1307,7 @@ export default function PipPage() {
                         <option value="all">Todo el tiempo</option>
                         <option value="month">Este mes</option>
                         <option value="quarter">Este trimestre</option>
-                        <option value="year">Este año</option>
+                        <option value="year">Este aÃ±o</option>
                         <option value="custom">Rango personalizado</option>
                       </select>
                       {timeFilter === 'custom' && (
@@ -1324,14 +1323,14 @@ export default function PipPage() {
                 </CardHeader>
                 <CardContent>
                   {sorted.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-8">No hay metas registradas en ningún plan.</p>
+                    <p className="text-sm text-gray-500 text-center py-8">No hay metas registradas en ningÃºn plan.</p>
                   ) : (
                     <div className="space-y-3">
                       {sorted.map((area, idx) => (
                         <div key={idx} className="flex items-center gap-4">
                           <button
                             className="w-48 text-sm font-medium text-cyan-600 hover:text-cyan-800 hover:underline truncate text-left cursor-pointer"
-                            title={`${area.title} — click para ver empleados`}
+                            title={`${area.title} â€” click para ver empleados`}
                             onClick={() => setSelectedAreaStats({ title: area.title, employees: Object.values(area.employees), plans: Array.from(area.planIds) })}>
                             {area.title}
                           </button>
@@ -1342,9 +1341,9 @@ export default function PipPage() {
                             </div>
                           </div>
                           <div className="flex gap-2 text-xs">
-                            <span className="text-green-600" title="Cumplidas">{area.met}✓</span>
-                            <span className="text-blue-600" title="En progreso">{area.inProgress}⟳</span>
-                            <span className="text-gray-400" title="Pendientes">{area.pending}○</span>
+                            <span className="text-green-600" title="Cumplidas">{area.met}âœ“</span>
+                            <span className="text-blue-600" title="En progreso">{area.inProgress}âŸ³</span>
+                            <span className="text-gray-400" title="Pendientes">{area.pending}â—‹</span>
                           </div>
                         </div>
                       ))}
@@ -1371,7 +1370,7 @@ export default function PipPage() {
                       </button>
                     </div>
                     <p className="text-sm text-gray-500 mb-3">
-                      {selectedAreaStats.employees.length} empleado(s) con PIP en esta área
+                      {selectedAreaStats.employees.length} empleado(s) con PIP en esta Ã¡rea
                     </p>
                     <div className="space-y-2">
                       {selectedAreaStats.employees.map((emp, i) => (
@@ -1382,7 +1381,7 @@ export default function PipPage() {
                             {emp.name.split(' ').map((n: string) => n[0]).join('').slice(0, 2)}
                           </div>
                           <span className="text-sm font-medium text-gray-700">{emp.name}</span>
-                          <span className="ml-auto text-xs text-cyan-500">Ver PIP →</span>
+                          <span className="ml-auto text-xs text-cyan-500">Ver PIP â†’</span>
                         </button>
                       ))}
                     </div>
@@ -1410,7 +1409,7 @@ export default function PipPage() {
               <option value="all">Todo el tiempo</option>
               <option value="month">Este mes</option>
               <option value="quarter">Este trimestre</option>
-              <option value="year">Este año</option>
+              <option value="year">Este aÃ±o</option>
               <option value="custom">Rango personalizado</option>
             </select>
             {timeFilter === 'custom' && (
@@ -1461,7 +1460,7 @@ export default function PipPage() {
                             <Users className="h-3 w-3" /> {getEmployeeName(plan.employeeId)}
                           </span>
                           <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3" /> {new Date(plan.startDate).toLocaleDateString('es-HN')} → {new Date(plan.endDate).toLocaleDateString('es-HN')}
+                            <Calendar className="h-3 w-3" /> {new Date(plan.startDate).toLocaleDateString('es-HN')} â†’ {new Date(plan.endDate).toLocaleDateString('es-HN')}
                           </span>
                           <span className="flex items-center gap-1">
                             <Target className="h-3 w-3" /> {goals.length} metas
@@ -1488,7 +1487,7 @@ export default function PipPage() {
                         </Button>
                         <Button size="sm" onClick={async () => {
                           try {
-                            const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`, { headers: { 'x-tenant-id': companyId } })
+                            const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`)
                             if (res.ok) {
                               const fullPlan = await res.json()
                               setSelectedPlan(fullPlan)
@@ -1503,7 +1502,7 @@ export default function PipPage() {
                         {(plan.status === 'draft' || plan.status === 'active') && (
                           <Button size="sm" variant="outline" onClick={async () => {
                             try {
-                              const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`, { headers: { 'x-tenant-id': companyId } })
+                              const res = await fetch(`/api/companies/${companyId}/hr/pip?planId=${plan.id}`)
                               const fullPlan = res.ok ? await res.json() : plan
                               setSelectedPlan(fullPlan)
                               setForm({
@@ -1538,7 +1537,7 @@ export default function PipPage() {
 
                     {isExpanded && (
                       <div className="mt-3 pt-3 border-t">
-                        <p className="text-sm text-gray-600 mb-2">{plan.description || 'Sin descripción'}</p>
+                        <p className="text-sm text-gray-600 mb-2">{plan.description || 'Sin descripciÃ³n'}</p>
                         {goals.length > 0 && (
                           <div className="space-y-1">
                             {goals.slice(0, 3).map((g: any) => {
@@ -1551,7 +1550,7 @@ export default function PipPage() {
                                 </div>
                               )
                             })}
-                            {goals.length > 3 && <p className="text-xs text-gray-500">+{goals.length - 3} metas más</p>}
+                            {goals.length > 3 && <p className="text-xs text-gray-500">+{goals.length - 3} metas mÃ¡s</p>}
                           </div>
                         )}
                       </div>

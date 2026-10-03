@@ -14,8 +14,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/admin/plans-public(.*)",
   "/api/paypal/(.*)",
   "/api/webhooks(.*)",
-  "/api/accounting/uploaded-files(.*)",
-  "/api/accounting/excel-upload(.*)",
+  // "/api/accounting/uploaded-files(.*)" y "/api/accounting/excel-upload(.*)"
+  // Ya NO son publicas: uploaded-files llegaba sin sesion y su DELETE borraba
+  // Transaction/JournalEntry de cualquier empresa (ver CLAUDE.md, 28 Sept 2026).
+  // Si el flujo de onboarding necesita subir antes de iniciar sesion, hay que
+  // mover ese upload a una ruta con prefijo de usuario, no reabrir esta.
   "/",
 ]);
 
@@ -77,6 +80,33 @@ export default clerkMiddleware(async (auth, req) => {
   // También pasar el tenantId desde metadata si no hay uno explícito
   if (metadata.tenantId && !requestHeaders.get('x-tenant-id')) {
     requestHeaders.set('x-tenant-id', metadata.tenantId);
+  }
+
+  // ===========================================
+  // ÁREA 2: EMPRESA Y SEDE ACTIVAS (contexto de trabajo)
+  // ===========================================
+  // El selector de empresa y el de sede escriben estas cookies; aquí se
+  // convierten en headers para que el servidor y las rutas de API los vean sin
+  // leer cookies en cada handler.
+  //
+  // OJO CON EL MODELO DE CONFIANZA: la cookie es una PISTA, no una garantía.
+  // Cualquiera puede editar sus cookies desde el navegador, así que el valor NO
+  // se usa para autorizar: `contextoDeEspacio` (lib/workspace.ts) lo contrasta
+  // contra `user_company_access` y devuelve 403 si la empresa no es del usuario.
+  // Por eso el header se inyecta tal cual y la comprobación va después.
+  //
+  // `x-tenant-id` NO se toca aquí. Sigue saliendo de los claims de Clerk, que
+  // son un solo tenant, y el contexto nuevo deriva el tenant de la empresa
+  // activa. Reemplazarlo por el de la cookie rompería al contador que administra
+  // empresas de varios tenants.
+  const activeCompany = req.cookies.get('active_company_id')?.value;
+  if (activeCompany) {
+    requestHeaders.set('x-company-id', activeCompany);
+  }
+
+  const activeLocation = req.cookies.get('active_location_id')?.value;
+  if (activeLocation) {
+    requestHeaders.set('x-location-id', activeLocation);
   }
 
   return NextResponse.next({

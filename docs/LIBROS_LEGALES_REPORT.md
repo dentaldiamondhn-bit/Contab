@@ -187,7 +187,7 @@
 
 | Archivo | Propósito |
 |---|---|
-| `components/YearEndClosing.tsx` | Wizard: revisión de balanza, asientos de ajuste, bloqueo de período |
+| `components/YearEndClosing.tsx` | **Eliminado (1 Oct 2026)**: wizard legacy huerfano (balanza, ajustes, bloqueo); reemplazado por `ClosingWizard` |
 | `app/closing/page.tsx` | Página de cierre |
 | `app/api/closing/perform/route.ts` | Ejecución |
 | `app/api/closing/trial-balance/route.ts` | Balanza para cierre |

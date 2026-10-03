@@ -3,6 +3,7 @@
 import { useUser } from "@clerk/nextjs";
 import RoleBasedSidebar from "@/components/RoleBasedSidebar";
 import { TenantHeader } from "@/components/dashboard/TenantHeader";
+import { WorkspaceBar } from "@/components/workspace/WorkspaceBar";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { Shield, X } from "lucide-react";
 import { useState, useEffect } from "react";
@@ -55,6 +56,9 @@ export default function UserDashboardLayout({
       )}
 
       <TenantHeader tenants={[]} />
+
+      {/* Empresa y sede activas, siempre a la vista. */}
+      <WorkspaceBar />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <RoleBasedSidebar />

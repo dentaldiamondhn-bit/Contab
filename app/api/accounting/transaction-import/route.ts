@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as sb } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import * as XLSX from "xlsx";
 import { randomUUID } from "crypto";
 
@@ -35,22 +37,18 @@ function parseMonto(v: any): number {
   return parseFloat(s) || 0;
 }
 
-async function resolveTenantId(input: string): Promise<string | null> {
-  const { data: byId } = await sb.from("Tenant").select("id").eq("id", input).maybeSingle();
-  if (byId?.id) return byId.id;
-  const { data: byCode } = await sb.from("Tenant").select("id").eq("tenant_code", input).maybeSingle();
-  if (byCode?.id) return byCode.id;
-  const { data: comp } = await sb.from("companies").select("tenant_id").eq("id", input).maybeSingle();
-  if ((comp as any)?.tenant_id) return (comp as any).tenant_id;
-  return null;
-}
-
-async function getNextVoucherNumber(tenantId: string, voucherType: string): Promise<number> {
-  const { data: globalMax } = await sb.from("Transaction").select("voucherNumber").eq("voucherType", voucherType).order("voucherNumber", { ascending: false }).limit(1).maybeSingle();
-  const globalNext = ((globalMax as any)?.voucherNumber || 0) + 1;
-  const { data: tenantMax } = await sb.from("Transaction").select("voucherNumber").eq("tenantId", tenantId).eq("voucherType", voucherType).order("voucherNumber", { ascending: false }).limit(1).maybeSingle();
-  const tenantNext = ((tenantMax as any)?.voucherNumber || 0) + 1;
-  return Math.max(globalNext, tenantNext);
+async function getNextVoucherNumber(scope: Record<string, string>, voucherType: string): Promise<number> {
+  // Antes tomaba el maximo GLOBAL de todas las empresas y el maximo del tenant,
+  // y devolvia el mayor: el correlativo se filtraba entre empresas.
+  const { data } = await sb
+    .from("Transaction")
+    .select("voucherNumber")
+    .match(scope)
+    .eq("voucherType", voucherType)
+    .order("voucherNumber", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return ((data as any)?.voucherNumber || 0) + 1;
 }
 
 export async function POST(req: NextRequest) {
@@ -58,16 +56,19 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const tenantIdRaw = formData.get("tenantId") as string | null;
+    const companyIdRaw = formData.get("companyId") as string | null;
 
-    if (!file || !tenantIdRaw) {
-      return NextResponse.json({ error: "file y tenantId requeridos" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "file requerido" }, { status: 400 });
     }
 
-    const tenantId = (await resolveTenantId(tenantIdRaw)) || tenantIdRaw;
-    const { data: tenantExists } = await sb.from("Tenant").select("id").eq("id", tenantId).maybeSingle();
-    if (!tenantExists) {
-      return NextResponse.json({ error: `Tenant no encontrado: ${tenantIdRaw}` }, { status: 404 });
-    }
+    // Contexto validado: el companyId (o, por compatibilidad, el tenantId) viene
+    // en el formulario y se comprueba contra la sesion.
+    const empresa = await contextoDeEmpresa(req, {
+      companyIdDeRuta: companyIdRaw || tenantIdRaw || undefined,
+    });
+    const scope = filtroEmpresaOCompany(empresa);
+    const tenantId = empresa.tenantId;
 
     const buffer = Buffer.from(await file.arrayBuffer());
     const wb = XLSX.read(buffer, { type: "buffer" });
@@ -116,13 +117,13 @@ export async function POST(req: NextRequest) {
           const monto = parseMonto(montoRaw);
           if (monto <= 0) throw new Error("Monto inválido");
 
-          const voucherNumber = await getNextVoucherNumber(tenantId, tipo);
+          const voucherNumber = await getNextVoucherNumber(scope, tipo);
           const txId = randomUUID();
           const nowTx = new Date().toISOString();
           const amt = Math.round(monto * 100);
 
           const payload: any = {
-            id: txId, tenantId, date: fecha, description,
+            id: txId, tenantId, company_id: empresa.companyId, date: fecha, description,
             voucherType: tipo, voucherNumber, currency: "HNL", exchangeRate: 24.7,
             totalAmount: amt, functionalAmount: amt, originalTotal: amt,
             createdAt: nowTx, updatedAt: nowTx,
@@ -131,12 +132,13 @@ export async function POST(req: NextRequest) {
           const { data: inserted, error: txErr } = await sb.from("Transaction").insert(payload).select("id").single();
           if (txErr) throw txErr;
 
-          const accountId = tipo === "INGRESO" ? "4101" : "6103";
-          const { data: accData } = await sb.from("Account").select("id").eq("tenantId", tenantId).eq("code", accountId).maybeSingle() || await sb.from("Account").select("id").eq("code", accountId).maybeSingle();
-          const accId = accData?.id || accountId;
+          const accountCode = tipo === "INGRESO" ? "4101" : "6103";
+          const { data: accData } = await sb.from("Account").select("id").match(scope).eq("code", accountCode).maybeSingle();
+          const accId = accData?.id || accountCode;
 
           await sb.from("JournalEntry").insert({
             id: randomUUID(), transactionId: txId, accountId: accId, tenantId,
+            company_id: empresa.companyId,
             amount: tipo === "INGRESO" ? amt : -amt,
             originalAmount: amt, currency: "HNL", exchangeRate: 24.7,
             description,
@@ -159,6 +161,8 @@ export async function POST(req: NextRequest) {
       message: errors.length ? `Procesado ${processed}/${totalRows} con ${errors.length} errores` : `¡${processed} transacciones importadas!`,
     });
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("transaction-import error", error);
     return NextResponse.json({ error: error.message ?? "Error interno" }, { status: 500 });
   }

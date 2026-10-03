@@ -158,7 +158,13 @@ export default function InvoiceForm({ tenantId, onSuccess, onCancel }: InvoiceFo
   const loadInventoryForModal = async () => {
     setInventoryLoading(true);
     try {
-      const res = await fetch(`/api/inventory/products?tenantId=${tenantId}`);
+      // Sin `?companyId` a proposito: aqui `tenantId` es un `Tenant.id` ("TEST1DS"),
+      // no un `companies.id`, asi que mandarlo como `companyId` hacia que
+      // `empresaDesde` devolviera la empresa MAS ANTIGUA del tenant (test 1) y
+      // esta factura ofreciera los productos de la empresa hermana. Sin
+      // parametro, `contextoDeEmpresa` resuelve la empresa activa por la cookie
+      // (`x-company-id`) y la valida contra el tenant de la sesion.
+      const res = await fetch(`/api/inventory/products`);
       if (res.ok) {
         const j = await res.json();
         const list = j.products || j.data || j || [];

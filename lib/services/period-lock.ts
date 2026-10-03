@@ -1,7 +1,13 @@
 // Candado de período contable unificado (mensual + anual).
 // Fuente única: tabla `period_locks` (Supabase). Sin fila = abierto.
-// Mensual: (tenant_id, year, month 1-12). Anual: (tenant_id, year, month=0).
+// Mensual: (empresa, year, month 1-12). Anual: (empresa, year, month=0).
 // Reutilizado por period-lock-middleware.ts, journal-service y period-closing.
+//
+// AISLAMIENTO: filtra por `company_id`, no por `tenant_id`. TEST1DS tiene dos
+// empresas (test 1 y test 2) que comparten tenant: filtrar por tenant hace que
+// el cierre de una bloquee a la hermana. La migración 029 pone
+// UNIQUE (company_id, year, month) por lo mismo. Sin `companyId` se degrada a
+// tenant, que es el comportamiento legacy: NO es equivalente, es la fuga.
 
 export interface LockClient {
   from(table: string): {
@@ -17,13 +23,18 @@ export interface LockClient {
   };
 }
 
-// Rechaza fechas en un período cerrado/bloqueado.
-// Año/mes se extraen del texto ISO (no de getFullYear/getMonth locales:
-// '2026-01-01' en UTC-6 caería en diciembre con getters locales).
+export interface LockScope {
+  /** `companies.id`. El isolation key real. Sin esto solo queda el tenant. */
+  companyId?: string | null;
+}
+
+// Mensual: bloquea el mes de la empresa. `companyId` presente => filtra por
+// empresa; ausente => por tenant (legacy, y es una fuga entre empresas sisters).
 export async function assertPeriodOpen(
   client: LockClient,
   tenantId: string,
   dateIso: string,
+  scope: LockScope = {},
 ): Promise<void> {
   const d = new Date(dateIso);
   const m = /^(\d{4})-(\d{2})/.exec(String(dateIso));
@@ -32,13 +43,13 @@ export async function assertPeriodOpen(
   if (Number.isNaN(d.getTime()) || !Number.isInteger(year) || month < 1 || month > 12) {
     throw new Error('date inválida');
   }
-  const { data, error } = await client
+  const base = client
     .from('period_locks')
     .select('status')
-    .eq('tenant_id', tenantId)
+    .eq(scope.companyId ? 'company_id' : 'tenant_id', scope.companyId ?? tenantId)
     .eq('year', year)
-    .eq('month', month)
-    .maybeSingle();
+    .eq('month', month);
+  const { data, error } = await base.maybeSingle();
   if (error || !data) return;
   const status = String((data as { status?: unknown }).status || 'open');
   if (status === 'closed' || status === 'locked') {
@@ -55,12 +66,13 @@ export async function assertYearOpen(
   client: LockClient,
   tenantId: string,
   year: number,
+  scope: LockScope = {},
 ): Promise<void> {
   if (!Number.isInteger(year) || year < 2000 || year > 2100) throw new Error('year inválido');
   const { data, error } = await client
     .from('period_locks')
     .select('status')
-    .eq('tenant_id', tenantId)
+    .eq(scope.companyId ? 'company_id' : 'tenant_id', scope.companyId ?? tenantId)
     .eq('year', year)
     .eq('month', 0)
     .maybeSingle();
@@ -78,7 +90,8 @@ export async function assertPeriodOpenUnified(
   client: LockClient,
   tenantId: string,
   dateIso: string,
+  scope: LockScope = {},
 ): Promise<void> {
-  await assertYearOpen(client, tenantId, new Date(dateIso).getFullYear());
-  await assertPeriodOpen(client, tenantId, dateIso);
+  await assertYearOpen(client, tenantId, new Date(dateIso).getFullYear(), scope);
+  await assertPeriodOpen(client, tenantId, dateIso, scope);
 }

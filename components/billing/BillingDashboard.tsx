@@ -44,7 +44,7 @@ interface BillingDashboardProps {
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8'];
 
-const STATUS_BADGE: Record<string, 'default' | 'destructive' | 'secondary'> = {
+const STATUS_BADGE: Record<string, 'default' | 'destructive' | 'secondary' | 'outline'> = {
   Pagada: 'default',
   Activa: 'secondary',
   Pendiente: 'secondary',
@@ -159,6 +159,13 @@ export default function BillingDashboard({ companyId }: BillingDashboardProps) {
               <SelectItem value="12months">Últimos 12 meses</SelectItem>
             </SelectContent>
           </Select>
+          <Button
+            onClick={() => navigate('/billing/pos')}
+            className="bg-green-600 hover:bg-green-700 text-white"
+          >
+            <Receipt className="w-4 h-4 mr-2" />
+            Punto de Venta
+          </Button>
           <Button variant="outline" onClick={() => navigate('/modules')}>
             <ChevronLeft className="w-4 h-4 mr-2" />
             Módulos
@@ -182,6 +189,10 @@ export default function BillingDashboard({ companyId }: BillingDashboardProps) {
               <DropdownMenuItem onClick={() => navigate('/billing/dashboard')}>
                 <BarChart3 className="w-4 h-4 mr-2" />
                 Dashboard
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => navigate('/billing/pos')}>
+                <Receipt className="w-4 h-4 mr-2" />
+                Punto de Venta
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => navigate('/billing/settings')}>
                 <Settings2 className="w-4 h-4 mr-2" />

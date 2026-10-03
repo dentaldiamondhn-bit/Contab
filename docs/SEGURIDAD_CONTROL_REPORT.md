@@ -1,5 +1,26 @@
 ﻿# Reporte de Estado y Plan de Ejecución: Seguridad y Control
 
+> **Actualizado:** 28 de Septiembre de 2026 — Auditoría de aislamiento multi-empresa.
+> Ver [`AISLAMIENTO_EMPRESAS.md`](./AISLAMIENTO_EMPRESAS.md) para el detalle.
+>
+> **Lo que cambió en esta auditoría (los tres fallos más graves):**
+>
+> | Hallazgo | Gravedad | Estado |
+> |---|---|---|
+> | `/api/accounting/uploaded-files` y `/excel-upload` eran **rutas públicas** (sin sesión). La primera hacía `File` lookup por `downloadId` sin filtro de tenant y su **DELETE borraba `Transaction` y `JournalEntry`**. Es decir, un endpoint sin autenticación que destruía el libro contable de cualquier empresa. | **Crítica** | ✅ Corregido |
+> | `?companyId` **ganaba al header de sesión** en 14 rutas, y ninguna comprobaba pertenencia. Cualquier usuario autenticado leía y escribía datos de otra empresa. `validateTenantAccess` es un stub que devuelve `true` siempre. | **Crítica** | ✅ Corregido |
+> | Un `PATCH` hacía `.eq("id", id)` **sin filtro de tenant**: IDOR abierto. | **Alta** | ✅ Corregido |
+> | 4 consultas con `.eq()` **sin reasignar** (supabase-js devuelve una consulta nueva): los filtros no se aplicaban y salían datos de **todas** las empresas. | **Alta** | ✅ Corregido |
+> | Las empresas de un mismo tenant **compartían** inventario y libro contable: el filtro era por `tenant_id` y un tenant puede tener varias empresas. | **Alta** | ✅ Esquema corregido (migración 023) |
+> | `lib/purchase-db.ts`: `TENANT_ID = '1'` en 20+ puntos (proveedores, compras, libro de compras). | **Alta** | ⬜ Pendiente |
+> | Rutas Prisma sin filtro de tenant: `api/accounts`, `reports/pnl`, `closing/*`, `burn-rate`, `withholding*`, `det`, `cai`. | **Alta** | ⬜ Pendiente |
+> | `bank-accounts`, `multi-currency-server` e `isv-service` escriben `tenantId: 'default'`, juntando datos de todas las empresas. | **Alta** | ⬜ Pendiente |
+> | **42 de 43 archivos** con filtro por `tenant_id` (103 filtros) siguen sin `company_id`. | **Alta** | ⬜ Pendiente |
+>
+> **El RLS no protege nada**: `lib/supabase/server-lazy.ts` y `lib/supabase-db.ts`
+> usan `SUPABASE_SERVICE_ROLE_KEY`, que lo salta. Todo el aislamiento depende del
+> código de aplicación.
+
 ## 1. Estado Actual del Código
 
 ### 1.1 Resumen Ejecutivo

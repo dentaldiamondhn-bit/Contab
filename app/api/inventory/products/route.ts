@@ -1,5 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
+import { contextoDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+
+export const dynamic = "force-dynamic";
+
+// El tenant sale del header de sesion (`x-tenant-id`, lo inyecta middleware.ts),
+// NO de `?companyId`: ese parametro lo manda el cliente y antes ganaba al header,
+// asi que cualquier usuario autenticado podia leer y escribir los datos de otra
+// empresa con `?companyId=ANGELOH7`. Ademas `?companyId` es un companies.id, no el
+// tenant_id que guardan las tablas, y sin traducir daba cero filas.
+//
+// Ahora ademas baja `company_id` (la empresa concreta) y **valida que pertenezca
+// al tenant de la sesion**. Sin eso, dos empresas del mismo tenant (test 1 y
+// test 2) comparten inventario, porque las tablas filtraban solo por tenant_id.
+// Ver lib/tenant-resolver.ts.
 
 // GET - Obtener productos con datos de inventario
 export async function GET(request: NextRequest) {
@@ -7,15 +22,21 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const withStockOnly = searchParams.get("withStock") === "true";
     const productType = searchParams.get("productType");
-    const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id") || "1";
-
-    
+    const empresa = await contextoDeEmpresa(request);
+    if (!empresa.tenantId) {
+      return NextResponse.json(
+        { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
 
     let query = getSupabaseServer()
       .from("product")
       .select('*')
-      .eq("tenant_id", tenantId)
+      .eq("tenant_id", empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa))
       .eq("is_active", true);
+
 
     if (withStockOnly) {
       query = query.gt("current_stock", 0);
@@ -111,12 +132,25 @@ export async function PATCH(request: NextRequest) {
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 
+    // Antes el update era solo `.eq("id", id)`, sin filtro de tenant: cualquier
+    // usuario autenticado podia modificar el producto de otra empresa con solo
+    // conocer el id. Ahora exige que la fila sea de esta empresa.
+    const empresaPatch = await contextoDeEmpresa(request);
+    if (!empresaPatch.tenantId) {
+      return NextResponse.json(
+        { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
+
     const { data: product, error } = await (getSupabaseServer() as any)
       .from("product")
       .update(updateData)
       .eq("id", id)
+      .eq("tenant_id", empresaPatch.tenantId)
+      .match(filtroEmpresaOCompany(empresaPatch))
       .select()
-      .single();
+      .maybeSingle();
 
     if (error) {
       console.error("=== SUPABASE ERROR ===");
@@ -168,9 +202,18 @@ export async function POST(request: NextRequest) {
       imageUrl,
       isService = false,
     } = body;
-    const tenantId = body.tenantId || body.tenant_id || new URL(request.url).searchParams.get("tenantId") || new URL(request.url).searchParams.get("companyId") || "1";
-
-    
+    // Contexto de empresa con comprobacion de pertenencia. Antes esta ruta
+    // aceptaba `?companyId` POR DELANTE del header y luego `body.tenantId`, o
+    // sea que el cliente decidia en que empresa se guardaba el producto.
+    // Ver lib/tenant-resolver.ts.
+    const empresa = await contextoDeEmpresa(request);
+    const tenantId = empresa.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
 
     // Auto-generar código si no se proporciona
     if (!code) {
@@ -179,6 +222,7 @@ export async function POST(request: NextRequest) {
         .from("product")
         .select("code")
         .eq("tenant_id", tenantId)
+        .match(filtroEmpresaOCompany(empresa))
         .ilike("code", "PROD-%")
         .order("created_at", { ascending: false })
         .limit(1)
@@ -200,6 +244,7 @@ export async function POST(request: NextRequest) {
       .select("id")
       .eq("code", code)
       .eq("tenant_id", tenantId)
+      .match(filtroEmpresaOCompany(empresa))
       .single();
 
     if (existing) {
@@ -213,6 +258,10 @@ export async function POST(request: NextRequest) {
       .from("product")
       .insert({
         tenant_id: tenantId,
+        // product ya tenia company_id, asi que se puede escribir explicito. El
+        // trigger de la migracion 023 tambien lo rellena, pero depender solo del
+        // trigger oculta el dato en el codigo y hace el INSERT mas fragil.
+        ...(empresa.companyId ? { company_id: empresa.companyId } : {}),
         code,
         name,
         description,

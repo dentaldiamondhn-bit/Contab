@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import { TenantHeader } from "@/components/dashboard/TenantHeader";
 import RoleBasedSidebar from "@/components/RoleBasedSidebar";
+import { WorkspaceBar } from "@/components/workspace/WorkspaceBar";
 
 export default function AccountantLayout({
   children,
@@ -62,6 +63,10 @@ export default function AccountantLayout({
   return (
     <div className="h-screen bg-gray-50 flex flex-col overflow-hidden">
       <TenantHeader tenants={[]} />
+
+      {/* Flujo del contador: la empresa que administra cambia aqui, y con ella
+          se recarga todo el contexto. */}
+      <WorkspaceBar />
 
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <RoleBasedSidebar />

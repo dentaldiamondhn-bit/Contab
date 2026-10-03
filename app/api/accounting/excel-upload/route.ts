@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import * as XLSX from "xlsx";
 import { randomUUID } from "crypto";
 
@@ -38,24 +40,12 @@ const ACCOUNT_IDS: Record<string, { code: string; name: string; type: string }> 
   GASTOS_OPERATIVOS: { code: "6103", name: "Gastos Operativos - Servicios Básicos", type: "EXPENSE" },
 };
 
-async function resolveTenantId(input: string): Promise<string | null> {
-  const { data: byId } = await supabase.from("Tenant").select("id").eq("id", input).maybeSingle();
-  if (byId?.id) return byId.id;
-  const { data: byCode } = await supabase.from("Tenant").select("id").eq("tenant_code", input).maybeSingle();
-  if (byCode?.id) return byCode.id;
-  const { data: comp } = await supabase.from("companies").select("tenant_id").eq("id", input).maybeSingle();
-  if ((comp as any)?.tenant_id) return (comp as any).tenant_id;
-  return null;
-}
-
-async function ensureAccountsExist(tenantId: string) {
+async function ensureAccountsExist(scope: Record<string, string>, tenantId: string, companyId: string | null) {
   const needed = Object.values(ACCOUNT_IDS);
   const codes = needed.map(n => n.code);
-  const { data: existingTenant } = await supabase.from("Account").select("id, code").eq("tenantId", tenantId).in("code", codes);
-  const { data: existingGlobal } = await supabase.from("Account").select("id, code").in("code", codes);
+  const { data: existing } = await supabase.from("Account").select("id, code").match(scope).in("code", codes);
   const existingByCode = new Map<string,string>();
-  (existingGlobal || []).forEach((a:any)=> existingByCode.set(a.code, a.id));
-  (existingTenant || []).forEach((a:any)=> existingByCode.set(a.code, a.id));
+  (existing || []).forEach((a:any)=> existingByCode.set(a.code, a.id));
   const codeToId = new Map<string, string>();
   for (const acc of needed) {
     if (existingByCode.has(acc.code)) {
@@ -64,11 +54,13 @@ async function ensureAccountsExist(tenantId: string) {
     }
     const id = randomUUID();
     const now = new Date().toISOString();
+    // El id de `Account` es text y la migracion exige `(company_id, code)` unico.
     const { data, error } = await supabase
       .from("Account")
       .insert({
         id,
         tenantId,
+        company_id: companyId,
         code: acc.code,
         name: acc.name,
         type: acc.type,
@@ -79,14 +71,11 @@ async function ensureAccountsExist(tenantId: string) {
       .single();
     if (!error && data) {
       codeToId.set(acc.code, (data as any).id);
-    } else if ((error as any)?.code === "23505") {
-      const { data: globalAgain } = await supabase.from("Account").select("id").eq("code", acc.code).maybeSingle();
-      if (globalAgain) codeToId.set(acc.code, (globalAgain as any).id);
-      else console.error("ensureAccounts 23505 but no global found", acc.code, error);
-    } else if (error) {
-      console.error("ensureAccounts error", acc.code, error);
-      const { data: globalAgain } = await supabase.from("Account").select("id").eq("code", acc.code).maybeSingle();
-      if (globalAgain) codeToId.set(acc.code, (globalAgain as any).id);
+    } else {
+      // Otra fila (de esta misma empresa) ya existe: usarla.
+      const { data: again } = await supabase.from("Account").select("id").match(scope).eq("code", acc.code).maybeSingle();
+      if (again) codeToId.set(acc.code, (again as any).id);
+      else console.error("ensureAccounts error", acc.code, error);
     }
   }
   return codeToId;
@@ -129,25 +118,18 @@ function parseFecha(raw: any): string {
   throw new Error(`Tipo fecha no soportado: ${raw}`);
 }
 
-async function getNextVoucherNumber(tenantId: string, voucherType: string): Promise<number> {
-  const { data: globalMax } = await supabase
+async function getNextVoucherNumber(scope: Record<string, string>, voucherType: string): Promise<number> {
+  // Antes tomaba el maximo GLOBAL de todas las empresas: el correlativo se
+  // filtraba entre empresas.
+  const { data } = await supabase
     .from("Transaction")
     .select("voucherNumber")
+    .match(scope)
     .eq("voucherType", voucherType)
     .order("voucherNumber", { ascending: false })
     .limit(1)
     .maybeSingle();
-  const globalNext = ((globalMax as any)?.voucherNumber || 0) + 1;
-  const { data: tenantMax } = await supabase
-    .from("Transaction")
-    .select("voucherNumber")
-    .eq("tenantId", tenantId)
-    .eq("voucherType", voucherType)
-    .order("voucherNumber", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  const tenantNext = ((tenantMax as any)?.voucherNumber || 0) + 1;
-  return Math.max(globalNext, tenantNext);
+  return ((data as any)?.voucherNumber || 0) + 1;
 }
 
 async function insertTransactionWithRetry(payload: any, maxRetries = 5): Promise<{ id: string }> {
@@ -204,11 +186,11 @@ function inferAccountType(code: string): string {
   return "ASSET";
 }
 
-async function ensureDynamicAccounts(tenantId: string, codes: Map<string,string>) {
+async function ensureDynamicAccounts(scope: Record<string, string>, tenantId: string, companyId: string | null, codes: Map<string,string>) {
   // codes: code -> name
   const allCodes = Array.from(codes.keys());
   if (allCodes.length === 0) return new Map<string,string>();
-  const { data: existing } = await supabase.from("Account").select("id, code").in("code", allCodes);
+  const { data: existing } = await supabase.from("Account").select("id, code").match(scope).in("code", allCodes);
   const map = new Map<string,string>();
   (existing || []).forEach((a:any)=> map.set(a.code, a.id));
   for (const [code, name] of codes.entries()) {
@@ -216,11 +198,11 @@ async function ensureDynamicAccounts(tenantId: string, codes: Map<string,string>
     const id = randomUUID();
     const now = new Date().toISOString();
     const { data, error } = await supabase.from("Account").insert({
-      id, tenantId, code, name: name || `Cuenta ${code}`, type: inferAccountType(code), createdAt: now, updatedAt: now
+      id, tenantId, company_id: companyId, code, name: name || `Cuenta ${code}`, type: inferAccountType(code), createdAt: now, updatedAt: now
     }).select("id").single();
     if (!error && data) map.set(code, (data as any).id);
-    else if ((error as any)?.code === "23505") {
-      const { data: g } = await supabase.from("Account").select("id").eq("code", code).maybeSingle();
+    else {
+      const { data: g } = await supabase.from("Account").select("id").match(scope).eq("code", code).maybeSingle();
       if (g) map.set(code, (g as any).id);
     }
   }
@@ -232,15 +214,22 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get("file") as File | null;
     const tenantIdRaw = formData.get("tenantId") as string | null;
+    const companyIdRaw = formData.get("companyId") as string | null;
 
-    if (!file || !tenantIdRaw) {
-      return NextResponse.json({ error: "file y tenantId requeridos" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "file requerido" }, { status: 400 });
     }
 
-    const tenantId = (await resolveTenantId(tenantIdRaw)) || tenantIdRaw;
-    const { data: tenantExists } = await supabase.from("Tenant").select("id").eq("id", tenantId).maybeSingle();
-    if (!tenantExists) {
-      return NextResponse.json({ error: `Tenant no encontrado: ${tenantIdRaw}` }, { status: 404 });
+    // Contexto validado: el companyId (o, por compatibilidad, el tenantId)
+    // viene en el formulario y se comprueba contra la sesion.
+    const empresa = await contextoDeEmpresa(req, {
+      companyIdDeRuta: companyIdRaw || tenantIdRaw || undefined,
+    });
+    const scope = filtroEmpresaOCompany(empresa);
+    const tenantId = empresa.tenantId;
+    const companyId = empresa.companyId;
+    if (!tenantId) {
+      return NextResponse.json({ error: "La empresa no tiene tenant asociado" }, { status: 400 });
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
@@ -251,7 +240,7 @@ export async function POST(req: NextRequest) {
     const errors: string[] = [];
     const createdTxIds: string[] = [];
 
-    const codeToId = await ensureAccountsExist(tenantId);
+    const codeToId = await ensureAccountsExist(scope, tenantId, companyId);
     const cajaId = codeToId.get("1101")!;
     const gastosId = codeToId.get("6103")!;
     const ventasId = codeToId.get("4101")!;
@@ -287,7 +276,7 @@ export async function POST(req: NextRequest) {
             const name = String(getColValue(headers, r, "nombre_cuenta") ?? "").trim();
             if (code) codeNameMap.set(code, name);
           }
-          const dynamicMap = await ensureDynamicAccounts(tenantId, codeNameMap);
+          const dynamicMap = await ensureDynamicAccounts(scope, tenantId, companyId, codeNameMap);
           // merge con codeToId base
           for (const [k,v] of dynamicMap.entries()) codeToId.set(k, v);
 
@@ -314,13 +303,13 @@ export async function POST(req: NextRequest) {
               // intentar usar numero del Excel, con retry si colisiona global
               voucherNumber = numInt;
             } else {
-              voucherNumber = await getNextVoucherNumber(tenantId, g.tipo.toUpperCase());
+              voucherNumber = await getNextVoucherNumber(scope, g.tipo.toUpperCase());
             }
             const txId = randomUUID();
             const nowTx = new Date().toISOString();
             const amt = Math.round(total * 100);
             const payload: any = {
-              id: txId, tenantId, date: g.fecha, description: g.descripcion || `${g.tipo} ${g.numero}`,
+              id: txId, tenantId, company_id: companyId, date: g.fecha, description: g.descripcion || `${g.tipo} ${g.numero}`,
               voucherType: g.tipo.toUpperCase(), voucherNumber, currency: "HNL", exchangeRate: 24.7,
               totalAmount: amt, functionalAmount: amt, originalTotal: amt,
               createdAt: nowTx, updatedAt: nowTx,
@@ -337,7 +326,7 @@ export async function POST(req: NextRequest) {
               const accId = codeToId.get(code);
               if (!accId) throw new Error(`Cuenta ${code} no encontrada`);
               await supabase.from("JournalEntry").insert({
-                id: randomUUID(), transactionId: finalTxId, accountId: accId, tenantId,
+                id: randomUUID(), transactionId: finalTxId, accountId: accId, tenantId, company_id: companyId,
                 amount, originalAmount: Math.abs(amount), currency: "HNL", exchangeRate: 24.7,
                 description: g.descripcion,
               });
@@ -366,7 +355,7 @@ export async function POST(req: NextRequest) {
             const total = parseMonto(getColValue(headers, row, "total egreso"));
 
             if (!prov || !concepto || total <= 0) throw new Error("Faltan datos obligatorios (proveedor/concepto/total)");
-            let voucherNumber = await getNextVoucherNumber(tenantId, "EGRESO");
+            let voucherNumber = await getNextVoucherNumber(scope, "EGRESO");
 
             const nowTx = new Date().toISOString();
             const amt = Math.round(total * 100);
@@ -374,6 +363,7 @@ export async function POST(req: NextRequest) {
             const payloadEgreso: any = {
                 id: txId,
                 tenantId,
+                company_id: companyId,
                 date: fecha,
                 description: `${prov} - ${concepto}`,
                 voucherType: "EGRESO",
@@ -397,6 +387,7 @@ export async function POST(req: NextRequest) {
               transactionId: finalTxId,
               accountId: gastosId,
               tenantId,
+              company_id: companyId,
               amount: amt,
               originalAmount: amt,
               currency: "HNL",
@@ -410,6 +401,7 @@ export async function POST(req: NextRequest) {
               transactionId: finalTxId,
               accountId: cajaId,
               tenantId,
+              company_id: companyId,
               amount: -amt,
               originalAmount: amt,
               currency: "HNL",
@@ -426,7 +418,7 @@ export async function POST(req: NextRequest) {
             const rtn = String(getColValue(headers, row, "rtn cliente") ?? "");
             const total = parseMonto(getColValue(headers, row, "total ingreso"));
             if (!cliente || total <= 0) throw new Error("Faltan datos (cliente/total)");
-            let voucherNumber = await getNextVoucherNumber(tenantId, "INGRESO");
+            let voucherNumber = await getNextVoucherNumber(scope, "INGRESO");
 
             const nowTx2 = new Date().toISOString();
             const amt2 = Math.round(total * 100);
@@ -434,6 +426,7 @@ export async function POST(req: NextRequest) {
             const payloadIngreso: any = {
                 id: txId2,
                 tenantId,
+                company_id: companyId,
                 date: fecha,
                 description: `${cliente} - ${doc}`,
                 voucherType: "INGRESO",
@@ -457,6 +450,7 @@ export async function POST(req: NextRequest) {
               transactionId: finalTxId2,
               accountId: cajaId,
               tenantId,
+              company_id: companyId,
               amount: amt2,
               originalAmount: amt2,
               currency: "HNL",
@@ -468,6 +462,7 @@ export async function POST(req: NextRequest) {
               transactionId: finalTxId2,
               accountId: ventasId,
               tenantId,
+              company_id: companyId,
               amount: -amt2,
               originalAmount: amt2,
               currency: "HNL",
@@ -496,6 +491,7 @@ export async function POST(req: NextRequest) {
       await supabase.from("File").insert({
         id: randomUUID(),
         tenantId,
+        company_id: companyId,
         originalName: file.name,
         fileName: `${Date.now()}_${file.name}`,
         filePath: storedPath,
@@ -520,6 +516,8 @@ export async function POST(req: NextRequest) {
       message: errors.length ? `Procesado ${processed}/${totalRows} con ${errors.length} errores` : `¡${processed} filas importadas!`,
     });
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("excel-upload error", error);
     return NextResponse.json({ error: error.message ?? "Error interno" }, { status: 500 });
   }

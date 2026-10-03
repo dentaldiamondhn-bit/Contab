@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useWorkspace } from "@/lib/contexts/WorkspaceContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -11,28 +12,45 @@ import { CreditCard, Receipt, Download, Printer, BookOpen } from "lucide-react";
 
 export default function LibrosContablesPage() {
   const { currentTenant } = useTenant();
+  // La empresa, no el tenant: el reporte va por `company_id`, que es lo que
+  // separa a "test 1" de "test 2" dentro del mismo tenant TEST1DS.
+  const { empresa } = useWorkspace();
   const [ventas, setVentas] = useState<any[]>([]);
   const [compras, setCompras] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentTenant?.id) return;
+    // Al cambiar de empresa se descarta el dataset anterior ANTES de pedir el
+    // nuevo: si no, la tabla ensena filas de la empresa previa mientras carga.
+    setVentas([]);
+    setCompras([]);
+    if (!empresa?.id) {
+      setLoading(false);
+      return;
+    }
+    let cancelado = false;
     const fetchData = async () => {
       setLoading(true);
       try {
         const [resVentas, resCompras] = await Promise.all([
-          fetch(`/api/reports/libro-ventas?tenantId=${currentTenant.id}`),
-          fetch(`/api/reports/libro-compras?tenantId=${currentTenant.id}`),
+          fetch(`/api/reports/libro-ventas?companyId=${empresa.id}`),
+          fetch(`/api/reports/libro-compras?companyId=${empresa.id}`),
         ]);
         const jsonVentas = await resVentas.json();
         const jsonCompras = await resCompras.json();
-        setVentas(jsonVentas.data || []);
-        setCompras(jsonCompras.data || []);
-      } catch { setVentas([]); setCompras([]); }
-      setLoading(false);
+        if (!cancelado) {
+          setVentas(jsonVentas.data || []);
+          setCompras(jsonCompras.data || []);
+        }
+      } catch {
+        if (!cancelado) { setVentas([]); setCompras([]); }
+      } finally {
+        if (!cancelado) setLoading(false);
+      }
     };
-    fetchData();
-  }, [currentTenant?.id]);
+    void fetchData();
+    return () => { cancelado = true; };
+  }, [empresa?.id]);
 
   const fmt = (n: number) => n.toLocaleString("es-HN", { style: "currency", currency: "HNL" });
 

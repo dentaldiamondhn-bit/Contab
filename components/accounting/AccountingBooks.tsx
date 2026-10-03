@@ -159,7 +159,10 @@ export default function AccountingBooks() {
   };
 
   const loadRealData = useCallback(async () => {
-    if (!currentTenant?.id) return;
+    // `companyId` (del `[id]` de la ruta) es el isolation key: sin el, las
+    // funciones contables de la 027c no se pueden llamar porque exigen
+    // `p_company_id`. `tenantId` sigue yendo para agrupar, pero ahi ya no decide.
+    if (!currentTenant?.id || !companyId) return;
     
     try {
       setLoading(true);
@@ -184,7 +187,7 @@ export default function AccountingBooks() {
         }
       }
 
-      const queryParams = `tenantId=${tenantId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
+      const queryParams = `companyId=${companyId}&tenantId=${tenantId}&startDate=${startDate.toISOString()}&endDate=${endDate.toISOString()}`;
 
       // Fetch paralelo para optimizar velocidad
       const [resIngresos, resEgresos, resDiario, resMayor, resBalance] = await Promise.all([
@@ -210,7 +213,7 @@ export default function AccountingBooks() {
     } finally {
       setLoading(false);
     }
-  }, [currentTenant?.id, selectedYear, selectedMonth, selectedDay, selectedVoucherType]);
+  }, [currentTenant?.id, companyId, selectedYear, selectedMonth, selectedDay, selectedVoucherType]);
 
   useEffect(() => {
     if (isClient) loadRealData();

@@ -25,13 +25,33 @@ Todos los endpoints requieren autenticación mediante headers:
 
 | Header | Descripción | Requerido |
 |--------|-------------|-----------|
-| `x-tenant-id` | ID del tenant/empresa | **Sí** (para la mayoría de endpoints) |
+| `x-tenant-id` | `Tenant.id` (el grupo al que pertenece la empresa) | **Sí** (para la mayoría de endpoints) |
 | `x-user-email` | Email del usuario que realiza la operación | Opcional |
 | `Content-Type` | `application/json` | Sí para POST/PUT |
 
+### Tenant y empresa NO son lo mismo
+
+Un `Tenant` puede tener **varias empresas** (`TEST1DS` tiene "test 1" y "test 2",
+con RTN propio, y no comparten datos). Por eso hay dos claves:
+
+| Clave | Qué es | Dónde vive |
+|---|---|---|
+| `tenant_id` / `tenantId` | `Tenant.id`, el grupo | en todas las tablas, agrupa |
+| `company_id` | `companies.id`, la empresa concreta | en todas las tablas desde la migración 023, **aísla** |
+
+El filtro de seguridad es `company_id`. El de `tenant_id` solo agrupa: usarlo solo
+hacía que las empresas sisters se vieran el inventario y el libro contable la una a
+la otra.
+
+`lib/tenant-resolver.ts` lo resuelve y **valida pertenencia**:
+`contextoDeEmpresa()` lanza **403** si pides una empresa que no es de tu tenant, y
+**400** si no puede determinar la empresa. Antes ninguna ruta lo comprobaba, así que
+`?companyId` (que manda el cliente) bastaba para leer y escribir datos de otra
+empresa.
+
 ### Ejemplo de header:
 ```http
-x-tenant-id: T1
+x-tenant-id: TEST1DS
 x-user-email: usuario@empresa.com
 Content-Type: application/json
 ```

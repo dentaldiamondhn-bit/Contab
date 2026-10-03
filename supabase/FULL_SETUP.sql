@@ -108,7 +108,19 @@ CREATE TABLE IF NOT EXISTS "User" (
   lastlogin    TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email ON "User" (email);
+-- Unico por (email, tenantid), NO solo por email. Un mismo correo puede ser
+-- usuario legitimo de varios tenants, asi que un UNIQUE(email) es incorrecto en
+-- un esquema multi-tenant: ademas de romper al contador que trabaja para dos
+-- empresas, aqui revienta con 23505 sin que haya ningun bug de datos. Medido en
+-- la base: 2 correos con 2 filas cada uno (gcalix12@hotmail.com y
+-- azuna22@outlook.com) y cada fila con un `authid` de Clerk DISTINTO, o sea dos
+-- cuentas por persona, no registros duplicados.
+--
+-- OJO: un indice unico trata los NULL como distintos, asi que dos filas con el
+-- mismo email y `tenantid` NULL NO colisionarian. Hoy las 6 filas tienen tenantid,
+-- pero si se admitiera NULL habria que poner NOT NULL aparte.
+DROP INDEX IF EXISTS idx_user_email;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_user_email_tenant ON "User" (email, tenantid);
 CREATE INDEX IF NOT EXISTS idx_user_tenant ON "User" (tenantid);
 CREATE INDEX IF NOT EXISTS idx_user_authid ON "User" (authid);
 CREATE INDEX IF NOT EXISTS idx_user_role ON "User" (role);

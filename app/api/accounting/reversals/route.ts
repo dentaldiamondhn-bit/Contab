@@ -1,16 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
-function getTenantId(request: NextRequest) {
-  return request.headers.get("x-tenant-id") ||
-    new URL(request.url).searchParams.get("tenantId");
+// `journal_entry_reversals` no tiene `company_id` (es hija por padre, ver 038):
+// solo se aisla por tenant. `Transaction` y `JournalEntry` si tienen
+// `company_id`, asi que se filtran por empresa. El contexto se valida contra la
+// sesion para que `?tenantId` ya no permita tocar otra empresa.
+async function contextoDeReversiones(request: NextRequest) {
+  const empresa = await contextoDeEmpresa(request);
+  if (!empresa.tenantId) throw new Error("La empresa no tiene tenant asociado");
+  return {
+    tenantId: empresa.tenantId as string,
+    scope: filtroEmpresaOCompany(empresa),
+    companyId: empresa.companyId,
+  };
 }
 
 // GET - Listar reversiones
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const { tenantId, scope } = await contextoDeReversiones(request);
 
     const { data, error } = await supabaseService
       .from("journal_entry_reversals")
@@ -20,13 +30,14 @@ export async function GET(request: NextRequest) {
 
     if (error) throw error;
 
-    // Enriquecer con datos de la transacción original
+    // Enriquecer con datos de la transacción original (acotado a empresa)
     const enriched = await Promise.all(
       (data || []).map(async (rev: any) => {
         const { data: originalTx } = await supabaseService
           .from("Transaction")
           .select("id, description, date, voucherType, voucherNumber, totalAmount")
           .eq("id", rev.original_transaction_id)
+          .match(scope)
           .single();
 
         let reversalTx = null;
@@ -35,6 +46,7 @@ export async function GET(request: NextRequest) {
             .from("Transaction")
             .select("id, description, date, voucherType, voucherNumber, totalAmount")
             .eq("id", rev.reversal_transaction_id)
+            .match(scope)
             .single();
           reversalTx = rtx;
         }
@@ -45,6 +57,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(enriched);
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("GET reversals error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -53,8 +67,7 @@ export async function GET(request: NextRequest) {
 // POST - Crear reversión
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const { tenantId, scope, companyId } = await contextoDeReversiones(request);
 
     const body = await request.json();
     const { transactionId, reason, reversedBy, notes } = body;
@@ -63,11 +76,13 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "transactionId, reason y reversedBy son requeridos" }, { status: 400 });
     }
 
-    // Verificar que la transacción existe
+    // Verificar que la transacción existe Y es de esta empresa (antes era IDOR:
+    // se podia revertir la transaccion de otra empresa adivinando su id).
     const { data: originalTx, error: txError } = await supabaseService
       .from("Transaction")
       .select("*, JournalEntry(*)")
       .eq("id", transactionId)
+      .match(scope)
       .single();
 
     if (txError || !originalTx) {
@@ -79,6 +94,7 @@ export async function POST(request: NextRequest) {
       .from("journal_entry_reversals")
       .select("id")
       .eq("original_transaction_id", transactionId)
+      .eq("tenant_id", tenantId)
       .eq("status", "completed")
       .maybeSingle();
 
@@ -100,11 +116,11 @@ export async function POST(request: NextRequest) {
 
     const reversalTxId = crypto.randomUUID();
 
-    // Obtener siguiente número de comprobante
+    // Obtener siguiente número de comprobante (acotado a empresa/tenant)
     const { data: lastVoucher } = await supabaseService
       .from("Transaction")
       .select("voucherNumber")
-      .eq("tenantId", tenantId)
+      .match(scope)
       .eq("voucherType", originalTx.voucherType || originalTx.voucher_type || "EGRESO")
       .order("voucherNumber", { ascending: false })
       .limit(1)
@@ -120,6 +136,7 @@ export async function POST(request: NextRequest) {
         date: today,
         voucherType: originalTx.voucherType || originalTx.voucher_type,
         tenantId: tenantId,
+        company_id: companyId,
         currency: originalTx.currency || "HNL",
         exchangeRate: originalTx.exchangeRate || 24.7,
         totalAmount: originalTx.totalAmount ? -Number(originalTx.totalAmount) : 0,
@@ -140,6 +157,7 @@ export async function POST(request: NextRequest) {
         transactionId: reversalTx.id,
         accountId: entry.accountId,
         tenantId: tenantId,
+        company_id: companyId,
         amount: entry.amount,
         originalAmount: Math.abs(entry.amount),
         currency: originalTx.currency || "HNL",
@@ -167,6 +185,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(reversal, { status: 201 });
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("POST reversal error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -175,8 +195,7 @@ export async function POST(request: NextRequest) {
 // PUT - Actualizar estado de reversión
 export async function PUT(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const { tenantId } = await contextoDeReversiones(request);
 
     const body = await request.json();
     const { id, status, notes } = body;
@@ -194,6 +213,8 @@ export async function PUT(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("PUT reversal error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

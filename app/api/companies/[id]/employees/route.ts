@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa, type ContextoEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresa } from '@/lib/company-scope';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { employeeCreateSchema, employeeUpdateSchema } from '@/lib/validations/hr';
 
@@ -50,11 +52,12 @@ function detectChanges(oldEmp: any, newBody: any): string[] {
   return changes;
 }
 
-async function logHistory(employeeId: string, tenantId: string, action: string, description: string, changes: string[], performedBy?: string) {
+async function logHistory(employeeId: string, empresa: ContextoEmpresa, action: string, description: string, changes: string[], performedBy?: string) {
   try {
     await getSupabaseServer().from('employee_history').insert({
       employee_id: employeeId,
-      tenant_id: tenantId,
+      tenant_id: empresa.tenantId,
+      company_id: empresa.companyId,
       action,
       description,
       changes: changes.length > 0 ? changes : null,
@@ -65,17 +68,21 @@ async function logHistory(employeeId: string, tenantId: string, action: string, 
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: tenantId } = await params;
+    // El `[id]` de esta ruta es `companies.id`, no un `tenant_id`. Antes se usaba
+    // como tenant (`.eq('tenant_id', UUID)`) y devolvia 0 filas para toda empresa,
+    // ademas sin comprobar pertenencia. `contextoDeEmpresa` valida (403) y
+    // `company_id` es el aislamiento real (separa test 1 de test 2 en TEST1DS).
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     const { searchParams } = new URL(request.url);
     const fields = searchParams.get('fields');
     
     const selectCols = fields ? fields : '*';
     
     const [empResult, posResult, deptResult, scheduleResult] = await Promise.all([
-      getSupabaseServer().from('employees').select(selectCols).eq('tenant_id', tenantId).order('created_at', { ascending: false }),
-      getSupabaseServer().from('positions').select('id,name').eq('tenant_id', tenantId),
-      getSupabaseServer().from('departments').select('id,name').eq('tenant_id', tenantId),
-      getSupabaseServer().from('work_schedules').select('id,name').eq('tenant_id', tenantId),
+      getSupabaseServer().from('employees').select(selectCols).match(filtroEmpresa(empresa)).order('created_at', { ascending: false }),
+      getSupabaseServer().from('positions').select('id,name').match(filtroEmpresa(empresa)),
+      getSupabaseServer().from('departments').select('id,name').match(filtroEmpresa(empresa)),
+      getSupabaseServer().from('work_schedules').select('id,name').match(filtroEmpresa(empresa)),
     ]);
 
     if (empResult.error) throw empResult.error;
@@ -183,8 +190,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const [hrDocsResult, historyResult] = await Promise.all([
-      getSupabaseServer().from('employee_hr_documents').select('*').eq('tenant_id', tenantId),
-      getSupabaseServer().from('employee_history').select('*').eq('tenant_id', tenantId).order('created_at', { ascending: false }),
+      getSupabaseServer().from('employee_hr_documents').select('*').match(filtroEmpresa(empresa)),
+      getSupabaseServer().from('employee_history').select('*').match(filtroEmpresa(empresa)).order('created_at', { ascending: false }),
     ]);
 
     const hrDocsByEmp: Record<string, any[]> = {};
@@ -216,7 +223,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     return NextResponse.json(employees);
-  } catch (error) {
+  } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error fetching employees:', error);
     return NextResponse.json({ error: 'Error fetching employees' }, { status: 500 });
   }
@@ -224,7 +233,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: tenantId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     const body = await request.json();
 
     const parsed = employeeCreateSchema.safeParse(body);
@@ -236,7 +245,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { data: dupIdentity } = await getSupabaseServer()
         .from('employees')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('id_number', parsed.data.identityNumber)
         .maybeSingle();
       if (dupIdentity) {
@@ -248,7 +257,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { data: dupEmail } = await getSupabaseServer()
         .from('employees')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('email', parsed.data.email)
         .maybeSingle();
       if (dupEmail) {
@@ -261,13 +270,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('name', parsed.data.position)
         .single();
       if (!pos) {
         const { data: newPos } = await getSupabaseServer()
           .from('positions')
-          .insert({ id: crypto.randomUUID(), name: parsed.data.position, tenant_id: tenantId, department: parsed.data.department || '' })
+          .insert({ id: crypto.randomUUID(), name: parsed.data.position, tenant_id: empresa.tenantId, company_id: empresa.companyId, department: parsed.data.department || '' })
           .select('id')
           .single();
         pos = newPos;
@@ -281,7 +290,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { data: lastEmp } = await getSupabaseServer()
         .from('employees')
         .select('employee_code')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .like('employee_code', `${seqPrefix}-%`)
         .order('employee_code', { ascending: false })
         .limit(1)
@@ -298,7 +307,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         const { data: existing } = await getSupabaseServer()
           .from('employees')
           .select('id')
-          .eq('tenant_id', tenantId)
+          .eq('company_id', empresa.companyId)
           .eq('employee_code', employeeCode)
           .maybeSingle();
         if (!existing) break;
@@ -310,8 +319,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
     const d = parsed.data;
     const insertData: any = {
-        tenant_id: tenantId,
-        company_id: tenantId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
         employee_code: employeeCode,
         first_name: d.firstName,
         last_name: d.lastName,
@@ -373,12 +382,15 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       return NextResponse.json({ error: error.message, details: error.details, hint: error.hint }, { status: 500 });
     }
 
-    await logHistory(data.id, tenantId, 'creation', `Empleado ${d.firstName} ${d.lastName} creado`, [`Código: ${employeeCode}`, `Puesto: ${d.position || 'N/A'}`, `Departamento: ${d.department || 'N/A'}`]);
+    await logHistory(data.id, empresa, 'creation', `Empleado ${d.firstName} ${d.lastName} creado`, [`Código: ${employeeCode}`, `Puesto: ${d.position || 'N/A'}`, `Departamento: ${d.department || 'N/A'}`]);
+
+    let hrDocsWarning: string | null = null;
 
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
         id: doc.id,
-        tenant_id: tenantId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
         employee_id: data.id,
         name: doc.name,
         type: doc.type,
@@ -392,11 +404,21 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       const { error: hrError } = await getSupabaseServer().from('employee_hr_documents').insert(hrDocsInsert);
       if (hrError) {
         console.error('HR documents insert error (POST):', JSON.stringify(hrError));
+        // 23503 = FK: `employee_hr_documents.tenant_id` apunta a la tabla legacy
+        // `tenants` (una fila, ANGELOH7), asi que toda empresa fuera de Angelos
+        // pierde los documentos en silencio (el alta del empleado sale OK). La
+        // 034 repunta el FK a `Tenant`. Hasta entonces se avisa en vez de tragar.
+        hrDocsWarning =
+          hrError.code === '23503'
+            ? 'El empleado se creo, pero sus documentos NO se guardaron: el FK legacy de employee_hr_documents.tenant_id rechaza empresas fuera de Angelos. Aplicar la migracion 034.'
+            : 'El empleado se creo, pero sus documentos no se guardaron.';
       }
     }
 
-    return NextResponse.json(data);
+    return NextResponse.json(hrDocsWarning ? { ...data, hrDocumentsWarning: hrDocsWarning } : data);
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error creating employee:', error);
     return NextResponse.json({ error: error.message || 'Error creating employee', stack: error.stack }, { status: 500 });
   }
@@ -404,7 +426,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: tenantId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     const body = await request.json();
 
     const parsed = employeeUpdateSchema.safeParse(body);
@@ -418,7 +440,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const { data: dupIdentity } = await getSupabaseServer()
         .from('employees')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('id_number', d.identityNumber)
         .neq('id', d.id)
         .maybeSingle();
@@ -431,7 +453,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const { data: dupEmail } = await getSupabaseServer()
         .from('employees')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('email', d.email)
         .neq('id', d.id)
         .maybeSingle();
@@ -445,13 +467,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       let { data: pos } = await getSupabaseServer()
         .from('positions')
         .select('id')
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .eq('name', d.position)
         .single();
       if (!pos) {
         const { data: newPos } = await getSupabaseServer()
           .from('positions')
-          .insert({ id: crypto.randomUUID(), name: d.position, tenant_id: tenantId, department: d.department || '' })
+          .insert({ id: crypto.randomUUID(), name: d.position, tenant_id: empresa.tenantId, company_id: empresa.companyId, department: d.department || '' })
           .select('id')
           .single();
         pos = newPos;
@@ -463,6 +485,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .from('employees')
       .select('*')
       .eq('id', d.id)
+      .eq('company_id', empresa.companyId)
       .single();
 
     const updateData: any = { updated_at: new Date().toISOString() };
@@ -507,7 +530,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .from('employees')
       .update(updateData)
       .eq('id', d.id)
-      .eq('tenant_id', tenantId);
+      .eq('company_id', empresa.companyId);
 
     if (error) {
       console.error('Supabase update error:', JSON.stringify(error));
@@ -536,9 +559,9 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
         } else {
           description = `Estado cambiado de "${prevStatus}" a "${newStatus}"`;
         }
-        await logHistory(d.id, tenantId, action, description, changes);
+        await logHistory(d.id, empresa, action, description, changes);
       } else if (changes.length > 0) {
-        await logHistory(d.id, tenantId, 'update', `Datos actualizados por edición`, changes);
+        await logHistory(d.id, empresa, 'update', `Datos actualizados por edición`, changes);
       }
     }
 
@@ -546,12 +569,15 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       .from('employee_hr_documents')
       .delete()
       .eq('employee_id', d.id)
-      .eq('tenant_id', tenantId);
+      .eq('company_id', empresa.companyId);
+
+    let hrDocsWarning: string | null = null;
 
     if (body.hrDocuments && body.hrDocuments.length > 0) {
       const hrDocsInsert = body.hrDocuments.map((doc: any) => ({
         id: doc.id,
-        tenant_id: tenantId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
         employee_id: d.id,
         name: doc.name,
         type: doc.type,
@@ -565,11 +591,19 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       const { error: hrError } = await getSupabaseServer().from('employee_hr_documents').insert(hrDocsInsert);
       if (hrError) {
         console.error('HR documents insert error:', JSON.stringify(hrError));
+        hrDocsWarning =
+          hrError.code === '23503'
+            ? 'Los datos se guardaron, pero los documentos NO: el FK legacy de employee_hr_documents.tenant_id rechaza empresas fuera de Angelos. Aplicar la migracion 034.'
+            : 'Los datos se guardaron, pero los documentos no.';
       }
     }
 
-    return NextResponse.json({ success: true });
-  } catch (error) {
+    return NextResponse.json(
+      hrDocsWarning ? { success: true, hrDocumentsWarning: hrDocsWarning } : { success: true }
+    );
+  } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error updating employee:', error);
     return NextResponse.json({ error: 'Error updating employee' }, { status: 500 });
   }
@@ -577,7 +611,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const { id: tenantId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     const { searchParams } = new URL(request.url);
     const employeeId = searchParams.get('employeeId');
 
@@ -589,24 +623,26 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
       .from('employee_history')
       .delete()
       .eq('employee_id', employeeId)
-      .eq('tenant_id', tenantId);
+      .eq('company_id', empresa.companyId);
 
     await getSupabaseServer()
       .from('employee_hr_documents')
       .delete()
       .eq('employee_id', employeeId)
-      .eq('tenant_id', tenantId);
+      .eq('company_id', empresa.companyId);
 
     const { error } = await getSupabaseServer()
       .from('employees')
       .delete()
       .eq('id', employeeId)
-      .eq('tenant_id', tenantId);
+      .eq('company_id', empresa.companyId);
 
     if (error) throw error;
 
     return NextResponse.json({ success: true });
-  } catch (error) {
+  } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error deleting employee:', error);
     return NextResponse.json({ error: 'Error deleting employee' }, { status: 500 });
   }

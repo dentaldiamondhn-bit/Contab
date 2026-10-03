@@ -28,6 +28,13 @@ function buildFakeSupabase() {
 
 // ── tests ──────────────────────────────────────────────────────────────────
 
+// `recordSupplierPriceHistory` recibe la empresa validada en 2º lugar (no un
+// tenant suelto) desde que Compras/Proveedores aísla por `company_id`. Estas
+// llamadas seguían con la firma anterior, que colocaba `supplierId` donde va
+// `empresa` y `items` donde va `supplierId`: `items.filter` reventaba.
+// No se ejecutaban desde que `npm test` se detenía antes en warehouse.
+const empresa = (tenantId, companyId) => ({ tenantId, companyId });
+
 test('PriceHistory: registra precios de items al crear compra', async () => {
   const supabase = buildFakeSupabase();
 
@@ -52,7 +59,7 @@ test('PriceHistory: registra precios de items al crear compra', async () => {
     },
   ];
 
-  await recordSupplierPriceHistory(supabase, 'supplier-1', items, 'tenant-1', '2026-01-15');
+  await recordSupplierPriceHistory(supabase, empresa('tenant-1', 'company-1'), 'supplier-1', items, '2026-01-15');
 
   const rows = supabase._store['supplier_price_history'] || [];
   assert.equal(rows.length, 3, 'Se deben registrar 3 precios (items con nombre o producto)');
@@ -75,7 +82,7 @@ test('PriceHistory: usa fecha actual si invoice_date no existe', async () => {
     { product_name: 'Producto A', unit_price: 10 },
   ];
 
-  await recordSupplierPriceHistory(supabase, 'supplier-2', items, 'tenant-2');
+  await recordSupplierPriceHistory(supabase, empresa('tenant-2', 'company-2'), 'supplier-2', items);
 
   const rows = supabase._store['supplier_price_history'] || [];
   assert.equal(rows.length, 1, 'Un precio registrado');
@@ -88,7 +95,7 @@ test('PriceHistory: usa fecha actual si invoice_date no existe', async () => {
 test('PriceHistory: no registra si items está vacío o sin nombre', async () => {
   const supabase = buildFakeSupabase();
 
-  await recordSupplierPriceHistory(supabase, 'supplier-3', [], 'tenant-3');
+  await recordSupplierPriceHistory(supabase, empresa('tenant-3', 'company-3'), 'supplier-3', []);
   assert.equal((supabase._store['supplier_price_history'] || []).length, 0, 'Ningún precio con items vacíos');
 });
 
@@ -100,7 +107,7 @@ test('PriceHistory: no lanza error si la tabla no está disponible', async () =>
   const items = [{ product_name: 'X', unit_price: 1 }];
 
   // Debe no lanzar (best-effort) y registrar error en consola
-  await recordSupplierPriceHistory(supabase, 's', items, 't');
+  await recordSupplierPriceHistory(supabase, empresa('t', 'company-s'), 's', items);
   assert.equal((store['supplier_price_history'] || []).length, 0, 'Sin registros insertados');
 });
 
@@ -115,7 +122,7 @@ test('PriceHistory: resumen - historial de precios por proveedor', async () => {
     { product_id: 'p2', product_name: 'Producto 2', unit_price: 200 },
   ];
 
-  await recordSupplierPriceHistory(supabase, 'supplier-9', items, 'tenant-9', '2026-02-10');
+  await recordSupplierPriceHistory(supabase, empresa('tenant-9', 'company-9'), 'supplier-9', items, '2026-02-10');
 
   console.log('✅ Registro automático al crear compra: OK');
   console.log('✅ Ruta API: GET/POST/PATCH/DELETE /api/suppliers/price-history: OK');

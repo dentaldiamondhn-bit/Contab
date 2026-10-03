@@ -1,19 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    
-    const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id");
-    const companyId = searchParams.get("companyId") || searchParams.get("company_id");
+
+    // Contexto validado. Antes tomaba `?tenantId`/`?companyId` sin comprobar
+    // pertenencia y, sin ellos, caia a un `.in("tenantId", ['1','tenant_001'])`
+    // que mezclaba empresas.
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
+
     const startDate = searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : undefined;
     const endDate = searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : undefined;
-    
+
     // Usar service_role para bypass RLS y soportar ANGELOH7
     const supabase = supabaseService;
-    
-    // Obtener transacciones con sus JournalEntries y Accounts — filtrado por tenant real
+
+    // Obtener transacciones con sus JournalEntries y Accounts — filtrado por empresa/tenant
     let query: any = supabase
       .from("Transaction")
       .select(`
@@ -27,16 +33,9 @@ export async function GET(request: NextRequest) {
             type
           )
         )
-      `);
-    if (tenantId) {
-      query = query.eq("tenantId", tenantId);
-    } else {
-      query = query.in("tenantId", ['1', 'tenant_001']);
-    }
-    if (companyId) {
-      query = query.eq("company_id", companyId);
-    }
-    
+      `)
+      .match(scope);
+
     if (startDate) {
       query = query.gte("date", startDate.toISOString());
     }
@@ -116,6 +115,8 @@ export async function GET(request: NextRequest) {
     
     return NextResponse.json(result);
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error fetching trial balance:", error);
     return NextResponse.json(
       { error: "Error fetching trial balance" },

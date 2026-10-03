@@ -1,49 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
-
-function toTenantId(
-  request: NextRequest
-): string | null {
-  const { searchParams } = new URL(request.url);
-  return (
-    searchParams.get("tenantId") ||
-    searchParams.get("companyId") ||
-    searchParams.get("company_id") ||
-    request.headers.get("x-tenant-id")
-  );
-}
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 async function fetchDetailed(
-  tenantId: string,
-  companyId: string | undefined,
+  scope: Record<string, string>,
   startDate: Date | undefined,
   endDate: Date | undefined
 ): Promise<any[]> {
-  const attempt = async (col: string): Promise<{ data: any[]; error: any }> => {
-    let q: any = supabaseService
-      .from("Transaction")
-      .select(
-        `*, JournalEntry (*, Account (id, code, name, type))`
-      );
-    if (startDate) q = q.gte("date", startDate.toISOString());
-    if (endDate) q = q.lte("date", endDate.toISOString());
-    q = q.eq(col, tenantId);
-    if (companyId) q = q.eq("company_id", companyId);
-    q = q.order("date", { ascending: true });
-    return await q;
-  };
-
-  const camel = await attempt("tenantId");
-  if (!camel.error || (camel.data && camel.data.length > 0)) return camel.data || [];
-  const snake = await attempt("tenant_id");
-  return snake.data || [];
+  let q: any = supabaseService
+    .from("Transaction")
+    .select(`*, JournalEntry (*, Account (id, code, name, type))`);
+  if (startDate) q = q.gte("date", startDate.toISOString());
+  if (endDate) q = q.lte("date", endDate.toISOString());
+  q = q.match(scope);
+  q = q.order("date", { ascending: true });
+  const { data, error } = await q;
+  if (error) throw new Error(error.message || "Error al consultar las transacciones");
+  return data || [];
 }
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const tenantId = toTenantId(request);
-    const companyId = searchParams.get("companyId") || searchParams.get("company_id");
+
+    // Contexto validado: antes tomaba `?tenantId`/`?companyId` de la query sin
+    // comprobar pertenencia.
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
+
     const startDate = searchParams.get("startDate")
       ? new Date(searchParams.get("startDate")!)
       : undefined;
@@ -51,14 +36,7 @@ export async function GET(request: NextRequest) {
       ? new Date(searchParams.get("endDate")!)
       : undefined;
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Tenant no encontrado o no especificado" },
-        { status: 400 }
-      );
-    }
-
-    const transactions = await fetchDetailed(tenantId, companyId, startDate, endDate);
+    const transactions = await fetchDetailed(scope, startDate, endDate);
 
     const items: any[] = [];
     (transactions || []).forEach((tx: any) => {
@@ -99,6 +77,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(items);
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error fetching detailed trial balance:", error);
     return NextResponse.json(
       { error: "Error fetching detailed trial balance" },

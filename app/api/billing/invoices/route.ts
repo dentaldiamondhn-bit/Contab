@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { supabase as supabaseService } from "@/lib/supabase-db";
 import { resolveAccountId, ACCOUNT_PREFIXES } from "@/lib/accounting/resolve-account";
+import {
+  reserveInvoiceNumber,
+  isInvoiceNumberTaken,
+  ExhaustedCaiError,
+} from "@/lib/billing/invoice-number";
+import { checkSaleStock, applySaleStock } from "@/lib/services/stock-sale";
+
+// Intentos de emision cuando el numero pedido choca con uno existente. Sin CAI
+// no hay fila que reservar, asi que el unico candado es el UNIQUE de la BD: cuando
+// dos cajas emiten a la vez, la que pierde reintenta esperando a que la factura
+// de la otra sea visible.
+const MAX_INTENTOS_NUMERO = 8;
+const ESPERA_REINTENTO_MS = 50;
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 const LEGACY_STATUS: Record<string, string> = {
   PAID: "PAGADA",
@@ -116,104 +131,211 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Validar lineas ANTES de crear la factura. El POS filtra distinto
+    // ("name && total > 0") que esta ruta ("name || code"), asi que se podia
+    // emitir una factura con totales y cero lineas: la 001-01-01-00000007 tiene
+    // subtotal 40 y ningun InvoiceItem.
+    const rawItems = Array.isArray(invoiceData.items) ? invoiceData.items : [];
+    const validItems = rawItems.filter(
+      (item: any) => item && (item.name || item.code) && Number(item.total || 0) > 0
+    );
+    if (validItems.length === 0) {
+      return NextResponse.json(
+        { error: "La factura no tiene lineas validas. Agrega al menos un producto o servicio con monto mayor a cero." },
+        { status: 400 }
+      );
+    }
+
+    // Inventario: se comprueba ANTES de crear la factura. Si falta stock se
+    // responde 400 y no queda nada que revertir.
+    const saleLines = validItems.map((item: any) => ({
+      productId: item.productId || null,
+      description: String(item.name || item.code || "Item"),
+      code: item.code || null,
+      quantity: Number(item.quantity || 0),
+      unitPrice: Number(item.unitPrice || 0),
+    }));
+    const shortages = await checkSaleStock(tenantId, saleLines);
+    if (shortages.length > 0) {
+      return NextResponse.json(
+        {
+          error: "No hay stock suficiente para emitir la factura",
+          shortages: shortages.map((s) => `${s.code} ${s.name}: pide ${s.requested}, hay ${s.available}`),
+        },
+        { status: 400 }
+      );
+    }
+
     const { data: tenant } = await (supabaseService as any)
       .from("Tenant")
       .select("businessname,businessrtn,businessaddress")
       .eq("id", tenantId)
       .maybeSingle();
 
-    // Número de factura: si ya existe (global unique), generar el siguiente de la serie
-    let invoiceNumber: string = invoiceData.invoiceNumber || `FAC-${Date.now()}`;
-    const { data: existing } = await (supabaseService as any)
-      .from("Invoice")
-      .select("id")
-      .eq("invoiceNumber", invoiceNumber)
-      .maybeSingle();
-    if (existing) {
-      const parts = invoiceNumber.split("-");
-      const base = parts.slice(0, 3).join("-");
-      const { data: maxRows } = await (supabaseService as any)
-        .from("Invoice")
-        .select("invoiceNumber")
-        .ilike("invoiceNumber", `${base}-%`)
-        .order("invoiceNumber", { ascending: false })
-        .limit(1);
-      const last = maxRows?.[0]?.invoiceNumber as string | undefined;
-      let nextSeq = 1;
-      if (last) {
-        nextSeq = parseInt(last.split("-")[3] || "0", 10) + 1;
-      }
-      invoiceNumber = `${base}-${String(nextSeq).padStart(8, "0")}`;
-    }
-
+    // El correlativo lo decide el servidor: el POS mandaba el suyo, derivado de
+    // un CAI que sin fila nunca avanzaba, asi que una empresa con facturas
+    // 00000006..00000008 emitia 00000001 una y otra vez. La busqueda tambien
+    // era global, no por empresa. Ver lib/billing/invoice-number.ts.
+    //
+    // `Invoice_invoiceNumber_key` es UNIQUE **global** (no por empresa), asi que
+    // el numero tambien puede estar ocupado por otra companyia. Por eso el
+    // insert va en reintentos: si la BD lo rechaza con 23505 se pide el
+    // siguiente correlativo en vez de fallar la emision.
     const now = new Date();
     const issueDate = (invoiceData.date ? new Date(invoiceData.date) : now).toISOString().slice(0, 10);
     const subtotal = Number(invoiceData.totals?.subtotal || 0);
     const tax = Number(invoiceData.totals?.tax15 || 0) + Number(invoiceData.totals?.tax18 || 0);
     const total = Number(invoiceData.totals?.total || 0);
-    const id = randomUUID();
 
-    const { data: invoice, error: invoiceError } = await (supabaseService as any)
-      .from("Invoice")
-      .insert({
-        id,
-        tenantId,
-        invoiceNumber,
-        invoiceType: "CUSTOMER",
-        status: "PAID",
-        customerName: invoiceData.customer?.name || "Consumidor Final",
-        customerRTN: String(invoiceData.customer?.rtn || "").slice(0, 20),
-        customerEmail: null,
-        customerAddress: null,
-        issuerName: tenant?.businessname || "Emisor",
-        issuerRTN: String(tenant?.businessrtn || "").slice(0, 20),
-        issuerAddress: tenant?.businessaddress || null,
-        issueDate,
-        dueDate: issueDate,
-        cai: invoiceData.cai || null,
-        subtotal,
-        tax,
-        total,
-        currency: "HNL",
-        taxRate: 15,
-        notes: invoiceData.paymentReference || null,
-        createdAt: now.toISOString(),
-        updatedAt: now.toISOString(),
-      })
-      .select()
-      .single();
+    let invoice: any = null;
+    let invoiceNumber = "";
+    let reservado: Awaited<ReturnType<typeof reserveInvoiceNumber>> | null = null;
+    // Suelo del correlativo: si el numero choca con el UNIQUE global lo sube
+    // para no volver a proponer el mismo. Ver reserveInvoiceNumber.
+    let suelo = 0;
 
-    if (invoiceError) {
-      console.error("Error creating invoice:", invoiceError);
+    for (let intento = 1; intento <= MAX_INTENTOS_NUMERO; intento++) {
+      try {
+        reservado = await reserveInvoiceNumber(tenantId, { suelo });
+      } catch (error: any) {
+        if (error instanceof ExhaustedCaiError) {
+          return NextResponse.json({ error: error.message, code: "CAI_AGOTADO" }, { status: 400 });
+        }
+        throw error;
+      }
+      invoiceNumber = reservado.invoiceNumber;
+
+      if (invoiceData.invoiceNumber && intento === 1 && invoiceData.invoiceNumber !== invoiceNumber) {
+        console.warn(
+          `[billing/invoices] El cliente propuso ${invoiceData.invoiceNumber}; se usa el correlativo del servidor ${invoiceNumber}.`
+        );
+      }
+
+      // Si esta empresa ya tiene ese numero no es un conflicto de la serie: el
+      // numero lo elige el servidor, asi que solo puede ser otra emision que
+      // se llevo este correlativo a la vez. Se reintenta con el siguiente.
+      if (await isInvoiceNumberTaken(tenantId, invoiceNumber)) {
+        console.warn(
+          `[billing/invoices] ${invoiceNumber} ya fue emitido por esta empresa; se reintenta con el siguiente (intento ${intento}).`
+        );
+        suelo = Math.max(suelo, reservado.correlativo + 1);
+        await sleep(ESPERA_REINTENTO_MS);
+        continue;
+      }
+
+      const { data, error } = await (supabaseService as any)
+        .from("Invoice")
+        .insert({
+          id: randomUUID(),
+          tenantId,
+          invoiceNumber,
+          invoiceType: "CUSTOMER",
+          status: "PAID",
+          customerName: invoiceData.customer?.name || "Consumidor Final",
+          customerRTN: String(invoiceData.customer?.rtn || "").slice(0, 20),
+          customerEmail: (() => {
+            const e = String(invoiceData.customer?.email || "").trim();
+            return e && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) ? e : null;
+          })(),
+          customerAddress: null,
+          issuerName: tenant?.businessname || "Emisor",
+          issuerRTN: String(tenant?.businessrtn || "").slice(0, 20),
+          issuerAddress: tenant?.businessaddress || null,
+          issueDate,
+          dueDate: issueDate,
+          // El CAI lo elige el servidor junto con el correlativo; antes se
+          // guardaba el que propuso el cliente, que podia no ser el vigente.
+          cai: reservado.caiCode || null,
+          subtotal,
+          tax,
+          total,
+          currency: "HNL",
+          taxRate: 15,
+          notes: invoiceData.paymentReference || null,
+          createdAt: now.toISOString(),
+          updatedAt: now.toISOString(),
+        })
+        .select()
+        .single();
+
+      if (!error) {
+        invoice = data;
+        break;
+      }
+
+      // 23505 = el numero ya existe (otra empresa o emision simultanea). Se pide
+      // el siguiente; cualquier otro error es real y se propaga. El `suelo` es
+      // imprescindible cuando el choque es con OTRA empresa: la serie propia
+      // (que solo mira las facturas de este tenant) volveria a proponer el
+      // mismo numero indefinidamente.
+      if (error.code === "23505") {
+        console.warn(
+          `[billing/invoices] ${invoiceNumber} ya existe; se reintenta con el siguiente correlativo (intento ${intento}).`
+        );
+        suelo = Math.max(suelo, reservado.correlativo + 1);
+        await sleep(ESPERA_REINTENTO_MS);
+        continue;
+      }
+
+      console.error("Error creating invoice:", error);
       return NextResponse.json(
-        { error: "Error creating invoice", details: invoiceError.message, code: invoiceError.code, hint: invoiceError.hint },
+        { error: "Error creating invoice", details: error.message, code: error.code, hint: error.hint },
         { status: 500 }
       );
     }
 
-    const itemsPayload = (invoiceData.items || [])
-      .filter((item: any) => item && (item.name || item.code))
-      .map((item: any) => ({
+    if (!invoice) {
+      return NextResponse.json(
+        {
+          error:
+            "No se pudo asignar un numero de factura libre tras varios intentos. Reintenta la emision.",
+        },
+        { status: 409 }
+      );
+    }
+
+
+    const itemsPayload = validItems.map((item: any) => {
+      const quantity = Number(item.quantity || 1);
+      const unitPrice = Number(item.unitPrice || 0);
+      const taxRate = Number(item.taxRate ?? 15);
+      // El POS no manda taxAmount, asi que antes se guardaba siempre 0 aunque
+      // la factura si cobrara el impuesto.
+      const taxAmount = Number(item.taxAmount ?? 0) || (taxRate > 0 ? unitPrice * quantity * (taxRate / 100) : 0);
+      return {
         id: randomUUID(),
-        invoiceId: id,
+        // `invoice.id`, no el `id` local: en un reintento por colision de
+        // numero la factura se inserto con otro id.
+        invoiceId: invoice.id,
         description: item.name || item.code || "Item",
-        quantity: Number(item.quantity || 1),
-        unitPrice: Number(item.unitPrice || 0),
+        quantity,
+        unitPrice,
         total: Number(item.total || 0),
-        taxRate: Number(item.taxRate ?? 15),
-        taxAmount: Number(item.taxAmount || 0),
-        isTaxable: (item.taxRate ?? 15) > 0,
+        taxRate,
+        taxAmount,
+        isTaxable: taxRate > 0,
+        // Vinculo real con el inventario (columna de 021_invoiceitem_product_id.sql).
+        product_id: item.productId || null,
         productCode: item.code || null,
         serviceCode: null,
         createdAt: now.toISOString(),
         updatedAt: now.toISOString(),
-      }));
+      };
+    });
 
-    if (itemsPayload.length > 0) {
-      const { error: itemsError } = await (supabaseService as any).from("InvoiceItem").insert(itemsPayload);
+    {
+      let { error: itemsError } = await (supabaseService as any).from("InvoiceItem").insert(itemsPayload);
+      // Si la migracion 021 todavia no se aplico, PostgREST rechaza la columna.
+      // Se reintenta sin product_id para no bloquear la emision.
+      if (itemsError && /product_id|column|schema/i.test(itemsError.message || "")) {
+        console.warn("[billing/invoices] product_id no disponible, reintentando sin la columna:", itemsError.message);
+        ({ error: itemsError } = await (supabaseService as any)
+          .from("InvoiceItem")
+          .insert(itemsPayload.map(({ product_id, ...rest }: Record<string, unknown>) => rest)));
+      }
       if (itemsError) {
         console.error("Error creating invoice items:", itemsError);
-        await (supabaseService as any).from("Invoice").delete().eq("id", id);
+        await (supabaseService as any).from("Invoice").delete().eq("id", invoice.id);
         return NextResponse.json(
           { error: "Error creating invoice items", details: itemsError.message, code: itemsError.code, hint: itemsError.hint },
           { status: 500 }
@@ -221,15 +343,39 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Actualizar el correlativo del CAI (por tenant)
-    if (invoiceData.cai) {
-      const nextNumber = parseInt(invoiceNumber.split("-")[3] || "0", 10) + 1;
-      await (supabaseService as any)
-        .from("cai")
-        .update({ current_number: nextNumber })
-        .eq("cai", invoiceData.cai)
-        .eq("tenant_id", tenantId);
+    // Inventario: descuento con movimientos. Si falla, se revierte (dentro de
+    // applySaleStock) y se borra la factura, para no dejar stock descontado
+    // sin venta.
+    const stockResult = await applySaleStock({
+      tenantId,
+      invoiceId: invoice.id,
+      invoiceNumber,
+      lines: saleLines,
+    });
+    if (stockResult.shortages.length > 0 || stockResult.errors.length > 0) {
+      console.error("[billing/invoices] No se pudo descontar inventario:", {
+        invoiceNumber,
+        shortages: stockResult.shortages,
+        errors: stockResult.errors,
+      });
+      await (supabaseService as any).from("InvoiceItem").delete().eq("invoiceId", invoice.id);
+      await (supabaseService as any).from("Invoice").delete().eq("id", invoice.id);
+      return NextResponse.json(
+        {
+          error: "No se pudo descontar el inventario; la factura no se emitio",
+          shortages: stockResult.shortages.map(
+            (s) => `${s.code} ${s.name}: pide ${s.requested}, hay ${s.available}`
+          ),
+          details: stockResult.errors,
+        },
+        { status: stockResult.shortages.length > 0 ? 400 : 500 }
+      );
     }
+
+    // El correlativo del CAI ya lo reservo `reserveInvoiceNumber` antes de
+    // insertar. Este bloque solo decia `cai.current_number` leyendo el numero
+    // que mandaba el cliente, lo que hacia retroceder el contador cuando el
+    // POS iba atras.
 
     // Asiento contable automático (best-effort, no bloquea la emisión)
     await postSalesJournal({

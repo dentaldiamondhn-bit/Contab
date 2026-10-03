@@ -1,15 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@clerk/nextjs/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
-export async function POST(request: NextRequest) {
+// Esta ruta no tiene consumidores: no hay ni un fetch a `/hr/accounting` en la
+// app. Antes de borrarla se arregla lo que hacia, porque si vuelve a usarse el
+// error vuelve con ella:
+//
+// - Sacaba el empresaId del PATHNAME con `pathname.split('/')[3]`, sin validar
+//   contra la sesion. `auth()` solo comprueba que haya usuario, no que ese
+//   empresa sea suya.
+// - Y lo pasaba como `tenantId` al endpoint de contabilidad, o sea un
+//   `companies.id` en la columna de tenant: exactamente la confusion que hace
+//   que estas rutas devuelvan cero filas sin error.
+//
+// Ahora la empresa sale del `[id]` de la ruta, validada contra
+// `user_company_access` por `contextoDeEmpresa`.
+
+export async function POST(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
-    }
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
 
-    const params = request.nextUrl.pathname.split('/');
-    const companyId = params[3]; // companies/[id]/hr/accounting
+    // `contextoDeEmpresa` devuelve `string | null` en ambos campos por tipo.
+    // Con `companyIdDeRuta` resuelto no puede ser null, pero si lo fuera se
+    // propagaria un null a la cabecera y al cuerpo, que es como nace el bug.
+    if (!empresa.tenantId || !empresa.companyId) {
+      return NextResponse.json({ error: 'No se pudo determinar la empresa' }, { status: 400 });
+    }
 
     const body = await request.json();
     const {
@@ -205,10 +223,14 @@ export async function POST(request: NextRequest) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-tenant-id': companyId,
+            // El tenant que se propaga es el REAL, no el companies.id que se
+            // mandaba antes. Sin esto el endpoint de contabilidad recibia un
+            // UUID donde espera 'ANGELOH7'.
+            'x-tenant-id': empresa.tenantId,
           },
           body: JSON.stringify({
-            tenantId: companyId,
+            tenantId: empresa.tenantId,
+            companyId: empresa.companyId,
             description: tx.description,
             date: periodDate,
             currency: 'HNL',
@@ -241,6 +263,8 @@ export async function POST(request: NextRequest) {
     });
 
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error in HR/accounting POST:', error);
     return NextResponse.json(
       { error: 'Error al crear asientos contables de nómina' },

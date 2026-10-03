@@ -1,14 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresaOCompany } from '@/lib/company-scope';
 import { listWarehouses, listTransfers } from '@/lib/services/warehouse-service';
 import { aggregateStockAt, num } from '@/lib/services/transfer-calc';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
 
 interface DashboardProduct {
   id: string;
@@ -137,24 +132,29 @@ export async function GET(
         { status: 400 },
       );
     }
+    // El `[id]` de la ruta es `companies.id`. `contextoDeEmpresa` lo traduce y
+    // valida pertenencia (403); `company_id` es lo que de verdad separa empresas
+    // (test 1 y test 2 comparten `TEST1DS`, filtrar por tenant las mezclaba).
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    const empresaId = empresa.companyId ?? companyId;
+
     const { searchParams } = new URL(request.url);
     const months = Math.min(24, Math.max(1, parseInt(searchParams.get('months') || '6', 10) || 6));
 
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
 
     const query = searchParams.get('warehouseId')
       ? (q: any) => q.eq('warehouse_id', searchParams.get('warehouseId'))
       : (q: any) => q;
 
     const [warehouses, productsRes, transfersPending, transfersInTransit] = await Promise.all([
-      listWarehouses(companyId, tenantId, { activeOnly: true }),
+      listWarehouses(empresaId, empresa.tenantId, { activeOnly: true }),
       supabase
         .from('product')
         .select('id, code, name, category, current_cost, current_stock, min_stock, is_active, expiration_date, location')
-        .eq('tenant_id', tenantId),
-      listTransfers(companyId, tenantId, { status: 'pending' }),
-      listTransfers(companyId, tenantId, { status: 'in_transit' }),
+        .match(filtroEmpresaOCompany(empresa)),
+      listTransfers(empresaId, empresa.tenantId, { status: 'pending' }),
+      listTransfers(empresaId, empresa.tenantId, { status: 'in_transit' }),
     ]);
 
     const products = ((productsRes.data || []) as DashboardProduct[]).filter(
@@ -165,7 +165,7 @@ export async function GET(
     const rawMovements = await supabase
       .from('inventory_movement')
       .select('product_id, warehouse_id, movement_type, quantity, unit_cost, created_at')
-      .eq('tenant_id', tenantId)
+      .match(filtroEmpresaOCompany(empresa))
       .order('created_at', { ascending: true })
       .limit(20000);
     const allMovements = (rawMovements.data || []) as MovementRow[];
@@ -282,7 +282,7 @@ export async function GET(
     const recentRes = await supabase
       .from('inventory_movement')
       .select('id, product_id, warehouse_id, movement_type, movement_reason, quantity, unit_cost, created_at')
-      .eq('tenant_id', tenantId)
+      .match(filtroEmpresaOCompany(empresa))
       .order('created_at', { ascending: false })
       .limit(20);
     const recentMovements = ((recentRes.data || []) as Array<{
@@ -303,7 +303,7 @@ export async function GET(
     }));
 
     const stats: InventoryStats = {
-      companyId,
+      companyId: empresaId,
       generatedAt: new Date().toISOString(),
       months,
       kpis: {
@@ -328,6 +328,8 @@ export async function GET(
 
     return NextResponse.json({ success: true, data: stats });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error in inventory stats API:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

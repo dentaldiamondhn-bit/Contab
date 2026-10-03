@@ -230,11 +230,17 @@ export default function InventoryPage() {
     try {
       setLoading(true);
       
-      // Cargar productos con alertas - tenant-aware
+      // Cargar productos con alertas - company-aware.
+      //
+      // Antes era `?tenantId=${companyId}`: un `companies.id` (UUID) mandado como
+      // `tenantId`. `contextoDeEmpresa` nunca lee ese parametro, asi que
+      // `companyId` volvia null y `filtroEmpresaOCompany` caia a `{ tenant_id }`:
+      // test 1 y test 2 (mismo `TEST1DS`) veian productos, alertas y movimientos
+      // de las dos. El parametro correcto es `companyId`, que si se valida.
       const [productsRes, alertsRes, movementsRes] = await Promise.all([
-        fetch(`/api/inventory/products?tenantId=${companyId}`),
-        fetch(`/api/inventory/alerts?tenantId=${companyId}`),
-        fetch(`/api/inventory/movements?tenantId=${companyId}&limit=50`),
+        fetch(`/api/inventory/products?companyId=${companyId}`),
+        fetch(`/api/inventory/alerts?companyId=${companyId}`),
+        fetch(`/api/inventory/movements?companyId=${companyId}&limit=50`),
       ]);
 
       const productsData = productsRes.ok ? await productsRes.json() : [];

@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { readFileSync, unlinkSync } from "fs";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import {
   buildCashFlowComparatives,
   exportCashFlowComparativesToExcel,
@@ -8,7 +10,7 @@ import {
 } from "@/lib/reports/cash-flow-comparatives";
 import type { TrialBalanceItem } from "@/lib/reports/cash-flow-comparatives";
 
-async function fetchTrialItems(tenantId: string, fiscalYear: number): Promise<TrialBalanceItem[]> {
+async function fetchTrialItems(scope: Record<string, string>, fiscalYear: number): Promise<TrialBalanceItem[]> {
   const startDate = new Date(`${fiscalYear}-01-01T00:00:00Z`).toISOString();
   const endDate = new Date(`${fiscalYear}-12-31T23:59:59Z`).toISOString();
   const query: any = supabaseService
@@ -16,7 +18,7 @@ async function fetchTrialItems(tenantId: string, fiscalYear: number): Promise<Tr
     .select(`*, JournalEntry (*, Account (id, code, name, type))`)
     .gte("date", startDate)
     .lte("date", endDate)
-    .eq("tenantId", tenantId);
+    .match(scope);
   const { data, error } = await query;
   if (error) {
     throw new Error(error.message || "Error al consultar las transacciones contables");
@@ -56,20 +58,13 @@ function quarterHasData(quarter: { sections: { operation: any[]; investing: any[
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const tenantId =
-      searchParams.get("tenantId") ||
-      searchParams.get("companyId") ||
-      request.headers.get("x-tenant-id");
+    // Contexto validado (antes tomaba `?tenantId`/`?companyId` sin comprobar).
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
     const fiscalYear = searchParams.get("fiscalYear")
       ? Number(searchParams.get("fiscalYear"))
       : NaN;
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, errorHint: "FALTAN_PARAMETROS" },
-        { status: 400 }
-      );
-    }
     if (!fiscalYear || isNaN(fiscalYear) || fiscalYear < 2000) {
       return NextResponse.json(
         { ok: false, errorHint: "FALTAN_PARAMETROS" },
@@ -77,7 +72,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const trials = await fetchTrialItems(tenantId, fiscalYear);
+    const trials = await fetchTrialItems(scope, fiscalYear);
     const comparatives = buildCashFlowComparatives(trials, fiscalYear);
 
     const warning =
@@ -104,6 +99,8 @@ export async function GET(request: NextRequest) {
       samples: trials.length,
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in cash-flow-comparatives GET:", error);
     return NextResponse.json(
       { ok: false, errorHint: "ERROR_INTERNO" },
@@ -115,17 +112,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => null);
-    const tenantId =
-      body?.tenantId || request.headers.get("x-tenant-id");
+    // Contexto validado; el companyId puede venir en el cuerpo de la peticion.
+    const empresa = await contextoDeEmpresa(request, {
+      companyIdDeRuta: body?.companyId || body?.company_id,
+    });
+    const scope = filtroEmpresaOCompany(empresa);
     const fiscalYear = body?.fiscalYear ? Number(body.fiscalYear) : NaN;
     const companyName = body?.companyName || "empresa";
 
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, errorHint: "FALTAN_PARAMETROS" },
-        { status: 400 }
-      );
-    }
     if (!fiscalYear || isNaN(fiscalYear) || fiscalYear < 2000) {
       return NextResponse.json(
         { ok: false, errorHint: "FALTAN_PARAMETROS" },
@@ -133,7 +127,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const trials = await fetchTrialItems(tenantId, fiscalYear);
+    const trials = await fetchTrialItems(scope, fiscalYear);
     const comparatives = buildCashFlowComparatives(trials, fiscalYear);
 
     if (!comparatives.hasData) {
@@ -165,6 +159,8 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in cash-flow-comparatives POST:", error);
     return NextResponse.json(
       { ok: false, errorHint: "ERROR_INTERNO" },

@@ -1,11 +1,132 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { ErrorDeEmpresa } from '@/lib/tenant-resolver';
 
-export const TENANT_ID = '1';
+/**
+ * La empresa, YA VALIDADA por `contextoDeEmpresa`. Es la MISMA forma que devuelve
+ * `contextoDeEmpresa`, y a proposito: quien llama ya ha comprobado que esta
+ * empresa es del usuario, asi que aqui no hay nada que adivinar.
+ *
+ * Antes este modulo exportaba `TENANT_ID = '1'` y lo usaba en TODAS las consultas
+ * y en todos los inserts. Consequences medidas el 2 Oct 2026:
+ *
+ * - `fetchPurchases` filtraba solo `.eq('tenant_id','1')` y **no filtraba por
+ *   empresa**: las 2 compras de Empresa 1 salian a cualquier usuario que abriera
+ *   `/companies/<su empresa>/purchases`, y al crear una compra la fila quedaba
+ *   con `tenant_id='1'` y el `company_id` que mandara el cliente **sin validar**.
+ * - Empresa 1 (`73d5bbf7-...`, tenant `'1'`) tiene dueno (Sully Calix,
+ *   `owner`): no era "nadie puede entrar", era "todo el mundo ve sus datos".
+ * - Los productos creados desde una compra se buscaban con
+ *   `.eq('tenant_id', companyId)` — un `companies.id` en una columna de codigo de
+ *   tenant, o sea **0 filas siempre**: cada linea de compra creaba un producto
+ *   duplicado en vez de sumar stock, y el producto nuevo quedaba con un UUID en
+ *   `tenant_id` y sin `company_id` (invisible para todo filtro por empresa).
+ * - `createPurchaseJournalEntry` resolvia las cuentas con
+ *   `.eq('code','1101').eq('tenant_id', tenantId)`: con test 1 y test 2
+ *   compartiendo `TEST1DS` eso puede dar dos filas, y el asiento de una empresa
+ *   puede acabar contra la cuenta de la hermana.
+ */
+export type EmpresaCompra = { tenantId: string; companyId: string };
 
 export interface PurchaseFilters {
+  /** Obsoleto: la empresa viene en `empresa`. Se mantiene para no romper callers. */
   companyId?: string | null;
   supplierId?: string | null;
   search?: string | null;
+}
+
+/**
+ * `contextoDeEmpresa` devuelve `companyId: string | null`: cuando no puede
+ * resolver la empresa (peticiones sin sesion de Clerk, p.ej. scripts) se
+ * degrada a tenant suelto. Aqui eso NO es aceptable, porque sin `company_id` no
+ * hay aislamiento: `TEST1DS` tiene dos empresas y volverian a verse entre si.
+ *
+ * Por eso Compras/Proveedores exige empresa real y responde **400** en vez de
+ * caer a un filtro por tenant.
+ */
+export function exigirEmpresa(contexto: { tenantId: string | null; companyId: string | null }): EmpresaCompra {
+  if (!contexto.companyId) {
+    throw new ErrorDeEmpresa(
+      400,
+      'No se pudo determinar la empresa activa. Recarga la pagina o selecciona una empresa.'
+    );
+  }
+  if (!contexto.tenantId) {
+    throw new ErrorDeEmpresa(400, 'No se pudo determinar el tenant de la empresa activa.');
+  }
+  return { tenantId: contexto.tenantId, companyId: contexto.companyId };
+}
+
+/**
+ * Un `supplier_id` o `product_id` del cuerpo es una **referencia a otra
+ * empresa**, no un dato: si no se comprueba, la compra se guarda apuntando al
+ * proveedor de la hermana y al releerla el embed `Supplier:supplier_id(...)`
+ * devuelve su nombre, RTN, telefono y correo. Poner `company_id` en la fila es
+ * correcto y aun asi no alcanza: la fila es de esta empresa, el proveedor no.
+ *
+ * Por eso se valida **antes** de escribir. Se descarta en silencio lo que no
+ * venga de la empresa en vez de dar 400: un proveedor que el cliente aun no ha
+ * guardado no es un error suyo, y el filtro de UI ya solo ofrece los propios.
+ */
+async function exigirPertenencia(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  tabla: string,
+  ids: Array<string | null | undefined>
+): Promise<Set<string>> {
+  const propios = new Set<string>();
+  const unicos = Array.from(new Set(ids.filter((x): x is string => typeof x === 'string' && x.length > 0)));
+  if (unicos.length === 0) return propios;
+
+  const { data } = await supabase
+    .from(tabla)
+    .select('id')
+    .eq('company_id', empresa.companyId)
+    .in('id', unicos);
+
+  for (const fila of data || []) propios.add(String(fila.id));
+  return propios;
+}
+
+/**
+ * Devuelve el subconjunto de `ids` que SI pertenece a la empresa, para que la
+ * ruta pueda descartar lo demas en vez de abortar. Publica porque
+ * `/api/suppliers/price-history` tiene la misma referencia cruzada sin
+ * comprobar y no debe duplicar la consulta.
+ */
+export async function idsDeEstaEmpresa(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  tabla: string,
+  ids: Array<string | null | undefined>
+): Promise<Set<string>> {
+  return exigirPertenencia(supabase, empresa, tabla, ids);
+}
+
+/** `id` si es de esta empresa, `null` si no. Para columnas de FK opcionales. */
+export function idValidoDe(propios: Set<string>, id: unknown): string | null {
+  if (typeof id !== 'string' || !id) return null;
+  return propios.has(id) ? id : null;
+}
+
+/** Igual que `exigirPertenencia`, pero aborta si algun id no es de la empresa. */
+async function exigirPertenenciaEstricta(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  tabla: string,
+  campo: string,
+  ids: Array<string | null | undefined>
+): Promise<Set<string>> {
+  const unicos = Array.from(new Set(ids.filter((x): x is string => typeof x === 'string' && x.length > 0)));
+  const propios = await exigirPertenencia(supabase, empresa, tabla, unicos);
+
+  const ajenos = unicos.filter((id) => !propios.has(id));
+  if (ajenos.length > 0) {
+    throw new ErrorDeEmpresa(
+      400,
+      `El ${campo} no pertenece a la empresa activa (${ajenos.length} referencia(s) rechazada(s)).`
+    );
+  }
+  return propios;
 }
 
 export function transformPurchase(p: any): any {
@@ -41,16 +162,13 @@ export function transformPurchase(p: any): any {
   };
 }
 
-export async function fetchPurchases(supabase: SupabaseClient, filters: PurchaseFilters) {
+export async function fetchPurchases(supabase: SupabaseClient, empresa: EmpresaCompra, filters: PurchaseFilters) {
   let query = supabase
     .from('Purchase')
     .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
-    .eq('tenant_id', TENANT_ID)
+    .eq('company_id', empresa.companyId)
     .order('invoice_date', { ascending: false });
 
-  if (filters.companyId) {
-    query = query.eq('company_id', filters.companyId);
-  }
   if (filters.supplierId) {
     query = query.eq('supplier_id', filters.supplierId);
   }
@@ -72,16 +190,41 @@ export async function fetchPurchases(supabase: SupabaseClient, filters: Purchase
   return { data: rows, error: null };
 }
 
-export async function createPurchase(supabase: SupabaseClient, body: any) {
-  const tenantId = TENANT_ID;
-  const companyId = body.companyId || body.company_id || null;
+export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaCompra, body: any) {
+  const tenantId = empresa.tenantId;
+  // La empresa NO sale del cuerpo: la decide el servidor y ya esta validada.
+  const companyId = empresa.companyId;
   const isCredit = !!body.is_credit;
   const total = Math.round(Number(body.total) || 0);
+
+  const items = Array.isArray(body.items) ? body.items : [];
+
+  // El proveedor del cuerpo y el de cada linea tienen que ser de ESTA empresa.
+  // Ver `exigirPertenencia`: sin esto la compra se guardaba apuntando al
+  // proveedor de la hermana y el embed lo devolvia con nombre y RTN.
+  const proveedoresValidos = await exigirPertenenciaEstricta(
+    supabase,
+    empresa,
+    'Supplier',
+    'proveedor',
+    [body.supplier_id, ...items.map((i: any) => i.supplier_id)]
+  );
+  // Un producto ajeno no se rechaza (un item puede traer solo el codigo), pero
+  // si se manda su `product_id` y es de otra empresa, se suelta: seguir el
+  // `product_id` meteria una fila de otra empresa en el historico de precios.
+  const productosValidos = await exigirPertenencia(
+    supabase,
+    empresa,
+    'product',
+    items.map((i: any) => i.product_id)
+  );
+  const productIdDe = (item: any): string | null => idValidoDe(productosValidos, item.product_id);
 
   const { data: purchase, error: purchaseError } = await supabase
     .from('Purchase')
     .insert({
-      supplier_id: body.supplier_id,
+      supplier_id:
+        body.supplier_id && proveedoresValidos.has(String(body.supplier_id)) ? body.supplier_id : null,
       invoice_number: body.invoice_number,
       cai: body.cai || null,
       invoice_date: body.invoice_date || new Date().toISOString().split('T')[0],
@@ -107,12 +250,10 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
 
   if (purchaseError) return { data: null, error: purchaseError };
 
-  const items = Array.isArray(body.items) ? body.items : [];
-
   if (items.length > 0) {
     const purchaseItems = items.map((item: any) => ({
       purchase_id: purchase.id,
-      product_id: item.product_id || null,
+      product_id: productIdDe(item),
       product_code: item.product_code || null,
       product_name: item.product_name || item.description || '',
       description: item.description || null,
@@ -125,6 +266,7 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
       tenant_id: tenantId,
+      company_id: companyId,
       created_at: new Date().toISOString(),
     }));
 
@@ -135,7 +277,7 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
   }
 
   // Create/update products in Supabase product table
-  if (items.length > 0 && companyId) {
+  if (items.length > 0) {
     for (const item of items) {
       const productName = item.product_name || item.description || '';
       if (!productName) continue;
@@ -146,12 +288,13 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
       const { data: existing } = await supabase
         .from('product')
         .select('id, current_stock')
-        .eq('tenant_id', companyId)
+        .eq('company_id', companyId)
         .ilike('name', productName)
-        .maybeSingle();
+        .limit(1);
 
-      if (existing) {
-        const newStock = (Number(existing.current_stock) || 0) + quantity;
+      if (existing && existing.length > 0) {
+        const row = existing[0];
+        const newStock = (Number(row.current_stock) || 0) + quantity;
         await supabase
           .from('product')
           .update({
@@ -160,13 +303,15 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
             unit_price: unitPrice || undefined,
             current_cost: unitPrice,
           })
-          .eq('id', existing.id);
+          .eq('id', row.id)
+          .eq('company_id', companyId);
       } else {
         const productCode = 'PRD-' + Date.now().toString(36).toUpperCase().slice(-4);
         await supabase
           .from('product')
           .insert({
-            tenant_id: companyId,
+            tenant_id: tenantId,
+            company_id: companyId,
             code: productCode,
             name: productName,
             description: item.description || '',
@@ -190,11 +335,11 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
 
   // Track supplier price history (best-effort, never blocks the purchase)
   if (purchase.supplier_id && items.length > 0) {
-    await recordSupplierPriceHistory(supabase, purchase.supplier_id, items, tenantId, purchase.invoice_date);
+    await recordSupplierPriceHistory(supabase, empresa, purchase.supplier_id, items, purchase.invoice_date);
   }
 
   // Journal entry (best-effort, never blocks the purchase)
-  const journalEntryResult = await createPurchaseJournalEntry(supabase, purchase, items, tenantId, companyId);
+  const journalEntryResult = await createPurchaseJournalEntry(supabase, empresa, purchase, items);
   if (journalEntryResult) {
     await supabase.from('Purchase').update({ journal_entry_id: journalEntryResult.id }).eq('id', purchase.id);
   }
@@ -204,9 +349,9 @@ export async function createPurchase(supabase: SupabaseClient, body: any) {
 
 export async function recordSupplierPriceHistory(
   supabase: SupabaseClient,
+  empresa: EmpresaCompra,
   supplierId: string,
   items: any[],
-  tenantId: string,
   invoiceDate?: string
 ) {
   const effectiveDate = invoiceDate ? new Date(invoiceDate + 'T00:00:00').toISOString() : new Date().toISOString();
@@ -214,7 +359,8 @@ export async function recordSupplierPriceHistory(
   const rows = items
     .filter((item: any) => item.product_id || item.product_name || item.description)
     .map((item: any) => ({
-      tenant_id: tenantId,
+      tenant_id: empresa.tenantId,
+      company_id: empresa.companyId,
       supplier_id: supplierId,
       product_id: item.product_id || null,
       price: Math.round(Number(item.unit_price) || 0),
@@ -233,7 +379,43 @@ export async function recordSupplierPriceHistory(
   }
 }
 
-export async function updatePurchase(supabase: SupabaseClient, id: string, body: any) {
+export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaCompra, id: string, body: any) {
+  // Antes se hacía `.eq('id', id)` a secas: cualquier usuario autenticado que
+  // supiera el UUID de una compra ajena la podia editar y reescribir sus lineas.
+  const { data: actual, error: actualError } = await supabase
+    .from('Purchase')
+    .select('id')
+    .eq('id', id)
+    .eq('company_id', empresa.companyId)
+    .maybeSingle();
+
+  if (actualError) return { data: null, error: actualError };
+  if (!actual) return { data: null, error: null, notFound: true as const };
+
+  const itemsNuevos = Array.isArray(body.items) ? body.items : [];
+
+  // Misma comprobacion que en `createPurchase`, y por el mismo motivo: un
+  // `supplier_id` o `product_id` de otra empresa en el cuerpo convertia esta
+  // compra en un puente hacia sus datos. Se valida ANTES del UPDATE, porque
+  // despues de escribir el error dejaria la fila a medias.
+  // Estricta a proposito: que el proveedor venga de la hermana es un error de
+  // quien llama, no un dato que se pueda descartar en silencio. En `create` el
+  // unico caso de "sin proveedor" es que el cliente aun no lo ha guardado.
+  await exigirPertenenciaEstricta(
+    supabase,
+    empresa,
+    'Supplier',
+    'proveedor',
+    [body.supplier_id, ...itemsNuevos.map((i: any) => i.supplier_id)]
+  );
+  const productosValidos = await exigirPertenencia(
+    supabase,
+    empresa,
+    'product',
+    itemsNuevos.map((i: any) => i.product_id)
+  );
+  const productIdDe = (item: any): string | null => idValidoDe(productosValidos, item.product_id);
+
   const updates: any = {};
   const scalarFields = [
     'supplier_id', 'invoice_number', 'cai', 'invoice_date', 'subtotal', 'tax_rate', 'tax_amount', 'total',
@@ -254,16 +436,24 @@ export async function updatePurchase(supabase: SupabaseClient, id: string, body:
   // Preserve company/tenant
   updates.updated_at = new Date().toISOString();
 
-  const { error: updateError } = await supabase.from('Purchase').update(updates).eq('id', id);
+  const { error: updateError } = await supabase
+    .from('Purchase')
+    .update(updates)
+    .eq('id', id)
+    .eq('company_id', empresa.companyId);
   if (updateError) return { data: null, error: updateError };
 
   // Replace items
   if (Array.isArray(body.items)) {
-    await supabase.from('PurchaseItem').delete().eq('purchase_id', id);
+    await supabase
+      .from('PurchaseItem')
+      .delete()
+      .eq('purchase_id', id)
+      .eq('company_id', empresa.companyId);
 
-    const purchaseItems = body.items.map((item: any) => ({
+    const purchaseItems = itemsNuevos.map((item: any) => ({
       purchase_id: id,
-      product_id: item.product_id || null,
+      product_id: productIdDe(item),
       product_code: item.product_code || null,
       product_name: item.product_name || item.description || '',
       description: item.description || null,
@@ -275,7 +465,8 @@ export async function updatePurchase(supabase: SupabaseClient, id: string, body:
       tax_rate: item.tax_rate ?? updates.tax_rate ?? 15.0,
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
-      tenant_id: TENANT_ID,
+      tenant_id: empresa.tenantId,
+      company_id: empresa.companyId,
       created_at: new Date().toISOString(),
     }));
 
@@ -285,12 +476,13 @@ export async function updatePurchase(supabase: SupabaseClient, id: string, body:
   }
 
   // Recompute payment state
-  await recomputePurchase(supabase, id, { isCredit, total });
+  await recomputePurchase(supabase, empresa, id, { isCredit, total });
 
   const { data, error } = await supabase
     .from('Purchase')
     .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
     .eq('id', id)
+    .eq('company_id', empresa.companyId)
     .single();
 
   if (error) return { data: null, error };
@@ -298,23 +490,48 @@ export async function updatePurchase(supabase: SupabaseClient, id: string, body:
   return { data: transformPurchase(data), error: null };
 }
 
-export async function deletePurchase(supabase: SupabaseClient, id: string) {
-  await supabase.from('PurchaseItem').delete().eq('purchase_id', id);
-  await supabase.from('SupplierPayment').delete().eq('purchase_id', id);
-  const { error } = await supabase.from('Purchase').delete().eq('id', id);
+export async function deletePurchase(supabase: SupabaseClient, empresa: EmpresaCompra, id: string) {
+  // Mismo IDOR que en `updatePurchase`: sin filtro de empresa, el `id` de otra
+  // empresa bastaba para borrar su compra y sus lineas y sus pagos.
+  const { data: actual } = await supabase
+    .from('Purchase')
+    .select('id')
+    .eq('id', id)
+    .eq('company_id', empresa.companyId)
+    .maybeSingle();
+
+  if (!actual) return { error: null, notFound: true as const };
+
+  await supabase
+    .from('PurchaseItem')
+    .delete()
+    .eq('purchase_id', id)
+    .eq('company_id', empresa.companyId);
+  await supabase
+    .from('SupplierPayment')
+    .delete()
+    .eq('purchase_id', id)
+    .eq('company_id', empresa.companyId);
+  const { error } = await supabase
+    .from('Purchase')
+    .delete()
+    .eq('id', id)
+    .eq('company_id', empresa.companyId);
   if (error) return { error };
   return { error: null };
 }
 
 export async function recomputePurchase(
   supabase: SupabaseClient,
+  empresa: EmpresaCompra,
   purchaseId: string,
   overrides?: { isCredit?: boolean; total?: number }
 ) {
   const { data: payments } = await supabase
     .from('SupplierPayment')
     .select('amount')
-    .eq('purchase_id', purchaseId);
+    .eq('purchase_id', purchaseId)
+    .eq('company_id', empresa.companyId);
 
   const paymentsRows = payments || [];
   const hasPayments = paymentsRows.length > 0;
@@ -322,6 +539,7 @@ export async function recomputePurchase(
     .from('Purchase')
     .select('total, is_credit, amount_paid')
     .eq('id', purchaseId)
+    .eq('company_id', empresa.companyId)
     .single();
   if (!purchase) return null;
 
@@ -352,12 +570,14 @@ export async function recomputePurchase(
       status,
       updated_at: new Date().toISOString(),
     })
-    .eq('id', purchaseId);
+    .eq('id', purchaseId)
+    .eq('company_id', empresa.companyId);
 
   const { data: updated } = await supabase
     .from('Purchase')
     .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
     .eq('id', purchaseId)
+    .eq('company_id', empresa.companyId)
     .single();
 
   return updated ? transformPurchase(updated) : null;
@@ -365,64 +585,45 @@ export async function recomputePurchase(
 
 async function createPurchaseJournalEntry(
   supabase: SupabaseClient,
+  empresa: EmpresaCompra,
   purchase: any,
-  items: any[],
-  tenantId: string,
-  companyId: string | null
+  items: any[]
 ) {
   try {
     let debitAccountId: string | undefined;
+    const tenantId = empresa.tenantId;
+    const companyId = empresa.companyId;
+
+    // `Account` se resuelve por `company_id`, no por `tenant_id`: test 1 y test 2
+    // comparten `TEST1DS`, así que `.eq('code','1101').eq('tenant_id','TEST1DS')`
+    // puede devolver dos cuentas y el asiento de una empresa acabaría contra la
+    // de la hermana. Además se pedía `.single()`, que con dos filas revienta
+    // (PGRST116) y dejaba la compra sin contabilizar.
+    const cuenta = async (code: string): Promise<string | undefined> => {
+      const { data } = await supabase
+        .from('Account')
+        .select('id')
+        .eq('code', code)
+        .eq('company_id', companyId)
+        .limit(1);
+      return data?.[0]?.id;
+    };
 
     if (purchase.purchase_type === 'merchandise') {
-      const { data: invAccount } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', '1105')
-        .eq('tenant_id', tenantId)
-        .single();
-      debitAccountId = invAccount?.id;
+      debitAccountId = await cuenta('1105');
     } else if (purchase.expense_category === 'administrative') {
-      const { data: expAccount } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', '4101')
-        .eq('tenant_id', tenantId)
-        .single();
-      debitAccountId = expAccount?.id;
+      debitAccountId = await cuenta('4101');
     } else {
-      const { data: expAccount } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', '4100')
-        .eq('tenant_id', tenantId)
-        .single();
-      debitAccountId = expAccount?.id;
+      debitAccountId = await cuenta('4100');
     }
 
-    const { data: isvAccount } = await supabase
-      .from('Account')
-      .select('id')
-      .eq('code', '1110')
-      .eq('tenant_id', tenantId)
-      .single();
+    const isvAccountId = await cuenta('1110');
 
     let creditAccountId: string | undefined;
     if (purchase.is_credit) {
-      const { data: apAccount } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', '2101')
-        .eq('tenant_id', tenantId)
-        .single();
-      creditAccountId = apAccount?.id;
+      creditAccountId = await cuenta('2101');
     } else {
-      const { data: bankAccount } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', '1101')
-        .eq('tenant_id', tenantId)
-        .single();
-      creditAccountId = bankAccount?.id;
+      creditAccountId = await cuenta('1101');
     }
 
     if (!debitAccountId || !creditAccountId) {
@@ -461,10 +662,10 @@ async function createPurchaseJournalEntry(
       tenant_id: tenantId,
     });
 
-    if (Number(purchase.tax_amount) > 0 && isvAccount?.id) {
+    if (Number(purchase.tax_amount) > 0 && isvAccountId) {
       lines.push({
         journal_entry_id: journalEntry.id,
-        account_id: isvAccount.id,
+        account_id: isvAccountId,
         description: 'ISV Crédito Fiscal',
         debit_amount: purchase.tax_amount,
         credit_amount: 0,

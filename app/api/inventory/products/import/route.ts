@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresaOCompany } from '@/lib/company-scope';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -127,9 +129,20 @@ function parseExcelToRecords(buffer: Buffer): { canonicalColumns: string[]; reco
 
 export async function POST(req: NextRequest) {
   try {
+    // Antes el tenant salia del archivo (`formData.get('tenantId')`) con un
+    // fallback fijo a `'1'`: una importacion sin ese campo guardaba todos los
+    // productos en "Empresa 1", y una importacion con el campo manipulado los
+    // guardaba en la empresa que dijera el cliente, sin comprobar pertenencia.
+    // `contextoDeEmpresa` resuelve y valida la empresa (403 si no es del tenant de
+    // la sesion), y el `company_id` se escribe explicito en cada INSERT.
+    const empresa = await contextoDeEmpresa(req);
+    const tenantId = empresa.tenantId;
+    if (!tenantId) {
+      return NextResponse.json({ error: 'Falta el tenant de la empresa' }, { status: 400 });
+    }
+
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
-    const tenantId = (formData.get('tenantId') as string) || (formData.get('companyId') as string) || '1';
 
     if (!file) {
       return NextResponse.json({ error: 'Se requiere un archivo (CSV o Excel)' }, { status: 400 });
@@ -153,7 +166,15 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
-    // La constraint product_code_key es global: cargar TODOS los códigos existentes
+    // Lectura GLOBAL de codigos a proposito, y solo de `code`: el comentario
+    // original atribuia a un `product_code_key` global la necesidad de no repetir
+    // codigo entre empresas, pero ese UNIQUE no aparece en ninguna migracion del
+    // repo y no hay forma de verificarlo (PostgREST no expone indices y no hay
+    // `exec_sql`). Se conserva el control por si existe, que es el lado
+    // conservador: no filtrar por empresa arriesga un 23505 al importar, y lo que
+    // sale de aqui son codigos, no nombres ni precios. PENDIENTE: confirmar el
+    // indice y, si es global, moverlo a `(company_id, code)` como hizo la 035 con
+    // `Account`.
     const existingCodes = new Set<string>();
     {
       const { data: existing, error } = await getSupabaseServer()
@@ -170,13 +191,15 @@ export async function POST(req: NextRequest) {
     const seenInFile = new Set<string>();
     let skippedDuplicates = 0;
 
-    // Auto-código inicial
+    // Auto-codigo inicial, correlativo POR EMPRESA. Era solo por tenant, asi que
+    // test 1 y test 2 (mismo `TEST1DS`) se peleaban la misma serie `PROD-`.
     let autoCodeNumber = 1;
     {
       const { data: lastProduct } = await getSupabaseServer()
         .from('product')
         .select('code')
         .eq('tenant_id', tenantId)
+        .match(filtroEmpresaOCompany(empresa))
         .ilike('code', 'PROD-%')
         .order('created_at', { ascending: false })
         .limit(1)
@@ -213,6 +236,7 @@ export async function POST(req: NextRequest) {
 
       rowsToInsert.push({
         tenant_id: tenantId,
+        ...(empresa.companyId ? { company_id: empresa.companyId } : {}),
         code,
         name,
         description: r.description || null,
@@ -259,7 +283,7 @@ export async function POST(req: NextRequest) {
                 created++;
                 createdIds.push((single as any).id);
                 if ((single as any).current_stock > 0) {
-                  await createInitialMovement(tenantId, (single as any).id, (single as any).current_stock, (row as any)._currentCostForMovement);
+                  await createInitialMovement(tenantId, empresa.companyId, (single as any).id, (single as any).current_stock, (row as any)._currentCostForMovement);
                 }
               } else if (oneErr && String(oneErr.message || oneErr).includes('23505')) {
                 skippedDuplicates++;
@@ -277,7 +301,7 @@ export async function POST(req: NextRequest) {
             createdIds.push(r.id);
             if (r.current_stock > 0) {
               const orig = batch.find((b: any) => b.current_stock === r.current_stock && b.current_cost === r.current_cost);
-              await createInitialMovement(tenantId, r.id, r.current_stock, orig?._currentCostForMovement ?? r.current_cost);
+              await createInitialMovement(tenantId, empresa.companyId, r.id, r.current_stock, orig?._currentCostForMovement ?? r.current_cost);
             }
           }
         }
@@ -297,6 +321,8 @@ export async function POST(req: NextRequest) {
         (errors.length ? `, ${errors.length} con errores` : ''),
     });
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('inventory/products/import error', error);
     return NextResponse.json({ error: error?.message ?? 'Error interno' }, { status: 500 });
   }
@@ -304,6 +330,7 @@ export async function POST(req: NextRequest) {
 
 async function createInitialMovement(
   tenantId: string,
+  companyId: string | null,
   productId: string,
   quantity: number,
   unitCost: number,
@@ -311,6 +338,9 @@ async function createInitialMovement(
   try {
     await (getSupabaseServer() as any).from('inventory_movement').insert({
       tenant_id: tenantId,
+      // Sin esto el movimiento de stock inicial queda solo con `tenant_id` y el
+      // kardex de la empresa hermana lo cuenta igual que el propio.
+      ...(companyId ? { company_id: companyId } : {}),
       product_id: productId,
       movement_type: 'IN',
       movement_reason: 'initial_stock',

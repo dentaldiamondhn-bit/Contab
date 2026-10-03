@@ -1,7 +1,8 @@
-'use client';
+﻿'use client';
 
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState, useMemo } from 'react';
+import ArchivoPrivado from '@/components/hr/ArchivoPrivado';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -50,7 +51,7 @@ interface Employee {
   phone: string;
   email: string;
   address: string;
-  civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'unión libre';
+  civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'uniÃ³n libre';
   gender: 'M' | 'F' | '';
   freeDays: number[];
   vacationDays: number;
@@ -66,8 +67,8 @@ interface Employee {
   scheduleHours: string;
   scheduleEntry: string;
   scheduleExit: string;
-  modality: 'presencial' | 'remoto' | 'híbrido';
-  // Académico
+  modality: 'presencial' | 'remoto' | 'hÃ­brido';
+  // AcadÃ©mico
   educationLevel: 'basico' | 'medio' | 'universitario' | 'tecnico' | 'maestria' | 'doctorado';
   university: string;
   degree: string;
@@ -94,20 +95,20 @@ interface Employee {
   docMedicalCert: string;
   // Documentos de RRHH
   hrDocuments: HRDocument[];
-  // Ficha médica
+  // Ficha mÃ©dica
   medicalRecord: MedicalRecord;
-  // Terminación
+  // TerminaciÃ³n
   terminationDate: string;
   terminationReason: string;
   terminationRequestedBy: string;
   terminationPerformedBy: string;
   rehireable: boolean;
-  // Reactivación
+  // ReactivaciÃ³n
   reactivationDate: string;
   reactivationReason: string;
   reactivationRequestedBy: string;
   reactivationPerformedBy: string;
-  // Suspensión
+  // SuspensiÃ³n
   suspensionDate: string;
   suspensionReason: string;
   suspensionRequestedBy: string;
@@ -171,7 +172,9 @@ interface Position {
 function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions, employees }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[]; employees: any[] }) {
   const [activeTab, setActiveTab] = useState('personal');
 
-  const uploadToStorage = async (file: File, type: string, empId: string): Promise<{ url: string; path: string } | null> => {
+  // Lo que se guarda en la BD es el PATH, no la URL: los buckets son privados y
+  // la ruta devuelve una firma de 1 hora. `employees.photo` se lee dias despues.
+  const uploadToStorage = async (file: File, type: string, empId: string): Promise<{ path: string; signedUrl: string | null } | null> => {
     try {
       const cid = window.location.pathname.split('/companies/')[1]?.split('/')[0] || '';
       const formData = new FormData();
@@ -190,9 +193,9 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
   const tabs = [
     { id: 'personal', label: 'Personal' },
     { id: 'trabajo', label: 'Trabajo' },
-    { id: 'academico', label: 'Académico' },
+    { id: 'academico', label: 'AcadÃ©mico' },
     { id: 'habilidades', label: 'Habilidades' },
-    { id: 'medico', label: 'Ficha Médica' },
+    { id: 'medico', label: 'Ficha MÃ©dica' },
     { id: 'documentos', label: 'Documentos' },
     { id: 'rrhh', label: 'Doc. RRHH' },
     { id: 'historial', label: 'Historial' }
@@ -253,11 +256,11 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
             {isEditing ? (
               <>
                 <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="unión libre">Unión Libre</option></select></div>
-                <div><label className="text-gray-500">Género:</label><select value={emp.gender || ''} onChange={(e) => updateField('gender', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No especificado</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
-                <div><label className="text-gray-500">Teléfono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="uniÃ³n libre">UniÃ³n Libre</option></select></div>
+                <div><label className="text-gray-500">GÃ©nero:</label><select value={emp.gender || ''} onChange={(e) => updateField('gender', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No especificado</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
+                <div><label className="text-gray-500">TelÃ©fono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                <div className="col-span-2"><label className="text-gray-500">Dirección:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2"><label className="text-gray-500">DirecciÃ³n:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">No. Seguridad Social:</label><input type="text" value={emp.socialSecurityNumber || ''} onChange={(e) => updateField('socialSecurityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fondo de Pensiones:</label><input type="text" value={emp.pensionFund || ''} onChange={(e) => updateField('pensionFund', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Aseg. Riesgos:</label><input type="text" value={emp.laborRiskInsurer || ''} onChange={(e) => updateField('laborRiskInsurer', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
@@ -266,10 +269,10 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
               <>
                 <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
                 <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
-                <div><span className="text-gray-500">Género:</span><p className="font-medium">{emp.gender === 'M' ? 'Masculino' : emp.gender === 'F' ? 'Femenino' : '-'}</p></div>
-                <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
+                <div><span className="text-gray-500">GÃ©nero:</span><p className="font-medium">{emp.gender === 'M' ? 'Masculino' : emp.gender === 'F' ? 'Femenino' : '-'}</p></div>
+                <div><span className="text-gray-500">TelÃ©fono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
                 <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
-                <div className="col-span-2"><span className="text-gray-500">Dirección:</span><p className="font-medium">{emp.address || '-'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">DirecciÃ³n:</span><p className="font-medium">{emp.address || '-'}</p></div>
                 <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{emp.socialSecurityNumber || '-'}</p></div>
                 <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{emp.pensionFund || '-'}</p></div>
                 <div><span className="text-gray-500">Aseg. Riesgos:</span><p className="font-medium">{emp.laborRiskInsurer || '-'}</p></div>
@@ -287,27 +290,27 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => { updateField('department', e.target.value); updateField('position', ''); }} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => { if (!emp.department) return true; const deptNorm = emp.department.trim().toLowerCase(); const posDept = (p.department || '').trim().toLowerCase(); return deptNorm === posDept; }).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
                 <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
-                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id && (!emp.department || e.department === emp.department)).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} — {e.position || 'Sin puesto'}</option>))}</select></div>
+                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id && (!emp.department || e.department === emp.department)).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} â€” {e.position || 'Sin puesto'}</option>))}</select></div>
                 <div><label className="text-gray-500">Rol Asistencia:</label><select value={emp.role || 'empleado'} onChange={(e) => updateField('role', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="empleado">Empleado</option><option value="supervisor">Supervisor</option><option value="gerente">Gerente</option></select></div>
                 <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
                 <div><label className="text-gray-500">Hora Entrada:</label><input type="time" value={emp.scheduleEntry || ''} onChange={(e) => updateField('scheduleEntry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div><label className="text-gray-500">Hora Salida:</label><input type="time" value={emp.scheduleExit || ''} onChange={(e) => updateField('scheduleExit', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="híbrido">Híbrido</option></select></div>
+                <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="hÃ­brido">HÃ­brido</option></select></div>
                 <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option></select></div>
                 <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 <div className="col-span-2 md:col-span-3">
-                  <label className="text-gray-500">Días Libres:</label>
+                  <label className="text-gray-500">DÃ­as Libres:</label>
                   <div className="flex gap-1 mt-1">
                     {[
                       { value: 0, label: 'Dom' },
                       { value: 1, label: 'Lun' },
                       { value: 2, label: 'Mar' },
-                      { value: 3, label: 'Mié' },
+                      { value: 3, label: 'MiÃ©' },
                       { value: 4, label: 'Jue' },
                       { value: 5, label: 'Vie' },
-                      { value: 6, label: 'Sáb' },
+                      { value: 6, label: 'SÃ¡b' },
                     ].map(day => {
                       const freeDays = emp.freeDays || [];
                       const isSelected = freeDays.includes(day.value);
@@ -360,16 +363,16 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium">{emp.workPermitStatus || 'No aplica'}</p></div>
                 <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
                 <div className="col-span-2 md:col-span-3">
-                  <span className="text-gray-500">Días Libres:</span>
+                  <span className="text-gray-500">DÃ­as Libres:</span>
                   <div className="flex gap-1 mt-1">
                     {[
                       { value: 0, label: 'Dom' },
                       { value: 1, label: 'Lun' },
                       { value: 2, label: 'Mar' },
-                      { value: 3, label: 'Mié' },
+                      { value: 3, label: 'MiÃ©' },
                       { value: 4, label: 'Jue' },
                       { value: 5, label: 'Vie' },
-                      { value: 6, label: 'Sáb' },
+                      { value: 6, label: 'SÃ¡b' },
                     ].map(day => {
                       const freeDays = emp.freeDays || [];
                       const isSelected = freeDays.includes(day.value);
@@ -390,27 +393,27 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 </div>
               </>
             )}
-            <div><span className="text-gray-500">Antigüedad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</p></div>
-            <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) < 1 ? 0 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 1 ? 10 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 2 ? 12 : Math.min(20, 14 + Math.max(0, Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) - 3))} días</p></div>
+            <div><span className="text-gray-500">AntigÃ¼edad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} aÃ±os</p></div>
+            <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) < 1 ? 0 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 1 ? 10 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 2 ? 12 : Math.min(20, 14 + Math.max(0, Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) - 3))} dÃ­as</p></div>
           </div>
         )}
 
-        {/* Académico Tab */}
+        {/* AcadÃ©mico Tab */}
         {activeTab === 'academico' && (
           <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
             {isEditing ? (
               <>
-                <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">Básico</option><option value="medio">Medio</option><option value="tecnico">Técnico</option><option value="universitario">Universitario</option><option value="maestria">Maestría</option><option value="doctorado">Doctorado</option></select></div>
-                <div><label className="text-gray-500">Institución:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                <div><label className="text-gray-500">Título:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
-                <div><label className="text-gray-500">Año Graduación:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">BÃ¡sico</option><option value="medio">Medio</option><option value="tecnico">TÃ©cnico</option><option value="universitario">Universitario</option><option value="maestria">MaestrÃ­a</option><option value="doctorado">Doctorado</option></select></div>
+                <div><label className="text-gray-500">InstituciÃ³n:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">TÃ­tulo:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">AÃ±o GraduaciÃ³n:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
               </>
             ) : (
               <>
                 <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{emp.educationLevel || '-'}</p></div>
-                <div><span className="text-gray-500">Institución:</span><p className="font-medium">{emp.university || '-'}</p></div>
-                <div><span className="text-gray-500">Título:</span><p className="font-medium">{emp.degree || '-'}</p></div>
-                <div><span className="text-gray-500">Año Graduación:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
+                <div><span className="text-gray-500">InstituciÃ³n:</span><p className="font-medium">{emp.university || '-'}</p></div>
+                <div><span className="text-gray-500">TÃ­tulo:</span><p className="font-medium">{emp.degree || '-'}</p></div>
+                <div><span className="text-gray-500">AÃ±o GraduaciÃ³n:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
               </>
             )}
           </div>
@@ -430,14 +433,14 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
               <>
                 <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{emp.languages || '-'}</p></div>
                 <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{emp.certifications || '-'}</p></div>
-                <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'Sí' : 'No'}</p></div>
+                <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'SÃ­' : 'No'}</p></div>
                 <div className="col-span-2"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{emp.otherSkills || '-'}</p></div>
               </>
             )}
           </div>
         )}
 
-        {/* Ficha Médica Tab */}
+        {/* Ficha MÃ©dica Tab */}
         {activeTab === 'medico' && (() => {
           const med = emp.medicalRecord || {};
           const updateMed = (field: string, value: any) => {
@@ -451,14 +454,14 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                   <div><label className="text-gray-500">Tipo de Sangre:</label><select value={med.bloodType || ''} onChange={(e) => updateMed('bloodType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Seleccionar</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
                   <div><label className="text-gray-500">Altura (cm):</label><input type="text" value={med.height || ''} onChange={(e) => updateMed('height', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 175" /></div>
                   <div><label className="text-gray-500">Peso (kg):</label><input type="text" value={med.weight || ''} onChange={(e) => updateMed('weight', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 70" /></div>
-                  <div><label className="text-gray-500">Último Examen Médico:</label><input type="date" value={med.lastCheckup || ''} onChange={(e) => updateMed('lastCheckup', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                  <div><label className="text-gray-500">Ãšltimo Examen MÃ©dico:</label><input type="date" value={med.lastCheckup || ''} onChange={(e) => updateMed('lastCheckup', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
                 </>
               ) : (
                 <>
                   <div><span className="text-gray-500">Tipo de Sangre:</span><p className="font-medium">{med.bloodType || '-'}</p></div>
                   <div><span className="text-gray-500">Altura:</span><p className="font-medium">{med.height ? `${med.height} cm` : '-'}</p></div>
                   <div><span className="text-gray-500">Peso:</span><p className="font-medium">{med.weight ? `${med.weight} kg` : '-'}</p></div>
-                  <div><span className="text-gray-500">Último Examen Médico:</span><p className="font-medium">{med.lastCheckup || '-'}</p></div>
+                  <div><span className="text-gray-500">Ãšltimo Examen MÃ©dico:</span><p className="font-medium">{med.lastCheckup || '-'}</p></div>
                 </>
               )}
             </div>
@@ -468,15 +471,15 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 {isEditing ? (
                   <>
-                    <div><label className="text-gray-500">Alergias:</label><textarea value={med.allergies || ''} onChange={(e) => updateMed('allergies', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 las alergias conocidas..." /></div>
-                    <div><label className="text-gray-500">Enfermedades Crónicas:</label><textarea value={med.chronicDiseases || ''} onChange={(e) => updateMed('chronicDiseases', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 las enfermedades crónicas..." /></div>
-                    <div><label className="text-gray-500">Medicamentos Actuales:</label><textarea value={med.currentMedications || ''} onChange={(e) => updateMed('currentMedications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 los medicamentos que toma..." /></div>
-                    <div><label className="text-gray-500">Discapacidades:</label><textarea value={med.disabilities || ''} onChange={(e) => updateMed('disabilities', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="描述 discapacidades si aplica..." /></div>
+                    <div><label className="text-gray-500">Alergias:</label><textarea value={med.allergies || ''} onChange={(e) => updateMed('allergies', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° las alergias conocidas..." /></div>
+                    <div><label className="text-gray-500">Enfermedades CrÃ³nicas:</label><textarea value={med.chronicDiseases || ''} onChange={(e) => updateMed('chronicDiseases', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° las enfermedades crÃ³nicas..." /></div>
+                    <div><label className="text-gray-500">Medicamentos Actuales:</label><textarea value={med.currentMedications || ''} onChange={(e) => updateMed('currentMedications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° los medicamentos que toma..." /></div>
+                    <div><label className="text-gray-500">Discapacidades:</label><textarea value={med.disabilities || ''} onChange={(e) => updateMed('disabilities', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° discapacidades si aplica..." /></div>
                   </>
                 ) : (
                   <>
                     <div><span className="text-gray-500">Alergias:</span><p className="font-medium">{med.allergies || 'Ninguna conocida'}</p></div>
-                    <div><span className="text-gray-500">Enfermedades Crónicas:</span><p className="font-medium">{med.chronicDiseases || 'Ninguna'}</p></div>
+                    <div><span className="text-gray-500">Enfermedades CrÃ³nicas:</span><p className="font-medium">{med.chronicDiseases || 'Ninguna'}</p></div>
                     <div><span className="text-gray-500">Medicamentos Actuales:</span><p className="font-medium">{med.currentMedications || 'Ninguno'}</p></div>
                     <div><span className="text-gray-500">Discapacidades:</span><p className="font-medium">{med.disabilities || 'Ninguna'}</p></div>
                   </>
@@ -490,29 +493,29 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 {isEditing ? (
                   <>
                     <div><label className="text-gray-500">Nombre:</label><input type="text" value={med.emergencyContact || ''} onChange={(e) => updateMed('emergencyContact', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Nombre del contacto" /></div>
-                    <div><label className="text-gray-500">Teléfono:</label><input type="text" value={med.emergencyPhone || ''} onChange={(e) => updateMed('emergencyPhone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="9999-8888" /></div>
+                    <div><label className="text-gray-500">TelÃ©fono:</label><input type="text" value={med.emergencyPhone || ''} onChange={(e) => updateMed('emergencyPhone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="9999-8888" /></div>
                   </>
                 ) : (
                   <>
                     <div><span className="text-gray-500">Nombre:</span><p className="font-medium">{med.emergencyContact || '-'}</p></div>
-                    <div><span className="text-gray-500">Teléfono:</span><p className="font-medium">{med.emergencyPhone || '-'}</p></div>
+                    <div><span className="text-gray-500">TelÃ©fono:</span><p className="font-medium">{med.emergencyPhone || '-'}</p></div>
                   </>
                 )}
               </div>
             </div>
 
             <div className="border-t pt-4">
-              <h4 className="font-medium text-gray-700 mb-3">Seguro Médico</h4>
+              <h4 className="font-medium text-gray-700 mb-3">Seguro MÃ©dico</h4>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                 {isEditing ? (
                   <>
                     <div><label className="text-gray-500">Proveedor de Seguro:</label><input type="text" value={med.insuranceProvider || ''} onChange={(e) => updateMed('insuranceProvider', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: IHSS, Sanitas" /></div>
-                    <div><label className="text-gray-500">No. Póliza:</label><input type="text" value={med.insuranceNumber || ''} onChange={(e) => updateMed('insuranceNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Número de póliza" /></div>
+                    <div><label className="text-gray-500">No. PÃ³liza:</label><input type="text" value={med.insuranceNumber || ''} onChange={(e) => updateMed('insuranceNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="NÃºmero de pÃ³liza" /></div>
                   </>
                 ) : (
                   <>
                     <div><span className="text-gray-500">Proveedor de Seguro:</span><p className="font-medium">{med.insuranceProvider || '-'}</p></div>
-                    <div><span className="text-gray-500">No. Póliza:</span><p className="font-medium">{med.insuranceNumber || '-'}</p></div>
+                    <div><span className="text-gray-500">No. PÃ³liza:</span><p className="font-medium">{med.insuranceNumber || '-'}</p></div>
                   </>
                 )}
               </div>
@@ -520,13 +523,13 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
 
             {isEditing && (
               <div className="border-t pt-4">
-                <h4 className="font-medium text-gray-700 mb-3">Notas Médicas</h4>
-                <textarea value={med.notes || ''} onChange={(e) => updateMed('notes', e.target.value)} className="w-full px-2 py-1 border rounded text-sm" rows={3} placeholder="Notas adicionales del expediente médico..." />
+                <h4 className="font-medium text-gray-700 mb-3">Notas MÃ©dicas</h4>
+                <textarea value={med.notes || ''} onChange={(e) => updateMed('notes', e.target.value)} className="w-full px-2 py-1 border rounded text-sm" rows={3} placeholder="Notas adicionales del expediente mÃ©dico..." />
               </div>
             )}
             {!isEditing && med.notes && (
               <div className="border-t pt-4">
-                <h4 className="font-medium text-gray-700 mb-3">Notas Médicas</h4>
+                <h4 className="font-medium text-gray-700 mb-3">Notas MÃ©dicas</h4>
                 <p className="text-sm">{med.notes}</p>
               </div>
             )}
@@ -545,7 +548,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
               { label: 'NDA', field: 'docNDA', value: emp.docNDA },
               { label: 'Cert. Estudios', field: 'docEducationCerts', value: emp.docEducationCerts },
               { label: 'Cert. Empleos', field: 'docPreviousJobs', value: emp.docPreviousJobs },
-              { label: 'Cert. Médico', field: 'docMedicalCert', value: emp.docMedicalCert }
+              { label: 'Cert. MÃ©dico', field: 'docMedicalCert', value: emp.docMedicalCert }
             ].map((doc, i) => (
               <div key={i} className={`p-3 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
                 <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
@@ -554,15 +557,14 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   {doc.value && (
-                    <a
-                      href={doc.value}
-                      target="_blank"
-                      rel="noopener noreferrer"
+                    <ArchivoPrivado
+                      valor={doc.value}
+                      bucket="employee-documents"
                       className="text-blue-500 hover:text-blue-700 flex items-center gap-1 text-xs"
                     >
                       <Eye className="h-3 w-3" />
                       Ver
-                    </a>
+                    </ArchivoPrivado>
                   )}
                   {isEditing && doc.value && (
                     <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500">Eliminar</button>
@@ -602,8 +604,8 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                           onChange={(e) => updateHRDoc(index, 'type', e.target.value)}
                           className="w-full mt-1 px-2 py-1 border rounded text-sm"
                         >
-                          <option value="amonestacion">Amonestación</option>
-                          <option value="autorizacion_vacaciones">Autorización Vacaciones</option>
+                          <option value="amonestacion">AmonestaciÃ³n</option>
+                          <option value="autorizacion_vacaciones">AutorizaciÃ³n Vacaciones</option>
                           <option value="contrato">Contrato</option>
                           <option value="acuerdo_confidencialidad">Acuerdo Confidencialidad</option>
                           <option value="permiso">Permiso</option>
@@ -636,14 +638,13 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                           <div className="flex items-center gap-1 text-sm">
                             <CheckCircle className="h-4 w-4 text-green-600" />
                             <span className="text-green-600">Archivo</span>
-                            <a
-                              href={doc.file}
-                              target="_blank"
-                              rel="noopener noreferrer"
+                            <ArchivoPrivado
+                              valor={doc.file}
+                              bucket="employee-documents"
                               className="text-blue-500 hover:text-blue-700 text-xs ml-1"
                             >
                               Ver
-                            </a>
+                            </ArchivoPrivado>
                             <button onClick={() => updateHRDoc(index, 'file', '')} className="text-red-500 text-xs ml-1">Quitar</button>
                           </div>
                         ) : (
@@ -663,7 +664,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                                   const result = await uploadToStorage(file, 'hr-document', empId);
                                   if (result) {
                                     const updated = [...emp.hrDocuments];
-                                    updated[index] = { ...updated[index], name: fileName, file: result.url };
+                                    updated[index] = { ...updated[index], name: fileName, file: result.path };
                                     updateField('hrDocuments', updated);
                                     showUploadMessage(`"${file.name}" subido correctamente`);
                                   }
@@ -704,7 +705,7 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
               <div className="text-center py-8 text-gray-500">
                 <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
                 <p>No hay registros de cambios</p>
-                <p className="text-sm">Las acciones realizadas sobre este empleado se registrarán aquí</p>
+                <p className="text-sm">Las acciones realizadas sobre este empleado se registrarÃ¡n aquÃ­</p>
               </div>
             ) : (
               <div className="space-y-0">
@@ -717,11 +718,11 @@ function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments
                     suspension: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'bg-amber-500' }
                   };
                   const actionLabels: Record<string, string> = {
-                    creation: 'Creación',
-                    update: 'Actualización',
-                    deactivation: 'Desactivación',
-                    reactivation: 'Reactivación',
-                    suspension: 'Suspensión'
+                    creation: 'CreaciÃ³n',
+                    update: 'ActualizaciÃ³n',
+                    deactivation: 'DesactivaciÃ³n',
+                    reactivation: 'ReactivaciÃ³n',
+                    suspension: 'SuspensiÃ³n'
                   };
                   const colors = actionColors[entry.action] || actionColors.update;
                   return (
@@ -1021,7 +1022,7 @@ export default function EmployeesPage() {
       }
     } catch (error) {
       console.error('Error updating employee:', error);
-      showUploadMessage('Error de conexión al guardar');
+      showUploadMessage('Error de conexiÃ³n al guardar');
     }
   };
 
@@ -1038,7 +1039,7 @@ export default function EmployeesPage() {
     }
   };
 
-  const uploadFileToStorage = async (file: File, type: string, empId: string): Promise<{ url: string; path: string } | null> => {
+  const uploadFileToStorage = async (file: File, type: string, empId: string): Promise<{ path: string; signedUrl: string | null } | null> => {
     try {
       const formData = new FormData();
       formData.append('file', file);
@@ -1061,7 +1062,7 @@ export default function EmployeesPage() {
       const tempId = `temp-${Date.now()}`;
       setNewEmployee({ ...newEmployee, photo: URL.createObjectURL(file) });
       const result = await uploadFileToStorage(file, 'photo', tempId);
-      if (result) setNewEmployee(prev => ({ ...prev, photo: result.url }));
+      if (result) setNewEmployee(prev => ({ ...prev, photo: result.path }));
     }
   };
 
@@ -1072,7 +1073,7 @@ export default function EmployeesPage() {
       const tempId = `temp-${Date.now()}`;
       setNewEmployee({ ...newEmployee, cv: URL.createObjectURL(file) });
       const result = await uploadFileToStorage(file, 'document', tempId);
-      if (result) setNewEmployee(prev => ({ ...prev, cv: result.url }));
+      if (result) setNewEmployee(prev => ({ ...prev, cv: result.path }));
     }
   };
 
@@ -1090,7 +1091,7 @@ export default function EmployeesPage() {
       showUploadMessage(`"${file.name}" subiendo...`);
       const result = await uploadFileToStorage(file, 'document', tempId);
       if (result) {
-        setNewEmployee(prev => ({ ...prev, [field]: result.url }));
+        setNewEmployee(prev => ({ ...prev, [field]: result.path }));
         showUploadMessage(`"${file.name}" subido correctamente`);
       }
     }
@@ -1118,7 +1119,7 @@ export default function EmployeesPage() {
   };
 
   const removeEmployee = async (id: string) => {
-    if (confirm('¿Eliminar este empleado?')) {
+    if (confirm('Â¿Eliminar este empleado?')) {
       await deleteEmployeeFromAPI(id);
     }
   };
@@ -1220,7 +1221,7 @@ export default function EmployeesPage() {
     if (totalYears === 1) return 10;
     if (totalYears === 2) return 12;
     if (totalYears === 3) return 14;
-    // 4+ años: 14 + 1 por cada año adicional, máximo 20
+    // 4+ aÃ±os: 14 + 1 por cada aÃ±o adicional, mÃ¡ximo 20
     return Math.min(20, 14 + (totalYears - 3));
   };
 
@@ -1353,7 +1354,7 @@ export default function EmployeesPage() {
     })).filter(emp => emp.firstName && emp.lastName);
 
     if (newEmployees.length === 0) {
-      alert('No se encontraron empleados válidos. Verifica que las columnas "nombre" y "apellido" existan.');
+      alert('No se encontraron empleados vÃ¡lidos. Verifica que las columnas "nombre" y "apellido" existan.');
       return;
     }
 
@@ -1384,14 +1385,14 @@ export default function EmployeesPage() {
       'supervisor'
     ];
     const example = [
-      'EMP001', 'Juan', 'Pérez', '0801-1990-12345', 'M',
+      'EMP001', 'Juan', 'PÃ©rez', '0801-1990-12345', 'M',
       'Ventas', 'Vendedor', '8000', '2024-01-15', 'indefinido',
       '9999-8888', 'juan@email.com', 'Col. Palmira, Tegucigalpa', 'soltero',
       'completa', '08:00', '17:00', 'presencial',
-      'universitario', 'UNAH', 'Administración de Empresas', '2018',
-      'Español, Inglés', 'Scrum Master', 'Microsoft Office', 'si',
-      '123456789', 'Confía', 'Seguros Atlántida',
-      'María García'
+      'universitario', 'UNAH', 'AdministraciÃ³n de Empresas', '2018',
+      'EspaÃ±ol, InglÃ©s', 'Scrum Master', 'Microsoft Office', 'si',
+      '123456789', 'ConfÃ­a', 'Seguros AtlÃ¡ntida',
+      'MarÃ­a GarcÃ­a'
     ];
     const csv = headers.join(',') + '\n' + example.join(',');
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -1405,7 +1406,7 @@ export default function EmployeesPage() {
 
   const exportEmployees = () => {
     const data = filteredEmployees.map(emp => ({
-      'Código': emp.employeeId,
+      'CÃ³digo': emp.employeeId,
       'Nombre': `${emp.firstName} ${emp.lastName}`,
       'Identidad': emp.identityNumber,
       'Estado': emp.status,
@@ -1413,15 +1414,15 @@ export default function EmployeesPage() {
       'Departamento': emp.department,
       'Salario': emp.salary,
       'Fecha Ingreso': emp.startDate,
-      'Teléfono': emp.phone,
+      'TelÃ©fono': emp.phone,
       'Email': emp.email,
-      'Dirección': emp.address,
+      'DirecciÃ³n': emp.address,
       'Estado Civil': emp.civilStatus,
       'Tipo Contrato': emp.contractType,
       'Supervisor': emp.supervisor,
       'Horario': emp.schedule,
       'Modalidad': emp.modality,
-      'Nivel Educación': emp.educationLevel,
+      'Nivel EducaciÃ³n': emp.educationLevel,
       'Universidad': emp.university,
       'Carrera': emp.degree,
       'IGSS': emp.socialSecurityNumber,
@@ -1471,7 +1472,7 @@ export default function EmployeesPage() {
 
       <div className="flex justify-between items-center">
         <div>
-          <h1 className="text-3xl font-bold">Gestión de Empleados</h1>
+          <h1 className="text-3xl font-bold">GestiÃ³n de Empleados</h1>
           <p className="text-gray-500">{employees.length} empleados registrados</p>
         </div>
         <div className="flex gap-2">
@@ -1518,7 +1519,7 @@ export default function EmployeesPage() {
             <div className="bg-blue-50 p-4 rounded-lg max-h-64 overflow-y-auto">
               <h4 className="font-medium text-blue-800 mb-2">Columnas del CSV (todas opcionales excepto nombre y apellido):</h4>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-blue-700">
-                <div><strong>employeeid</strong>: Código</div>
+                <div><strong>employeeid</strong>: CÃ³digo</div>
                 <div><strong>nombre</strong>: Nombre *</div>
                 <div><strong>apellido</strong>: Apellido *</div>
                 <div><strong>identidad</strong>: No. Identidad</div>
@@ -1528,24 +1529,24 @@ export default function EmployeesPage() {
                 <div><strong>salario</strong>: Salario mensual</div>
                 <div><strong>fecha_ingreso</strong>: YYYY-MM-DD</div>
                 <div><strong>tipo_contrato</strong>: indefinido/determinado/prueba</div>
-                <div><strong>telefono</strong>: Teléfono</div>
+                <div><strong>telefono</strong>: TelÃ©fono</div>
                 <div><strong>email</strong>: Correo</div>
-                <div><strong>direccion</strong>: Dirección</div>
+                <div><strong>direccion</strong>: DirecciÃ³n</div>
                 <div><strong>estado_civil</strong>: soltero/casado/divorciado/viudo</div>
                 <div><strong>jornada</strong>: completa/media/personalizada</div>
                 <div><strong>hora_entrada</strong>: 08:00</div>
                 <div><strong>hora_salida</strong>: 17:00</div>
-                <div><strong>modalidad</strong>: presencial/remoto/híbrido</div>
+                <div><strong>modalidad</strong>: presencial/remoto/hÃ­brido</div>
                 <div><strong>nivel_educacion</strong>: basico/medio/universitario/tecnico</div>
                 <div><strong>universidad</strong>: Universidad</div>
-                <div><strong>carrera</strong>: Título/Carrera</div>
-                <div><strong>anio_graduacion</strong>: Año</div>
+                <div><strong>carrera</strong>: TÃ­tulo/Carrera</div>
+                <div><strong>anio_graduacion</strong>: AÃ±o</div>
                 <div><strong>idiomas</strong>: Idiomas</div>
                 <div><strong>certificaciones</strong>: Certificaciones</div>
                 <div><strong>otras_habilidades</strong>: Skills</div>
                 <div><strong>licencia</strong>: si/no</div>
                 <div><strong>no_igss</strong>: No. IGSS</div>
-                <div><strong>afp</strong>: Fondo pensión</div>
+                <div><strong>afp</strong>: Fondo pensiÃ³n</div>
                 <div><strong>aseguradora</strong>: Aseg. riesgo</div>
                 <div><strong>supervisor</strong>: Nombre jefe directo</div>
               </div>
@@ -1579,7 +1580,7 @@ export default function EmployeesPage() {
                         <th className="text-left py-2 px-2">Cargo</th>
                         <th className="text-right py-2 px-2">Salario</th>
                         <th className="text-left py-2 px-2">Ingreso</th>
-                        <th className="text-left py-2 px-2">Teléfono</th>
+                        <th className="text-left py-2 px-2">TelÃ©fono</th>
                         <th className="text-left py-2 px-2">Email</th>
                         <th className="text-left py-2 px-2">Contrato</th>
                       </tr>
@@ -1587,15 +1588,15 @@ export default function EmployeesPage() {
                     <tbody>
                       {uploadPreview.slice(0, 10).map((row, index) => (
                         <tr key={index} className="border-t hover:bg-gray-50">
-                          <td className="py-1 px-2">{row.firstname || row.nombre || row.name || '—'}</td>
-                          <td className="py-1 px-2">{row.lastname || row.apellido || row.apellidos || '—'}</td>
-                          <td className="py-1 px-2 text-xs">{row.identitynumber || row.identidad || row.dni || '—'}</td>
-                          <td className="py-1 px-2">{row.department || row.departamento || '—'}</td>
-                          <td className="py-1 px-2">{row.position || row.cargo || '—'}</td>
+                          <td className="py-1 px-2">{row.firstname || row.nombre || row.name || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.lastname || row.apellido || row.apellidos || 'â€”'}</td>
+                          <td className="py-1 px-2 text-xs">{row.identitynumber || row.identidad || row.dni || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.department || row.departamento || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.position || row.cargo || 'â€”'}</td>
                           <td className="py-1 px-2 text-right">{row.salary || row.salario || '0'}</td>
-                          <td className="py-1 px-2">{row.startdate || row.fecha_ingreso || '—'}</td>
-                          <td className="py-1 px-2">{row.phone || row.telefono || '—'}</td>
-                          <td className="py-1 px-2">{row.email || row.correo || '—'}</td>
+                          <td className="py-1 px-2">{row.startdate || row.fecha_ingreso || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.phone || row.telefono || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.email || row.correo || 'â€”'}</td>
                           <td className="py-1 px-2">{row.contracttype || row.tipo_contrato || 'indefinido'}</td>
                         </tr>
                       ))}
@@ -1604,7 +1605,7 @@ export default function EmployeesPage() {
                 </div>
                 <div className="flex gap-2 mt-4">
                   <Button onClick={confirmUpload}>
-                    Confirmar Importación ({uploadPreview.length} empleados)
+                    Confirmar ImportaciÃ³n ({uploadPreview.length} empleados)
                   </Button>
                   <Button variant="outline" onClick={() => setUploadPreview([])}>
                     Cancelar
@@ -1708,12 +1709,12 @@ export default function EmployeesPage() {
                   className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
                 >
                   <option value="">Predeterminado</option>
-                  <option value="az">Nombre A → Z</option>
-                  <option value="za">Nombre Z → A</option>
+                  <option value="az">Nombre A â†’ Z</option>
+                  <option value="za">Nombre Z â†’ A</option>
                   <option value="asc">Salario ascendente</option>
                   <option value="desc">Salario descendente</option>
-                  <option value="newest">Más reciente primero</option>
-                  <option value="oldest">Más antiguo primero</option>
+                  <option value="newest">MÃ¡s reciente primero</option>
+                  <option value="oldest">MÃ¡s antiguo primero</option>
                 </select>
               </div>
             </div>
@@ -1733,7 +1734,7 @@ export default function EmployeesPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="bg-gray-50 p-3 rounded-lg">
-              <label className="text-sm font-medium text-gray-600">No. Empleado (generado automáticamente)</label>
+              <label className="text-sm font-medium text-gray-600">No. Empleado (generado automÃ¡ticamente)</label>
               <div className="text-lg font-bold text-blue-600">{generateEmployeeId()}</div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1755,7 +1756,7 @@ export default function EmployeesPage() {
                   value={newEmployee.lastName}
                   onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
                   className="w-full mt-1 px-3 py-2 border rounded-md"
-                  placeholder="Ej: Pérez López"
+                  placeholder="Ej: PÃ©rez LÃ³pez"
                   required
                 />
               </div>
@@ -1775,9 +1776,11 @@ export default function EmployeesPage() {
                 <div className="mt-1 flex items-center gap-4">
                   {newEmployee.photo ? (
                     <div className="relative">
-                      <img 
-                        src={newEmployee.photo} 
-                        alt="Preview" 
+                      <ArchivoPrivado
+                        valor={newEmployee.photo}
+                        bucket="employee-photos"
+                        modo="img"
+                        alt="Preview"
                         className="w-20 h-20 object-cover rounded-full border-2 border-gray-200"
                       />
                       <button
@@ -1803,7 +1806,7 @@ export default function EmployeesPage() {
                   )}
                   <div className="text-xs text-gray-500">
                     <p>Formato: JPG, PNG</p>
-                    <p>Tamaño máximo: 500KB</p>
+                    <p>TamaÃ±o mÃ¡ximo: 500KB</p>
                   </div>
                 </div>
               </div>
@@ -1818,7 +1821,7 @@ export default function EmployeesPage() {
                   <option value="casado">Casado/a</option>
                   <option value="divorciado">Divorciado/a</option>
                   <option value="viudo">Viudo/a</option>
-                  <option value="unión libre">Unión Libre</option>
+                  <option value="uniÃ³n libre">UniÃ³n Libre</option>
                 </select>
               </div>
               <div>
@@ -1889,13 +1892,13 @@ export default function EmployeesPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Días de vacaciones</label>
+                <label className="text-sm font-medium">DÃ­as de vacaciones</label>
                 <div className="w-full mt-1 px-3 py-2 border rounded-md bg-gray-50 text-gray-600">
-                  Se calcula automáticamente por antigüedad
+                  Se calcula automÃ¡ticamente por antigÃ¼edad
                 </div>
               </div>
               <div className="md:col-span-3">
-                <label className="text-sm font-medium">Dirección exacta</label>
+                <label className="text-sm font-medium">DirecciÃ³n exacta</label>
                 <input
                   type="text"
                   value={newEmployee.address}
@@ -1905,7 +1908,7 @@ export default function EmployeesPage() {
                 />
               </div>
               <div>
-                <label className="text-sm font-medium">Teléfono</label>
+                <label className="text-sm font-medium">TelÃ©fono</label>
                 <input
                   type="text"
                   value={newEmployee.phone}
@@ -1940,7 +1943,7 @@ export default function EmployeesPage() {
                     <option value="indefinido">Indefinido</option>
                     <option value="determinado">Determinado</option>
                     <option value="por obra">Por Obra</option>
-                    <option value="prueba">Período de Prueba</option>
+                    <option value="prueba">PerÃ­odo de Prueba</option>
                     <option value="temporada">Temporada</option>
                   </select>
                 </div>
@@ -1951,13 +1954,13 @@ export default function EmployeesPage() {
                     onChange={(e) => setNewEmployee({ ...newEmployee, reportsTo: e.target.value || null })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
                   >
-                    <option value="">Sin jefe directo (raíz)</option>
+                    <option value="">Sin jefe directo (raÃ­z)</option>
                     {employees
                       .filter(e => e.status === 'active' && e.id !== editingEmployee?.id)
                       .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
                       .map(e => (
                         <option key={e.id} value={e.id}>
-                          {e.firstName} {e.lastName} — {e.position || 'Sin puesto'}{e.department ? ` (${e.department})` : ''}
+                          {e.firstName} {e.lastName} â€” {e.position || 'Sin puesto'}{e.department ? ` (${e.department})` : ''}
                         </option>
                       ))}
                   </select>
@@ -2014,15 +2017,15 @@ export default function EmployeesPage() {
                   >
                     <option value="presencial">Presencial</option>
                     <option value="remoto">Remoto</option>
-                    <option value="híbrido">Híbrido</option>
+                    <option value="hÃ­brido">HÃ­brido</option>
                   </select>
                 </div>
               </div>
             </div>
 
-            {/* Nivel Académico */}
+            {/* Nivel AcadÃ©mico */}
             <div className="border-t pt-4">
-              <h3 className="font-medium text-gray-700 mb-3">Nivel Académico</h3>
+              <h3 className="font-medium text-gray-700 mb-3">Nivel AcadÃ©mico</h3>
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div>
                   <label className="text-sm font-medium">Nivel de escolaridad</label>
@@ -2031,16 +2034,16 @@ export default function EmployeesPage() {
                     onChange={(e) => setNewEmployee({ ...newEmployee, educationLevel: e.target.value as any })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
                   >
-                    <option value="basico">Básico</option>
+                    <option value="basico">BÃ¡sico</option>
                     <option value="medio">Medio</option>
-                    <option value="tecnico">Técnico</option>
+                    <option value="tecnico">TÃ©cnico</option>
                     <option value="universitario">Universitario</option>
-                    <option value="maestria">Maestría</option>
+                    <option value="maestria">MaestrÃ­a</option>
                     <option value="doctorado">Doctorado</option>
                   </select>
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Institución de egreso</label>
+                  <label className="text-sm font-medium">InstituciÃ³n de egreso</label>
                   <input
                     type="text"
                     value={newEmployee.university}
@@ -2050,7 +2053,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Título / Carrera</label>
+                  <label className="text-sm font-medium">TÃ­tulo / Carrera</label>
                   <input
                     type="text"
                     value={newEmployee.degree}
@@ -2060,7 +2063,7 @@ export default function EmployeesPage() {
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium">Año de graduación</label>
+                  <label className="text-sm font-medium">AÃ±o de graduaciÃ³n</label>
                   <input
                     type="text"
                     value={newEmployee.graduationYear}
@@ -2083,7 +2086,7 @@ export default function EmployeesPage() {
                     value={newEmployee.languages}
                     onChange={(e) => setNewEmployee({ ...newEmployee, languages: e.target.value })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
-                    placeholder="Ej: Español (nativo), Inglés (avanzado)"
+                    placeholder="Ej: EspaÃ±ol (nativo), InglÃ©s (avanzado)"
                   />
                 </div>
                 <div>
@@ -2129,7 +2132,7 @@ export default function EmployeesPage() {
                     value={newEmployee.socialSecurityNumber}
                     onChange={(e) => setNewEmployee({ ...newEmployee, socialSecurityNumber: e.target.value })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
-                    placeholder="Número de afiliación"
+                    placeholder="NÃºmero de afiliaciÃ³n"
                   />
                 </div>
                 <div>
@@ -2149,7 +2152,7 @@ export default function EmployeesPage() {
                     value={newEmployee.laborRiskInsurer}
                     onChange={(e) => setNewEmployee({ ...newEmployee, laborRiskInsurer: e.target.value })}
                     className="w-full mt-1 px-3 py-2 border rounded-md"
-                    placeholder="Ej: ARL Confederación"
+                    placeholder="Ej: ARL ConfederaciÃ³n"
                   />
                 </div>
               </div>
@@ -2171,7 +2174,7 @@ export default function EmployeesPage() {
                     <option value="residencia_permanente">Residencia Permanente</option>
                     <option value="residencia_temporal">Residencia Temporal</option>
                     <option value="permiso_trabajo">Permiso de Trabajo</option>
-                    <option value="asilo">Asilo Político</option>
+                    <option value="asilo">Asilo PolÃ­tico</option>
                   </select>
                 </div>
                 <div>
@@ -2218,7 +2221,7 @@ export default function EmployeesPage() {
                       />
                     </label>
                   )}
-                  <span className="text-xs text-gray-500">Máximo 2MB</span>
+                  <span className="text-xs text-gray-500">MÃ¡ximo 2MB</span>
                 </div>
               </div>
             </div>
@@ -2425,9 +2428,9 @@ export default function EmployeesPage() {
                   </div>
                 </div>
 
-                {/* Certificados médicos ocupacionales */}
+                {/* Certificados mÃ©dicos ocupacionales */}
                 <div>
-                  <label className="text-sm font-medium">Certificados médicos ocupacionales de ingreso</label>
+                  <label className="text-sm font-medium">Certificados mÃ©dicos ocupacionales de ingreso</label>
                   <div className="mt-1">
                     {newEmployee.docMedicalCert ? (
                       <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
@@ -2484,8 +2487,10 @@ export default function EmployeesPage() {
                 <div className="flex justify-between items-start">
                   <div className="flex items-start gap-4">
                     {emp.photo ? (
-                      <img 
-                        src={emp.photo} 
+                      <ArchivoPrivado 
+                        valor={emp.photo}
+                        bucket="employee-photos"
+                        modo="img"
                         alt={`${emp.firstName} ${emp.lastName}`}
                         className="w-16 h-16 object-cover rounded-full border-2 border-gray-200"
                       />
@@ -2504,17 +2509,17 @@ export default function EmployeesPage() {
                           {emp.status === 'active' ? 'Activo' : emp.status === 'terminated' ? 'Terminado' : emp.status === 'suspended' ? 'Suspendido' : 'Inactivo'}
                         </Badge>
                       </div>
-                      <p className="text-sm text-gray-500">{emp.position} • {emp.department}</p>
+                      <p className="text-sm text-gray-500">{emp.position} â€¢ {emp.department}</p>
                       <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
                         {emp.identityNumber && <span>Identidad: {emp.identityNumber}</span>}
                         <span>Salario: {formatCurrency(emp.salary)}</span>
                         <span>Ingreso: {emp.startDate || '-'}</span>
                         {emp.phone && <span>Tel: {emp.phone}</span>}
                         {emp.email && <span>Email: {emp.email}</span>}
-                        {emp.address && <span>Dirección: {emp.address}</span>}
+                        {emp.address && <span>DirecciÃ³n: {emp.address}</span>}
                         {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
-                        <span>Antigüedad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} años</span>
-                        <span>Vacaciones: {calculateVacationDays(emp.startDate)} días</span>
+                        <span>AntigÃ¼edad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} aÃ±os</span>
+                        <span>Vacaciones: {calculateVacationDays(emp.startDate)} dÃ­as</span>
                         {emp.workScheduleName && (
                           <span className="flex items-center gap-1">
                             <Clock className="h-3 w-3 text-cyan-500" />
@@ -2530,7 +2535,7 @@ export default function EmployeesPage() {
                         {emp.freeDays && emp.freeDays.length > 0 && (
                           <span className="flex items-center gap-1">
                             <CalendarOff className="h-3 w-3 text-teal-500" />
-                            {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}
+                            {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','MiÃ©','Jue','Vie','SÃ¡b'][d]).join(', ')}
                           </span>
                         )}
                       </div>
@@ -2621,7 +2626,7 @@ export default function EmployeesPage() {
                 <option value={20}>20</option>
                 <option value={50}>50</option>
               </select>
-              <span>por página</span>
+              <span>por pÃ¡gina</span>
             </div>
             <div className="flex items-center gap-1">
               <Button
@@ -2630,7 +2635,7 @@ export default function EmployeesPage() {
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(1)}
               >
-                «
+                Â«
               </Button>
               <Button
                 size="sm"
@@ -2638,7 +2643,7 @@ export default function EmployeesPage() {
                 disabled={currentPage === 1}
                 onClick={() => setCurrentPage(currentPage - 1)}
               >
-                ‹
+                â€¹
               </Button>
               {Array.from({ length: totalPages }, (_, i) => i + 1)
                 .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
@@ -2669,7 +2674,7 @@ export default function EmployeesPage() {
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(currentPage + 1)}
               >
-                ›
+                â€º
               </Button>
               <Button
                 size="sm"
@@ -2677,11 +2682,11 @@ export default function EmployeesPage() {
                 disabled={currentPage === totalPages}
                 onClick={() => setCurrentPage(totalPages)}
               >
-                »
+                Â»
               </Button>
             </div>
             <div className="text-sm text-gray-500">
-              Página {currentPage} de {totalPages} ({sortedEmployees.length} registros)
+              PÃ¡gina {currentPage} de {totalPages} ({sortedEmployees.length} registros)
             </div>
           </div>
         )}
@@ -2699,13 +2704,13 @@ export default function EmployeesPage() {
             </div>
             <div className="p-6 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de desactivación *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de desactivaciÃ³n *</label>
                 <textarea
                   value={deactivateForm.reason}
                   onChange={(e) => setDeactivateForm({ ...deactivateForm, reason: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
-                  placeholder="Describa la razón de la desactivación..."
+                  placeholder="Describa la razÃ³n de la desactivaciÃ³n..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -2767,24 +2772,24 @@ export default function EmployeesPage() {
               </p>
               {reactivatingEmployee.terminationReason && (
                 <p className="text-xs text-gray-400 mt-1">
-                  Última razón de salida: {reactivatingEmployee.terminationReason}
+                  Ãšltima razÃ³n de salida: {reactivatingEmployee.terminationReason}
                 </p>
               )}
             </div>
             <div className="p-6 space-y-4">
               <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
                 <p className="text-sm text-green-700">
-                  Fecha de reactivación: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                  Fecha de reactivaciÃ³n: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de reactivación *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de reactivaciÃ³n *</label>
                 <textarea
                   value={reactivateForm.reason}
                   onChange={(e) => setReactivateForm({ ...reactivateForm, reason: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
                   rows={3}
-                  placeholder="Describa la razón de la reactivación..."
+                  placeholder="Describa la razÃ³n de la reactivaciÃ³n..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -2839,20 +2844,20 @@ export default function EmployeesPage() {
             <div className="p-6 space-y-4">
               <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
                 <p className="text-sm text-amber-700">
-                  Fecha de suspensión: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                  Fecha de suspensiÃ³n: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
                 </p>
                 <p className="text-xs text-amber-600 mt-1">
-                  El empleado será marcado como suspendido hasta nueva decisión.
+                  El empleado serÃ¡ marcado como suspendido hasta nueva decisiÃ³n.
                 </p>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Razón de suspensión *</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de suspensiÃ³n *</label>
                 <textarea
                   value={suspendForm.reason}
                   onChange={(e) => setSuspendForm({ ...suspendForm, reason: e.target.value })}
                   className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
                   rows={3}
-                  placeholder="Describa la razón de la suspensión..."
+                  placeholder="Describa la razÃ³n de la suspensiÃ³n..."
                 />
               </div>
               <div className="grid grid-cols-2 gap-4">
@@ -2908,7 +2913,7 @@ export default function EmployeesPage() {
             <div className="border-b px-6 py-4 flex justify-between items-center flex-shrink-0">
               <div className="flex items-center gap-4">
                 {emp.photo ? (
-                  <img src={emp.photo} alt="" className="w-14 h-14 rounded-full object-cover" />
+                  <ArchivoPrivado valor={emp.photo} bucket="employee-photos" modo="img" alt="" className="w-14 h-14 rounded-full object-cover" />
                 ) : (
                   <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
                     <span className="text-xl font-bold text-gray-400">
@@ -2918,7 +2923,7 @@ export default function EmployeesPage() {
                 )}
                 <div>
                   <h2 className="text-lg font-bold">{emp.firstName} {emp.lastName}</h2>
-                  <p className="text-sm text-gray-500">{emp.employeeId} • {emp.position} • {emp.department}</p>
+                  <p className="text-sm text-gray-500">{emp.employeeId} â€¢ {emp.position} â€¢ {emp.department}</p>
                   <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
                     {emp.workScheduleName && (
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-cyan-500" />{emp.workScheduleName}</span>
@@ -2927,7 +2932,7 @@ export default function EmployeesPage() {
                       <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}</span>
                     )}
                     {emp.freeDays && emp.freeDays.length > 0 && (
-                      <span className="flex items-center gap-1"><CalendarOff className="h-3 w-3" />Libre: {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d]).join(', ')}</span>
+                      <span className="flex items-center gap-1"><CalendarOff className="h-3 w-3" />Libre: {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','MiÃ©','Jue','Vie','SÃ¡b'][d]).join(', ')}</span>
                     )}
                   </div>
                 </div>

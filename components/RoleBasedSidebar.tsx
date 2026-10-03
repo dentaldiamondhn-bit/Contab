@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { useSidebar } from '../app/contexts/SidebarContext';
 import { useUser } from '@clerk/nextjs';
 import { useTenant } from '@/lib/contexts/TenantContext';
+import { useWorkspace } from '@/lib/contexts/WorkspaceContext';
 import CustomSignOutButton from './auth/SignOutButton';
 
 interface NavItem {
@@ -254,6 +255,28 @@ const supportNavigation: NavItem[] = [
   }
 ];
 
+// Vista de las N empresas del contador. Va FUERA de `accountantNavigation` a
+// proposito: no depende del rol global de Clerk sino del `relationship` de cada
+// empresa (ver `esContador` mas abajo), asi que se inyecta aparte y le sirve a
+// quien tenga Clerk ADMIN/MANAGER y aun asi ser contador de alguna empresa.
+//
+// El href es `/dashboard`, no `/accountant/*`: el layout de `/accountant` exige
+// rol `ACCOUNTANT` en Clerk y echa a quien no lo tenga, con lo que un contador
+// cuyo Clerk diga ADMIN/MANAGER se quedaria sin panel. `/dashboard` es la landing
+// comun y no hace ese filtro de rol.
+//
+// Sin `module`: el filtro de `activeModules` oculta lo que el tenant no tiene
+// contratado, y el panel es la vista principal del flujo, no un modulo opcional.
+// El nombre tampoco lo toca el mapeo de `navigationWithTenant` mas abajo, asi que
+// el href se queda estatico en vez de recibir el `[companyId]`: no es de una
+// empresa.
+const DESPACHO_NAV: NavItem = {
+  name: 'Panel del Despacho',
+  href: '/dashboard',
+  icon: `<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h3m2.5 3.5H7a2 2 0 01-2-2V7a2 2 0 012-2h3.6a2 2 0 011.4.6L13.4 7H19a2 2 0 012 2v8.5a2 2 0 01-2 2h-4.5zM15 3.5H9a1.5 1.5 0 00-1.5 1.5v1A1.5 1.5 0 009 7.5h6A1.5 1.5 0 0016.5 6V5A1.5 1.5 0 0015 3.5z" /></svg>`,
+  description: 'Estado tributario y operativo de todos tus clientes'
+};
+
 // Sidebar para ACCOUNTANT
 const accountantNavigation: NavItem[] = [
   {
@@ -372,6 +395,27 @@ export default function RoleBasedSidebar() {
   const pathname = usePathname();
   const { user, isLoaded } = useUser();
   const { currentTenant } = useTenant();
+  // El `[id]` de las rutas `/companies/[id]/...` es `companies.id` (un UUID), NO
+  // `currentTenant.id`, que es el codigo del tenant ("TEST1DS") y comparten todas
+  // las empresas de un tenant. Con el codigo del tenant, `contextoDeEmpresa` no
+  // resuelve ninguna empresa y esas paginas responden 400/403.
+  //
+  // Se usa `activeCompanyId` y no `empresa?.id`: `empresa` se vacia en
+  // `limpiarEstado()` mientras carga la nueva, y durante esa transicion el enlace
+  // caia al `|| tenantId`. `activeCompanyId` es la empresa comprometida con el
+  // arbol de UI y sobrevive a la limpieza (`WorkspaceShell` la usa de `key`).
+  const { activeCompanyId, empresas } = useWorkspace();
+
+  // El panel del despacho se ofrece a quien es CONTADOR en alguna empresa, segun
+  // el `relationship` de `user_company_access`. No se pregunta a Clerk por eso:
+  // `user.publicMetadata.role` es un rol GLOBAL y se desincroniza de la
+  // membresia (ver AGENTS.md 1b). Hay al menos dos casos reales: `gcalix12` es
+  // `owner` de 2 empresas pero su Clerk dice MANAGER/ADMIN, y `azuna22` es
+  // `accountant` de test 1 y test 2 pero `owner` de Empresa TEST185. Con el rol
+  // global, el contador se queda sin su panel o el empresario lo ve de mas.
+  // El `relationship` por empresa es la unica fuente fiable (y la misma que usa
+  // `rolDeEmpresa()`); `empresas` viene de `/api/workspace`, ya validada.
+  const esContador = empresas.some((e) => e.relationship === 'accountant');
 
   // Get navigation based on user role
   const getNavigationByRole = () => {
@@ -424,33 +468,43 @@ export default function RoleBasedSidebar() {
     return !item.module || activeModules.includes(item.module);
   });
 
-  // Hacer rutas dinámicas por tenant
-  const navigationWithTenant = navigation.map(item => {
-    const tenantId = (currentTenant as any)?.id;
-    if (!tenantId) return item;
+  // El panel entra primero y fuera del filtro de `activeModules`: se decide por
+  // `relationship` real, no por el rol global de Clerk. Se deduplica porque
+  // `rawNavigation` podria venir de `accountantNavigation` y ahi no esta, pero
+  // el `includes` evita depender de eso.
+  const navigationConDespacho = esContador
+    ? [DESPACHO_NAV, ...navigation.filter((i) => i.href !== DESPACHO_NAV.href)]
+    : navigation;
+
+  // Hacer rutas dinámicas por empresa
+  const navigationWithTenant = navigationConDespacho.map(item => {
+    // `companies.id` de la empresa activa. Sin ella los enlaces no se pueden
+    // construir: es preferible dejarlos tal cual (href estatico del menu) que
+    // apuntar a `/companies/TEST1DS/...`, que no resuelve a ninguna empresa.
+    if (!activeCompanyId) return item;
     if (item.name === 'Módulos Disponibles') {
-      return { ...item, href: `/companies/${tenantId}/modules` };
+      return { ...item, href: `/companies/${activeCompanyId}/modules` };
     }
     if (item.name === 'Inventario') {
-      return { ...item, href: `/companies/${tenantId}/inventory/dashboard` };
+      return { ...item, href: `/companies/${activeCompanyId}/inventory/dashboard` };
     }
     if (item.name === 'Mi Empresa') {
-      return { ...item, href: `/companies/${tenantId}` };
+      return { ...item, href: `/companies/${activeCompanyId}` };
     }
     if (item.name === 'Contabilidad') {
-      return { ...item, href: `/companies/${tenantId}/accounting` };
+      return { ...item, href: `/companies/${activeCompanyId}/accounting` };
     }
     if (item.name === 'Reportes') {
-      return { ...item, href: `/companies/${tenantId}/business-reports` };
+      return { ...item, href: `/companies/${activeCompanyId}/business-reports` };
     }
     if (item.name === 'Facturación') {
-      return { ...item, href: `/companies/${tenantId}/billing/invoices` };
+      return { ...item, href: `/companies/${activeCompanyId}/billing/invoices` };
     }
     if (item.name === 'Soporte Técnico' || item.name === 'Soporte') {
-      return { ...item, href: `/companies/${tenantId}/other-features` };
+      return { ...item, href: `/companies/${activeCompanyId}/other-features` };
     }
     if (item.name === 'Contactos') {
-      return { ...item, href: `/companies/${tenantId}/suppliers` };
+      return { ...item, href: `/companies/${activeCompanyId}/suppliers` };
     }
     return item;
   });

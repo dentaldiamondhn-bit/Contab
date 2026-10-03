@@ -277,3 +277,53 @@ Tabla maestra `product_location` para administrar las ubicaciones físicas y vin
 | UI | **Nuevo** `components/inventory/LocationsManager.tsx` (pestaña CRUD: código, nombre, pasillo, estante, contador de productos, activar/desactivar/eliminar); nueva pestaña **Ubicaciones** en `app/companies/[id]/inventory/page.tsx`; el formulario de producto usa un Select alimentado por las ubicaciones maestras (fallback a texto libre si no hay) en los modales de crear/editar |
 | TypeScript | `tsc --noEmit` sin errores |
 | ⚠️ Pendiente del usuario | Ejecutar `prisma/migrations/017_location_master.sql` y `supabase/LOCATION_MASTER.sql` en el SQL Editor de Supabase y reiniciar el dev server |
+
+---
+
+## Actualizacion 28 Sept 2026 — Aislamiento por empresa y descuento de stock
+
+### Aislamiento por empresa (corregido, 24 pruebas en verde)
+Todas las rutas de inventario tenían `tenant_id: "1"` fijo: **el inventario de cualquier
+empresa consultaba el de la empresa 1**. Ahora usan `resolveTenant()`
+(`?companyId=` -> header `x-tenant-id` -> `?tenantId=`) y devuelven **400** sin tenant, en
+vez de caer a la empresa 1.
+
+Corregidas: `app/api/inventory/{adjustments,warehouses,accounting,alerts,movements,products}/route.ts`
+y `app/api/billing/cai/route.ts`.
+
+- **`app/api/inventory/accounting/route.ts` estaba muerta**: el `fetch` interno a
+  `/api/accounting/transactions` no pasaba tenant ni por header ni por query, asi que los
+  cuatro tipos de asiento (`COMPRA`, `EGRESO` costo de ventas, `AJUSTE`, consumo interno)
+  devolvian **401 siempre**.
+- `adjustments`: el POST generaba el correlativo `AJ-#####` sobre el ultimo ajuste de la
+  empresa 1, y si fallaba el insert de items dejaba un borrador con total 0 que despues se
+  aplicaba al inventario. Ahora borra el ajuste y correlativo por tenant.
+- `cai/route.ts`: el POST **desactivaba todos los CAI del tenant `"1"`** antes de insertar,
+  asi que registrar un CAI desde otra empresa apagaba los de la empresa 1.
+
+### Descuento de stock al emitir (nuevo)
+`lib/services/stock-sale.ts`: `checkSaleStock()` antes de crear la factura y
+`applySaleStock()` despues, porque Supabase REST no soporta transacciones. Si el descuento
+falla, la ruta borra factura e items.
+
+- **Actualizacion optimista** (`.eq('current_stock', stockBefore)`) e **idempotente** por
+  `(reference_type='invoice', reference_id=<uuid>)`. Dos ventas simultaneas de 4 unidades
+  con stock 5: una se aplico, la otra se rechazo, stock final 1.
+- Bloquea si un `product_id` apunta a un producto de otra empresa, y no toca servicios.
+- **24 pruebas en verde**, con el inventario restaurado a su estado original.
+
+### Ojo con el stock (no es bug, es una trampa)
+- **`product.current_stock` es la fuente real; `stock_quantity` es un espejo.** Los 6
+  productos del tenant `1` tienen `stock_quantity = 0` con `current_stock = 100`.
+- `inventory_movement.reference_id` es **UUID**, no texto.
+
+### Pendiente
+- `applySaleStock` **no sincroniza `stock_quantity`** al vender: el espejo se queda viejo.
+- Migraciones `018`, `019` y `021`: **aplicadas** (28 Sept 2026 se verificó contra la BD
+  que `product_location.image_url`, `product_location.warehouse_id` e
+  `InvoiceItem.product_id` existen). Este reporte decía lo contrario.
+- `inventory_movement` tiene `company_id` desde la 023 y **`location_id` desde la 026**,
+  así que el inventario ya se puede aislar por empresa y por sede.
+  Ojo: `product.location_id` es **`text` y apunta al estante** (`product_location`),
+  mientras que `warehouse.location_id` es **`uuid` y apunta a la sede**
+  (`company_location`). El mismo nombre, dos cosas distintas.

@@ -13,13 +13,17 @@ export async function periodLockMiddleware(
   if (model !== 'Transaction') return params;
 
   const tenantIdFromArgs = params.args?.data?.tenantId || params.args?.data?.tenant_id;
+  // El cierre es por empresa, no por tenant: TEST1DS tiene test 1 y test 2.
+  const companyIdFromArgs = params.args?.data?.companyId || params.args?.data?.company_id;
   const supaTenantCheck = async (date: Date) => {
     try {
       const supabase = getSupabaseServer();
       // tenant del args si viene, si no intenta inferir del registro existente
       const tenantId = tenantIdFromArgs || 'unknown';
       if (tenantId && tenantId !== 'unknown') {
-        await assertPeriodOpenUnified(supabase as any, String(tenantId), date.toISOString());
+        await assertPeriodOpenUnified(supabase as any, String(tenantId), date.toISOString(), {
+          companyId: companyIdFromArgs ? String(companyIdFromArgs) : null,
+        });
       }
     } catch (e) {
       // Re-lanza como error de candado unificado

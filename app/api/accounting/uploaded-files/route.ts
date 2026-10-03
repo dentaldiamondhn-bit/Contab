@@ -1,15 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const downloadId = searchParams.get("downloadId");
-    const tenantId = searchParams.get("tenantId") || searchParams.get("companyId") || request.headers.get("x-tenant-id");
+    // Contexto validado. `x-tenant-id` sale de los claims de Clerk y puede faltar
+    // (la sesion no trae ese claim), que es lo que devolvia 400 con la pagina de
+    // una empresa concreta. `contextoDeEmpresa` cae a `?companyId`/`?tenantId` y,
+    // cuando hay header, sigue validando la pertenencia.
+    let empresa;
+    try {
+      empresa = await contextoDeEmpresa(request);
+    } catch (error) {
+      const respuesta = respuestaDeErrorDeEmpresa(error);
+      if (respuesta) return respuesta;
+      throw error;
+    }
+    const tenantId = empresa.tenantId;
+    const scope = filtroEmpresaOCompany(empresa);
+    if (!tenantId) {
+      return NextResponse.json({ error: "Falta el tenant" }, { status: 400 });
+    }
 
     // Modo descarga: devuelve el archivo binario desde Storage
     if (downloadId) {
-      const { data: fileRec } = await supabaseService.from("File").select("filePath, originalName, mimeType").eq("id", downloadId).maybeSingle() as any;
+      const { data: fileRec } = await supabaseService.from("File").select("filePath, originalName, mimeType").eq("id", downloadId).match(scope).maybeSingle() as any;
       if (!fileRec?.filePath) return NextResponse.json({ error: "Archivo no encontrado" }, { status: 404 });
       const bucket = "ticket-attachments";
       // filePath ya incluye bucket path como accounting/... o ticket-attachments/...
@@ -24,16 +42,12 @@ export async function GET(request: NextRequest) {
       return new NextResponse(data, { headers: { "Content-Type": fileRec.mimeType || "application/octet-stream", "Content-Disposition": `attachment; filename="${fileRec.originalName}"` } });
     }
 
-    if (!tenantId) {
-      return NextResponse.json({ error: "tenantId requerido" }, { status: 400 });
-    }
-
     let files: any[] = [];
     try {
       const { data, error } = await supabaseService
         .from("File")
         .select("id, originalName, fileName, filePath, fileSize, mimeType, category, createdAt, created_at, metadata, status")
-        .eq("tenantId", tenantId)
+        .match(scope)
         .order("createdAt", { ascending: false })
         .limit(50);
       if (!error && data && data.length > 0) {
@@ -48,7 +62,7 @@ export async function GET(request: NextRequest) {
           metadata: f.metadata ? JSON.parse(f.metadata) : null,
         }));
       } else {
-        const alt = await supabaseService.from("File").select("id, original_name, file_name, file_path, file_size, category, created_at, metadata, status").eq("tenant_id", tenantId).order("created_at", {ascending:false}).limit(50) as any;
+        const alt = await supabaseService.from("File").select("id, original_name, file_name, file_path, file_size, category, created_at, metadata, status").match(scope).order("created_at", {ascending:false}).limit(50) as any;
         if (!alt.error && alt.data) {
           files = alt.data.map((f:any)=> ({
             id: f.id,
@@ -64,7 +78,7 @@ export async function GET(request: NextRequest) {
     } catch {}
 
     if (files.length === 0) {
-      const { data: txs } = await supabaseService.from("Transaction").select("id, createdAt, created_at, description, totalAmount, voucherType").eq("tenantId", tenantId).order("createdAt", {ascending:false}).limit(50) as any;
+      const { data: txs } = await supabaseService.from("Transaction").select("id, createdAt, created_at, description, totalAmount, voucherType").match(scope).order("createdAt", {ascending:false}).limit(50) as any;
       const grouped = new Map<string, any>();
       (txs||[]).forEach((t:any)=>{
         const d = t.createdAt || t.created_at;
@@ -88,11 +102,22 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
-    const tenantId = searchParams.get("tenantId");
+    // Mismo contexto validado que el GET (ver la nota alli).
+    let empresa;
+    try {
+      empresa = await contextoDeEmpresa(request);
+    } catch (error) {
+      const respuesta = respuestaDeErrorDeEmpresa(error);
+      if (respuesta) return respuesta;
+      throw error;
+    }
+    const tenantId = empresa.tenantId;
+    const scope = filtroEmpresaOCompany(empresa);
+    if (!tenantId) return NextResponse.json({ error: "Falta el tenant" }, { status: 400 });
     if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
 
     // Obtener File para saber qué transacciones borrar
-    const { data: fileRec } = await supabaseService.from("File").select("filePath, metadata, createdAt, created_at").eq("id", id).maybeSingle() as any;
+    const { data: fileRec } = await supabaseService.from("File").select("filePath, metadata, createdAt, created_at").eq("id", id).match(scope).maybeSingle() as any;
     
     // Si es un archivo agrupado auto (id es fecha como 2026-08-31T04:46), borrar por ventana de tiempo
     const isAutoGroup = !fileRec;
@@ -117,7 +142,7 @@ export async function DELETE(request: NextRequest) {
       await supabaseService.from("JournalEntry").delete().in("transaction_id", txIds) as any;
       await supabaseService.from("Transaction").delete().in("id", txIds) as any;
     } else if (isAutoGroup && tenantId) {
-      const { data: allTxs, error: allErr } = await supabaseService.from("Transaction").select("id, createdAt, created_at").eq("tenantId", tenantId) as any;
+      const { data: allTxs, error: allErr } = await supabaseService.from("Transaction").select("id, createdAt, created_at").match(scope) as any;
       const debugAllCount = allTxs?.length ?? 0;
       const debugError = allErr?.message || null;
       const ids = (allTxs||[]).filter((t:any)=>{
@@ -142,7 +167,7 @@ export async function DELETE(request: NextRequest) {
         const d = new Date(createdAt);
         const start = new Date(d); start.setMinutes(d.getMinutes()-2);
         const end = new Date(d); end.setMinutes(d.getMinutes()+2);
-        const { data: txs } = await supabaseService.from("Transaction").select("id").eq("tenantId", tenantId).gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString()) as any;
+        const { data: txs } = await supabaseService.from("Transaction").select("id").match(scope).gte("createdAt", start.toISOString()).lte("createdAt", end.toISOString()) as any;
         const ids = (txs||[]).map((t:any)=>t.id);
         if (ids.length>0 && ids.length < 100) { // evitar borrado masivo accidental
           await supabaseService.from("JournalEntry").delete().in("transactionId", ids) as any;
@@ -152,9 +177,9 @@ export async function DELETE(request: NextRequest) {
     }
 
     if (!isAutoGroup) {
-      const { error } = await supabaseService.from("File").delete().eq("id", id) as any;
+      const { error } = await supabaseService.from("File").delete().eq("id", id).match(scope) as any;
       if (error) {
-        const alt = await supabaseService.from("File").delete().eq("id", id) as any;
+        const alt = await supabaseService.from("File").delete().eq("id", id).match(scope) as any;
         if (alt.error) throw alt.error;
       }
     }
@@ -168,13 +193,17 @@ export async function DELETE(request: NextRequest) {
 
 export async function PATCH(request: NextRequest) {
   try {
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
     const body = await request.json();
     const { id, fileName } = body;
     if (!id || !fileName) return NextResponse.json({ error: "id y fileName requeridos" }, { status: 400 });
-    const { data, error } = await supabaseService.from("File").update({ originalName: fileName, updatedAt: new Date().toISOString() } as any).eq("id", id).select("id").single() as any;
+    const { data, error } = await supabaseService.from("File").update({ originalName: fileName, updatedAt: new Date().toISOString() } as any).eq("id", id).match(scope).select("id").single() as any;
     if (error) throw error;
     return NextResponse.json({ success: true, id: (data as any).id });
   } catch (e:any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

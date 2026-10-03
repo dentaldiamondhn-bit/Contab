@@ -199,6 +199,7 @@ async function fetchPeriodBalances(
   tenantId: string,
   start: string,
   end: string,
+  companyId?: string | null,
 ): Promise<Map<string, PeriodBalance>> {
   const select = '*, JournalEntry (*, Account (id, code, name, type))';
   const collect = (transactions: unknown[] | null | undefined) => {
@@ -239,8 +240,7 @@ async function fetchPeriodBalances(
     return aggregatePeriodBalances(movements);
   };
 
-  // tenantId primero, fallback tenant_id (mismo patrón del resto del módulo).
-  const first = await (async () => {
+  const run = async (col: string, val: string) => {
     const qq = client.from('Transaction').select(select) as unknown as {
       eq(c: string, v: unknown): {
         gte(c: string, v: unknown): {
@@ -248,34 +248,37 @@ async function fetchPeriodBalances(
         };
       };
     };
-    return qq.eq('tenantId', tenantId).gte('date', start).lt('date', end);
-  })();
+    return qq.eq(col, val).gte('date', start).lt('date', end);
+  };
+
+  // Aislamiento real: por empresa (`company_id`) cuando la hay. Sin empresa se
+  // conserva el fallback legacy tenantId -> tenant_id.
+  if (companyId) {
+    const own = await run('company_id', companyId);
+    if (!own.error && own.data) return collect(own.data as unknown[]);
+    return new Map();
+  }
+
+  const first = await run('tenantId', tenantId);
   if (!first.error && first.data) {
     const rows = collect(first.data as unknown[]);
     if (rows.size > 0) return rows;
   }
-  const alt = await (async () => {
-    const qq = client.from('Transaction').select(select) as unknown as {
-      eq(c: string, v: unknown): {
-        gte(c: string, v: unknown): {
-          lt(c: string, v: unknown): Promise<{ data: unknown; error: unknown }>;
-        };
-      };
-    };
-    return qq.eq('tenant_id', tenantId).gte('date', start).lt('date', end);
-  })();
+  const alt = await run('tenant_id', tenantId);
   if (!alt.error && alt.data) return collect(alt.data as unknown[]);
   return new Map();
 }
 
 export async function getVariationsReport(
   client: SupaClient,
-  tenantId: string,
+  tenantOrScope: string | { tenantId?: string | null; companyId?: string | null },
   from: string,
   to: string,
   options?: { yoy?: boolean; yoyYears?: number }
 ): Promise<VariationsReport> {
-  if (!tenantId) throw new Error('Tenant ID requerido');
+  const tenantId = typeof tenantOrScope === 'string' ? tenantOrScope : (tenantOrScope?.tenantId || '');
+  const companyId = typeof tenantOrScope === 'string' ? null : (tenantOrScope?.companyId ?? null);
+  if (!tenantId && !companyId) throw new Error('Tenant ID requerido');
   if (!isValidPeriod(from) || !isValidPeriod(to)) {
     throw new Error('from y to deben tener formato YYYY-MM (mes 01-12)');
   }
@@ -295,15 +298,15 @@ export async function getVariationsReport(
       // Ya son comparaciones año-año, usar como está
     } else {
       // Cambiar a comparación año-año del mismo mes
-      return getVariationsReport(client, tenantId, basePeriod, comparePeriod, options);
+      return getVariationsReport(client, tenantOrScope, basePeriod, comparePeriod, options);
     }
   }
   
   const fb = periodBounds(from);
   const tb = periodBounds(to);
   const [fromBal, toBal] = await Promise.all([
-    fetchPeriodBalances(client, tenantId, fb.start, fb.end),
-    fetchPeriodBalances(client, tenantId, tb.start, tb.end),
+    fetchPeriodBalances(client, tenantId, fb.start, fb.end, companyId),
+    fetchPeriodBalances(client, tenantId, tb.start, tb.end, companyId),
   ]);
   const rows = computeVariations(fromBal, toBal);
   const fromBalance = round2(rows.reduce((s, r) => s + r.fromBalance, 0));

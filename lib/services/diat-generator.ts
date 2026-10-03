@@ -1,5 +1,4 @@
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { TENANT_ID } from '@/lib/purchase-db';
 
 export interface DiatDeclarante {
   companyId: string;
@@ -146,6 +145,19 @@ function rateBucket(rate: number): { amount: 'exentas' | 'gravadas15' | 'gravada
 async function resolveCompany(companyId: string): Promise<DiatDeclarante | null> {
   const supabase = getSupabaseServer();
 
+  // `companyId` es un `companies.id`. Se busca por `id` y, si eso falla, por
+  // `tenant_id` comocompatibilidad con las llamadas viejas que pasaban el codigo
+  // de tenant. Antes empenzaba por `tenant_id`, y como Angelos tiene `id` con
+  // forma de codigo podia resolver la empresa equivocada.
+const byId = await supabase
+    .from('companies')
+    .select('*')
+    .eq('id', companyId)
+    .limit(1)
+    .maybeSingle();
+
+  if (byId.data) return companyToDeclarante(byId.data.id, byId.data);
+
   const byTenant = await supabase
     .from('companies')
     .select('*')
@@ -153,16 +165,7 @@ async function resolveCompany(companyId: string): Promise<DiatDeclarante | null>
     .limit(1)
     .maybeSingle();
 
-  if (byTenant.data) return companyToDeclarante(companyId, byTenant.data);
-
-  const byId = await supabase
-    .from('companies')
-    .select('*')
-    .eq('id', companyId)
-    .limit(1)
-    .maybeSingle();
-
-  if (byId.data) return companyToDeclarante(companyId, byId.data);
+  if (byTenant.data) return companyToDeclarante(byTenant.data.id, byTenant.data);
 
   return null;
 }
@@ -202,10 +205,14 @@ async function fetchVentas(companyId: string, period: string): Promise<{ records
   const { start, end } = periodRange(period);
   const empty = { records: [] as DiatVentaRecord[], totals: emptyTotals(), byCai: [] as DiatCaiGroup[] };
 
+  // `libro_ventas` expone `company_id` (migracion 027) desde la 027, asi que se
+  // filtra por ahi. Antes comparaba `tenant_id` contra un `companies.id` (UUID),
+  // lo que no casa nunca y devuelve 0 filas, y su "respaldo" consultaba la vista
+  // ENTERA sin filtro de empresa: el DIAT de ventas salia con los datos de todas.
   const scoped = await supabase
     .from('libro_ventas')
     .select('*')
-    .eq('tenant_id', companyId)
+    .eq('company_id', companyId)
     .gte('invoice_date', start)
     .lte('invoice_date', end);
 
@@ -213,14 +220,7 @@ async function fetchVentas(companyId: string, period: string): Promise<{ records
   if (!scoped.error) {
     data = scoped.data || [];
   } else {
-    const global = await supabase
-      .from('libro_ventas')
-      .select('*')
-      .gte('invoice_date', start)
-      .lte('invoice_date', end);
-    if (!global.error) {
-      data = global.data || [];
-    }
+    console.error('diat-generator: fallo el filtro por empresa en libro_ventas', scoped.error);
   }
 
   if (!data) return empty;
@@ -272,10 +272,11 @@ async function fetchCompras(companyId: string, period: string): Promise<{ record
   const { start, end } = periodRange(period);
   const empty = { records: [] as DiatCompraRecord[], totals: emptyTotals(), bySupplier: [] as DiatSupplierGroup[] };
 
+  // Se quita el `.eq('tenant_id', TENANT_ID)`: fijaba el tenant a `'1'`, asi que el
+  // DIAT de compras solo salia para Empresa 1 y era 0 filas para las otras siete.
   const { data, error } = await supabase
     .from('Purchase')
     .select('id, invoice_number, cai, invoice_date, subtotal, tax_rate, tax_amount, total, purchase_type, status, company_id, tenant_id, supplier_id, Supplier:supplier_id(id, name, rtn)')
-    .eq('tenant_id', TENANT_ID)
     .eq('company_id', companyId)
     .gte('invoice_date', start)
     .lte('invoice_date', end);
@@ -351,14 +352,22 @@ async function collectDiatPeriods(companyId: string): Promise<string[]> {
   const purchases = await supabase
     .from('Purchase')
     .select('invoice_date')
-    .eq('tenant_id', TENANT_ID)
     .eq('company_id', companyId);
   (purchases.data || []).forEach((p) => addPeriod(months, (p as any).invoice_date));
 
-  const ventas = await supabase.from('libro_ventas').select('invoice_date');
+  // Estas dos vistas se consultaban SIN NINGUN filtro, asi que la lista de
+  // periodos disponibles de una empresa incluia meses que solo tenian datos de
+  // otras. El selector de mes ofrecia periodos que luego salian vacios.
+  const ventas = await supabase
+    .from('libro_ventas')
+    .select('invoice_date')
+    .eq('company_id', companyId);
   (ventas.data || []).forEach((v) => addPeriod(months, (v as any).invoice_date));
 
-  const compras = await supabase.from('libro_compras').select('invoice_date');
+  const compras = await supabase
+    .from('libro_compras')
+    .select('invoice_date')
+    .eq('company_id', companyId);
   (compras.data || []).forEach((c) => addPeriod(months, (c as any).invoice_date));
 
   return Array.from(months).sort().reverse();

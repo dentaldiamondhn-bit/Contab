@@ -30,8 +30,8 @@ export default function ClosingWizard({ companyId: propCompanyId }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/accounting/period-closing?year=${year}&tenantId=${encodeURIComponent(companyId)}`, {
-        headers: { 'x-tenant-id': companyId },
+      const res = await fetch(`/api/accounting/period-closing?year=${year}&companyId=${encodeURIComponent(companyId)}`, {
+        headers: { 'x-company-id': companyId },
       });
       const j = await res.json();
       if (!res.ok) throw new Error(j.error || 'Error al cargar cierres');
@@ -40,8 +40,8 @@ export default function ClosingWizard({ companyId: propCompanyId }: Props) {
       if (annualRow) setAnnual(annualRow);
       else {
         // Check annual via dedicated query (month=0 may not be in 1-12 grid)
-        const ar = await fetch(`/api/accounting/period-closing?year=${year}&month=0&tenantId=${encodeURIComponent(companyId)}`, {
-          headers: { 'x-tenant-id': companyId },
+        const ar = await fetch(`/api/accounting/period-closing?year=${year}&month=0&companyId=${encodeURIComponent(companyId)}`, {
+          headers: { 'x-company-id': companyId },
         });
         const aj = await ar.json().catch(() => ({}));
         if (aj.details?.period) setAnnual(aj.details.period);
@@ -66,9 +66,9 @@ export default function ClosingWizard({ companyId: propCompanyId }: Props) {
     const label = m === 0 ? `ejercicio ${y}` : `${String(m).padStart(2, '0')}/${y}`;
     if (!confirm(`Bloquear permanentemente ${label}? No se podrá reabrir.`)) return;
     try {
-      const res = await fetch('/api/accounting/period-closing', {
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json', 'x-company-id': companyId },
         body: JSON.stringify({ year: y, month: m }),
       });
       const j = await res.json();
@@ -81,9 +81,9 @@ export default function ClosingWizard({ companyId: propCompanyId }: Props) {
 
   const handleMonthlyClose = async (month: number) => {
     try {
-      const res = await fetch('/api/accounting/period-closing', {
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json', 'x-company-id': companyId },
         body: JSON.stringify({ year, month, notes }),
       });
       const j = await res.json();
@@ -101,9 +101,9 @@ export default function ClosingWizard({ companyId: propCompanyId }: Props) {
     }
     try {
       // Reutiliza el candado unificado (period_locks month=0) vía period-closing con month 0
-      const res = await fetch('/api/accounting/period-closing', {
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-tenant-id': companyId },
+        headers: { 'Content-Type': 'application/json', 'x-company-id': companyId },
         body: JSON.stringify({ year, month: 0, notes: notes || `Cierre anual ${year}` }),
       });
       const j = await res.json();

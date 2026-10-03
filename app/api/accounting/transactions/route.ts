@@ -1,65 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 import { supabase as supabaseService } from "@/lib/supabase-db";
-import { createJournalTransaction } from "@/lib/services/journal-service";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
+import { createJournalTransaction, type SupaClient } from "@/lib/services/journal-service";
 import { integrateSaleWithInventory } from "@/lib/services/inventory-integration";
-
-// Helper para obtener tenantId del request
-async function getTenantFromRequest(request: NextRequest) {
-  const tenantId = request.headers.get("x-tenant-id") || 
-                   new URL(request.url).searchParams.get("tenantId");
-   
-  if (!tenantId) {
-    return null;
-  }
-  
-  return { id: tenantId };
-}
 
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-     
-    const tenant = await getTenantFromRequest(request);
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant no encontrado o no especificado" },
-        { status: 401 }
-      );
-    }
-     
-    // 1) Intentar RPC (si existe)
-    const supabaseAnon = getSupabaseServer();
-    const rpcRes = await (supabaseAnon as any).rpc('get_transactions_with_entries', {
-        p_tenant_id: tenant.id,
-        p_start_date: searchParams.get("startDate") ? new Date(searchParams.get("startDate")!) : null,
-        p_end_date: searchParams.get("endDate") ? new Date(searchParams.get("endDate")!) : null,
-        p_voucher_type: searchParams.get("voucherType") && searchParams.get("voucherType") !== "todos" ? searchParams.get("voucherType") : null
-      });
-    
-    if (!rpcRes.error && rpcRes.data) {
-      return NextResponse.json(rpcRes.data || []);
-    }
-    if (rpcRes.error) {
-      console.warn("RPC get_transactions_with_entries falló, usando fallback directo:", rpcRes.error.message);
-    }
 
-    // 2) Fallback directo con service_role (bypass RLS) - soporta tenant_id / tenantId
-    let query: any = supabaseService
+    // Contexto validado. Antes intentaba primero una RPC solo-tenant
+    // (`get_transactions_with_entries`) que devolvia las transacciones de toda
+    // la empresa hermana, y ademas aceptaba `?tenantId` sin comprobar.
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
+
+    // Fallback directo con service_role (bypass RLS), acotado a empresa/tenant.
+    let { data, error } = await supabaseService
       .from("Transaction")
       .select(`*, JournalEntry (*, Account (code, name))`)
+      .match(scope)
       .order("date", { ascending: true });
 
-    // Intentar con tenant_id (physical column Prisma)
-    let { data, error } = await query.eq("tenant_id", tenant.id);
-    if (error || !data || data.length === 0) {
-      // Reintentar con tenantId camelCase por compatibilidad legacy
-      const alt = await supabaseService.from("Transaction").select(`*, JournalEntry (*, Account (code, name))`).eq("tenantId", tenant.id).order("date", { ascending: true });
-      if (!alt.error && alt.data && alt.data.length > 0) {
-        data = alt.data;
-        error = null;
-      }
-    }
     // Filtro opcional voucherType
     const vt = searchParams.get("voucherType");
     if (vt && vt !== "todos" && data) {
@@ -80,6 +42,8 @@ export async function GET(request: NextRequest) {
     }));
     return NextResponse.json(normalized);
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error fetching transactions:", error);
     return NextResponse.json(
       { error: "Error fetching transactions" },
@@ -90,8 +54,8 @@ export async function GET(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const tenant = await getTenantFromRequest(request);
-    if (!tenant) return NextResponse.json({ error: "Tenant no encontrado" }, { status: 401 });
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
     const body = await request.json();
     let { id, description, date, totalAmount, entries } = body;
     if (!id) return NextResponse.json({ error: "id requerido" }, { status: 400 });
@@ -105,13 +69,13 @@ export async function PUT(request: NextRequest) {
       const numero = parts[parts.length-1];
       const fechaPart = id.slice(0, id.length - (`-${numero}`.length));
       // Buscar transacciones reales que coincidan
-      const { data: matches } = await supabaseService.from("Transaction").select("id").eq("tenantId", tenant.id).eq("voucherNumber", parseInt(numero)||0).gte("date", fechaPart.slice(0,10)).lte("date", fechaPart.slice(0,10)) as any;
+      const { data: matches } = await supabaseService.from("Transaction").select("id").match(scope).eq("voucherNumber", parseInt(numero)||0).gte("date", fechaPart.slice(0,10)).lte("date", fechaPart.slice(0,10)) as any;
       if (matches && matches.length>0) {
         idsToUpdate = matches.map((m:any)=>m.id);
         // Si hay múltiples, actualizar todas con la misma descripción/fecha/monto
       } else {
-        // fallback: buscar por fecha y numero sin tenant filter estricto
-        const alt = await supabaseService.from("Transaction").select("id").eq("tenantId", tenant.id).eq("voucher_type", body.voucherType || "EGRESO").eq("voucher_number", parseInt(numero)||0) as any;
+        // fallback: buscar por fecha y numero
+        const alt = await supabaseService.from("Transaction").select("id").match(scope).eq("voucher_type", body.voucherType || "EGRESO").eq("voucher_number", parseInt(numero)||0) as any;
         if (alt.data && alt.data.length>0) idsToUpdate = alt.data.map((m:any)=>m.id);
       }
     }
@@ -125,12 +89,12 @@ export async function PUT(request: NextRequest) {
         functionalAmount: newAmt,
         originalTotal: newAmt,
         updatedAt: new Date().toISOString(),
-      } as any).eq("id", realId).eq("tenantId", tenant.id) as any;
+      } as any).eq("id", realId).match(scope) as any;
       if (txErr) {
         const alt = await supabaseService.from("Transaction").update({
           description, date: date ? new Date(date).toISOString().split('T')[0] : undefined,
           total_amount: newAmt, functional_amount: newAmt, original_total: newAmt,
-        } as any).eq("id", realId).eq("tenant_id", tenant.id) as any;
+        } as any).eq("id", realId).match(scope) as any;
         if (alt.error) throw alt.error;
       }
       // Si vienen entries, recrear solo para ese realId
@@ -142,7 +106,8 @@ export async function PUT(request: NextRequest) {
             id: e.id || undefined,
             transactionId: realId,
             accountId: e.accountId || e.account_id,
-            tenantId: tenant.id,
+            tenantId: empresa.tenantId,
+            company_id: empresa.companyId,
             amount: Math.round(Number(e.amount)),
             originalAmount: Math.round(Number(e.originalAmount || e.amount)),
             currency: e.currency || "HNL",
@@ -167,6 +132,8 @@ export async function PUT(request: NextRequest) {
     }
     return NextResponse.json({ success: true, updated: idsToUpdate.length });
   } catch (e:any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("PUT transaction error", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -174,20 +141,16 @@ export async function PUT(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    // Obtener tenantId del request
-    const tenant = await getTenantFromRequest(request);
-    if (!tenant) {
-      return NextResponse.json(
-        { error: "Tenant no encontrado o no especificado" },
-        { status: 401 }
-      );
+    // Contexto validado (antes `getTenantFromRequest` aceptaba `?tenantId` sin
+    // comprobar pertenencia y `tenant.companyId` era siempre undefined).
+    const empresa = await contextoDeEmpresa(request);
+    if (!empresa.tenantId) {
+      return NextResponse.json({ error: "La empresa no tiene tenant asociado" }, { status: 400 });
     }
 
     const body = await request.json();
-
-    // Merge companyId from query param into body if present
-    // Esto permite que companyId venga por query string y sea usado por createJournalTransaction
-    const mergedBody = body && body.companyId === undefined ? { ...body, companyId: tenant.companyId } : body;
+    // El companyId sale del contexto validado, no del cuerpo del cliente.
+    const mergedBody = body && body.companyId === undefined ? { ...body, companyId: empresa.companyId } : body;
 
     // Validación básica (el servicio revalida a fondo: balance, cuentas, fecha)
     if (!mergedBody || typeof mergedBody !== "object") {
@@ -200,11 +163,11 @@ export async function POST(request: NextRequest) {
       request.headers.get('x-user-email') ||
       'system';
     const { transaction, entries } = await createJournalTransaction(
-      supabaseService,
-      tenant.id,
+      supabaseService as unknown as SupaClient,
+      empresa.tenantId,
       mergedBody,
       { performedBy },
-    );
+    ) as { transaction: any; entries: any[] };
 
     // INTEGRACIóN AUTOMáTICA DE INVENTARIO
     // Cuando se crea una venta (voucherType: INGRESO), reducir automáticamente
@@ -254,7 +217,7 @@ export async function POST(request: NextRequest) {
 
         // Integrar con inventario - crear COGS y reducir stock
         const integrationResult = await integrateSaleWithInventory(
-          tenant.id,
+          empresa.tenantId,
           transaction.id,
           productInfo,
           body.description || 'Venta de productos'
@@ -275,6 +238,8 @@ export async function POST(request: NextRequest) {
       { status: 201 }
     );
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error creating transaction:", error);
     const message = error instanceof Error ? error.message : "Error creating transaction";
     if (

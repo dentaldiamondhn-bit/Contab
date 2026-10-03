@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { fetchPurchases } from '@/lib/purchase-db';
+import { exigirEmpresa, fetchPurchases } from '@/lib/purchase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
+/**
+ * Los cuatro reportes ("summary", "monthly", "category", "supplier") se
+ * calculaban sobre el mismo listado sin empresa: con el `TENANT_ID = '1'` fijo
+ * beneath, los totales de compras de una empresa incluian las de otra.
+ */
 export async function GET(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const reportType = searchParams.get('type') || 'summary';
 
-    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), { companyId });
+    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), empresa, {});
 
     if (error) {
       console.error('Supabase error:', error);
@@ -28,6 +34,8 @@ export async function GET(request: Request) {
         return generateSummaryReport(purchases || []);
     }
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error generating report:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

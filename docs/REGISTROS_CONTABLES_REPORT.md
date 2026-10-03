@@ -185,7 +185,7 @@ _(Ninguna — asientos contables completos)_
 | `lib/period-lock-middleware.ts` | Middleware Prisma **reutilizado** para mensual + anual (delega a `assertPeriodOpenUnified` vía `period_locks`; fallback `GlobalSettings.lastClosedDate` legacy) |
 | `lib/services/period-closing.ts` | Reglas puras `isValidYearMonth` (incluye `0` anual), `isAnnualPeriod`, `assertCloseAllowed` (anual omite previo) |
 | `supabase/PERIOD_LOCKS.sql` | CHECK `month 0-12` (antes `1-12`) — anual usa `month=0` |
-| `components/YearEndClosing.tsx` | Wizard anual legacy (mantenido por compatibilidad) |
+| `components/YearEndClosing.tsx` | **Eliminado (1 Oct 2026)**: wizard anual legacy huerfano, sin importadores y roto; `app/closing` ya usa `ClosingWizard` |
 | `app/closing/page.tsx` | Ahora renderiza `ClosingWizard` (antes `YearEndClosing`); endpoint `/api/closing/*` delegan al candado unificado |
 | `app/companies/[id]/accounting/closing/page.tsx` | Ahora `ClosingWizard` unificado (antes 646 líneas mensuales); legacy guardado como `page.monthly-legacy.tsx` |
 | `app/api/accounting/period-closing/route.ts` | **Endpoint único** `GET/POST/PATCH` (mensual `1-12` + anual `0`): mensual valida secuencia, anual valida 12 meses cerrados |

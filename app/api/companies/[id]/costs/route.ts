@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase as supabaseService } from '@/lib/supabase-db';
+import { tenantFromCompanyId } from '@/lib/tenant-resolver';
 
 export async function GET(
   request: NextRequest,
@@ -7,18 +8,19 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
-    // Obtener companyId de query param para filtrado adicional
-    const { searchParams } = new URL(request.url);
-    const companyIdQuery = searchParams.get('companyId');
+    // El `[id]` de la ruta es el companies.id; las tablas guardan el tenant_id.
+    const tenantId = await tenantFromCompanyId(companyId);
 
     // Costos reales desde la tabla cost_payments del tenant
+    // OJO: en supabase-js `.eq()` devuelve una consulta nueva, hay que reasignar
+    // el resultado. Antes se descartaba, asi que salia sin filtro y devolvia los
+    // costos de TODAS las empresas. Ademas `?companyId` (del cliente) no puede
+    // sustituir al `[id]` de la ruta.
     let costQuery = supabaseService
       .from('cost_payments')
       .select('cost_type, cost_key, amount');
-    if (companyIdQuery) {
-      costQuery.eq('company_id', companyIdQuery);
-    } else {
-      costQuery.eq('tenant_id', companyId);
+    if (tenantId) {
+      costQuery = costQuery.eq('tenant_id', tenantId);
     }
     const { data, error } = await costQuery;
 
@@ -57,6 +59,8 @@ export async function POST(
   try {
     const body = await request.json();
     const { fixed, variable, periodMonth, periodYear } = body;
+    // Los costos se guardan con el tenant_id, no con el companies.id de la ruta.
+    const tenantId = await tenantFromCompanyId(companyId);
 
     if (!fixed || !variable || !periodMonth || !periodYear) {
       return NextResponse.json(
@@ -69,7 +73,7 @@ export async function POST(
 
     Object.entries(fixed).forEach(([key, value]) => {
       rows.push({
-        tenant_id: companyIdQuery || companyId,
+        tenant_id: tenantId || companyId,
         cost_type: 'fixed',
         cost_key: key,
         amount: Number(value) || 0,
@@ -78,7 +82,7 @@ export async function POST(
     });
     Object.entries(variable).forEach(([key, value]) => {
       rows.push({
-        tenant_id: companyIdQuery || companyId,
+        tenant_id: tenantId || companyId,
         cost_type: 'variable',
         cost_key: key,
         amount: Number(value) || 0,

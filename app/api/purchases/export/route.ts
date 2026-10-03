@@ -2,17 +2,24 @@ import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { fetchPurchases } from '@/lib/purchase-db';
+import { exigirEmpresa, fetchPurchases } from '@/lib/purchase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
+/**
+ * La exportacion heredaba la fuga de `fetchPurchases`: pedia las compras con el
+ * `companyId` del cliente y encima recibia de `purchase-db` un listado que venia
+ * filtrado por el `TENANT_ID = '1'` fijo. Es decir, el XLSX podia mezclar filas de
+ * empresas, y el filtro por fecha era el unico que se aplicaba de verdad.
+ */
 export async function GET(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
     const format = searchParams.get('format') || 'excel';
     const startDate = searchParams.get('startDate');
     const endDate = searchParams.get('endDate');
 
-    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), { companyId });
+    const { data: purchases, error } = await fetchPurchases(getSupabaseServer(), empresa, {});
 
     if (error) {
       console.error('Supabase error:', error);
@@ -32,14 +39,16 @@ export async function GET(request: Request) {
       ? `${new Date(startDate).toLocaleDateString()} - ${new Date(endDate).toLocaleDateString()}`
       : 'Todas las fechas';
 
-    return generateExcelReport(filteredPurchases, companyId || 'Todas', dateRange);
+    return generateExcelReport(filteredPurchases, dateRange);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error generating export:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-function generateExcelReport(purchases: any[], companyName: string, dateRange: string) {
+function generateExcelReport(purchases: any[], dateRange: string) {
   // Create workbook
   const wb = XLSX.utils.book_new();
 

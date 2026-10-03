@@ -27,6 +27,13 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  if (specifier === '@/lib/tenant-resolver') {
+    return {
+      url: new URL('./tenant-resolver-mock.mjs', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   if (specifier === '@/lib/services/period-lock') {
     return {
       url: new URL('../../lib/services/period-lock.ts', import.meta.url).href,

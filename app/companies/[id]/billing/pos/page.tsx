@@ -31,7 +31,10 @@ import {
   User,
   Calendar,
   Clock,
-  QrCode
+  QrCode,
+  Mail,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import PaymentLinkGenerator from '@/components/billing/PaymentLinkGenerator';
 
@@ -96,6 +99,15 @@ export default function POSPage() {
   const [showPaymentLink, setShowPaymentLink] = useState(false);
   const [lastInvoiceId, setLastInvoiceId] = useState<string>('');
 
+  // Envio de la factura por correo
+  const [sendEmailChecked, setSendEmailChecked] = useState(false);
+  const [customerEmail, setCustomerEmail] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailMessage, setEmailMessage] = useState('');
+  const [emailSending, setEmailSending] = useState(false);
+  const [lastSentEmail, setLastSentEmail] = useState('');
+  const [emailStatus, setEmailStatus] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const loadCAIInfo = async () => {
     try {
       const response = await fetch(`/api/billing/cai?tenantId=${companyId}`);
@@ -110,10 +122,12 @@ export default function POSPage() {
 
   const loadCustomers = async () => {
     try {
-      const response = await fetch('/api/billing/customers');
+      // companyId: sin esto la ruta cae en el tenant del header y el POS puede
+      // mostrar clientes de otra empresa.
+      const response = await fetch(`/api/billing/customers?companyId=${encodeURIComponent(companyId)}`);
       if (response.ok) {
         const data = await response.json();
-        setCustomers(data || []);
+        setCustomers(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error('Error loading customers:', error);
@@ -122,15 +136,25 @@ export default function POSPage() {
 
   const loadProducts = async () => {
     try {
-      const response = await fetch('/api/billing/products');
+      const response = await fetch(`/api/billing/products?companyId=${encodeURIComponent(companyId)}`);
       if (response.ok) {
         const data = await response.json();
-        setProducts(data || []);
+        setProducts(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Error loading products:', response.status, await response.text());
       }
     } catch (error) {
       console.error('Error loading products:', error);
     }
   };
+
+  // Cargar CAI, clientes y productos al montar. Sin esto la pagina se queda sin
+  // informacion de CAI y los buscadores de cliente/producto salen vacios.
+  useEffect(() => {
+    loadCAIInfo();
+    loadCustomers();
+    loadProducts();
+  }, [companyId]);
 
   // Calcular totales
   const totals = invoiceItems.reduce((acc, item) => {
@@ -206,27 +230,36 @@ export default function POSPage() {
   const selectCustomer = (customer: Customer) => {
     setCustomer(customer);
     setShowCustomerSearch(false);
+    // Prellena el correo con el del cliente seleccionado.
+    if (customer.email) {
+      setCustomerEmail(customer.email);
+    }
   };
 
   // Seleccionar producto
   const selectProduct = (itemId: string, product: any) => {
+    // productId mantiene la linea de la factura ligada al inventario; code es
+    // solo un texto y puede repetirse entre empresas.
+    updateInvoiceItem(itemId, 'productId', product.id);
     updateInvoiceItem(itemId, 'code', product.code);
     updateInvoiceItem(itemId, 'name', product.name);
-    updateInvoiceItem(itemId, 'unitPrice', parseFloat(product.unit_price) || 0);
-    updateInvoiceItem(itemId, 'taxRate', parseFloat(product.tax_rate) || 15);
+    // unit_price ya viene en lempiras (la ruta no divide entre 100).
+    updateInvoiceItem(itemId, 'unitPrice', Number(product.unit_price) || 0);
+    updateInvoiceItem(itemId, 'taxRate', Number(product.tax_rate) || 0);
     setShowProductSearch(null);
   };
 
   // Filtrar clientes
   const filteredCustomers = customers.filter(c => 
-    c.name.toLowerCase().includes(customer.name?.toLowerCase() || '') ||
-    c.rtn.includes(customer.rtn || '')
+    String(c.name || '').toLowerCase().includes(customer.name?.toLowerCase() || '') ||
+    String(c.rtn || '').includes(customer.rtn || '')
   );
 
-  // Filtrar productos
-  const filteredProducts = products.filter(p => 
-    p.code.toLowerCase().includes((showProductSearch?.search || '').toLowerCase()) ||
-    p.name.toLowerCase().includes((showProductSearch?.search || '').toLowerCase())
+  // Filtrar productos (code/name pueden venir null en filas antiguas)
+  const productQuery = (showProductSearch?.search || '').toLowerCase();
+  const filteredProducts = products.filter(p =>
+    String(p.code || '').toLowerCase().includes(productQuery) ||
+    String(p.name || '').toLowerCase().includes(productQuery)
   );
 
   // Validar factura
@@ -235,13 +268,87 @@ export default function POSPage() {
     if (totals.total === 0) return false;
     if (paymentMethod === 'card' && !cardConfirmation) return false;
     if (paymentMethod === 'transfer' && !transferReference) return false;
+    if (sendEmailChecked && !isValidEmail(customerEmail)) return false;
     return true;
+  };
+
+  // Faltantes de inventario, calculado en cliente con los productos ya cargados.
+  // El servidor lo vuelve a comprobar (es la autoridad), esto solo evita gastar
+  // la emision en un 400 y avisa al instante.
+  const stockShortages = () => {
+    const wanted = new Map<string, number>();
+    for (const item of invoiceItems) {
+      if (!item.productId || Number(item.total || 0) <= 0) continue;
+      wanted.set(item.productId, (wanted.get(item.productId) || 0) + Number(item.quantity || 0));
+    }
+    const out: string[] = [];
+    for (const [productId, qty] of wanted) {
+      const product = products.find((p) => String(p.id) === String(productId));
+      if (!product || product.is_service) continue;
+      const available = Number(product.stock ?? 0);
+      if (qty > available) {
+        out.push(`${product.code} ${product.name}: pides ${qty}, hay ${available}`);
+      }
+    }
+    return out;
+  };
+
+  const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || '').trim());
+
+  // Envia la factura recien emitida por correo, con el PDF adjunto.
+  // `recipient` permite reenviar la ultima factura sin depender del campo de texto.
+  const sendInvoiceByEmail = async (invoiceId: string, recipient?: string) => {
+    const target = String(recipient ?? customerEmail).trim();
+    if (!isValidEmail(target)) {
+      setEmailStatus({ type: 'error', text: 'Escribe un correo valido para enviar la factura.' });
+      return false;
+    }
+    setEmailSending(true);
+    setEmailStatus(null);
+    try {
+      const response = await fetch(`/api/billing/invoices/${invoiceId}/send-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: target,
+          companyId,
+          customerName: customer.name,
+          subject: emailSubject,
+          message: emailMessage,
+        }),
+      });
+      const data = await response.json().catch(() => null);
+      if (response.ok && data?.success) {
+        setLastSentEmail(data.sentTo || target);
+        setEmailStatus({
+          type: 'success',
+          text: `Factura enviada a ${data.sentTo} (${data.filename}).`,
+        });
+        setEmailMessage('');
+        setEmailSubject('');
+        return true;
+      }
+      setEmailStatus({ type: 'error', text: data?.error || `Error ${response.status} al enviar el correo.` });
+      return false;
+    } catch (error) {
+      setEmailStatus({ type: 'error', text: 'Error de red al enviar el correo.' });
+      return false;
+    } finally {
+      setEmailSending(false);
+    }
   };
 
   // Emitir factura
   const issueInvoice = async () => {
     if (!canIssueInvoice()) {
       alert('Por favor complete todos los campos obligatorios');
+      return;
+    }
+
+    // Aviso temprano de inventario; el servidor igual lo bloquea.
+    const shortages = stockShortages();
+    if (shortages.length > 0) {
+      alert(`No hay stock suficiente:\n\n${shortages.join('\n')}`);
       return;
     }
 
@@ -253,7 +360,8 @@ export default function POSPage() {
         cai: caiInfo?.cai,
         customer: {
           rtn: customer.rtn,
-          name: customer.name
+          name: customer.name,
+          email: customerEmail.trim() || null
         },
         items: invoiceItems.filter(item => item.name && item.total > 0),
         totals,
@@ -271,19 +379,33 @@ export default function POSPage() {
       if (response.ok) {
         const result = await response.json();
         setLastInvoiceId(result.invoice?.id || '');
-        
+
+        // Envio por correo: se intenta antes de limpiar el formulario, porque
+        // necesita el id de la factura recien creada.
+        if (sendEmailChecked && result.invoice?.id) {
+          await sendInvoiceByEmail(result.invoice.id);
+        }
+
         if (paymentMethod === 'transfer') {
           // Mostrar generador de enlace de pago para transferencias
           setShowPaymentLink(true);
         } else {
-          alert('Factura emitida exitosamente');
+          if (!sendEmailChecked) {
+            alert('Factura emitida exitosamente');
+          }
           // Reset form y recargar CAI para obtener nuevo número
           resetInvoiceForm();
           loadCAIInfo();
+          // El stock ya se descontó: el buscador debe reflejarlo.
+          loadProducts();
         }
       } else {
         const errorData = await response.json();
         console.error('API ERROR:', errorData);
+        // El servidor responde 400 con la lista de faltantes de stock.
+        if (Array.isArray(errorData.shortages) && errorData.shortages.length > 0) {
+          throw new Error(`${errorData.error}\n\n${errorData.shortages.join('\n')}`);
+        }
         throw new Error(errorData.details || errorData.error || 'Error al emitir factura');
       }
     } catch (error: any) {
@@ -301,6 +423,8 @@ export default function POSPage() {
     setCardConfirmation('');
     setTransferReference('');
     setShowPaymentLink(false);
+    // Nueva factura => nuevo destinatario (evita enviarla al cliente anterior).
+    setCustomerEmail('');
   };
 
   return (
@@ -335,6 +459,15 @@ export default function POSPage() {
               )}
               <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/billing/invoices`)}>
                 <FileText className="h-4 w-4 mr-2" /> Ver facturas emitidas
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setEmailStatus(null);
+                  setSendEmailChecked((prev) => !prev);
+                }}
+              >
+                <Mail className="h-4 w-4 mr-2" /> Enviar por correo
               </Button>
               <Button onClick={issueInvoice} disabled={!canIssueInvoice() || loading}>
                 <Receipt className="h-4 w-4 mr-2" />
@@ -474,7 +607,14 @@ export default function POSPage() {
                                   onClick={() => selectProduct(item.id, p)}
                                 >
                                   <div className="font-medium">{p.code} - {p.name}</div>
-                                  <div className="text-sm text-gray-600">L {p.unit_price}</div>
+                                  <div className="text-sm text-gray-600">
+                                    L {p.unit_price}
+                                    {!p.is_service && (
+                                      <span className={Number(p.stock) > 0 ? 'text-gray-500' : 'text-red-600 font-medium'}>
+                                        {' '}· stock: {p.stock ?? 0}
+                                      </span>
+                                    )}
+                                  </div>
                                 </div>
                               ))}
                             </div>
@@ -687,6 +827,100 @@ export default function POSPage() {
           </div>
         </div>
 
+      {/* Panel de envio por correo */}
+      {sendEmailChecked && (
+        <div className="mt-4">
+          <Card className="border-cyan-200">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base flex items-center gap-2">
+                <Mail className="h-4 w-4 text-cyan-600" />
+                Enviar factura por correo
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label htmlFor="customerEmail" className="text-xs">
+                    Correo del cliente *
+                  </Label>
+                  <Input
+                    id="customerEmail"
+                    type="email"
+                    value={customerEmail}
+                    onChange={(e) => {
+                      setCustomerEmail(e.target.value);
+                      setEmailStatus(null);
+                    }}
+                    placeholder="cliente@correo.com"
+                    className={customerEmail && !isValidEmail(customerEmail) ? 'border-red-500' : ''}
+                  />
+                  {customerEmail && !isValidEmail(customerEmail) && (
+                    <p className="text-xs text-red-600">Correo no valido</p>
+                  )}
+                </div>
+
+                <div className="space-y-1">
+                  <Label htmlFor="emailSubject" className="text-xs">
+                    Asunto (opcional)
+                  </Label>
+                  <Input
+                    id="emailSubject"
+                    value={emailSubject}
+                    onChange={(e) => setEmailSubject(e.target.value)}
+                    placeholder="Factura 0001 - Mi Empresa"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="emailMessage" className="text-xs">
+                  Mensaje (opcional)
+                </Label>
+                <Textarea
+                  id="emailMessage"
+                  value={emailMessage}
+                  onChange={(e) => setEmailMessage(e.target.value)}
+                  rows={3}
+                  placeholder="Gracias por su compra. Adjunto su factura."
+                />
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Se adjunta el PDF de la factura. El correo se envia al emitir la factura.
+              </p>
+
+              {emailStatus && (
+                <div
+                  className={`flex items-start gap-2 p-3 rounded-lg text-sm ${
+                    emailStatus.type === 'success'
+                      ? 'bg-green-50 text-green-800 border border-green-200'
+                      : 'bg-red-50 text-red-800 border border-red-200'
+                  }`}
+                >
+                  {emailStatus.type === 'success' ? (
+                    <CheckCircle2 className="h-4 w-4 mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  )}
+                  <span>{emailStatus.text}</span>
+                </div>
+              )}
+
+              {lastInvoiceId && lastSentEmail && !emailSending && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => sendInvoiceByEmail(lastInvoiceId, lastSentEmail)}
+                >
+                  <Mail className="h-4 w-4 mr-2" />
+                  Reenviar a {lastSentEmail}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Payment Link Generator Modal */}
       {showPaymentLink && lastInvoiceId && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -703,6 +937,7 @@ export default function POSPage() {
                 invoiceNumber={generateInvoiceNumber()}
                 totalAmount={totals.total}
                 currency="HNL"
+                companyId={companyId}
                 onPaymentCompleted={() => {
                   setShowPaymentLink(false);
                   resetInvoiceForm();

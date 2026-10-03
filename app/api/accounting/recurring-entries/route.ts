@@ -1,16 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
 
-function getTenantId(request: NextRequest) {
-  return request.headers.get("x-tenant-id") ||
-    new URL(request.url).searchParams.get("tenantId");
+// `recurring_entries` aun no tiene `company_id` (no esta en la migracion 038),
+// asi que solo se puede aislar por tenant. Se valida el contexto contra la
+// sesion para que ya no se acepte un `?tenantId` de otra empresa.
+async function tenantDeContexto(request: NextRequest): Promise<string> {
+  const empresa = await contextoDeEmpresa(request);
+  if (!empresa.tenantId) throw new Error("La empresa no tiene tenant asociado");
+  return empresa.tenantId;
 }
 
 // GET - Listar asientos recurrentes
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const tenantId = await tenantDeContexto(request);
 
     const { data, error } = await supabaseService
       .from("recurring_entries")
@@ -21,6 +25,8 @@ export async function GET(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json(data || []);
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("GET recurring entries error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -29,8 +35,7 @@ export async function GET(request: NextRequest) {
 // POST - Crear asiento recurrente
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const tenantId = await tenantDeContexto(request);
 
     const body = await request.json();
     const { name, description, voucher_type, frequency, next_execution, entries } = body;
@@ -57,6 +62,8 @@ export async function POST(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json(data, { status: 201 });
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("POST recurring entry error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -65,8 +72,7 @@ export async function POST(request: NextRequest) {
 // PUT - Actualizar asiento recurrente
 export async function PUT(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const tenantId = await tenantDeContexto(request);
 
     const body = await request.json();
     const { id, ...updates } = body;
@@ -93,6 +99,8 @@ export async function PUT(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json(data);
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("PUT recurring entry error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
@@ -101,8 +109,7 @@ export async function PUT(request: NextRequest) {
 // DELETE - Eliminar asiento recurrente
 export async function DELETE(request: NextRequest) {
   try {
-    const tenantId = getTenantId(request);
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const tenantId = await tenantDeContexto(request);
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
@@ -117,6 +124,8 @@ export async function DELETE(request: NextRequest) {
     if (error) throw error;
     return NextResponse.json({ success: true });
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("DELETE recurring entry error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

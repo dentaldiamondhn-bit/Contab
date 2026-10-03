@@ -1,53 +1,54 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-
 const supabase = getSupabaseServer();
 
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error: devuelve 0 filas, y estas pantallas
+  // salian vacias sin avisar. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
   const { searchParams } = new URL(request.url);
   const start = searchParams.get('start');
   const end = searchParams.get('end');
-
   if (!start || !end) {
     return NextResponse.json({ error: 'start and end dates required' }, { status: 400 });
   }
 
   try {
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     const [attendanceRes, employeesRes, holidaysRes] = await Promise.all([
       supabase
         .from('attendance')
         .select('*')
-        .eq('tenant_id', companyId)
+        .eq("tenant_id", empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa))
         .gte('date', start)
         .lte('date', end)
         .order('date', { ascending: true }),
       supabase
         .from('employees')
         .select('employee_id, first_name, last_name, position, department, base_salary, status')
-        .eq('tenant_id', companyId)
+      .match(filtroEmpresaOCompany(empresa))
         .eq('status', 'active'),
       supabase
         .from('attendance_holidays')
         .select('*')
-        .eq('tenant_id', companyId)
+        .eq("tenant_id", empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa))
         .gte('date', start)
         .lte('date', end),
     ]);
-
     const records = attendanceRes.data || [];
     const employees = employeesRes.data || [];
     const holidays = holidaysRes.data || [];
-
     const totalActiveEmployees = employees.length;
-
     // Status counts
     const statusCounts: Record<string, number> = {};
     records.forEach(r => {
       statusCounts[r.status] = (statusCounts[r.status] || 0) + 1;
     });
-
     // Daily trend
     const dailyMap: Record<string, { present: number; absent: number; late: number; vacation: number; overtime: number; total: number }> = {};
     records.forEach(r => {
@@ -59,7 +60,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       else if (r.status === 'vacation') dailyMap[r.date].vacation++;
       if (r.overtime_hours > 0) dailyMap[r.date].overtime += r.overtime_hours;
     });
-
     const dailyTrend = Object.entries(dailyMap).map(([date, d]) => ({
       date,
       present: d.present,
@@ -69,7 +69,6 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       attendanceRate: d.total > 0 ? Math.round(((d.present + d.late) / d.total) * 100) : 0,
       overtimeHours: Math.round(d.overtime * 100) / 100,
     }));
-
     // Employee ranking (most absences)
     const empAbsences: Record<string, { name: string; department: string; absences: number; tardies: number; vacations: number; overtimeHours: number; totalDeductions: number }> = {};
     employees.forEach(e => {
@@ -92,26 +91,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         empAbsences[r.employee_id].totalDeductions += r.amount || 0;
       }
     });
-
     const employeeRanking = Object.entries(empAbsences)
       .map(([id, data]) => ({ employeeId: id, ...data }))
       .sort((a, b) => b.absences - a.absences);
-
     // Overtime summary
     const overtimeRecords = records.filter(r => r.overtime_hours > 0);
     const totalOvertimeHours = overtimeRecords.reduce((sum, r) => sum + (r.overtime_hours || 0), 0);
     const totalOvertimePay = overtimeRecords.reduce((sum, r) => sum + (r.overtime_amount || 0), 0);
-
     // Disability summary
     const disabilityCounts: Record<string, number> = {};
     records.filter(r => r.disability_type).forEach(r => {
       disabilityCounts[r.disability_type] = (disabilityCounts[r.disability_type] || 0) + 1;
     });
-
     // Totals
     const totalDeductions = records.reduce((sum, r) => sum + (r.amount || 0), 0);
     const totalOvertimeIncome = records.reduce((sum, r) => sum + (r.overtime_amount || 0), 0);
-
     // Overall attendance rate
     const totalRecords = records.length;
     const presentLike = (statusCounts['present'] || 0) + (statusCounts['late'] || 0);
@@ -141,6 +135,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       dateRange: { start, end },
     });
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Attendance report error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

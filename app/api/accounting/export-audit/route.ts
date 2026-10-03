@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { exportAuditLogsToPDF, exportAuditLogsToExcel } from "@/lib/services/audit-export-service";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
 
 /**
  * GET /api/accounting/export-audit?period=YYYY-MM&type=pdf|excel
@@ -15,11 +16,14 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const period = searchParams.get("period") || new Date().toISOString().slice(0, 7);
-    const tenantId = searchParams.get("tenantId") || request.headers.get("x-tenant-id");
     const exportType = searchParams.get("type") || "pdf";
 
+    // Contexto validado (antes `?tenantId` del cliente no se comprobaba).
+    // `audit_log` se aisla por tenant; el company_id no esta confirmado.
+    const empresa = await contextoDeEmpresa(request);
+    const tenantId = empresa.tenantId;
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
+      return NextResponse.json({ error: "La empresa no tiene tenant asociado" }, { status: 400 });
     }
 
     // Validar formato de período
@@ -79,6 +83,8 @@ export async function GET(request: NextRequest) {
       });
     }
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error exporting audit logs:", error);
     return NextResponse.json({ error: 'Error al generar el reporte' }, { status: 500 });
   }

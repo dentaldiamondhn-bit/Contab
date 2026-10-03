@@ -7,11 +7,13 @@ export const mockState = {
   transfers: [],
   transfer: null,
   variations: null,
+  locationCounts: new Map(),
   calls: {
     listWh: [],
     createWh: [],
     updateWh: [],
     stock: [],
+    locationCounts: [],
     listTr: [],
     getTr: [],
     createTr: [],
@@ -27,11 +29,13 @@ export function resetWarehouseMock() {
   mockState.transfers = [];
   mockState.transfer = null;
   mockState.variations = null;
+  mockState.locationCounts = new Map();
   mockState.calls = {
     listWh: [],
     createWh: [],
     updateWh: [],
     stock: [],
+    locationCounts: [],
     listTr: [],
     getTr: [],
     createTr: [],
@@ -84,6 +88,18 @@ export async function updateWarehouse(companyId, warehouseId, patch, tenantHint)
 export async function getWarehouseStock(companyId, tenantHint, opts) {
   mockState.calls.stock.push({ companyId, tenantHint, opts });
   return mockState.stock;
+}
+
+/**
+ * `app/api/companies/[id]/inventory/stock/route.ts` lo importa junto a
+ * `getWarehouseStock`. Faltaba aqui y hacia que TODO el archivo de pruebas
+ * reventara al importar ("does not provide an export named ..."), lo que ademas
+ * detenia la cadena `npm test` con `&&` y dejaba sin ejecutar las 5 suites
+ * siguientes sin que se notase.
+ */
+export async function getWarehouseLocationCounts(companyId, tenantHint) {
+  mockState.calls.locationCounts.push({ companyId, tenantHint });
+  return mockState.locationCounts;
 }
 
 export async function listTransfers(companyId, tenantHint, opts) {

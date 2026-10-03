@@ -73,7 +73,7 @@ export default function PeriodClosingPage() {
   const fetchPeriods = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/accounting/period-closing?year=${selectedYear}&tenantId=${encodeURIComponent(companyId)}`, { headers: { "x-tenant-id": companyId } });
+      const res = await fetch(`/api/accounting/period-closing?year=${selectedYear}&companyId=${encodeURIComponent(companyId)}`, { headers: { "x-company-id": companyId } });
       const data = await res.json();
       if (res.ok && data?.periods) { setPeriods(data.periods || []); setYears(data.years || [selectedYear]); }
       else if (data?.error) console.error("fetchPeriods error:", data.error);
@@ -84,7 +84,7 @@ export default function PeriodClosingPage() {
   const fetchPeriodDetails = useCallback(async (year: number, month: number) => {
     setLoadingDetail(true);
     try {
-      const res = await fetch(`/api/accounting/period-closing?year=${year}&month=${month}&tenantId=${encodeURIComponent(companyId)}`, { headers: { "x-tenant-id": companyId } });
+      const res = await fetch(`/api/accounting/period-closing?year=${year}&month=${month}&companyId=${encodeURIComponent(companyId)}`, { headers: { "x-company-id": companyId } });
       const data = await res.json();
       if (res.ok && data.details) setPeriodDetails(data.details);
       else if (data?.error) console.error("fetchPeriodDetails error:", data.error);
@@ -105,8 +105,8 @@ export default function PeriodClosingPage() {
 
   const handleCloseMonth = async () => {
     try {
-      const res = await fetch("/api/accounting/period-closing", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-tenant-id": companyId },
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-company-id": companyId },
         body: JSON.stringify({ year: selectedYear, month: selectedMonth, notes: closeNotes }),
       });
       let data: any = null;
@@ -120,8 +120,8 @@ export default function PeriodClosingPage() {
 
   const handleReopenMonth = async () => {
     try {
-      const res = await fetch("/api/accounting/period-closing", {
-        method: "PATCH", headers: { "Content-Type": "application/json", "x-tenant-id": companyId },
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
+        method: "PATCH", headers: { "Content-Type": "application/json", "x-company-id": companyId },
         body: JSON.stringify({ year: selectedYear, month: selectedMonth, reason: reopenReason }),
       });
       const data = await res.json();
@@ -135,8 +135,8 @@ export default function PeriodClosingPage() {
   const handleCloseAll = async () => {
     if (!selectedPeriod || !selectedPeriod.can_close) return;
     try {
-      const res = await fetch("/api/accounting/period-closing", {
-        method: "POST", headers: { "Content-Type": "application/json", "x-tenant-id": companyId },
+      const res = await fetch(`/api/accounting/period-closing?companyId=${encodeURIComponent(companyId)}`, {
+        method: "POST", headers: { "Content-Type": "application/json", "x-company-id": companyId },
         body: JSON.stringify({ year: selectedYear, month: selectedMonth, notes: "Cierre completo", action: "close-all" }),
       });
       const data = await res.json();

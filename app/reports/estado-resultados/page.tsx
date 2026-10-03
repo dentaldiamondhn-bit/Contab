@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useWorkspace } from "@/lib/contexts/WorkspaceContext";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Table, TableHeader, TableBody, TableHead, TableRow, TableCell } from "@/components/ui/table";
@@ -9,22 +10,36 @@ import { FileText, Download, Printer, TrendingUp, TrendingDown } from "lucide-re
 
 export default function EstadoResultadosPage() {
   const { currentTenant } = useTenant();
+  // La empresa, no el tenant: el reporte va por `company_id`, que es lo que
+  // separa a "test 1" de "test 2" dentro del mismo tenant TEST1DS.
+  const { empresa } = useWorkspace();
   const [data, setData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!currentTenant?.id) return;
+    // Al cambiar de empresa se descarta el dataset anterior ANTES de pedir el
+    // nuevo: si no, la tabla ensena filas de la empresa previa mientras carga.
+    setData([]);
+    if (!empresa?.id) {
+      setLoading(false);
+      return;
+    }
+    let cancelado = false;
     const fetchData = async () => {
       setLoading(true);
       try {
-        const res = await fetch(`/api/reports/estado-resultados?tenantId=${currentTenant.id}`);
+        const res = await fetch(`/api/reports/estado-resultados?companyId=${empresa.id}`);
         const json = await res.json();
-        setData(json.data || []);
-      } catch { setData([]); }
-      setLoading(false);
+        if (!cancelado) setData(json.data || []);
+      } catch {
+        if (!cancelado) setData([]);
+      } finally {
+        if (!cancelado) setLoading(false);
+      }
     };
-    fetchData();
-  }, [currentTenant?.id]);
+    void fetchData();
+    return () => { cancelado = true; };
+  }, [empresa?.id]);
 
   const ingresos = data.filter((a) => a.type === "REVENUE");
   const gastos = data.filter((a) => a.type === "EXPENSE");

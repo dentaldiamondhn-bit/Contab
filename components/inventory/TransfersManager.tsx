@@ -113,7 +113,10 @@ export default function TransfersManager({ companyId }: { companyId: string }) {
       const [trRes, whRes, prodRes] = await Promise.all([
         fetch(`${base}${statusFilter !== 'all' ? `?status=${statusFilter}` : ''}`),
         fetch(`/api/companies/${companyId}/inventory/warehouses`),
-        fetch(`/api/inventory/products?tenantId=${encodeURIComponent(companyId)}`),
+        // `companyId`, no `tenantId`: `contextoDeEmpresa` solo lee `companyId`, asi que
+        // con `tenantId` la empresa volvia null y la consulta caia a filtrar solo
+        // por tenant, mostrando los productos de la empresa hermana.
+        fetch(`/api/inventory/products?companyId=${encodeURIComponent(companyId)}`),
       ]);
       const trBody = await trRes.json();
       if (!trRes.ok || !trBody.success) throw new Error(trBody?.error || 'Error al cargar traslados');

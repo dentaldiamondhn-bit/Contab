@@ -299,3 +299,59 @@ Etapa 1 (Consolidación + PDF)
 | Libro de Ventas automático desde contabilidad | `lib/reports/sales-book.ts` (clasificación VENTA/INGRESO/IMPUESTO/OTRO, transform + grouping desde trial-balance del mes/año, formato Excel es-HN) + integración en `app/companies/[id]/reports/sales-book/page.tsx` con toggle fuente **Manual/Automática** y exportación a Excel; la vista manual (`app/api/reports/libro-ventas`, CSV/PDF) se mantiene intacta (22 Sept 2026) |
 | CAI y facturación conectados a datos reales | `app/api/billing/cai/[id]/route.ts`, `app/api/billing/cai/list/route.ts`, `app/api/admin/billing/cai/route.ts`, `app/api/admin/billing/cai/current/route.ts` y `app/api/admin/billing/invoices/route.ts` + `sync-config.ts` devuelven agregados reales de la base de datos (sin cifras fabricadas de demo); mismo cambio en companies/cash flow/costos/KPIs/revisiones legales — commit `fcc8534` (23 Sept 2026). Ver también `docs/CONTROL_FINANCIERO_REPORT.md` §2.5 |
 | Alineación de fechas en libros | `app/api/accounting/trial-balance/route.ts` incluye la última fecha de movimiento por cuenta y el libro de ventas la muestra en vez de `'-'` (fix `af42c46`, 23 Sept 2026) |
+
+---
+
+## Actualizacion 28 Sept 2026 — Correlativo, aislamiento por empresa y correos
+
+Esta seccion refleja el estado verificado hoy; las tablas de arriba quedaron desactualizadas.
+
+### Correlativo de factura (corregido)
+El POS generaba el numero **en el navegador** desde el CAI activo, asi que una empresa sin
+CAI con facturas `00000006..00000008` proponia `00000001` en cada venta y el servidor lo
+aceptaba. Ademas la busqueda del "ultimo numero" era global.
+
+- `lib/billing/invoice-number.ts` (nuevo): `previewInvoiceNumber` y
+  `reserveInvoiceNumber(tenantId, { suelo })`. El correlativo sale de la ultima factura de
+  **esa misma empresa** y el prefijo se copia de esa factura. Con CAI vigente manda el rango.
+- `app/api/billing/invoices/route.ts`: ignora el numero del cliente, hasta 8 intentos con
+  50 ms de espera. El CAI agotado responde `400` con `code: 'CAI_AGOTADO'` y no crea factura.
+- `app/api/billing/cai/route.ts`: el GET ya no inventa `currentNumber: 1`.
+- `022_invoice_number_unique_per_tenant.sql` (**aplicada**): la unicidad paso de global a
+  `UNIQUE("tenantId", "invoiceNumber")`, que es lo que corresponde a una numeracion fiscal
+  por emisor.
+- **24 pruebas contra la BD real, todas en verde**: 5 facturas seguidas sin huecos ni
+  repeticiones, 8 emisiones simultaneas con correlativos 14..21 sin repetir, rango de CAI
+  respetado, CAI agotado sin avanzar `current_number`, y serie independiente por empresa.
+
+### Aislamiento por empresa (corregido)
+`app/api/billing/{products,customers,bank-accounts,cai}` usaban `tenant_id: "1"` fijo: **el
+POS de cualquier empresa listaba los productos, clientes y cuentas de la empresa 1**. Ahora
+todas usan `resolveTenant()` y devuelven 400 sin tenant.
+- `app/api/billing/payment-links/route.ts` y `payment-receipts/route.ts`: estaban **muertas
+  desde siempre** (`PGRST205`, buscaban `PaymentLink` en vez de `paymentlink`) y el update del
+  enlace era solo por `id`, sin filtro de tenant (**IDOR**: una empresa cerraba el enlace de
+  pago de otra). Reescritas contra el esquema real, con validacion de tenant, sin `*100`, y
+  con `resolveAccountId` en el asiento.
+- `app/api/accounting/{financial-ratios,voucher-number}/route.ts`: el `|| '1'` hacia el
+  `if (!tenantId)` codigo muerto, asi que los ratios de cualquier empresa se calcularban con
+  los datos de la empresa 1. **16 pruebas en verde.**
+
+### Otros
+- **Correo de factura**: `lib/email/send.ts` (Resend) + `lib/email/invoice-email.ts` +
+  `app/api/billing/invoices/[id]/send-email/route.ts`, con el mismo PDF real del modulo de
+  documentos. **19 pruebas en verde.** Falta `RESEND_API_KEY`.
+- **Descuento de stock al emitir**: `lib/services/stock-sale.ts`, con actualizacion optimista
+  e idempotencia por factura. **24 pruebas en verde.** Ojo: `product.current_stock` es la
+  fuente real; `stock_quantity` es un espejo que **no** se sincroniza al vender.
+- Facturas sin lineas: la ruta las rechazaba mal y dejo `00000007` con subtotal 40 y cero
+  `InvoiceItem`. Ahora valida las lineas antes de insertar y calcula el impuesto si el POS no
+  lo manda.
+
+### Pendiente
+- `app/api/billing/invoices/route.ts` manda los importes **x100** a `postSalesJournal()`
+  aunque las facturas estan en lempiras.
+- El asiento de cobros asume venta original a credito.
+- `bankaccount` solo tiene 2 filas (tenant `1`), asi que el selector de cuentas del POS sale
+  vacio para las demas empresas; `Account` solo tiene `1101-01`/`1103.01` y solo para
+  ANGELOH7.

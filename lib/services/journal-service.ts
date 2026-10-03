@@ -174,7 +174,11 @@ export async function createJournalTransaction(
   const dateIso = parsed.toISOString();
 
   // Candado unificado: mes cerrado/bloqueado o año cerrado (month=0) rechaza movimientos.
-  await assertPeriodOpenUnified(client, tenantId, dateIso);
+  // Se pasa companyId (que ya viene en `input`) porque el cierre es por empresa:
+  // con solo tenant, el candado de test 2 bloquearía a test 1.
+  await assertPeriodOpenUnified(client, tenantId, dateIso, {
+    companyId: input.companyId || null,
+  });
 
   const voucherNumber = await getNextVoucherNumber(client, tenantId, voucherType);
   const currency = input.currency || 'HNL';

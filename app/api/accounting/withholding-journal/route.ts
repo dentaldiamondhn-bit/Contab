@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase as supabaseService } from '@/lib/supabase-db';
-import { createJournalTransaction } from '@/lib/services/journal-service';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresaOCompany } from '@/lib/company-scope';
+import { createJournalTransaction, type SupaClient } from '@/lib/services/journal-service';
 import { getWithholdingById, type Withholding } from '@/lib/services/withholding-service';
 import {
   buildWithholdingJournalEntry,
@@ -11,19 +13,9 @@ import {
   type WithholdingEntryItem,
 } from '@/lib/services/withholding-entries';
 
-function getTenantId(request: NextRequest, bodyTenant?: string): string | null {
-  const fromHeader = request.headers.get('x-tenant-id');
-  if (fromHeader && fromHeader.trim()) return fromHeader.trim();
-  const fromQuery = new URL(request.url).searchParams.get('tenantId');
-  if (fromQuery && fromQuery.trim()) return fromQuery.trim();
-  if (bodyTenant && bodyTenant.trim()) return bodyTenant.trim();
-  return null;
-}
-
 async function findExistingEntry(
-  tenantId: string,
-  withholdingId: string,
-  companyCol: string
+  scope: Record<string, string>,
+  withholdingId: string
 ): Promise<{ transaction: any; error: any } | null> {
   const tag = withholdingJournalTag(withholdingId);
   const query = (supabaseService as any)
@@ -31,7 +23,7 @@ async function findExistingEntry(
     .select(
       `id, date, voucherNumber, description, JournalEntry ( id, accountId, amount, type, Account ( code, name ) )`
     )
-    .eq(companyCol, tenantId)
+    .match(scope)
     .ilike('description', `%${tag}%`)
     .order('date', { ascending: false })
     .limit(1);
@@ -41,13 +33,10 @@ async function findExistingEntry(
 }
 
 async function loadExistingEntry(
-  tenantId: string,
+  scope: Record<string, string>,
   withholdingId: string
 ): Promise<{ transaction: any } | null> {
-  const camel = await findExistingEntry(tenantId, withholdingId, 'tenantId');
-  if (camel) return camel;
-  const snake = await findExistingEntry(tenantId, withholdingId, 'tenant_id');
-  return snake;
+  return findExistingEntry(scope, withholdingId);
 }
 
 function toJournalEntryPayload(transaction: any, balanceado: boolean) {
@@ -76,20 +65,15 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const withholdingId = searchParams.get('withholdingId');
-    const tenantId = getTenantId(request, searchParams.get('tenantId') || undefined);
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
     if (!withholdingId) {
       return NextResponse.json(
         { ok: false, error: 'withholdingId es requerido' },
         { status: 400 }
       );
     }
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, error: 'Tenant no encontrado o no especificado' },
-        { status: 401 }
-      );
-    }
-    const existing = await loadExistingEntry(tenantId, withholdingId);
+    const existing = await loadExistingEntry(scope, withholdingId);
     if (!existing) {
       return NextResponse.json({ ok: true, hasEntry: false });
     }
@@ -99,6 +83,8 @@ export async function GET(request: NextRequest) {
       journalEntry: toJournalEntryPayload(existing.transaction, true),
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error consultando asiento de retención:', error);
     return NextResponse.json(
       { ok: false, error: 'Error interno del servidor' },
@@ -110,18 +96,22 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
-    const tenantId = getTenantId(request, body?.tenantId);
     const withholdingId = body?.withholdingId;
+    const empresa = await contextoDeEmpresa(request, {
+      companyIdDeRuta: body?.companyId || undefined,
+    });
+    const scope = filtroEmpresaOCompany(empresa);
+    const tenantId = empresa.tenantId;
+    if (!tenantId) {
+      return NextResponse.json(
+        { ok: false, error: 'La empresa no tiene tenant asociado' },
+        { status: 400 }
+      );
+    }
     if (!withholdingId) {
       return NextResponse.json(
         { ok: false, error: 'withholdingId es requerido' },
         { status: 400 }
-      );
-    }
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, error: 'Tenant no encontrado o no especificado' },
-        { status: 401 }
       );
     }
 
@@ -133,7 +123,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const existing = await loadExistingEntry(tenantId, String(withholdingId));
+    const existing = await loadExistingEntry(scope, String(withholdingId));
     if (existing) {
       return NextResponse.json(
         {
@@ -147,7 +137,7 @@ export async function POST(request: NextRequest) {
 
     const item: WithholdingEntryItem = await buildWithholdingJournalEntry(retencion, {
       tenantId,
-      companyId: body?.companyId || undefined,
+      companyId: empresa.companyId || undefined,
     });
 
     const { expense, liability } = await resolveWithholdingAccounts(
@@ -173,7 +163,7 @@ export async function POST(request: NextRequest) {
       'system';
 
 const { transaction, entries } = await createJournalTransaction(
-      supabaseService,
+      supabaseService as unknown as SupaClient,
       tenantId,
       {
         description: withholdingJournalDescription(retencion, String(withholdingId)),
@@ -194,7 +184,7 @@ const { transaction, entries } = await createJournalTransaction(
             description: `Retención ${item.tasa * 100}% por pagar`,
           },
         ],
-        companyId: body?.companyId || undefined,
+        companyId: empresa.companyId || undefined,
       },
       { performedBy }
     );
@@ -224,6 +214,8 @@ const { transaction, entries } = await createJournalTransaction(
 
     return NextResponse.json({ ok: true, journalEntry, balanceado: true });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error generando asiento de retención:', error);
     const message = (error as Error)?.message || 'Error desconocido';
     const hasAccountsHint = /cuenta|account|tenant/i.test(message);

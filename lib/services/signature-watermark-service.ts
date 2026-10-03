@@ -154,9 +154,9 @@ async function processSignatureWithWatermark(signatureId: string) {
     // 6. Dibujar la firma con watermark criptográfico
     // La watermark es un hash que incluye:
     // - ID de la firma
-    - timestamp
-    - tenantId
-    - esto hace que la firma sea ÚNICA y no reutilizable
+    // - timestamp
+    // - tenantId
+    // - esto hace que la firma sea ÚNICA y no reutilizable
 
     const watermarkText = `CONTAB-SIG-${signatureId}-${new Date().getTime()}-${signatureId.tenantId || 'unknown'}`;
 

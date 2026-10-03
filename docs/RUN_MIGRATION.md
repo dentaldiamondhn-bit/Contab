@@ -1,8 +1,46 @@
 # Cómo Ejecutar la Migración SQL en Windows
 
-> **Actualizado:** 18 de Septiembre de 2026
+> **Actualizado:** 28 de Septiembre de 2026
 
 > ⚠️ **VÍA RECOMENDADA — SQL Editor de Supabase.** No hay acceso DDL directo: la conexión directa a `db.<ref>.supabase.co:5432` falla con `getaddrinfo ENOTFOUND`. Las migraciones DDL **se aplican vía SQL Editor de Supabase**, no con `prisma migrate` ni `psql` contra el host directo.
+>
+> ℹ️ **`DATABASE_URL` sí está** en `.env.local` (línea 10). La credencial existe y es correcta; lo que falla es el **DNS**: solo resuelve el host de la API, no `db.<ref>.supabase.co` ni los `*.pooler.supabase.com`. No deduzcas de un `pg.connect()` fallido que falta la contraseña. Tampoco hay `SUPABASE_ACCESS_TOKEN` (Management API), ni CLI de supabase con sesión, ni ninguna función `exec_sql` en la BD: **el asistente no puede aplicar DDL, hay que hacerlo a mano aquí**.
+>
+> 💡 **El SQL Editor envuelve el script en una transacción.** Si algo falla a mitad, se revierte entero: no quedan columnas a medias ni hay que limpiar. Pero **lee los `RAISE NOTICE` del final** antes de cerrar la pestaña, que es donde la migración informa cuántas filas quedaron sin atribuir y de qué tenants.
+>
+> 🔍 **Para comprobar si una migración quedó aplicada sin abrir la BD:** `node scripts/verificar-aislamiento.mjs` — solo lectura, va por PostgREST, y da `TODO OK` cuando la 023 está en su sitio.
+
+## Estado de las migraciones
+
+| Migración | Estado | Qué hizo |
+|---|---|---|
+| `022_invoice_number_unique_per_tenant.sql` | ✅ aplicada | `UNIQUE("tenantId","invoiceNumber")` por tenant, no global |
+| `023_company_level_isolation.sql` | ✅ aplicada 28 Sept 2026 | Añade `company_id` a las tablas que no lo tenían, normaliza los códigos de tenant a `text`, rellena las filas huérfanas con la empresa más antigua del tenant, y pone un trigger `BEFORE INSERT` para que las filas nuevas hereden `company_id` |
+| `024_roles_context_and_locations.sql` | ✅ aplicada 28 Sept 2026 | Crea `company_location` (la sede) y `user_company_access` (la membresía usuario↔empresa), y hace el backfill desde `User.tenantid`. `relationship='owner'` si el tenant tiene 1 empresa, `'accountant'` si tiene N: es la traducción directa de los dos flujos del onboarding |
+| `024b_sedes_y_bodegas.sql` | ✅ aplicada 28 Sept 2026 | Opcional. Crea la sede `PRINCIPAL` por empresa y enlaza `warehouse.location_id`. Solo enlaza si la empresa tiene **una** sede, porque con dos no hay forma de saber a cuál va cada bodega |
+| `025_company_id_restantes.sql` | ✅ aplicada 28 Sept 2026 | `company_id` en todo lo que tuviera `tenant_id`, descubierto con `information_schema`. Subió de 54 a 98 tablas. Salta las vistas por `pg_class.relkind`, con aviso |
+| `026_location_id_transacciones.sql` | ✅ aplicada 28 Sept 2026 | `location_id` en las transaccionales, con trigger `trg_fill_location` que hereda la sede por defecto. Solo en tablas que ya tenían `company_id` |
+
+> ⚠️ **Pendiente: la 027.** 42 relaciones sin `company_id` son **vistas**, y son
+> justamente los libros contables (`libro_ventas`, `libro_mayor`, `balance_general`,
+> `balanza_comprobacion`, `estado_resultados`). Una vista no admite `ADD COLUMN`, así
+> que la 025 las saltó. Se leen de tablas ya aisladas pero **no filtran por
+> `company_id`**: un reporte puede seguir mostrando datos de varias empresas.
+> **Bloquea la vista consolidada del Empresario.**
+
+> ⚠️ **Pendiente de decidir:**
+> - Quedan **8 cuentas** sin `company_id`, de tenants que no existen en `companies`.
+> - **`Empresa 1` (tenant `'1'`) no tiene membresía**: ningún usuario tiene ese
+>   `tenantid`, así que es inalcanzable desde la UI. Darle dueño o borrarla.
+> - **51 tablas** sin `company_id` (las que no tenían `tenant_id`):
+>   `AccountReceivable`, `BookClosing`, `Reconciliation`, `payment_vouchers`,
+>   `asset_*`, `itr_produccion`, `budget_lines`…
+
+> 🔍 **Comprobar:**
+> ```bash
+> node scripts/verificar-aislamiento.mjs   # company_id y cruce entre empresas
+> node scripts/verificar-contexto.mjs       # sedes, membresía, location_id
+> ```
 
 > **Node portable del proyecto:** `C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64`. Para scripts usa `& "ruta\node.exe" script.js`. `pnpm.ps1` está bloqueado en Windows; usar `pnpm.cmd`.
 

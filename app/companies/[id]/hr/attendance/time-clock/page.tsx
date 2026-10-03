@@ -125,7 +125,7 @@ export default function TimeClockPage() {
 
   const [currentUser, setCurrentUser] = useState<Employee | null>(null);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [teams, setTeams] = useState<Team[]>([]);
+  const [teams] = useState<Team[]>([]);
   const [allTimeTracking, setAllTimeTracking] = useState<Record<string, TimeEntry[]>>({});
   const [selectedEmployee, setSelectedEmployee] = useState('');
   const [todayEntries, setTodayEntries] = useState<TimeEntry[]>([]);
@@ -154,10 +154,9 @@ export default function TimeClockPage() {
       } catch { return null; }
     };
 
-    const [empData, ttData, teamData, scheduleData] = await Promise.all([
+    const [empData, ttData, scheduleData] = await Promise.all([
       safeFetch(`/api/companies/${companyId}/employees?fields=id,first_name,last_name,position_id,department,status,schedule_entry,schedule_exit,role,reports_to,work_schedule_id`),
       safeFetch(`/api/companies/${companyId}/hr/attendance/time-tracking?date=${today}`),
-      safeFetch(`/api/companies/${companyId}/hr/teams`),
       safeFetch(`/api/companies/${companyId}/hr/work-schedules`),
     ]);
 
@@ -195,7 +194,6 @@ export default function TimeClockPage() {
       setAllTimeTracking(grouped);
     }
 
-    if (teamData && Array.isArray(teamData)) setTeams(teamData);
     if (scheduleData && Array.isArray(scheduleData)) setWorkSchedules(scheduleData);
     setLoading(false);
   }, [companyId, today]);

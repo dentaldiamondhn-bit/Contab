@@ -56,6 +56,8 @@ interface PaymentLinkGeneratorProps {
   invoiceNumber: string;
   totalAmount: number;
   currency: 'HNL' | 'USD';
+  /** Id de la empresa. Sin esto las cuentas bancarias salen del header del middleware. */
+  companyId?: string;
   onPaymentCompleted?: (paymentLink: PaymentLink) => void;
 }
 
@@ -64,6 +66,7 @@ export default function PaymentLinkGenerator({
   invoiceNumber,
   totalAmount,
   currency,
+  companyId,
   onPaymentCompleted
 }: PaymentLinkGeneratorProps) {
   const [bankAccounts, setBankAccounts] = useState<BankAccount[]>([]);
@@ -76,11 +79,14 @@ export default function PaymentLinkGenerator({
 
   useEffect(() => {
     loadBankAccounts();
-  }, []);
+  }, [companyId, currency]);
 
   const loadBankAccounts = async () => {
     try {
-      const response = await fetch('/api/billing/bank-accounts');
+      const url = companyId
+        ? `/api/billing/bank-accounts?companyId=${encodeURIComponent(companyId)}`
+        : '/api/billing/bank-accounts';
+      const response = await fetch(url);
       if (response.ok) {
         const data = await response.json();
         setBankAccounts(data.filter((acc: BankAccount) => acc.isActive && acc.currency === currency));
@@ -113,7 +119,7 @@ export default function PaymentLinkGenerator({
       });
 
       // Crear enlace de pago
-      const response = await fetch('/api/billing/payment-links', {
+      const response = await fetch(`/api/billing/payment-links${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -163,8 +169,9 @@ export default function PaymentLinkGenerator({
       const formData = new FormData();
       formData.append('receipt', file);
       formData.append('paymentLinkId', paymentLink!.id);
+      if (companyId) formData.append('companyId', companyId);
 
-      const response = await fetch('/api/billing/payment-receipts', {
+      const response = await fetch(`/api/billing/payment-receipts${companyId ? `?companyId=${encodeURIComponent(companyId)}` : ''}`, {
         method: 'POST',
         body: formData
       });

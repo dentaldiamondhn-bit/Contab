@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { TENANT_ID, recomputePurchase } from '@/lib/purchase-db';
+import { exigirEmpresa, recomputePurchase } from '@/lib/purchase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 function transformPayment(p: any): any {
   return {
@@ -17,23 +18,31 @@ function transformPayment(p: any): any {
   };
 }
 
+/**
+ * Los cuatro handlersickleaban el `tenant_id` a un `'1'` fijo, y ademas los tres
+ * ultimos hacian `.eq('id', id)` sin filtro de empresa. El POST era el peor: la
+ * compra salia del CUERPO (`purchase_id`), sin comprobar de que empresa era, asi
+ * que un pago se podia colgar de una compra de cualquier empresa y recalcular su
+ * saldo.
+ *
+ * Ahora los cuatroorman por la empresa del contexto, y la compra o el pago se
+ * validan contra ella antes de tocar nada. Un id de otra empresa da 404, no 403:
+ * no se le confirma que el objeto existe.
+ */
 export async function GET(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const purchaseId = searchParams.get('purchaseId');
-    const companyId = searchParams.get('companyId');
 
     let query = getSupabaseServer()
       .from('SupplierPayment')
       .select('*')
-      .eq('tenant_id', TENANT_ID)
+      .eq('company_id', empresa.companyId)
       .order('created_at', { ascending: true });
 
     if (purchaseId) {
       query = query.eq('purchase_id', purchaseId);
-    }
-    if (companyId) {
-      query = query.eq('company_id', companyId);
     }
 
     const { data, error } = await query;
@@ -45,6 +54,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json((data || []).map(transformPayment));
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error fetching payments:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -52,6 +63,7 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
     const { purchase_id, amount, payment_method, reference, notes, payment_date } = body;
 
@@ -61,13 +73,19 @@ export async function POST(request: Request) {
 
     const supabase = getSupabaseServer();
 
+    // La compra tiene que ser DE ESTA empresa. Sin esto, el `purchase_id` del
+    // cuerpo daba para colgar un pago de la compra de otra empresa.
     const { data: purchase, error: purchaseError } = await supabase
       .from('Purchase')
       .select('id, supplier_id, company_id')
       .eq('id', purchase_id)
-      .single();
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
 
-    if (purchaseError || !purchase) {
+    if (purchaseError) {
+      return NextResponse.json({ error: purchaseError.message }, { status: 500 });
+    }
+    if (!purchase) {
       return NextResponse.json({ error: 'Purchase not found' }, { status: 404 });
     }
     if (!purchase.supplier_id) {
@@ -77,13 +95,14 @@ export async function POST(request: Request) {
     const paymentInsert: any = {
       supplier_id: purchase.supplier_id,
       purchase_id: purchase.id,
-      company_id: purchase.company_id || null,
+      company_id: empresa.companyId,
       amount: Math.round(Number(amount)),
       payment_date: payment_date || new Date().toISOString().split('T')[0],
       payment_method,
       reference_number: reference || null,
+      notes: notes || null,
       is_reconciled: false,
-      tenant_id: TENANT_ID,
+      tenant_id: empresa.tenantId,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
@@ -99,10 +118,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: paymentError.message }, { status: 500 });
     }
 
-    const updatedPurchase = await recomputePurchase(supabase, purchase_id);
+    const updatedPurchase = await recomputePurchase(supabase, empresa, purchase_id);
 
     return NextResponse.json({ payment: transformPayment(payment), updatedPurchase }, { status: 201 });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error creating payment:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -110,6 +131,7 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get('id');
     const body = await request.json();
@@ -120,7 +142,12 @@ export async function PUT(request: Request) {
 
     const supabase = getSupabaseServer();
 
-    const { data: existing } = await supabase.from('SupplierPayment').select('purchase_id').eq('id', paymentId).single();
+    const { data: existing } = await supabase
+      .from('SupplierPayment')
+      .select('purchase_id')
+      .eq('id', paymentId)
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
     if (!existing) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
@@ -135,6 +162,7 @@ export async function PUT(request: Request) {
       .from('SupplierPayment')
       .update(updates)
       .eq('id', paymentId)
+      .eq('company_id', empresa.companyId)
       .select()
       .single();
 
@@ -143,10 +171,12 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await recomputePurchase(supabase, payment.purchase_id);
+    await recomputePurchase(supabase, empresa, payment.purchase_id);
 
     return NextResponse.json(transformPayment(payment));
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error updating payment:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -154,6 +184,7 @@ export async function PUT(request: Request) {
 
 export async function DELETE(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const paymentId = searchParams.get('id');
 
@@ -163,22 +194,33 @@ export async function DELETE(request: Request) {
 
     const supabase = getSupabaseServer();
 
-    const { data: existing } = await supabase.from('SupplierPayment').select('purchase_id').eq('id', paymentId).single();
+    const { data: existing } = await supabase
+      .from('SupplierPayment')
+      .select('purchase_id')
+      .eq('id', paymentId)
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
     if (!existing) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
-    const { error } = await supabase.from('SupplierPayment').delete().eq('id', paymentId);
+    const { error } = await supabase
+      .from('SupplierPayment')
+      .delete()
+      .eq('id', paymentId)
+      .eq('company_id', empresa.companyId);
 
     if (error) {
       console.error('Error deleting payment:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    await recomputePurchase(supabase, existing.purchase_id);
+    await recomputePurchase(supabase, empresa, existing.purchase_id);
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error deleting payment:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-
 
 const DEFAULT_CONFIG = {
   absent_percent: 100,
@@ -8,72 +9,73 @@ const DEFAULT_CONFIG = {
   late_deduction_amount: 0,
   unpaid_leave_percent: 100,
   disability_percent: 100,
-  overtime_rate_multiplier: 2,
-};
-
+  overtime_rate_multiplier: 2,};
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
-  let { data, error } = await getSupabaseServer()
-    .from('attendance_deduction_config')
-    .select('*')
-    .eq('tenant_id', companyId)
-    .single();
-
-  if (error || !data) {
-    const { data: created, error: insertError } = await getSupabaseServer()
-      .from('attendance_deduction_config')
-      .upsert({ tenant_id: companyId, ...DEFAULT_CONFIG }, { onConflict: 'tenant_id' })
-      .select()
-      .single();
-    if (insertError) return NextResponse.json(DEFAULT_CONFIG, { status: 200 });
-    return NextResponse.json(created);
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error: devuelve 0 filas, y estas pantallas
+  // salian vacias sin avisar. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
   }
+  let { data, error } = await getSupabaseServer()    .from('attendance_deduction_config')    .select('*')    .eq("tenant_id", empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa))    .single();
+  if (error || !data) {    const { data: created, error: insertError } = await getSupabaseServer()      .from('attendance_deduction_config')      .upsert({ tenant_id: empresa.tenantId, company_id: empresa.companyId, ...DEFAULT_CONFIG }, { onConflict: 'tenant_id' })      .select()      .single();    if (insertError) return NextResponse.json(DEFAULT_CONFIG, { status: 200 });
+    return NextResponse.json(created);  }
 
-  return NextResponse.json(data);
-}
-
+  return NextResponse.json(data);}
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
-  const body = await request.json();
-  const { data, error } = await getSupabaseServer()
-    .from('attendance_deduction_config')
-    .upsert(
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error: devuelve 0 filas, y estas pantallas
+  // salian vacias sin avisar. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
+  const body = await request.json();  const { data, error } = await getSupabaseServer()    .from('attendance_deduction_config')    .upsert(
       {
-        tenant_id: companyId,
+        tenant_id: empresa.tenantId, company_id: empresa.companyId,
         absent_percent: body.absent_percent,
         late_threshold_minutes: body.late_threshold_minutes,
         late_deduction_amount: body.late_deduction_amount,
         unpaid_leave_percent: body.unpaid_leave_percent,
         disability_percent: body.disability_percent,
-        overtime_rate_multiplier: body.overtime_rate_multiplier,
-      },
+        overtime_rate_multiplier: body.overtime_rate_multiplier,      },
       { onConflict: 'tenant_id' }
-    )
-    .select()
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
-}
-
+    )    .select()    .single();  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);}
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
-  const body = await request.json();
-  const { data, error } = await getSupabaseServer()
-    .from('attendance_deduction_config')
-    .upsert(
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error: devuelve 0 filas, y estas pantallas
+  // salian vacias sin avisar. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
+  const body = await request.json();  const { data, error } = await getSupabaseServer()    .from('attendance_deduction_config')    .upsert(
       {
-        tenant_id: companyId,
+        tenant_id: empresa.tenantId, company_id: empresa.companyId,
         absent_percent: body.absent_percent,
         late_threshold_minutes: body.late_threshold_minutes,
         late_deduction_amount: body.late_deduction_amount,
         unpaid_leave_percent: body.unpaid_leave_percent,
         disability_percent: body.disability_percent,
-        overtime_rate_multiplier: body.overtime_rate_multiplier,
-      },
+        overtime_rate_multiplier: body.overtime_rate_multiplier,      },
       { onConflict: 'tenant_id' }
-    )
-    .select()
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data);
-}
+    )    .select()    .single();  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  return NextResponse.json(data);}

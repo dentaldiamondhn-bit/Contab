@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
-
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error: devuelve 0 filas, y estas pantallas
+  // salian vacias sin avisar. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
   const { searchParams } = new URL(request.url);
-
   const q = (searchParams.get('q') || '').toLowerCase();
   const department = searchParams.get('department') || '';
   const position = searchParams.get('position') || '';
@@ -19,30 +22,28 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const offset = (page - 1) * limit;
 
   try {
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
     // Fetch all employees for tenant, filter in JS
     const [{ data: allEmployees, error }, { data: schedules }] = await Promise.all([
       getSupabaseServer()
         .from('employees')
         .select('*')
-        .eq('tenant_id', companyId),
+      .match(filtroEmpresaOCompany(empresa)),
       getSupabaseServer()
         .from('work_schedules')
         .select('id, name')
-        .eq('tenant_id', companyId),
+        .eq("tenant_id", empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa)),
     ]);
-
     if (error) {
       console.error('Employee search error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-
     const scheduleMap: Record<string, string> = {};
     if (schedules) {
       schedules.forEach((s: any) => { scheduleMap[s.id] = s.name; });
     }
-
     let filtered = allEmployees || [];
-
     // Text search
     if (q) {
       filtered = filtered.filter(e =>
@@ -56,14 +57,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         (e.phone || '').toLowerCase().includes(q)
       );
     }
-
     // Exact filters
     if (department) filtered = filtered.filter(e => e.department === department);
     if (position) filtered = filtered.filter(e => e.position === position);
     if (status) filtered = filtered.filter(e => e.status === status);
     if (contractType) filtered = filtered.filter(e => e.contract_type === contractType);
     if (gender) filtered = filtered.filter(e => e.gender === gender);
-
     // Sort
     filtered.sort((a, b) => {
       let va: string, vb: string;
@@ -91,10 +90,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const cmp = String(va).localeCompare(String(vb));
       return sortDir === 'desc' ? -cmp : cmp;
     });
-
     const total = filtered.length;
     const paginated = filtered.slice(offset, offset + limit);
-
     // Get distinct departments and positions
     const departments = [...new Set(filtered.map(e => e.department).filter(Boolean))].sort();
     const positions = [...new Set(filtered.map(e => e.position).filter(Boolean))].sort();
@@ -108,6 +105,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       filters: { departments, positions },
     });
   } catch (error: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Search error:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

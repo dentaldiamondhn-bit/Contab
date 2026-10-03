@@ -1,20 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 // POST - Ejecutar un asiento recurrente manualmente
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-      new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) return NextResponse.json({ error: "Tenant requerido" }, { status: 400 });
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
+    const tenantId = empresa.tenantId;
 
     const body = await request.json();
     const { id } = body;
 
     if (!id) return NextResponse.json({ error: "recurring_entry id requerido" }, { status: 400 });
 
-    // Obtener el asiento recurrente
+    // Obtener el asiento recurrente (tabla sin company_id: solo tenant)
     const { data: recurring, error: recError } = await supabaseService
       .from("recurring_entries")
       .select("*")
@@ -28,26 +29,16 @@ export async function POST(request: NextRequest) {
 
     const entries = recurring.entries || [];
 
-    // Resolve account_code -> Account UUID
+    // Resolve account_code -> Account id (Account si tiene company_id)
     const accountCodes = entries.map((e: any) => e.account_code).filter(Boolean);
     const { data: accounts } = await supabaseService
       .from("Account")
       .select("id, code")
-      .eq("tenantId", tenantId)
+      .match(scope)
       .in("code", accountCodes);
 
     const codeToId = new Map<string, string>();
     (accounts || []).forEach((a: any) => codeToId.set(a.code, a.id));
-
-    // Also try with tenant_id if none found with tenantId
-    if (codeToId.size === 0) {
-      const { data: accounts2 } = await supabaseService
-        .from("Account")
-        .select("id, code")
-        .eq("tenant_id", tenantId)
-        .in("code", accountCodes);
-      (accounts2 || []).forEach((a: any) => codeToId.set(a.code, a.id));
-    }
 
     // Calculate totalAmount from entries (in centavos)
     let totalAmount = 0;
@@ -65,7 +56,7 @@ export async function POST(request: NextRequest) {
     const { data: lastVoucher } = await supabaseService
       .from("Transaction")
       .select("voucherNumber")
-      .eq("tenantId", tenantId)
+      .match(scope)
       .eq("voucherType", recurring.voucher_type || "DIARIO")
       .order("voucherNumber", { ascending: false })
       .limit(1)
@@ -82,6 +73,7 @@ export async function POST(request: NextRequest) {
         voucherType: recurring.voucher_type,
         voucherNumber: nextVoucherNumber,
         tenantId: tenantId,
+        company_id: empresa.companyId,
         currency: "HNL",
         exchangeRate: 24.7,
         totalAmount: totalAmount,
@@ -114,6 +106,7 @@ export async function POST(request: NextRequest) {
         transactionId: tx.id,
         accountId: accountId,
         tenantId: tenantId,
+        company_id: empresa.companyId,
         amount: amount,
         originalAmount: Math.abs(amount),
         currency: "HNL",
@@ -145,6 +138,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, transactionId: tx.id, nextExecution: nextDate });
   } catch (e: any) {
+    const respuesta = respuestaDeErrorDeEmpresa(e);
+    if (respuesta) return respuesta;
     console.error("POST execute recurring entry error:", e);
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

@@ -1,24 +1,50 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error, devuelve 0 filas: por eso estas
+  // pantallas salian vacias. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
   const { data, error } = await getSupabaseServer()
     .from('work_schedules')
     .select('*')
-    .eq('tenant_id', companyId)
+    .eq("tenant_id", empresa.tenantId)
+    .match(filtroEmpresaOCompany(empresa))
     .order('name');
   if (error) return NextResponse.json([], { status: 200 });
   return NextResponse.json(data || []);
 }
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error, devuelve 0 filas: por eso estas
+  // pantallas salian vacias. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
   const body = await request.json();
   const { data, error } = await getSupabaseServer()
     .from('work_schedules')
     .insert({
-      tenant_id: companyId,
+      tenant_id: empresa.tenantId,
+      company_id: empresa.companyId,
       name: body.name,
       entry_time: body.entry_time || '08:00',
       exit_time: body.exit_time || '17:00',
@@ -39,7 +65,18 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error, devuelve 0 filas: por eso estas
+  // pantallas salian vacias. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
   const body = await request.json();
   const { id, ...updates } = body;
   if (!id) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -61,13 +98,25 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
-    .eq('tenant_id', companyId);
+    .eq("tenant_id", empresa.tenantId)
+    .match(filtroEmpresaOCompany(empresa));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { id: companyId } = await params;
+  // El `[id]` de esta ruta es `companies.id`, NO `Tenant.id`. Pasarlo a
+  // `.eq("tenant_id", ...)` no da error, devuelve 0 filas: por eso estas
+  // pantallas salian vacias. `contextoDeEmpresa` valida la pertenencia (403
+  // si la empresa no es de la sesion) y devuelve el tenant real.
+  let empresa;
+  try {
+    empresa = await contextoDeEmpresa(request, { companyIdDeRuta: (await params).id });
+  } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
+    throw error;
+  }
   const { searchParams } = new URL(request.url);
   const scheduleId = searchParams.get('id');
   if (!scheduleId) return NextResponse.json({ error: 'Missing id' }, { status: 400 });
@@ -75,7 +124,8 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
     .from('work_schedules')
     .delete()
     .eq('id', scheduleId)
-    .eq('tenant_id', companyId);
+    .eq("tenant_id", empresa.tenantId)
+    .match(filtroEmpresaOCompany(empresa));
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

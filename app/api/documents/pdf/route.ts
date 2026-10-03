@@ -11,7 +11,6 @@ import { getBudgetComparison, isValidPeriod, resolveTenant } from '@/lib/service
 import { getTransfer } from '@/lib/services/warehouse-service';
 import { getDiatReport, hasDiatData } from '@/lib/services/diat-generator';
 import { getVariationsReport } from '@/lib/services/period-variations';
-import { getAllAuditLogs, getUserAuditLogs } from '@/lib/services/audit-service';
 import { buildAuditPdfElement } from '@/lib/services/pdf-documents';
 
 // GET /api/documents/pdf?type=invoice|transfer|budget|diat|variations&id=...&companyId=...[&period=YYYY-MM][&to=YYYY-MM][&tenantId=]

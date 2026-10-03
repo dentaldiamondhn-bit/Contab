@@ -88,6 +88,7 @@ async function fetchClosingMovements(
   client: SupaClient,
   tenantId: string,
   before: string,
+  companyId?: string | null,
 ): Promise<Array<{ accountId: string; code: string; name: string; debit: number; credit: number }>> {
   const select = '*, JournalEntry (*, Account (id, code, name))';
   const collect = (transactions: unknown[] | null | undefined) => {
@@ -120,20 +121,28 @@ async function fetchClosingMovements(
     return out;
   };
 
-  const run = async (col: string) => {
+  const run = async (col: string, val: string) => {
     // Límite alto para cubrir años completos de movimientos.
     const q = (client.from('Transaction').select(select) as unknown as Chain)
-      .eq(col, tenantId)
+      .eq(col, val)
       .lt('date', before);
     return q.limit(10000);
   };
 
-  const first = await run('tenantId');
+  // Aislamiento real: por empresa (company_id) cuando la hay. Sin empresa se
+  // degrada al comportamiento legacy por tenant.
+  if (companyId) {
+    const own = await run('company_id', companyId);
+    if (!own.error && own.data) return collect(own.data as unknown[]);
+    return [];
+  }
+
+  const first = await run('tenantId', tenantId);
   if (!first.error && first.data) {
     const rows = collect(first.data as unknown[]);
     if (rows.length > 0) return rows;
   }
-  const alt = await run('tenant_id');
+  const alt = await run('tenant_id', tenantId);
   if (!alt.error && alt.data) return collect(alt.data as unknown[]);
   return [];
 }
@@ -148,12 +157,13 @@ export async function computeOpeningBalances(
   client: SupaClient,
   tenantId: string,
   year: number,
+  companyId?: string | null,
 ): Promise<OpeningPreview> {
-  if (!tenantId) throw new Error('Tenant ID requerido');
+  if (!tenantId && !companyId) throw new Error('Tenant ID requerido');
   validateYear(year);
   const sourceEnd = `${year - 1}-12-31`;
   const asOf = `${year}-01-01`;
-  const movements = await fetchClosingMovements(client, tenantId, `${year}-01-01`);
+  const movements = await fetchClosingMovements(client, tenantId, `${year}-01-01`, companyId);
   const lines = aggregateClosing(movements);
   const totalDebit = round2(lines.reduce((s, l) => s + l.debit, 0));
   const totalCredit = round2(lines.reduce((s, l) => s + l.credit, 0));
@@ -175,17 +185,19 @@ export async function applyOpeningBalances(
   client: SupaClient,
   tenantId: string,
   year: number,
-  opts?: { overwrite?: boolean; by?: string },
+  opts?: { overwrite?: boolean; by?: string; companyId?: string | null },
 ): Promise<ApplyResult> {
-  const preview = await computeOpeningBalances(client, tenantId, year);
+  const companyId = opts?.companyId ?? null;
+  const preview = await computeOpeningBalances(client, tenantId, year, companyId);
   if (preview.nonZeroCount === 0) {
     throw new Error(`Sin movimientos al ${preview.sourceEnd}: no hay saldos que trasladar`);
   }
   // Candado: si enero del año ya está cerrado, la apertura es definitiva.
-  await assertPeriodOpen(client, tenantId, preview.asOf);
+  // Por empresa cuando la hay (una empresa hermana del mismo tenant no debe bloquear).
+  await assertPeriodOpen(client, tenantId, preview.asOf, { companyId });
 
   const { data: chart } = (await (client.from('chart_of_accounts').select('id, code') as unknown as Chain)
-    .eq('tenant_id', tenantId)
+    .eq(companyId ? 'company_id' : 'tenant_id', companyId ?? tenantId)
     .limit(10000)) as { data: unknown };
   const byCode = new Map(
     ((chart || []) as Array<{ id: string; code: string }>).map((c) => [String(c.code), String(c.id)]),
@@ -234,6 +246,7 @@ export async function applyOpeningBalances(
     applied++;
     auditRows.push({
       tenant_id: tenantId,
+      ...(companyId ? { company_id: companyId } : {}),
       account_id: chartId,
       account_code: line.code,
       action: 'OPENING_BALANCE_AUTO',

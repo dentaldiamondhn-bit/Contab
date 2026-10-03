@@ -1,11 +1,51 @@
 import { NextRequest, NextResponse } from "next/server";
+import { resolveTenant as resolveTenantDelRequest } from "@/lib/tenant-resolver";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
+import { previewInvoiceNumber } from "@/lib/billing/invoice-number";
+
+export const dynamic = "force-dynamic";
+
+/**
+ * Respuesta para empresas sin CAI registrado. Antes devolvia `currentNumber: 1`
+ * fijo, que hacia que el POS propusiera 001-01-01-00000001 una y otra vez.
+ */
+async function sinCai(tenantId: string, conDebug = false) {
+  const preview = await previewInvoiceNumber(tenantId);
+  return {
+    cai: null,
+    currentNumber: preview.correlativo,
+    finalNumber: 1000,
+    issueDate: new Date().toISOString().split("T")[0],
+    expirationDate: null,
+    daysRemaining: 365,
+    status: "active",
+    ...(conDebug ? { _debug: { fallback: true } } : {}),
+  };
+}
+
+// El POST caia a "1" y ademas desactivaba los CAI de ese tenant antes de
+// insertar, asi que crear un CAI desde otra empresa apagaba los de "Empresa 1".
+// El tenant sale del header de sesion (`x-tenant-id`, lo inyecta middleware.ts),
+// NO de `?companyId`: ese parametro lo manda el cliente y antes ganaba al header,
+// asi que cualquier usuario autenticado podia leer y escribir los datos de otra
+// empresa con `?companyId=ANGELOH7`. Ademas `?companyId` es un companies.id, no el
+// tenant_id que guardan las tablas, y sin traducir daba cero filas.
+// Ver lib/tenant-resolver.ts.
+async function resolveTenant(request: NextRequest): Promise<string | null> {
+  return resolveTenantDelRequest(request);
+}
 
 export async function GET(request: NextRequest) {
   try {
     const supabase = getSupabaseServer();
-    const tenantId = request.headers.get("x-tenant-id") || new URL(request.url).searchParams.get("tenantId") || "1";
-    
+    const tenantId = await resolveTenant(request);
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
+
     // Obtener el CAI vigente actual — tenant-aware, con maybeSingle para no dar 500 si no hay
     let { data: cai, error } = await supabase
       .from("cai")
@@ -25,7 +65,7 @@ export async function GET(request: NextRequest) {
         if (fallback.data) {
           cai = fallback.data;
         } else {
-          return NextResponse.json({ cai: null, currentNumber: 1, finalNumber: 1000, issueDate: new Date().toISOString().split('T')[0], expirationDate: new Date(Date.now()+365*24*60*60*1000).toISOString().split('T')[0], daysRemaining: 365, status: 'active', _debug: { fallback: true } });
+          return NextResponse.json(await sinCai(tenantId, true));
         }
       } else {
         return NextResponse.json(
@@ -36,14 +76,10 @@ export async function GET(request: NextRequest) {
     }
     
     if (!cai) {
-      // Sin CAI, devolver uno por defecto para no romper la UI
-      return NextResponse.json({ cai: null, currentNumber: 1, finalNumber: 1000, issueDate: new Date().toISOString().split('T')[0], expirationDate: new Date(Date.now()+365*24*60*60*1000).toISOString().split('T')[0], daysRemaining: 365, status: 'active' });
+      // Sin CAI se sigueemitiendo, pero el correlativo sale de las facturas de
+      // la empresa y no de un 1 fijo, que reiniciaba la numeracion.
+      return NextResponse.json(await sinCai(tenantId));
     }
-    
-    // Calcular días restantes
-    const expirationDate = new Date(cai.expiration_date);
-    const today = new Date();
-    const daysRemaining = Math.ceil((expirationDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
     
     // Obtener el último número de factura usado
     const { data: invoices } = await (supabase as any)
@@ -53,35 +89,29 @@ export async function GET(request: NextRequest) {
       .order("createdAt", { ascending: false })
       .limit(100);
     
-    let currentNumber = cai.start_number;
-    
-    // Encontrar el número más alto usado
-    if (invoices && invoices.length > 0) {
-      const numbers = invoices
-        .map((inv: any) => {
-          const parts = inv.invoiceNumber?.split('-');
-          return parts && parts.length === 4 ? parseInt(parts[3]) : 0;
-        })
-        .filter((n: any) => !isNaN(n) && n > 0);
-      
-      if (numbers.length > 0) {
-        const maxNumber = Math.max(...numbers);
-        currentNumber = maxNumber + 1;
-      }
-    }
-    
+    // El numero que se mostrara lo calcula el mismo modulo que reserva al
+    // emitir (lib/billing/invoice-number.ts). Antes el GET hacia su propia
+    // cuenta con max(facturas)+1 y sin fila en `cai` devolvia 1 fijo, asi que
+    // una empresa con facturas 00000006..00000008 veia "00000001".
+    const preview = await previewInvoiceNumber(tenantId);
+    const diasRestantes = preview.venceEl
+      ? Math.ceil((preview.venceEl.getTime() - Date.now()) / (1000 * 60 * 60 * 24))
+      : 365;
+
     const caiInfo = {
-      cai: cai.cai,
-      currentNumber,
-      finalNumber: cai.end_number,
+      cai: preview.caiCode,
+      currentNumber: preview.correlativo,
+      finalNumber: Number.isFinite(Number(cai.rango_final)) && Number(cai.rango_final) > 0
+        ? Number(cai.rango_final)
+        : Number(cai.end_number) || preview.rangoHasta || 1000,
       issueDate: cai.issue_date,
-      expirationDate: cai.expiration_date,
-      daysRemaining: Math.max(0, daysRemaining),
-      status: daysRemaining <= 0 ? 'expired' : daysRemaining <= 30 ? 'warning' : 'active',
+      expirationDate: preview.venceEl ? preview.venceEl.toISOString() : null,
+      daysRemaining: Math.max(0, diasRestantes),
+      status: diasRestantes <= 0 ? 'expired' : diasRestantes <= 30 ? 'warning' : 'active',
       _debug: {
         invoiceCount: invoices?.length || 0,
-        startNumber: cai.start_number,
-        calculatedNumber: currentNumber
+        startNumber: cai.rango_inicial ?? cai.start_number,
+        calculatedNumber: preview.correlativo
       }
     };
     
@@ -102,8 +132,14 @@ export async function POST(request: NextRequest) {
     
     const supabase = getSupabaseServer();
     
-    // Obtener tenantId del header (establecido por middleware)
-    const tenantId = request.headers.get("x-tenant-id") || "1";
+    // Tenant de la URL/header; sin ninguno es 400 en vez de escribir en "Empresa 1"
+    const tenantId = await resolveTenant(request) || body.tenant_id;
+    if (!tenantId) {
+      return NextResponse.json(
+        { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
     
     // Desactivar CAIs anteriores para el tenant actual
     await (supabase as any)

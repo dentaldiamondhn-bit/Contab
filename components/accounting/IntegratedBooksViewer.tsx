@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useTenant } from '@/lib/contexts/TenantContext';
+import { useWorkspace } from '@/lib/contexts/WorkspaceContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -28,16 +29,29 @@ const IntegratedBooksViewer: React.FC = () => {
   const [syncing, setSyncing] = useState<boolean>(false);
 
   const { currentTenant } = useTenant();
-  const tenantId = currentTenant?.id || '1'; // Use actual tenant ID from context
+  const { empresa } = useWorkspace();
+
+  // Antes era `currentTenant?.id || '1'`: un fallback fijo a la empresa 1 que
+  // AGENTS.md prohibe, porque ademas de ser la empresa equivocada no es un
+  // `companies.id` y no vale como isolation key. Las funciones de la 027c
+  // exigen `p_company_id`, asi que sin empresa activa esta vista no tiene nada
+  // que pedir: mejor un aviso que un libro sin filtrar.
+  const tenantId = currentTenant?.id ?? null;
+  const companyId = empresa?.id ?? null;
 
   const fetchBookData = async () => {
+    if (!companyId) {
+      setError('No hay empresa activa. Elige una empresa en la barra superior.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     try {
       const params = new URLSearchParams({
         bookType,
-        tenantId,
+        companyId,
+        ...(tenantId && { tenantId }),
         ...(startDate && { startDate }),
         ...(endDate && { endDate }),
         ...(filterType && { filterType })
@@ -59,15 +73,18 @@ const IntegratedBooksViewer: React.FC = () => {
   };
 
   const syncBooks = async () => {
+    if (!companyId) {
+      setError('No hay empresa activa. Elige una empresa en la barra superior.');
+      return;
+    }
     setSyncing(true);
     try {
       const response = await fetch('/api/accounting/integrated-books', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'x-tenant-id': tenantId
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ action: 'sync' })
+        body: JSON.stringify({ action: 'sync', companyId })
       });
 
       const result = await response.json();
@@ -85,8 +102,13 @@ const IntegratedBooksViewer: React.FC = () => {
   };
 
   useEffect(() => {
+    // La empresa activa forma parte de la identidad del dato: sin `companyId`
+    // en las dependencias, cambiar de empresa NO repetia el fetch y el libro
+    // de la empresa anterior se quedaba en pantalla. Se descarta lo viejo antes
+    // de pedir para no ensenar filas de la empresa previa mientras carga.
+    setData([]);
     fetchBookData();
-  }, [bookType]);
+  }, [bookType, companyId]);
 
   const getColumnsForBookType = () => {
     switch (bookType) {

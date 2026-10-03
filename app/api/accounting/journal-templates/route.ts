@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+
+// `journal_entry_templates` y sus lineas aun no tienen `company_id`, asi que
+// solo se aislan por tenant; se valida el contexto contra la sesion.
+async function tenantDeContexto(request: NextRequest): Promise<string> {
+  const empresa = await contextoDeEmpresa(request);
+  if (!empresa.tenantId) throw new Error("La empresa no tiene tenant asociado");
+  return empresa.tenantId;
+}
 
 // GET: Listar plantillas del tenant
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
-    }
+    const tenantId = await tenantDeContexto(request);
 
     const { data: templates, error } = await supabaseService
       .from("journal_entry_templates")
@@ -30,6 +34,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in journal-templates GET:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -38,12 +44,7 @@ export async function GET(request: NextRequest) {
 // POST: Crear plantilla
 export async function POST(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
-    }
+    const tenantId = await tenantDeContexto(request);
 
     const body = await request.json();
     const { name, description, voucher_type, lines } = body;
@@ -96,6 +97,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ ...template, lines: linesInsert });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in journal-templates POST:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -104,12 +107,7 @@ export async function POST(request: NextRequest) {
 // PUT: Actualizar plantilla
 export async function PUT(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
-    }
+    const tenantId = await tenantDeContexto(request);
 
     const body = await request.json();
     const { id, name, description, voucher_type, is_active, lines } = body;
@@ -159,6 +157,8 @@ export async function PUT(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in journal-templates PUT:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }
@@ -167,13 +167,12 @@ export async function PUT(request: NextRequest) {
 // DELETE: Eliminar plantilla
 export async function DELETE(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
+    const tenantId = await tenantDeContexto(request);
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
-    if (!tenantId || !id) {
-      return NextResponse.json({ error: "Tenant ID e ID requeridos" }, { status: 400 });
+    if (!id) {
+      return NextResponse.json({ error: "ID requerido" }, { status: 400 });
     }
 
     const { error } = await supabaseService
@@ -188,6 +187,8 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error in journal-templates DELETE:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

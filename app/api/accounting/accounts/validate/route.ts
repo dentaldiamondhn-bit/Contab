@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase as supabaseService } from "@/lib/supabase-db";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 interface ValidationIssue {
   severity: "error" | "warning";
@@ -10,17 +12,13 @@ interface ValidationIssue {
 
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = request.headers.get("x-tenant-id") ||
-                     new URL(request.url).searchParams.get("tenantId");
-
-    if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
-    }
+    const empresa = await contextoDeEmpresa(request);
+    const scope = filtroEmpresaOCompany(empresa);
 
     const { data: accounts, error } = await supabaseService
       .from("Account")
       .select("id, code, name, parentId, type, is_active, tenantId")
-      .eq("tenantId", tenantId)
+      .match(scope)
       .order("code", { ascending: true });
 
     if (error) {
@@ -160,6 +158,8 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error validating catalog:", error);
     return NextResponse.json({ error: "Error interno" }, { status: 500 });
   }

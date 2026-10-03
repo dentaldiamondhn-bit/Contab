@@ -12,8 +12,11 @@ export function resetVariationsMock() {
 
 const PERIOD_RE = /^\d{4}-(0[1-9]|1[0-2])$/;
 
-export async function getVariationsReport(client, tenantId, from, to) {
+export async function getVariationsReport(client, tenantOrScope, from, to) {
+  const tenantId =
+    typeof tenantOrScope === 'string' ? tenantOrScope : (tenantOrScope?.tenantId ?? null);
   mockState.calls.push({ tenantId, from, to });
+  if (!tenantId) throw new Error('Tenant ID requerido');
   if (!PERIOD_RE.test(from || '') || !PERIOD_RE.test(to || '')) {
     throw new Error('from y to deben tener formato YYYY-MM (mes 01-12)');
   }

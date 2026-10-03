@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { exportTrialBalanceToPDF, exportTaxReportToPDF, exportPolizasToPDF } from "@/lib/services/pdf-export";
 import { generateTrialBalance } from "@/lib/reports/trial-balance";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 /**
  * GET /api/accounting/export?module=trial-balance|tax-report&period=YYYY-MM&type=pdf|excel
@@ -11,20 +13,23 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const module = searchParams.get("module") || "trial-balance";
     const period = searchParams.get("period") || new Date().toISOString().slice(0, 7);
-    const tenantId = searchParams.get("tenantId") || request.headers.get("x-tenant-id");
     const exportType = searchParams.get("type") || "pdf";
 
+    // Contexto validado (antes `?tenantId` del cliente no se comprobaba).
+    const empresa = await contextoDeEmpresa(request);
+    const tenantId = empresa.tenantId;
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
+      return NextResponse.json({ error: "La empresa no tiene tenant asociado" }, { status: 400 });
     }
+    const scope = filtroEmpresaOCompany(empresa);
 
     const [year, month] = period.split('-').map(Number);
 
     if (module === "tax-report") {
       const supa = getSupabaseServer();
       const { data: taxConfig } = await supa.from('TaxConfig').select('*').maybeSingle();
-      const { data: sales } = await supa.from('Transaction').eq('tenantId', tenantId).eq('voucherType', 'INGRESO').gte('date', `${period}-01`).lte('date', `${period}-31`);
-      const { data: purchases } = await supa.from('Transaction').eq('tenantId', tenantId).eq('voucherType', 'EGRESO').gte('date', `${period}-01`).lte('date', `${period}-31`);
+      const { data: sales } = await supa.from('Transaction').select('*').match(scope).eq('voucherType', 'INGRESO').gte('date', `${period}-01`).lte('date', `${period}-31`);
+      const { data: purchases } = await supa.from('Transaction').select('*').match(scope).eq('voucherType', 'EGRESO').gte('date', `${period}-01`).lte('date', `${period}-31`);
 
       const totalBaseVentas = sales?.reduce((sum: number, tx: any) => sum + tx.totalAmount, 0) || 0;
       const totalTaxVentas = sales?.reduce((sum: number, tx: any) => { const base = tx.totalAmount / 1.15; return sum + (base * 0.15); }, 0) || 0;
@@ -59,6 +64,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ success: true, signedUrl });
     }
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error exporting:", error);
     return NextResponse.json({ error: 'Error al generar el reporte' }, { status: 500 });
   }
@@ -71,10 +78,13 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { polizas, options, type } = body;
-    const tenantId = body.tenantId || request.headers.get("x-tenant-id");
 
+    const empresa = await contextoDeEmpresa(request, {
+      companyIdDeRuta: body?.companyId || undefined,
+    });
+    const tenantId = empresa.tenantId;
     if (!tenantId) {
-      return NextResponse.json({ error: "Tenant ID requerido" }, { status: 400 });
+      return NextResponse.json({ error: "La empresa no tiene tenant asociado" }, { status: 400 });
     }
 
     if (!polizas || !Array.isArray(polizas)) {
@@ -88,6 +98,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, signedUrl });
     }
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error("Error exporting polizas:", error);
     return NextResponse.json({ error: 'Error al generar el reporte' }, { status: 500 });
   }

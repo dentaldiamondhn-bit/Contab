@@ -222,7 +222,7 @@ export default function CompanyAccountingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`/api/accounting/period-closing?year=${periodAnio}`, { headers: { "x-tenant-id": company.id } });
+        const res = await fetch(`/api/accounting/period-closing?year=${periodAnio}&companyId=${encodeURIComponent(company.id)}`, { headers: { "x-company-id": company.id } });
         if (!res.ok) return;
         const data = await res.json();
         const periods: any[] = Array.isArray(data.periods) ? data.periods : [];
@@ -278,15 +278,20 @@ export default function CompanyAccountingPage() {
       }
 
       // Enriquecer desde lista de companies
+      //
+      // OJO, este `find` NO puede buscar por `tenant_id`: test 1 y test 2
+      // comparten `TEST1DS`, asi que las dos caian en la misma fila y las dos
+      // paginas se veian con el nombre de la otra (era el bug del header
+      // "Contabilidad - test 2" en la pagina de test 1).
+      //
+      // El `[id]` de la ruta ES el `companies.id`, que es unico. Ese es el unico
+      // criterio fiable; el resto son solo tolueneos para datos que faltan.
       if (companiesRes?.ok) {
         const compJson = await companiesRes.json();
         const comps: any[] = compJson.companies || compJson || [];
-        const comp = comps.find((c: any) => 
-          c.tenant_id === tenantIdReal || c.id === tenantIdReal || 
-          c.tenant_code === companyId || c.id === companyId
-        );
+        const comp = comps.find((c: any) => c.id === companyId);
         if (comp) {
-          companyData = companyData ? { ...companyData, ...comp } : comp;
+          companyData = companyData ? { ...comp, ...companyData } : comp;
           tenantIdReal = comp.tenant_id || comp.id || tenantIdReal;
         } else if (!companyData && comps.length === 1) {
           companyData = comps[0];

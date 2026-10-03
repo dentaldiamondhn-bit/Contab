@@ -47,11 +47,26 @@ interface PriceHistoryItem {
 
 interface SupplierPriceHistoryProps {
   supplierId: string;
-  tenantId?: string;
   readOnly?: boolean;
 }
 
-export default function SupplierPriceHistory({ supplierId, tenantId, readOnly = false }: SupplierPriceHistoryProps) {
+// NOTA: este componente NO lleva `companyId` ni `tenantId`.
+//
+// Antes llevaba `tenantId` y lo mandaba como `?companyId=` en la carga de
+// productos, que es la confusion mas cara del proyecto (los dos identificadores
+// NO son intercambiables: `companies.id` vs `Tenant.id`). El valor que llegaba
+// era correcto de casualidad, porque quien lo montaba pasaba el `[id]` de la
+// ruta, que es un `companies.id`, con nombre de tenant.
+//
+// Y en cualquier caso la ruta `/api/inventory/products` **ignora `?companyId` a
+// proposito**: la empresa sale del contexto validado, porque ese parametro lo
+// manda el cliente y asi cualquier usuario autenticado podia leer datos de otra
+// empresa. Ver la cabecera de `app/api/inventory/products/route.ts`.
+//
+// O sea: el parametro no hacia falta para aislar y ademas era misleading.
+// Las rutas de compras/proveedores tampoco lo necesitan, porque la empresa la
+// saca del contexto validado (`exigirEmpresa(await contextoDeEmpresa(request))`).
+export default function SupplierPriceHistory({ supplierId, readOnly = false }: SupplierPriceHistoryProps) {
   const [items, setItems] = useState<PriceHistoryItem[]>([]);
   const [productItems, setProductItems] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,6 +86,10 @@ export default function SupplierPriceHistory({ supplierId, tenantId, readOnly = 
     loadProducts();
   }, [supplierId]);
 
+  // `supplierId` es lo unico que cambia entre proveedores, asi que recargar con
+  // el es lo correcto. Antes no habia ninguna dependencia de empresa aqui, y por
+  // eso no se veia que el fetch mandaba un identificador que la ruta ignora.
+
   const loadPriceHistory = useCallback(async () => {
     setLoading(true);
     try {
@@ -88,7 +107,9 @@ export default function SupplierPriceHistory({ supplierId, tenantId, readOnly = 
 
   const loadProducts = async () => {
     try {
-      const res = await fetch(`/api/inventory/products?companyId=${tenantId}&limit=200`);
+      // Sin `?companyId`: la ruta toma la empresa del contexto validado y descarta
+    // ese parametro a proposito.
+    const res = await fetch(`/api/inventory/products?limit=200`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];

@@ -1020,7 +1020,9 @@ export default function SuppliersPage() {
               </div>
 
               <div className="pt-4 border-t">
-                <SupplierPriceHistory supplierId={selectedSupplier.id} tenantId={companyId} />
+                {/* Ya no se le pasa `tenantId`: la empresa la resuelve el contexto en
+                    el servidor, y el nombre viejo hacia creer que hacia falta. */}
+                <SupplierPriceHistory supplierId={selectedSupplier.id} />
               </div>
             </div>
           )}

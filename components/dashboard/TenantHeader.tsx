@@ -4,8 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield, Eye, Building2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useTenant } from "@/lib/contexts/TenantContext";
+import { useWorkspace } from "@/lib/contexts/WorkspaceContext";
 import { useUser } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useState, useEffect } from "react";
 import { useClerk } from "@clerk/nextjs";
@@ -23,9 +23,10 @@ interface TenantHeaderProps {
 
 export function TenantHeader({ tenants }: TenantHeaderProps) {
   const { currentTenant, tenants: contextTenants, isSuperAdmin, isImpersonating, exitImpersonation, companies, currentCompany, setCompany } = useTenant();
+  // El unico autoritativo para cambiar de empresa (cookie + header + validacion).
+  const { cambiarEmpresa } = useWorkspace();
   const { user } = useUser();
   const { signOut } = useClerk();
-  const router = useRouter();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -156,8 +157,24 @@ export function TenantHeader({ tenants }: TenantHeaderProps) {
                     onChange={(e) => {
                       const found = companies.find(c => c.id === e.target.value);
                       if (found) {
+                        // `cambiarEmpresa` es la UNICA via: escribe la cookie
+                        // `active_company_id`, sube la generacion, aborta lo que
+                        // esta en vuelo, recarga `/api/workspace` validado contra
+                        // `user_company_access` y navega.
+                        //
+                        // Antes este selector solo hacia `setCompany(found)`, que
+                        // solo cambia estado local + localStorage. La cookie se
+                        // quedaba en la empresa anterior, asi que `x-company-id`
+                        // no cambiaba y el servidor seguia filtrando por la
+                        // empresa anterior: se veian sus datos creyendo estar en
+                        // la nueva. Ademas `?companyId=` en la URL de la pagina
+                        // no filtra nada, porque las rutas API construyen su
+                        // propia URL y no heredan los query de la pagina.
+                        // `setCompany` se mantiene solo para que el nombre/RTN que
+                        // muestra esta cabecera (y los `currentCompany?.id` que leen
+                        // dashboard y tenant-admin) no queden en la empresa vieja.
+                        void cambiarEmpresa(found.id);
                         setCompany(found);
-                        router.push(`/companies/${found.id}?companyId=${found.id}`);
                       }
                     }}
                     className="h-9 px-3 py-1.5 bg-cyan-600/50 border-cyan-500/50 text-white text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 appearance-none pr-8 bg-[url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22m6 9 6 6 6-6%22/%3E%3C/svg%3E')] bg-right-2 bg-no-repeat"
