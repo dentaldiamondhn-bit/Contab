@@ -30,6 +30,16 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 | Zod Validation | `lib/services/transaction-service-enhanced.ts` | Transaction payload validation |
 | Fiscal Middleware | `lib/middleware/fiscal-validation.middleware.ts` | CAI validation before saving |
 | Period Snapshot | `lib/services/year-end-closing.ts` | Balance snapshots for historical reports |
+| **Aislamiento multi-empresa** | `lib/tenant-resolver.ts`, `lib/company-scope.ts` | `contextoDeEmpresa()` (valida pertenencia, 400/403) + `filtroEmpresa()`. Aísla por **`company_id`**, no por `tenant_id`: un tenant puede tener varias empresas (`TEST1DS` tiene "test 1" y "test 2") |
+| **Roles Contador/Empresario** | `user_company_access`, `company_location` | Membresía usuario↔empresa (`relationship` = `owner` / `accountant`) y sedes. **1 empresa = empresario, 2+ = contador.** Es la fuente de verdad; `User.tenantid` es legacy |
+| **Verificar aislamiento** | `scripts/verificar-aislamiento.mjs`, `scripts/verificar-contexto.mjs` | Solo lectura. El primero: `company_id` y cruce entre empresas. El segundo: sedes, membresía, `location_id` |
+| **Correlativo de factura** | `lib/billing/invoice-number.ts` | `previewInvoiceNumber` / `reserveInvoiceNumber(tenantId, { suelo })`; el servidor es la autoridad |
+| **Email de factura** | `lib/email/send.ts`, `lib/email/invoice-email.ts` | Envío por Resend con el PDF real adjunto |
+| **Stock al vender** | `lib/services/stock-sale.ts` | `checkSaleStock()` / `applySaleStock()`: actualización optimista e idempotente |
+
+> Las reglas que no se negocian (tenant, lempiras, esquema real, migraciones) están en
+> **`AGENTS.md` en la raíz**. El typecheck tiene un baseline de **481** errores: un cambio
+> solo está bien si el total no sube de 481.
 
 ## Key Commands
 
