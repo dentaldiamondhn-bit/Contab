@@ -1,8 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 
 // Configuración directa de Supabase
-const supabaseUrl = 'https://kudsqsbxbmviesiaesct.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZHNxc2J4Ym12aWVzaWFlc2N0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczODA1NjQ3MCwiZXhwIjoyMDUzNjMyNDcwfQ.5hFqXhHx4mQJ6LxX3Q7YQJ9Y8Z7X3Q7YQJ9Y8Z7X3Q7';
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL!;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

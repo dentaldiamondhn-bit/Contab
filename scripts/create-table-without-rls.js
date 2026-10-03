@@ -1,8 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
+const { claveServiceRole, supabaseEnv } = require('./_supabase-env');
 
 // Usar la clave de servicio para tener acceso completo
-const supabaseUrl = 'https://kudsqsbxbmviesiaesct.supabase.co';
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZHNxc2J4Ym12aWVzaWFlYzN0Iiwicm9zZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc0NDQ0NTI1MSwiZXhwIjoyMDkwMDYxMjkxfQ.BvHT1ClcshuGXZTVkTj3TZNcCWboOyUagutdmDXYd8c';
+const supabaseUrl = supabaseEnv().url;
+const supabaseKey = claveServiceRole();
 
 const supabase = createClient(supabaseUrl, supabaseKey);
 

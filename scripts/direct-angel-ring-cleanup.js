@@ -1,12 +1,13 @@
 const { createClient } = require('@supabase/supabase-js');
+const { claveServiceRole, supabaseEnv } = require('./_supabase-env');
 
 // Direct database cleanup script
 async function directAngelRingCleanup() {
     console.log('🗑️ Starting direct Angel Ring cleanup...');
     
     // Supabase configuration
-    const supabaseUrl = 'https://kudsqsbxbmviesiaesct.supabase.co';
-    const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZHNxc2J4Ym12aWVzaWFlc2N0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTczODI5NjU1NSwiZXhwIjoyMDUzODcyMTU1fQ.kQwzA3h2lT9_xNtJKnZQJ8qOqJ9mO5JgXhYqN7ZfR3A';
+    const supabaseUrl = supabaseEnv().url;
+    const supabaseKey = claveServiceRole();
     
     const supabase = createClient(supabaseUrl, supabaseKey);
     

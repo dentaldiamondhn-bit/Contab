@@ -1,8 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Configuración de Supabase
-const supabaseUrl = process.env.SUPABASE_URL || 'https://kudsqsbxbmviesiaesct.supabase.co';
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt1ZHNxc2J4Ym12aWVzaWFlc2N0Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDQ4NTI5MSwiZXhwIjoyMDkwMDYxMjkxfQ.BvHT1ClcshuGXZTVkTj3TZNcCWboOyUagutdmDXYd8c';
+const { claveServiceRole, supabaseEnv } = require('./scripts/_supabase-env');
+const supabaseUrl = supabaseEnv().url;
+const supabaseKey = claveServiceRole();
 
 console.log('🔍 Probando API de Tenants...');
 console.log('URL:', supabaseUrl);
