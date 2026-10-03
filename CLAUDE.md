@@ -3266,6 +3266,52 @@ inventario. Necesitan ver si su tabla tiene `company_id` y cual es el
 `vinculo` correcto (varias ya usan `warehouse` o `product_location`, que aíslan por
 otra via). Es trabajo por ruta, no un cambio de filtro.
 
+## Los KPIs de business-reports NO se pueden verificar con test 1 y test 2 (3 Oct 2026)
+
+El fix de `kpis`/`occupancy` esta bien, pero **hoy es imposible verlo en la
+pagina**, y conviene saber porque antes de que alguien lo mire y concluya que no
+se arreglo nada.
+
+Medido contra la base el 3 Oct 2026:
+
+| empresa | tenant | Transaction | Invoice | Account |
+|---|---|---|---|---|
+| test 1 | TEST1DS | 3 | 0 | 2 |
+| **test 2** | TEST1DS | **0** | **0** | **0** |
+| Angelos | ANGELOH7 | 32 | 3 | 19 |
+| Empresa 1 | 1 | 14 | 0 | 22 |
+
+Las otras 4 empresas no tienen nada. Dos motivos encadenados:
+
+1. **test 2 no tiene ni una fila en toda la base.** Con el filtro viejo por tenant
+   veía las 3 de test 1, y por eso el sintoma era "las dos mostran lo mismo".
+   Ahora deberia ver 0.
+2. **Las 3 transacciones de test 1 son de agosto y septiembre.** La ruta filtra
+   `gte('date', primerDiaDelMesEnCurso)`, y hoy es 3 de octubre: **la transaccion
+   mas reciente de TODA la base es del 30 de septiembre**. Osea que ahora mismo
+   los KPIs dan **0 para cualquier empresa**, con o sin el fix.
+
+**Consecuencia:** test 1 y test 2 van a salir los dos con ceros, y eso es
+**correcto**, no es que el fix falle. Y las 3 pestanas mock seguiran mostrando
+exactamente los mismos numeros inventados, porque no leen la base. **Lo primero
+que vera el usuario es "siguen igual", y el sintoma es el mock, no la fuga.**
+
+Como verificar de verdad, cuando se quiera:
+- Insertar una transaccion de **octubre** en **test 1**, recargar: test 1 tiene que
+  mover, test 2 tiene que seguir en 0. Esa es la prueba del aislamiento.
+- No sirve Angelos vs Empresa 1: estan en tenants distintos, asi que el bug viejo
+  nunca habria fugado entre ellas.
+- Script: `npm run verificar:kpis` (solo lectura, compara el filtro bueno con el
+  viejo, pero sin sesion Clerk solo prueba las consultas, no la pagina).
+
+### Una transaccion huerfana: dato perdido, no fuga
+
+`051e950a` (2025-04-30, 500000) tiene **`company_id` NULL y `tenantId` NULL**, y
+tambien `tenant_id` NULL. Es invisible **para los dos filtros**: ni el viejo por
+tenant ni el nuevo por empresa la ven, y no la ve ni el mas dueno. Se contabilizo
+en su dia y desde entonces no la muestra nadie. No es una fuga: es un asiento que
+se perdio. La 027b2 ya lo dejo declarado a proposito, sin empresa inventada.
+
 ## Compras y Proveedores: el modulo entero operaba sobre el tenant '1' (2 Oct 2026)
 
 Elegiste priorizar este modulo. El hallazgo no era un `tenant_id` suelto: era que

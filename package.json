@@ -4,6 +4,8 @@
   "private": true,
   "scripts": {
     "verificar:credenciales": "node scripts/verificar-credenciales.mjs",
+    "verificar:rotacion": "node scripts/verificar-rotacion-clave.mjs",
+    "verificar:kpis": "node scripts/verificar-aislamiento-kpis.mjs",
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
