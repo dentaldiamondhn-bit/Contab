@@ -1,4 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
+// -----------------------------------------------------------------------------
+// DATOS DE EJEMPLO, NO DATOS REALES.
+//
+// Lo que hay debajo es un objeto literal fijo en el codigo: la ruta NO lee la
+// base y TAMPOCO lee el `[id]` de la ruta. Por eso
+// /companies/<test1>/... y /companies/<test2>/... devuelven EXACTAMENTE lo mismo.
+//
+// No es un fallo de aislamiento: no hay datos que aislar. Es un reporte sin
+// implementar que de momento enseña numeros inventados (10 cubiculos, 15 activos,
+// 45 leads) como si fueran reales.
+//
+// Cuando se implemente contra datos reales, el filtro de EMPRESA es
+// `.eq('company_id', companyId)`. Filtrar solo por `tenant_id` NO aisla: test 1 y
+// test 2 comparten `TEST1DS` (ver CLAUDE.md, seccion de kpis/occupancy).
+// -----------------------------------------------------------------------------
 
 // Reporte de Rentabilidad por Cubículo
 export async function GET(

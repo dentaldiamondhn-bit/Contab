@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase as supabaseService } from '@/lib/supabase-db';
+import { tenantFromCompanyId } from '@/lib/tenant-resolver';
 
 const DIAS_NOMBRES = [
   'domingo',
@@ -80,9 +81,7 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
-    // Obtener companyId de query param para filtrado adicional
-    const { searchParams } = new URL(request.url);
-    const companyIdQuery = searchParams.get('companyId');
+    // El tenant sale del `[id]` de la ruta, no de `?companyId` (del cliente).
 
     // Período actual (mes en curso), mismo patrón que kpis
     const now = new Date();
@@ -92,38 +91,42 @@ export async function GET(
     const hasta = endOfMonth.toISOString().split('T')[0];
     const periodoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Facturas reales del tenant (se omiten anuladas)
-    let invoices: any[] = [];
-    let query = supabaseService
+    // Facturas reales de ESTA EMPRESA (se omiten anuladas).
+    //
+    // El comentario anterior de aquí decía "`Invoice` no tiene `company_id`", y
+    // eso es FALSO: medido el 2 Oct 2026, `Invoice` tiene `company_id` (además de
+    // `tenantId`). Por creer ese comentario, la consulta se quedaba solo en
+    // `tenantId`, y como test 1 y test 2 comparten `TEST1DS` **las dos empresas
+    // veian exactamente las mismas facturas**: era una fuga entre empresas, no un
+    // dato igual por casualidad.
+    //
+    // El filtro de EMPRESA es el que aísla; el de tenant solo agrupa. Con los dos,
+    // el `.eq('company_id', companyId)` es el que separa.
+    const invoiceTenantId = (await tenantFromCompanyId(companyId)) ?? companyId;
+    let { data: invData, error: invError } = await supabaseService
       .from('Invoice')
       .select(
-        'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id'
-      );
-    if (companyIdQuery) {
-      query = query.eq('company_id', companyIdQuery);
-    } else {
-      query = query.eq('tenantId', companyId);
-    }
-    let { data: invData, error: invError } = await query;
+        'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id, company_id'
+      )
+      .eq('tenantId', invoiceTenantId)
+      .eq('company_id', companyId);
 
     if (invError || !invData || invData.length === 0) {
-      const altQuery = supabaseService
+      // El respaldo NO puede perder el filtro de empresa: una consulta global
+      // como red de seguridad convierte un 0 filas en una fuga de todos los datos.
+      // Si no hay facturas de esta empresa, el reporte sale vacio y ya.
+      const alt = await supabaseService
         .from('Invoice')
         .select(
-          'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id'
-        );
-      if (companyIdQuery) {
-        altQuery.eq('company_id', companyIdQuery);
-      } else {
-        altQuery.eq('tenantId', companyId);
-      }
-      const alt = await altQuery;
+          'id, total, status, invoiceType, customerName, customer_name, issueDate, createdAt, tenantId, tenant_id, company_id'
+        )
+        .eq('company_id', companyId);
       if (!alt.error && alt.data) {
         invData = alt.data;
       }
     }
 
-    invoices = invData || [];
+    const invoices = invData || [];
 
     const validas = invoices.filter((i: any) => {
       const status = String(i.status || '').toUpperCase();

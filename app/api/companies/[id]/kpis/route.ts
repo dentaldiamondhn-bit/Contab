@@ -13,28 +13,38 @@ export async function GET(
     const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
     const periodoKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Transacciones reales del tenant en el período
+    // OJO: esta ruta ya NO resuelve el tenant. Antes traducía el `[id]` con
+    // `tenantFromCompanyId` y filtraba por `tenantId`, y eso hacía que test 1 y
+    // test 2 (que comparten `TEST1DS`) salieran con los MISMOS KPI. Ahora filtra
+    // siempre por `company_id`, que es el campo que aísla.
+
+    // Transacciones reales de ESTA EMPRESA en el período.
+    //
+    // El filtro de EMPRESA es el que aísla. `tenantId` solo agrupa: test 1 y test 2
+    // comparten `TEST1DS`, asi que filtrando solo por tenant **las dos empresas
+    // salian con los mismos KPI**.
+    //
+    // `Transaction` SI tiene `company_id` (medido el 2 Oct 2026: `tenantId`,
+    // `tenant_id`, `tenantid` y `company_id`), aunque el comentario de la linea 20
+    // decia que no existia. Y OJO: su `company_id` es el campo confiable (la 027b2
+    // lo reparo); el `tenant_id` snake es basura y el `tenantid` esta vacio.
     let transactions: any[] = [];
-    const url = new URL(request.url);
-    const searchParams = url.searchParams;
-    const companyId = searchParams.get('companyId');
     let query = supabaseService
       .from('Transaction')
-      .select('id, voucherType, voucher_type, totalAmount, total_amount, date');
-    if (companyId) {
-      query = query.eq('company_id', companyId);
-    } else {
-      query = query.eq('tenant_id', companyId);
-    }
+      .select('id, voucherType, voucher_type, totalAmount, total_amount, date, company_id');
     let { data: txData, error: txError } = await query
+      .eq('company_id', companyId)
       .gte('date', startOfMonth.toISOString().split('T')[0]);
 
 
     if (txError || !txData || txData.length === 0) {
+      // El respaldo NO puede perder el filtro de empresa: una consulta por tenant
+      // sola como red de seguridad devuelve los datos de la otra empresa del mismo
+      // tenant. Si esta empresa no tiene transacciones, sus KPI salen en cero.
       const alt = await supabaseService
         .from('Transaction')
-        .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
-        .eq('tenantId', companyId)
+        .select('id, voucherType, voucher_type, totalAmount, total_amount, date, company_id')
+        .eq('company_id', companyId)
         .gte('date', startOfMonth.toISOString().split('T')[0]);
       if (!alt.error && alt.data) {
         txData = alt.data;
@@ -60,24 +70,21 @@ export async function GET(
     egresos = Math.round(egresos * 100) / 100;
 
     let invoices: any[] = [];
-    const url2 = new URL(request.url);
-    const searchParams2 = url2.searchParams;
-    const companyIdQuery = searchParams2.get('companyId');
-    let invoiceQuery = supabaseService
+    // `Invoice` SI tiene `company_id` (medido el 2 Oct 2026). El comentario de aquí
+    // decía que no, y por eso se filtraba solo por `tenantId`, con lo que test 1 y
+    // test 2 veian las mismas facturas. Se filtra por empresa, que es lo que aísla;
+    // el tenant solo acota.
+    let { data: invData, error: invError } = await supabaseService
       .from('Invoice')
-      .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id');
-    if (companyIdQuery) {
-      invoiceQuery = invoiceQuery.eq('company_id', companyIdQuery);
-    } else {
-      invoiceQuery = invoiceQuery.eq('tenantId', companyId);
-    }
-    let { data: invData, error: invError } = await invoiceQuery;
+      .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id, company_id')
+      .eq('company_id', companyId);
 
     if (invError || !invData || invData.length === 0) {
+      // Sin empresa no hay fallback global: seria una fuga.
       const alt = await supabaseService
         .from('Invoice')
-        .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id')
-        .eq('tenantId', companyId);
+        .select('id, total, status, invoiceType, customerName, customer_name, tenantId, tenant_id, company_id')
+        .eq('company_id', companyId);
       if (!alt.error && alt.data) {
         invData = alt.data;
       }
@@ -114,16 +121,20 @@ export async function GET(
     const operatingMargin = ingresos > 0 ? Math.round(((ingresos - egresos) / ingresos) * 100) : null;
     const cashFlow = Math.round((ingresos - egresos) * 100) / 100;
 
-    // Costo de mantenimiento real desde cost_payments
+    // Costo de mantenimiento real desde cost_payments.
     let maintenanceCost: number | null = null;
-    const costQuery = supabaseService
+    // El `[id]` de la ruta manda: `?companyId` es del cliente. Y hay que
+    // reasignar el `.eq()` (supabase-js devuelve una consulta nueva); antes se
+    // descartaba y la consulta salia sin filtro, con los costos de todas las
+    // empresas. Ver costs/route.ts.
+    //
+    // Filtra por EMPRESA: `cost_payments` tiene `company_id` (comprobado: el
+    // `.eq()` es aceptado, mientras que `companyId` da 42703), y con solo
+    // `tenant_id` las dos empresas del mismo tenant sumarian los costos de ambas.
+    let costQuery = supabaseService
       .from('cost_payments')
-      .select('cost_type, cost_key, amount');
-    if (companyIdQuery) {
-      costQuery.eq('company_id', companyIdQuery);
-    } else {
-      costQuery.eq('tenant_id', companyId);
-    }
+      .select('cost_type, cost_key, amount')
+      .eq('company_id', companyId);
     const { data: costRows, error: costsError } = await costQuery
       .eq('cost_key', 'maintenance');
     if (!costsError && costRows && costRows.length > 0) {
