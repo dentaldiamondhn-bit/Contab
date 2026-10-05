@@ -11,3 +11,7 @@ Thumbs.db
 /.clerk/
 .vercel
 .env*
+# .env.example es la plantilla sin valores: esa si se versiona.
+# Ojo: esto solo afecta a ficheros SIN trackear. Si un .env* ya estaba
+# trackeado, la regla no lo saca: hay que hacer `git rm --cached <fichero>`.
+!.env.example
