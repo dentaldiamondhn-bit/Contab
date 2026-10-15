@@ -15,5 +15,20 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // `lib/services/location-service.ts` importa `resolveTenant` de budget-service.
+  // Va al fichero REAL (no a un doble): el que se prueba es el codigo que corre.
+  if (specifier === '@/lib/services/budget-service') {
+    return {
+      url: new URL('../../lib/services/budget-service.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  if (specifier === '@/lib/services/budget-calc') {
+    return {
+      url: new URL('../../lib/services/budget-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }

@@ -62,26 +62,18 @@ export async function fetchInvoiceData(
   tenantHint?: string | null,
 ): Promise<InvoicePdfData | null> {
   const supabase = getSupabaseServer();
-  const tenantId = await resolveTenant(companyId, tenantHint);
 
-  let inv: Record<string, unknown> | null = null;
-  const byCamel = await supabase
+  // La factura se aisla por `company_id` (el isolation key real). Filtrar por
+  // `tenantId` hacia que test 1 y test 2 (que comparten TEST1DS) se vieran las
+  // facturas la una a la otra: la ruta ahora valida la empresa con
+  // `contextoDeEmpresa`, y aqui se confirma que la factura es de esa empresa.
+  const { data, error } = await supabase
     .from('Invoice')
     .select('*')
     .eq('id', invoiceId)
-    .eq('tenantId', tenantId)
+    .eq('company_id', companyId)
     .maybeSingle();
-  if (!byCamel.error && byCamel.data) {
-    inv = byCamel.data as Record<string, unknown>;
-  } else {
-    const bySnake = await supabase
-      .from('Invoice')
-      .select('*')
-      .eq('id', invoiceId)
-      .eq('tenant_id', tenantId)
-      .maybeSingle();
-    if (!bySnake.error && bySnake.data) inv = bySnake.data as Record<string, unknown>;
-  }
+  const inv = !error && data ? (data as Record<string, unknown>) : null;
   if (!inv) return null;
 
   const { data: items } = await supabase
@@ -90,7 +82,7 @@ export async function fetchInvoiceData(
     .eq('invoiceId', invoiceId)
     .order('createdAt', { ascending: true });
 
-  const company = await fetchCompanyHeader(companyId, tenantId);
+  const company = await fetchCompanyHeader(companyId, tenantHint);
   const pick = (k: string) => str(inv?.[k]);
   return {
     company: {

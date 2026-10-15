@@ -5,18 +5,13 @@ import { buildPdfDocument } from '@/lib/services/pdf-document-builder';
 import { renderPdfDocument, pdfFilename, num, str } from '@/lib/services/pdf-documents';
 import { isEmailConfigured, sendEmail } from '@/lib/email/send';
 import { buildInvoiceEmailHtml, buildInvoiceEmailText } from '@/lib/email/invoice-email';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 // force-dynamic: depende del PDF renderizado en runtime y de las variables de
 // entorno del proveedor de correo.
 // nodejs: @react-pdf/renderer y el adjunto Buffers requieren el runtime de Node.
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
 
 // La moneda y el correo del cliente viven en la fila de la factura pero no los
 // expone fetchInvoiceData.
@@ -53,7 +48,15 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
-    const companyId = str(body.companyId) || tenantHint(request) || '';
+
+    // La empresa se VALIDA contra la sesion: el `companyId` del cuerpo es una
+    // pista, no una autoridad. `fetchInvoiceData` filtra la factura por
+    // `company_id`, asi que sin esto un `companyId` ajeno leeria/enviaria la
+    // factura de otra empresa (IDOR).
+    const empresa = await contextoDeEmpresa(request, {
+      companyIdDeRuta: str(body.companyId) || undefined,
+    });
+    const companyId = empresa.companyId;
 
     // Fallan rapido las condiciones que no dependen de la base de datos.
     if (!isEmailConfigured()) {
@@ -75,9 +78,8 @@ export async function POST(
       );
     }
 
-    // fetchInvoiceData valida que la factura pertenezca al tenant (evita fuga
-    // cruzada entre empresas).
-    const data = await fetchInvoiceData(companyId, invoiceId, tenantHint(request));
+    // fetchInvoiceData valida que la factura sea de esa empresa (company_id).
+    const data = await fetchInvoiceData(companyId, invoiceId, empresa.tenantId);
     if (!data) {
       return NextResponse.json(
         { success: false, error: 'Factura no encontrada para esta empresa' },
@@ -175,6 +177,8 @@ export async function POST(
       filename,
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

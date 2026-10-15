@@ -1,23 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveTenant as resolveTenantDelRequest } from "@/lib/tenant-resolver";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { exigirEmpresa } from "@/lib/purchase-db";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 import { resolveAccountId, ACCOUNT_PREFIXES } from "@/lib/accounting/resolve-account";
 
 export const dynamic = "force-dynamic";
 
-// La tabla real es `paymentlink` (no `PaymentLink`) y su columna de empresa es
-// `tenant_id`. `paymentlink.invoice_id` es un UUID sin FK a `Invoice`, asi que
-// no hay embed posible: la factura se busca aparte. `Invoice` es la tabla de
-// Prisma, en camelCase (`invoiceNumber`, `customerName`, `tenantId`).
-// El tenant sale del header de sesion (`x-tenant-id`, lo inyecta middleware.ts),
-// NO de `?companyId`: ese parametro lo manda el cliente y antes ganaba al header,
-// asi que cualquier usuario autenticado podia leer y escribir los datos de otra
-// empresa con `?companyId=ANGELOH7`. Ademas `?companyId` es un companies.id, no el
-// tenant_id que guardan las tablas, y sin traducir daba cero filas.
-// Ver lib/tenant-resolver.ts.
-async function resolveTenant(request: NextRequest): Promise<string | null> {
-  return resolveTenantDelRequest(request);
-}
+// `paymentlink` tiene `company_id` (migracion 023) y `paymentlink.invoice_id` es un
+// UUID sin FK a `Invoice`, asi que no hay embed posible: la factura se busca aparte.
+// `Invoice` es la tabla de Prisma, en camelCase (`invoiceNumber`, `customerName`,
+// `tenantId`) y tiene `company_id` (migracion 023). La empresa sale del contexto
+// validado (`contextoDeEmpresa`), NUNCA solo del tenant. Ver AGENTS.md seccion 1.
 
 /**
  * Asiento de cobro: debito caja, credito cuentas por cobrar. Es best-effort
@@ -79,6 +72,7 @@ async function postPaymentJournal(
 
 export async function POST(request: NextRequest) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const formData = await request.formData();
     const receipt = formData.get("receipt") as File;
     const paymentLinkId = formData.get("paymentLinkId") as string;
@@ -90,23 +84,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const tenantId = await resolveTenant(request) || (formData.get("companyId") as string | null);
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
-
     const supabase = getSupabaseServer();
 
-    // El enlace se filtra por id **y** por tenant: antes el update era solo por
+    // El enlace se filtra por id **y** por empresa: antes el update era solo por
     // id, asi que una empresa podia completar el enlace de pago de otra.
     const { data: link, error: linkError } = await (supabase as any)
       .from("paymentlink")
       .select("id, invoice_id, invoice_number, tenant_id")
       .eq("id", paymentLinkId)
-      .eq("tenant_id", tenantId)
+      .eq("company_id", empresa.companyId)
       .maybeSingle();
 
     if (linkError) {
@@ -127,7 +113,7 @@ export async function POST(request: NextRequest) {
     // cuando el id no pertenece a la empresa. El prefijo por tenant mantiene
     // el bucket separado igual que company-logos.
     const ext = receipt.name.split(".").pop() || "bin";
-    const fileName = `${tenantId}/receipt-${paymentLinkId}-${Date.now()}.${ext}`;
+    const fileName = `${empresa.tenantId}/receipt-${paymentLinkId}-${Date.now()}.${ext}`;
     const { error: uploadError } = await supabase.storage
       .from("payment-receipts")
       .upload(fileName, receipt);
@@ -152,7 +138,7 @@ export async function POST(request: NextRequest) {
         completed_at: new Date().toISOString(),
       })
       .eq("id", paymentLinkId)
-      .eq("tenant_id", tenantId);
+      .eq("company_id", empresa.companyId);
 
     if (updateError) {
       console.error("Error updating payment link:", updateError);
@@ -171,7 +157,7 @@ export async function POST(request: NextRequest) {
         .from("Invoice")
         .select("id, invoiceNumber, customerName, total, status, tenantId")
         .eq("id", link.invoice_id)
-        .eq("tenantId", tenantId)
+        .eq("company_id", empresa.companyId)
         .maybeSingle();
 
       if (found) {
@@ -181,17 +167,17 @@ export async function POST(request: NextRequest) {
             .from("Invoice")
             .update({ status: "PAID", updatedAt: new Date().toISOString() })
             .eq("id", found.id)
-            .eq("tenantId", tenantId);
+            .eq("company_id", empresa.companyId);
         }
       } else {
         console.warn(
-          `[billing/payment-receipts] La factura ${link.invoice_id} no pertenece al tenant ${tenantId}; no se toca.`
+          `[billing/payment-receipts] La factura ${link.invoice_id} no pertenece a la empresa ${empresa.companyId}; no se toca.`
         );
       }
     }
 
     if (invoice) {
-      await postPaymentJournal(tenantId, invoice.invoiceNumber, invoice.customerName, Number(invoice.total));
+      await postPaymentJournal(empresa.tenantId, invoice.invoiceNumber, invoice.customerName, Number(invoice.total));
     }
 
     return NextResponse.json({
@@ -200,6 +186,8 @@ export async function POST(request: NextRequest) {
       paymentStatus: "completed",
     });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in payment receipts POST route:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -207,16 +195,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const paymentLinkId = searchParams.get("paymentLinkId");
-
-    const tenantId = await resolveTenant(request);
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
 
     const supabase = getSupabaseServer();
 
@@ -225,7 +206,7 @@ export async function GET(request: NextRequest) {
     let query = (supabase as any)
       .from("paymentlink")
       .select("*")
-      .eq("tenant_id", tenantId);
+      .eq("company_id", empresa.companyId);
 
     if (paymentLinkId) {
       query = query.eq("id", paymentLinkId);
@@ -245,7 +226,7 @@ export async function GET(request: NextRequest) {
         .from("bankaccount")
         .select("id, bank_name, account_number, account_type, account_holder, currency")
         .in("id", bankIds)
-        .eq("tenant_id", tenantId);
+        .eq("company_id", empresa.companyId);
       for (const b of banks || []) bankById[b.id] = b;
     }
 
@@ -256,6 +237,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(receipts);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in payment receipts GET route:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

@@ -36,6 +36,7 @@ interface Purchase {
 
 interface PaymentManagerProps {
   purchase: Purchase;
+  companyId: string;
   isOpen: boolean;
   onClose: () => void;
   onPaymentUpdate: () => void;
@@ -49,7 +50,7 @@ const PAYMENT_METHODS = [
   { value: 'other', label: 'Otro' },
 ];
 
-export default function PaymentManager({ purchase, isOpen, onClose, onPaymentUpdate }: PaymentManagerProps) {
+export default function PaymentManager({ purchase, companyId, isOpen, onClose, onPaymentUpdate }: PaymentManagerProps) {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [loading, setLoading] = useState(false);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -71,7 +72,7 @@ export default function PaymentManager({ purchase, isOpen, onClose, onPaymentUpd
   const loadPayments = async () => {
     try {
       setLoading(true);
-      const res = await fetch(`/api/purchases/payments?purchaseId=${purchase.id}`);
+      const res = await fetch(`/api/purchases/payments?purchaseId=${purchase.id}&companyId=${companyId}`);
       if (res.ok) {
         const data = await res.json();
         setPayments(data);
@@ -99,8 +100,8 @@ export default function PaymentManager({ purchase, isOpen, onClose, onPaymentUpd
 
     try {
       const url = editingPayment 
-        ? `/api/purchases/payments?id=${editingPayment.id}`
-        : '/api/purchases/payments';
+        ? `/api/purchases/payments?id=${editingPayment.id}&companyId=${companyId}`
+        : `/api/purchases/payments?companyId=${companyId}`;
       
       const method = editingPayment ? 'PUT' : 'POST';
       
@@ -149,7 +150,7 @@ export default function PaymentManager({ purchase, isOpen, onClose, onPaymentUpd
     }
 
     try {
-      const res = await fetch(`/api/purchases/payments?id=${paymentId}`, {
+      const res = await fetch(`/api/purchases/payments?id=${paymentId}&companyId=${companyId}`, {
         method: 'DELETE',
       });
 

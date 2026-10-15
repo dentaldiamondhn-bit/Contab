@@ -1,32 +1,31 @@
-import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { NextResponse } from 'next/server';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import {
+  fetchPurchaseOrders,
+  createPurchaseOrder,
+  updatePurchaseOrder,
+  deletePurchaseOrder,
+} from '@/lib/purchase-orders-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-
-// GET - List purchase orders
+/**
+ * Antes esta ruta iba clavada en `tenantId = '1'`: las O.C. se creaban siempre
+ * para la Empresa 1 y el `?companyId` del cliente valía como filtro, o sea que
+ * cualquier usuario podía pedir las de otra empresa y editarlas/borrarlas por
+ * solo `id` (IDOR). Ahora la empresa sale de `contextoDeEmpresa` (validada
+ * contra la membresía) igual que en el módulo de Compras; el `?companyId` del
+ * cliente ya no se lee, como en `/api/purchases`.
+ */
 export async function GET(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
-    const tenantId = '1';
+    const supplierId = searchParams.get('supplierId');
+    const status = searchParams.get('status');
+    const search = searchParams.get('search');
 
-    let query = getSupabaseServer()
-      .from('PurchaseOrder')
-      .select(`
-        *,
-        Supplier:supplier_id(id, name, rtn),
-        PurchaseOrderItem:PurchaseOrderItem(*)
-      `)
-      .eq('tenant_id', tenantId)
-      .order('created_at', { ascending: false });
-
-    if (companyId) {
-      query = query.eq('company_id', companyId);
-    }
-
-    const { data, error } = await query;
+    const { data, error } = await fetchPurchaseOrders(getSupabaseServer(), empresa, { supplierId, status, search });
 
     if (error) {
       console.error('Supabase error:', error);
@@ -35,123 +34,67 @@ export async function GET(request: Request) {
 
     return NextResponse.json(data || []);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error fetching purchase orders:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// POST - Create new purchase order
 export async function POST(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
-    const {
-      order_number,
-      supplier_id,
-      order_date,
-      expected_date,
-      subtotal,
-      tax_amount,
-      total,
-      notes,
-      items,
-      companyId,
-    } = body;
 
-    const tenantId = '1';
+    const { data, error } = await createPurchaseOrder(getSupabaseServer(), empresa, body);
 
-    // Create purchase order
-    const { data: order, error: orderError } = await getSupabaseServer()
-      .from('PurchaseOrder')
-      .insert({
-        order_number,
-        supplier_id,
-        order_date,
-        expected_date: expected_date || null,
-        subtotal,
-        tax_amount,
-        total,
-        notes: notes || null,
-        status: 'DRAFT',
-        tenant_id: tenantId,
-        company_id: companyId,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (orderError) {
-      console.error('Error creating purchase order:', orderError);
-      return NextResponse.json({ error: 'Failed to create purchase order' }, { status: 500 });
+    if (error) {
+      console.error('Supabase error creating purchase order:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Insert purchase order items
-    if (items && items.length > 0) {
-      const orderItems = items.map((item: any) => ({
-        purchase_order_id: order.id,
-        product_id: item.product_id || null,
-        product_code: item.product_code || null,
-        product_name: item.product_name,
-        quantity_requested: item.quantity_requested,
-        quantity_received: 0,
-        unit_price: item.unit_price,
-        total: item.total,
-        notes: item.notes || null,
-        tenant_id: tenantId,
-        created_at: new Date().toISOString(),
-      }));
-
-      const { error: itemsError } = await getSupabaseServer()
-        .from('PurchaseOrderItem')
-        .insert(orderItems);
-
-      if (itemsError) {
-        console.error('Error creating order items:', itemsError);
-      }
-    }
-
-    return NextResponse.json(order, { status: 201 });
+    return NextResponse.json(data, { status: 201 });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error creating purchase order:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// PATCH - Update purchase order
 export async function PATCH(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
-    const { id, ...updates } = body;
 
-    if (!id) {
+    if (!body?.id) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const { data, error } = await getSupabaseServer()
-      .from('PurchaseOrder')
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', id)
-      .select()
-      .single();
+    const { data, error, notFound } = await updatePurchaseOrder(getSupabaseServer(), empresa, body.id, body);
 
     if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json({ error: 'Failed to update purchase order' }, { status: 500 });
+      console.error('Supabase error updating purchase order:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (notFound || !data) {
+      // 404 y no 403 a propósito: no se le confirma a un usuario que la orden
+      // existe pero es de otra empresa.
+      return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
     return NextResponse.json(data);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error updating purchase order:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// DELETE - Delete purchase order
 export async function DELETE(request: Request) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
 
@@ -159,19 +102,20 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    // First delete order items
-    await getSupabaseServer().from('PurchaseOrderItem').delete().eq('purchase_order_id', id);
-
-    // Then delete the order
-    const { error } = await getSupabaseServer().from('PurchaseOrder').delete().eq('id', id);
+    const { error, notFound } = await deletePurchaseOrder(getSupabaseServer(), empresa, id);
 
     if (error) {
-      console.error('Supabase error:', error);
-      return NextResponse.json({ error: 'Failed to delete purchase order' }, { status: 500 });
+      console.error('Supabase error deleting purchase order:', error);
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (notFound) {
+      return NextResponse.json({ error: 'Purchase order not found' }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error deleting purchase order:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

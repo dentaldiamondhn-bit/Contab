@@ -16,6 +16,7 @@ import { Search, Plus, Building2, Phone, Mail, MapPin, History, CreditCard, Aler
 
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
 import SupplierPriceHistory from '@/components/purchasing/SupplierPriceHistory';
+import SupplierRatings from '@/components/purchasing/SupplierRatings';
 import * as XLSX from 'xlsx';
 interface Supplier {
   id: string;
@@ -295,7 +296,7 @@ export default function SuppliersPage() {
       };
       console.log('Frontend: Creating supplier:', supplierData);
       
-      const res = await fetch('/api/suppliers', {
+      const res = await fetch(`/api/suppliers?companyId=${companyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplierData),
@@ -329,7 +330,7 @@ export default function SuppliersPage() {
     setRtnError('');
 
     try {
-      const res = await fetch('/api/suppliers', {
+      const res = await fetch(`/api/suppliers?companyId=${companyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -357,7 +358,7 @@ export default function SuppliersPage() {
     if (!selectedSupplier) return;
 
     try {
-      const res = await fetch(`/api/suppliers?id=${selectedSupplier.id}`, {
+      const res = await fetch(`/api/suppliers?id=${selectedSupplier.id}&companyId=${companyId}`, {
         method: 'DELETE',
       });
 
@@ -1017,6 +1018,12 @@ export default function SuppliersPage() {
                     </table>
                   </div>
                 )}
+              </div>
+
+              {/* Calificaciones y comentarios. Va antes del historial de precios: es
+                  lo que un usuario mira primero para decidir con quien trabajar. */}
+              <div className="pt-4 border-t">
+                <SupplierRatings supplierId={selectedSupplier.id} />
               </div>
 
               <div className="pt-4 border-t">

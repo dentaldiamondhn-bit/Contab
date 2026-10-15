@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { isLocationMigrationMissingError } from '@/lib/services/location-service';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -98,10 +98,23 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
+    // Antes el tenant salia de `headers('x-tenant-id')` o del campo `tenantId`
+    // del formulario (lo manda el cliente) con `resolveTenant`, y el `[id]` de
+    // la ruta NO se validaba: una importacion podia escribir estantes en la
+    // empresa que dijera el cliente. `contextoDeEmpresa` valida pertenencia
+    // (403 si no es del tenant de la sesion) y resuelve el tenant en servidor.
     const { id: companyId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.tenantId || !empresa.companyId) {
+      return NextResponse.json(
+        { success: false, error: 'Falta el tenant de la empresa' },
+        { status: 400 },
+      );
+    }
+    const tenantId = empresa.tenantId;
+
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const tenantHint = request.headers.get('x-tenant-id') || (formData.get('tenantId') as string) || null;
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'Se requiere un archivo (CSV o Excel)' }, { status: 400 });
@@ -126,7 +139,6 @@ export async function POST(
     }
 
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint);
     const now = new Date().toISOString();
 
     // Cargar nombres existentes (scope del tenant+company) para omitir duplicados
@@ -136,7 +148,7 @@ export async function POST(
         .from('product_location')
         .select('name')
         .eq('tenant_id', tenantId)
-        .or(`company_id.eq.${companyId},company_id.is.null`)
+        .or(`company_id.eq.${empresa.companyId},company_id.is.null`)
         .limit(10000);
       if (!error && existing) {
         for (const e of existing) existingNames.add(String(e.name).trim().toLowerCase());
@@ -150,7 +162,7 @@ export async function POST(
         .from('warehouse')
         .select('id, code, name')
         .eq('tenant_id', tenantId)
-        .or(`company_id.eq.${companyId},company_id.is.null`);
+        .or(`company_id.eq.${empresa.companyId},company_id.is.null`);
       if (!whErr && wh) {
         for (const w of wh as { id: string; code: string | null; name: string }[]) {
           warehouseByKey.set(String(w.id).trim().toLowerCase(), w.id);
@@ -192,7 +204,7 @@ export async function POST(
       }
       rowsToInsert.push({
         tenant_id: tenantId,
-        company_id: companyId,
+        company_id: empresa.companyId,
         code: String(r.code || '').trim() || null,
         name,
         aisle: String(r.aisle || '').trim() || null,
@@ -252,6 +264,8 @@ export async function POST(
         (warnings.length ? `, ${warnings.length} avisos` : ''),
     });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('inventory/locations/import error', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

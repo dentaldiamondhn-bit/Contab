@@ -86,7 +86,7 @@ test('200 — factura genera PDF real (%PDF, attachment)', async () => {
   assert.equal(bytes.subarray(0, 4).toString(), '%PDF');
   assert.deepEqual(mockState.calls.build, [{ type: 'invoice' }]);
   assert.deepEqual(mockState.calls.invoice, [
-    { companyId: 'C1', invoiceId: 'inv1', tenantHint: null },
+    { companyId: 'C1', invoiceId: 'inv1', tenantHint: 'C1' },
   ]);
 });
 
@@ -133,6 +133,8 @@ test('200 — variations genera PDF real', async () => {
   assert.equal(res.headers['Content-Type'], 'application/pdf');
   assert.match(res.headers['Content-Disposition'], /variaciones_2026-09_2026-10\.pdf/);
   assert.equal(pdfBytes(res).subarray(0, 4).toString(), '%PDF');
-  assert.deepEqual(mockState.calls.variations, [{ tenantId: 'C1', from: '2026-09', to: '2026-10' }]);
+  assert.deepEqual(mockState.calls.variations, [
+    { tenantId: 'C1', companyId: 'C1', from: '2026-09', to: '2026-10' },
+  ]);
   assert.deepEqual(mockState.calls.build, [{ type: 'variations' }]);
 });

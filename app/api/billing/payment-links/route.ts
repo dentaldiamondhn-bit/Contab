@@ -1,20 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveTenant as resolveTenantDelRequest } from "@/lib/tenant-resolver";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { exigirEmpresa } from "@/lib/purchase-db";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export const dynamic = "force-dynamic";
 
-// La tabla real es `paymentlink` (PostgREST no encuentra `PaymentLink`) y su
-// columna de empresa es `tenant_id`, no `tenantId`.
-// El tenant sale del header de sesion (`x-tenant-id`, lo inyecta middleware.ts),
-// NO de `?companyId`: ese parametro lo manda el cliente y antes ganaba al header,
-// asi que cualquier usuario autenticado podia leer y escribir los datos de otra
-// empresa con `?companyId=ANGELOH7`. Ademas `?companyId` es un companies.id, no el
-// tenant_id que guardan las tablas, y sin traducir daba cero filas.
-// Ver lib/tenant-resolver.ts.
-async function resolveTenant(request: NextRequest): Promise<string | null> {
-  return resolveTenantDelRequest(request);
-}
+// La tabla real es `paymentlink` (PostgREST no encuentra `PaymentLink`) y tiene
+// `company_id` (migracion 023). La empresa sale del contexto validado
+// (`contextoDeEmpresa`: `?companyId` o el header `x-company-id`), NUNCA solo del
+// tenant: `TEST1DS` tiene dos empresas y filtrar por `tenant_id` las mezclaba.
+// Ver lib/tenant-resolver.ts y AGENTS.md seccion 1.
 
 // Estados canonicos de Invoice (ver app/api/billing/invoices/route.ts):
 // PAID / PENDING / CANCELLED / OVERDUE. 'PENDING_PAYMENT' no existe.
@@ -22,16 +17,10 @@ const CLOSED_STATUSES = ["PAID", "CANCELLED"];
 
 export async function POST(request: NextRequest) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { invoiceId, invoiceNumber, amount, currency, bankAccountId, paymentUrl, qrCode } =
       await request.json();
 
-    const tenantId = await resolveTenant(request);
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
     if (!invoiceId) {
       return NextResponse.json({ error: "Falta la factura" }, { status: 400 });
     }
@@ -39,12 +28,12 @@ export async function POST(request: NextRequest) {
     const supabase = getSupabaseServer();
 
     // La factura tiene que ser de esta empresa: antes se aceptaba cualquier
-    // invoiceId y ademas el update de la factura no filtraba por tenant.
+    // invoiceId y ademas el update de la factura no filtraba por empresa.
     const { data: invoice, error: invoiceError } = await (supabase as any)
       .from("Invoice")
       .select("id, invoiceNumber, tenantId, status, total")
       .eq("id", invoiceId)
-      .eq("tenantId", tenantId)
+      .eq("company_id", empresa.companyId)
       .maybeSingle();
 
     if (invoiceError) {
@@ -63,7 +52,8 @@ export async function POST(request: NextRequest) {
     const { data: paymentLink, error } = await (supabase as any)
       .from("paymentlink")
       .insert({
-        tenant_id: tenantId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
         invoice_id: invoiceId,
         invoice_number: invoiceNumber || invoice.invoiceNumber,
         amount: Number(amount ?? invoice.total ?? 0),
@@ -93,7 +83,7 @@ export async function POST(request: NextRequest) {
         .from("Invoice")
         .update({ status: "PENDING", updatedAt: new Date().toISOString() })
         .eq("id", invoiceId)
-        .eq("tenantId", tenantId);
+        .eq("company_id", empresa.companyId);
     } else {
       console.warn(
         `[billing/payment-links] Factura ${invoice.invoiceNumber} en estado ${invoice.status}; se deja como esta.`
@@ -106,7 +96,7 @@ export async function POST(request: NextRequest) {
         .from("bankaccount")
         .select("id, bank_name, account_number, account_type, account_holder, currency")
         .eq("id", paymentLink.bank_account_id)
-        .eq("tenant_id", tenantId)
+        .eq("company_id", empresa.companyId)
         .maybeSingle();
       bankAccount = bank || null;
     }
@@ -124,6 +114,8 @@ export async function POST(request: NextRequest) {
       expiresAt: paymentLink.expires_at,
     });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in payment links POST route:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
@@ -131,16 +123,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
     const invoiceId = searchParams.get("invoiceId");
-
-    const tenantId = await resolveTenant(request);
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
 
     const supabase = getSupabaseServer();
 
@@ -149,7 +134,7 @@ export async function GET(request: NextRequest) {
     let query = (supabase as any)
       .from("paymentlink")
       .select("*")
-      .eq("tenant_id", tenantId);
+      .eq("company_id", empresa.companyId);
 
     if (invoiceId) {
       query = query.eq("invoice_id", invoiceId);
@@ -174,7 +159,7 @@ export async function GET(request: NextRequest) {
         .from("bankaccount")
         .select("id, bank_name, account_number, account_type, account_holder, currency")
         .in("id", bankIds)
-        .eq("tenant_id", tenantId);
+        .eq("company_id", empresa.companyId);
       for (const b of banks || []) bankById[b.id] = b;
     }
 
@@ -186,6 +171,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(links);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in payment links GET route:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }

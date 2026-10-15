@@ -48,7 +48,7 @@ interface PurchaseOrder {
   subtotal: number;
   tax_amount: number;
   total: number;
-  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'RECEIVED' | 'COMPLETED' | 'CANCELLED';
+  status: 'DRAFT' | 'PENDING' | 'APPROVED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'COMPLETED' | 'CANCELLED';
   notes?: string;
   requested_by?: string;
   approved_by?: string;
@@ -56,6 +56,16 @@ interface PurchaseOrder {
   received_by?: string;
   received_at?: string;
   purchase_id?: string;
+  items?: PurchaseOrderItem[];
+}
+
+interface ReceiptLine {
+  id: string;
+  invoice_number: string;
+  invoice_date?: string;
+  cai?: string;
+  purchase_id?: string;
+  received_at?: string;
   items?: PurchaseOrderItem[];
 }
 
@@ -92,6 +102,15 @@ export default function PurchaseOrdersPage() {
   });
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Recepción: datos de la factura que se registra al crear la compra real.
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
+  const [cai, setCai] = useState('');
+  const [isCredit, setIsCredit] = useState(false);
+  const [dueDate, setDueDate] = useState('');
+  // Recepción parcial: cantidad de ESTA entrega por línea (id de PurchaseOrderItem).
+  const [receivedQuantities, setReceivedQuantities] = useState<Record<string, number>>({});
 
   useEffect(() => {
     loadOrders();
@@ -177,7 +196,7 @@ export default function PurchaseOrdersPage() {
       const taxAmount = Math.round(subtotal * 0.15);
       const total = subtotal + taxAmount;
 
-      const res = await fetch('/api/purchase-orders', {
+      const res = await fetch(`/api/purchase-orders?companyId=${companyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -219,7 +238,7 @@ export default function PurchaseOrdersPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('/api/purchase-orders', {
+      const res = await fetch(`/api/purchase-orders?companyId=${companyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -234,6 +253,9 @@ export default function PurchaseOrdersPage() {
         setShowApproveModal(false);
         setSelectedOrder(null);
         loadOrders();
+      } else {
+        const error = await res.json().catch(() => ({}));
+        alert('Error: ' + (error.error || 'No se pudo aprobar la orden'));
       }
     } catch (error) {
       alert('Error al aprobar orden');
@@ -242,26 +264,71 @@ export default function PurchaseOrdersPage() {
     }
   };
 
+  const openReceiveModal = (order: PurchaseOrder) => {
+    setInvoiceNumber('');
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setCai('');
+    setIsCredit(false);
+    setDueDate('');
+    const inicial: Record<string, number> = {};
+    for (const it of order.items || []) {
+      if (!it.id) continue;
+      inicial[it.id] = Math.max(0, (it.quantity_requested || 0) - (it.quantity_received || 0));
+    }
+    setReceivedQuantities(inicial);
+    setSelectedOrder(order);
+    setShowReceiveModal(true);
+  };
+
   const handleReceive = async () => {
     if (!selectedOrder) return;
 
+    if (!invoiceNumber.trim()) {
+      alert('Ingrese el número de factura');
+      return;
+    }
+
+    // Solo se envían las líneas con cantidad en ESTA entrega. Una orden sin
+    // artículos se recibe por los totales de la cabecera (lo resuelve el backend).
+    const tieneItems = (selectedOrder.items || []).length > 0;
+    const lineas = (selectedOrder.items || [])
+      .filter((it) => it.id && (receivedQuantities[it.id] || 0) > 0)
+      .map((it) => ({ purchase_order_item_id: it.id!, quantity_received: receivedQuantities[it.id!] }));
+
+    if (tieneItems && lineas.length === 0) {
+      alert('Indique al menos una cantidad a recibir');
+      return;
+    }
+
     setSubmitting(true);
     try {
-      const res = await fetch('/api/purchase-orders', {
-        method: 'PATCH',
+      const res = await fetch(`/api/purchase-orders/receive?companyId=${companyId}`, {
+        method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedOrder.id,
-          status: 'RECEIVED',
-          received_at: new Date().toISOString(),
+          invoice_number: invoiceNumber.trim(),
+          invoice_date: invoiceDate,
+          cai: cai.trim() || null,
+          is_credit: isCredit,
+          due_date: isCredit ? dueDate || null : null,
+          items: lineas,
         }),
       });
 
       if (res.ok) {
-        alert('Orden marcada como recibida');
+        const data = await res.json().catch(() => ({}));
+        alert(
+          data?.order?.status === 'PARTIALLY_RECEIVED'
+            ? 'Recepción parcial registrada. La orden sigue pendiente de más entregas.'
+            : 'Orden recibida y compra registrada. Puede verla en el módulo de Compras.'
+        );
         setShowReceiveModal(false);
         setSelectedOrder(null);
         loadOrders();
+      } else {
+        const error = await res.json();
+        alert('Error: ' + (error.error || 'No se pudo recibir la orden'));
       }
     } catch (error) {
       alert('Error al recibir orden');
@@ -315,6 +382,11 @@ export default function PurchaseOrdersPage() {
       quantity_requested: 1,
       unit_price: 0,
     });
+    setInvoiceNumber('');
+    setInvoiceDate(new Date().toISOString().split('T')[0]);
+    setCai('');
+    setIsCredit(false);
+    setDueDate('');
   };
 
   const getStatusBadge = (status: string) => {
@@ -322,6 +394,7 @@ export default function PurchaseOrdersPage() {
       DRAFT: { label: 'Borrador', className: 'bg-gray-100 text-gray-800', icon: FileText },
       PENDING: { label: 'Pendiente', className: 'bg-yellow-100 text-yellow-800', icon: Clock },
       APPROVED: { label: 'Aprobada', className: 'bg-cyan-100 text-cyan-800', icon: CheckCircle },
+      PARTIALLY_RECEIVED: { label: 'Parcialmente recibida', className: 'bg-amber-100 text-amber-800', icon: Package },
       RECEIVED: { label: 'Recibida', className: 'bg-purple-100 text-purple-800', icon: Package },
       COMPLETED: { label: 'Completada', className: 'bg-green-100 text-green-800', icon: CheckSquare },
       CANCELLED: { label: 'Cancelada', className: 'bg-red-100 text-red-800', icon: AlertCircle },
@@ -339,8 +412,14 @@ export default function PurchaseOrdersPage() {
   };
 
   const canApprove = (order: PurchaseOrder) => ['DRAFT', 'PENDING'].includes(order.status);
-  const canReceive = (order: PurchaseOrder) => order.status === 'APPROVED';
-  const canCancel = (order: PurchaseOrder) => !['COMPLETED', 'CANCELLED', 'RECEIVED'].includes(order.status);
+  const canReceive = (order: PurchaseOrder) => {
+    if (!['APPROVED', 'PARTIALLY_RECEIVED'].includes(order.status)) return false;
+    const items = order.items || [];
+    if (items.length === 0) return order.status === 'APPROVED';
+    return items.some((it) => (it.quantity_requested || 0) > (it.quantity_received || 0));
+  };
+  const canCancel = (order: PurchaseOrder) =>
+    !['COMPLETED', 'CANCELLED', 'RECEIVED', 'PARTIALLY_RECEIVED'].includes(order.status);
 
   const formatCurrency = (amount: number) => {
     return `L ${(amount / 100).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -377,6 +456,12 @@ export default function PurchaseOrdersPage() {
           >
             Compras
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => router.push(`/companies/${companyId}/purchase-orders/conciliation`)}
+          >
+            Conciliación
+          </Button>
           <Button onClick={() => { resetForm(); setShowCreateModal(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Nueva OC
@@ -385,7 +470,7 @@ export default function PurchaseOrdersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Órdenes</CardTitle>
@@ -426,6 +511,16 @@ export default function PurchaseOrdersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Parciales</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">
+              {orders.filter(o => o.status === 'PARTIALLY_RECEIVED').length}
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Recibidas</CardTitle>
           </CardHeader>
           <CardContent>
@@ -456,6 +551,7 @@ export default function PurchaseOrdersPage() {
             <SelectItem value="DRAFT">Borradores</SelectItem>
             <SelectItem value="PENDING">Pendientes</SelectItem>
             <SelectItem value="APPROVED">Aprobadas</SelectItem>
+            <SelectItem value="PARTIALLY_RECEIVED">Parcialmente recibidas</SelectItem>
             <SelectItem value="RECEIVED">Recibidas</SelectItem>
             <SelectItem value="COMPLETED">Completadas</SelectItem>
             <SelectItem value="CANCELLED">Canceladas</SelectItem>
@@ -507,7 +603,7 @@ export default function PurchaseOrdersPage() {
                         }
                       </td>
                       <td className="py-3 px-4 text-right font-medium">
-                        {formatCurrency(order.total)}
+                        {formatCurrency(order.total * 100)}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex gap-1 justify-center">
@@ -531,7 +627,7 @@ export default function PurchaseOrdersPage() {
                             <Button
                               variant="outline"
                               size="sm"
-                              onClick={() => { setSelectedOrder(order); setShowReceiveModal(true); }}
+                              onClick={() => openReceiveModal(order)}
                             >
                               <Package className="w-4 h-4 text-cyan-600" />
                             </Button>
@@ -802,7 +898,8 @@ export default function PurchaseOrdersPage() {
                   <thead className="bg-gray-100">
                     <tr>
                       <th className="text-left p-2">Descripción</th>
-                      <th className="text-center p-2">Cant.</th>
+                      <th className="text-center p-2">Pedido</th>
+                      <th className="text-center p-2">Recibido</th>
                       <th className="text-right p-2">Total</th>
                     </tr>
                   </thead>
@@ -811,6 +908,7 @@ export default function PurchaseOrdersPage() {
                       <tr key={idx} className="border-t">
                         <td className="p-2">{item.product_name}</td>
                         <td className="p-2 text-center">{item.quantity_requested}</td>
+                        <td className="p-2 text-center">{item.quantity_received || 0}</td>
                         <td className="p-2 text-right">{formatCurrency(item.total * 100)}</td>
                       </tr>
                     ))}
@@ -820,12 +918,34 @@ export default function PurchaseOrdersPage() {
 
               <div className="border-t pt-4 flex justify-between text-lg font-bold">
                 <span>Total:</span>
-                <span>{formatCurrency(selectedOrder.total)}</span>
+                <span>{formatCurrency(selectedOrder.total * 100)}</span>
               </div>
+
+              {selectedOrder.purchase_id && (
+                <div className="border-t pt-4 space-y-2">
+                  <Badge className="bg-green-100 text-green-800">
+                    <CheckSquare className="w-3 h-3 mr-1" />
+                    Compra registrada
+                  </Badge>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => router.push(`/companies/${companyId}/purchases`)}
+                  >
+                    Ver en el módulo de Compras
+                  </Button>
+                </div>
+              )}
             </div>
           )}
 
           <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => router.push(`/companies/${companyId}/purchase-orders/conciliation?orderId=${selectedOrder?.id || ''}`)}
+            >
+              Ver conciliación
+            </Button>
             <Button variant="outline" onClick={() => setShowViewModal(false)}>Cerrar</Button>
           </DialogFooter>
         </DialogContent>
@@ -843,7 +963,7 @@ export default function PurchaseOrdersPage() {
               <div className="bg-cyan-50 p-4 rounded">
                 <div className="font-medium">{selectedOrder.order_number}</div>
                 <div className="text-sm text-gray-600">{selectedOrder.supplier?.name}</div>
-                <div className="text-lg font-bold mt-2">{formatCurrency(selectedOrder.total)}</div>
+                <div className="text-lg font-bold mt-2">{formatCurrency(selectedOrder.total * 100)}</div>
               </div>
 
               <Alert className="bg-yellow-50 border-yellow-200">
@@ -869,7 +989,7 @@ export default function PurchaseOrdersPage() {
 
       {/* Receive Modal */}
       <Dialog open={showReceiveModal} onOpenChange={setShowReceiveModal}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Recibir Orden de Compra</DialogTitle>
           </DialogHeader>
@@ -879,18 +999,120 @@ export default function PurchaseOrdersPage() {
               <div className="bg-purple-50 p-4 rounded">
                 <div className="font-medium">{selectedOrder.order_number}</div>
                 <div className="text-sm text-gray-600">{selectedOrder.supplier?.name}</div>
+                <div className="text-lg font-bold mt-1">{formatCurrency(selectedOrder.total * 100)}</div>
               </div>
 
               <Alert className="bg-cyan-50 border-cyan-200">
                 <Package className="h-4 w-4 text-cyan-600" />
                 <AlertDescription>
-                  Confirme que ha recibido la mercadería/servicio y que cumple con las especificaciones de la orden.
+                  Al confirmar, se registra la compra en el módulo de Compras (artículos, stock, historial y asiento) y se enlaza a esta orden. Puede recibir la orden completa o solo una parte; si queda pendiente, la orden pasa a "Parcialmente recibida".
                 </AlertDescription>
               </Alert>
 
-              <p className="text-sm text-gray-600">
-                Al recibir esta orden, podrá proceder a registrar la factura correspondiente en el módulo de Compras.
-              </p>
+              {(selectedOrder.items || []).length > 0 && (
+                <div className="border rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        <th className="text-left p-2">Artículo</th>
+                        <th className="text-center p-2">Pedido</th>
+                        <th className="text-center p-2">Recibido</th>
+                        <th className="text-center p-2">Esta entrega</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedOrder.items || []).map((it) => {
+                        const pendiente = Math.max(0, (it.quantity_requested || 0) - (it.quantity_received || 0));
+                        return (
+                          <tr key={it.id} className="border-t">
+                            <td className="p-2">{it.product_name}</td>
+                            <td className="p-2 text-center">{it.quantity_requested}</td>
+                            <td className="p-2 text-center">{it.quantity_received || 0}</td>
+                            <td className="p-2 text-center">
+                              <Input
+                                type="number"
+                                min="0"
+                                max={pendiente}
+                                className="w-24 mx-auto"
+                                value={receivedQuantities[it.id!] ?? 0}
+                                onChange={(e) =>
+                                  setReceivedQuantities({
+                                    ...receivedQuantities,
+                                    [it.id!]: Math.max(0, Math.min(pendiente, parseInt(e.target.value) || 0)),
+                                  })
+                                }
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              <div className="border-t pt-4 space-y-3">
+                <div className="space-y-2">
+                  <Label>Número de Factura *</Label>
+                  <Input
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="FACT-0001 o correlativo del CAI"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Fecha de Factura</Label>
+                    <Input
+                      type="date"
+                      value={invoiceDate}
+                      onChange={(e) => setInvoiceDate(e.target.value)}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>CAI</Label>
+                    <Input
+                      value={cai}
+                      onChange={(e) => setCai(e.target.value)}
+                      placeholder="Opcional"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Forma de Pago</Label>
+                  <div className="flex gap-3">
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        checked={!isCredit}
+                        onChange={() => setIsCredit(false)}
+                      />
+                      Contado
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                      <input
+                        type="radio"
+                        checked={isCredit}
+                        onChange={() => setIsCredit(true)}
+                      />
+                      Crédito
+                    </label>
+                  </div>
+                </div>
+
+                {isCredit && (
+                  <div className="space-y-2">
+                    <Label>Fecha de Vencimiento</Label>
+                    <Input
+                      type="date"
+                      value={dueDate}
+                      onChange={(e) => setDueDate(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

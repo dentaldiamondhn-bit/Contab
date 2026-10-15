@@ -7,23 +7,30 @@ import {
 } from '@/lib/services/pdf-documents';
 import { fetchCompanyHeader, fetchInvoiceData } from '@/lib/services/pdf-data';
 import { buildPdfDocument } from '@/lib/services/pdf-document-builder';
-import { getBudgetComparison, isValidPeriod, resolveTenant } from '@/lib/services/budget-service';
+import { getBudgetComparison, isValidPeriod } from '@/lib/services/budget-service';
 import { getTransfer } from '@/lib/services/warehouse-service';
 import { getDiatReport, hasDiatData } from '@/lib/services/diat-generator';
 import { getVariationsReport } from '@/lib/services/period-variations';
 import { buildAuditPdfElement } from '@/lib/services/pdf-documents';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
-// GET /api/documents/pdf?type=invoice|transfer|budget|diat|variations&id=...&companyId=...[&period=YYYY-MM][&to=YYYY-MM][&tenantId=]
+// GET /api/documents/pdf?type=invoice|transfer|budget|diat|variations&id=...&companyId=...[&period=YYYY-MM][&to=YYYY-MM]
 // Devuelve el PDF profesional del documento (attachment).
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const type = searchParams.get('type') || '';
     const id = searchParams.get('id') || '';
-    const companyId = searchParams.get('companyId') || '';
     const period = searchParams.get('period') || '';
-    const tenantHint =
-      request.headers.get('x-tenant-id') || searchParams.get('tenantId');
+
+    // La empresa sale del contexto VALIDADO (`?companyId`, header `x-company-id`
+    // de la cookie o `[id]`), no de un `tenantHint` que manda el cliente. Antes
+    // no se validaba pertenencia y un `?companyId` ajeno bastaba para leer PDFs
+    // de otra empresa.
+    const empresa = await contextoDeEmpresa(request);
+    const companyId = empresa.companyId;
+    const tenantHint = empresa.tenantId;
 
     if (!isValidPdfType(type)) {
       return NextResponse.json(
@@ -103,8 +110,12 @@ export async function GET(request: NextRequest) {
           { status: 400 },
         );
       }
-      const tenant = await resolveTenant(companyId, tenantHint);
-      const variations = await getVariationsReport(tenant, period, to);
+      const variations = await getVariationsReport(
+        getSupabaseServer() as any,
+        { tenantId: empresa.tenantId, companyId },
+        period,
+        to,
+      );
       const company = await fetchCompanyHeader(companyId, tenantHint);
       const buffer = await renderPdfDocument(
         buildPdfDocument('variations', {
@@ -135,17 +146,10 @@ export async function GET(request: NextRequest) {
     }
 
     if (type === 'audit') {
-      if (!companyId) {
-        return NextResponse.json(
-          { success: false, error: 'companyId es requerido' },
-          { status: 400 },
-        );
-      }
-      const tenant = await resolveTenant(companyId, tenantHint);
-      const { data: logs, error } = await supabaseService
+      const { data: logs, error } = await getSupabaseServer()
         .from('account_audit_log')
         .select('*, Account(code, name)', { count: 'exact' })
-        .eq('tenant_id', tenant.id)
+        .eq('company_id', companyId)
         .order('performed_at', { ascending: false });
 
       if (error) {
@@ -206,6 +210,8 @@ export async function GET(request: NextRequest) {
     );
     return pdfFileResponse(buffer, pdfFilename('diat', [companyId, period]));
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error generating PDF:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     if (/pertenece|formato/i.test(message)) {

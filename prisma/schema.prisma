@@ -290,10 +290,26 @@ model Plan {
 
 model Supplier {
   id              String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  rtn             String   @unique @map("rtn")
+  // SIN `@unique` en `rtn` ni en `email`, a proposito (medido el 5 Oct 2026):
+  // en la base NO existen esos uniques. Este schema los declaraba, o sea que
+  // `prisma migrate` intentaria CREARLOS: un `@unique` global en `rtn`
+  // impediria que un mismo RTN existiera en dos empresas, que es lo legitimo.
+  //
+  // La 044 (`044_supplier_rtn_por_empresa.sql`) borro el unico que si existia,
+  // `UNIQUE (rtn, tenant_id)`, que ataba el RTN al TENANT. test 1 y test 2
+  // comparten `TEST1DS` pero no tienen relacion, asi que ese indice hacia
+  // `409 23505` al registrar en test 2 un proveedor que test 1 ya tenia
+  // (probado). El unico por tenant tampoco servia: el dedup del import ya es
+  // POR EMPRESA (`import/route.ts:231` filtra por `company_id`), o sea que el
+  // codigo permits y la base prohibia.
+  //
+  // Se deja como indice NO unico para las busquedas por RTN (`idx_supplier_rtn`
+  // existe en la base). Sin restriccion: el mismo negocio puede atender a
+  // varias empresas y en cada una es una fila distinta.
+  rtn             String   @map("rtn")
   name            String   @map("name")
   commercialName  String?  @map("commercial_name")
-  email           String?  @unique @map("email")
+  email           String?  @map("email")
   phone           String?  @map("phone")
   mobile          String?  @map("mobile")
   address         String?  @map("address")
@@ -308,14 +324,27 @@ model Supplier {
   isActive        Boolean  @default(true) @map("is_active")
   isPreferred     Boolean  @default(false) @map("is_preferred")
   tenantId        String?  @map("tenant_id")
-  companyId       String?  @map("company_id")
+  // `company_id` es NOT NULL desde la migracion 043 (medido el 5 Oct 2026: antes
+  // era nullable, y una fila sin empresa es INVISIBLE, porque el GET filtra por
+  // `.eq('company_id', ...)`: no da error, desaparece). Sin `@relation` a
+  // `companies` a proposito: el modelo `Company` de este schema apunta a otra
+  // tabla, igual que el `User` (-> `users`). La FK real esta en la 043.
+  companyId       String   @map("company_id")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   tenant    Tenant?   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   priceHistory SupplierPriceHistory[]
+  ratings      SupplierRating[]
 
-  @@unique([rtn, tenantId], map: "unique_supplier_rtn_tenant")
+  // `unique_supplier_rtn_tenant` era el nombre que Prisma tenia; en la base el
+  // indice real se llamaba `unique_supplier_rtn_per_tenant`, y era UNIQUE. Los
+  // nombres no coincidian, asi que `prisma migrate` no lo habria encontrado y
+  // el `DROP IF EXISTS` por el nombre de Prisma habria sido un no-op con la
+  // restriccion viva. La 044 lo busca por COLUMMAS (rtn, tenant_id), no por
+  // nombre, y ahora queda como indice normal.
+  @@index([rtn, tenantId], map: "idx_supplier_rtn_tenant")
+  @@index([rtn], map: "idx_supplier_rtn")
   @@index([tenantId], map: "idx_supplier_tenant")
   @@index([companyId], map: "idx_supplier_company")
   @@map("Supplier")
@@ -484,6 +513,7 @@ model PeriodClosingBalance {
 model SupplierPriceHistory {
   id                String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   tenantId          String   @map("tenant_id")
+  companyId         String   @map("company_id")
   supplierId        String   @map("supplier_id")
   productId         String?  @map("product_id")
   price             Decimal  @map("price")
@@ -498,7 +528,52 @@ model SupplierPriceHistory {
   @@index([supplierId], map: "idx_supplier_price_supplier")
   @@index([productId], map: "idx_supplier_price_product")
   @@index([effectiveDate], map: "idx_supplier_price_effective")
+  // `company_id` es la frontera real de aislamiento, no `tenant_id`: un tenant
+  // puede tener varias empresas (TEST1DS tiene dos). El GET de
+  // `/api/suppliers/price-history` filtra por `company_id`, asi que sin este
+  // indice cada lectura ordena y filtra por tenant.
+  @@index([companyId], map: "idx_supplier_price_company")
+  @@index([companyId, supplierId, productId, effectiveDate(sort: Desc)], map: "idx_supplier_price_company_supplier_product_date")
   @@map("supplier_price_history")
 
   supplier      Supplier      @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+}
+
+/// Calificaciones y comentarios de un proveedor (migracion 042).
+///
+/// Tabla HIJA y no columnas en `Supplier` porque el usuario pidio historial:
+/// varias calificaciones por proveedor, una por persona y fecha. Con columnas en
+/// `Supplier` solo cabria una fila por proveedor, osea que el segundo voto
+/// tendria que sobrescribir al primero.
+model SupplierRating {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  companyId   String   @map("company_id")
+  tenantId    String?  @map("tenant_id")
+  supplierId  String   @map("supplier_id") @db.Uuid
+  /// Quien califico: `"User"(id)`, que es TEXT. Lo escribe el servidor con la
+  /// identidad de Clerk de la sesion, nunca desde el cuerpo de la peticion.
+  ///
+  /// DELIBERADAMENTE sin `@relation`: el modelo `User` de este schema hace
+  /// `@@map("users")`, que es OTRA tabla distinta de la real `"User"`. Medido el
+  /// 5 Oct 2026: `users.id` es `uuid` con `auth_id`/`first_name`, y `"User".id`
+  /// es `text` con `authid`/`firstname`. La FK de la 042 apunta a `"User"`, que
+  /// es la que tiene `authid`; cablear aqui la relacion de Prisma apuntaria a
+  /// `users` y seria la tabla equivocada. Es drift PREEXISTENTE, fuera de alcance.
+  authorId    String   @map("author_id")
+  /// Los cuatro criterios, 1..5. El "global" NO se guarda: es el promedio de
+  /// estos cuatro y se calcula al leer, para que no pueda desincronizarse.
+  quality     Int      @map("quality")
+  price       Int      @map("price")
+  punctuality Int      @map("punctuality")
+  service     Int      @map("service")
+  comment     String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  @@index([companyId], map: "idx_supplier_ratings_company")
+  @@index([companyId, supplierId, createdAt(sort: Desc)], map: "idx_supplier_ratings_supplier")
+  @@index([authorId, supplierId], map: "idx_supplier_ratings_author")
+  @@map("supplier_ratings")
+
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 }

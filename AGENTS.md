@@ -300,6 +300,43 @@ fila. Cada fila está atada además a una empresa distinta como **`owner`**
 le quitaría la propiedad de esa empresa en silencio: es un cambio de permisos, no
 una limpieza.
 
+### Las membresías cuelgan de una identidad de Clerk concreta, y eso se nota (medido 5 Oct 2026)
+
+`user_company_access` tiene **8 membresías** (no 7: la 036 añadió la de Empresa 1
+después de la medición del 28 Sept que documenta 7), y **ninguna se parte**. Medido
+sobre `user_company_access`, `User` y `companies` de verdad:
+
+| `authid` (identidad de Clerk) | Empresas que alcanza | Rol |
+|---|---|---|
+| `user_3D99UNQz…` (`gcalix12`) | Clinica Dental Diamond | owner |
+| `user_3IbveWjN…` (`gcalix12`) | **Angelos + Empresa 1** | owner |
+| `user_3JRMfTFp…` (`azuna22`) | Empresa TEST185 | owner |
+| `user_3JROv9o…` (`azuna22`) | **test 1 + test 2** | accountant |
+
+Las 8 resuelven y **0 identidades de Clerk quedan con 0 membresías**, asi que hoy
+nadie está fuera por esto. Pero la consecuencia es concreta y fácil de olvidar:
+
+- **`Empresa 1` cuelga del SEGUNDO Clerk de `gcalix12`.** Es la empresa que la 036
+  desbloqueó porque no tenía dueño. Si ese hombre entra con su *otra* identidad de
+  Clerk (`user_3D99…`), ve Clinica Dental Diamond y **no** ve Empresa 1: la
+  membresía existe y el RLS no la cuenta. Es **fail-closed** (no se ve de más), pero
+  se manifiesta como "la empresa desapareció", que es el modo de fallo que más caro
+  sale porque parece que no hay datos.
+- **test 1 y test 2 cuelgan del segundo Clerk de `azuna22`.** Mismo caso.
+- Y al revés: **ningún `authid` está duplicado** en `User` hoy, así que la
+  subconsulta no devuelve las membresías de dos identidades a la vez. Eso es lo que
+  sería una fuga, y no ocurre. **Pero `User.authid` NO tiene índice único** (solo
+  `idx_supplier_authid`, no único), así que nada impide que se duplique mañana sin
+  avisar: el día que pase, este mismo politica se vuelve sobre-permisiva. Es el
+  mismo punto ciego que ya está documentado más abajo para los importes de
+  `Transaction`, aplicado a la identidad.
+- Al escribir una política RLS que resuelva el usuario, recuerda que **el puente
+  es `auth.uid() → "User".authid → user_company_access.user_id`**, o sea que
+  `user_company_access` es la fuente de verdad de la membresía pero **no de la
+  identidad**: la identidad entra por la tabla legacy `User`, que es la que tiene
+  los duplicados. Por eso "las 8 membresías son correctas" y "esta persona entra"
+  son dos preguntas distintas.
+
 **El índice de email NO puede ser `UNIQUE(email)`.** `supabase/FULL_SETUP.sql` lo
 tenía así y falla con `23505 could not create unique index "idx_user_email"`,
 aunque no haya ningún bug de datos: en multi-tenant un correo puede ser usuario
@@ -375,7 +412,7 @@ Reglas que este contexto respeta y hay que mantener:
   (`WorkspaceContext.cargar`).
 - **No hay React Query / Zustand / Redux / SWR** en el proyecto, y no se
   añadieron. El estado global es React Context. Cambiar el modelo de estado de
-  un proyecto con 481 errores de typecheck es un trabajo con riesgo propio.
+  un proyecto con 462 errores de typecheck es un trabajo con riesgo propio.
 - Los Server Components **no leen la cookie de empresa**. Cambiar de empresa
   navega a `/companies/[id]` para que el servidor se recargue; por eso
   `TenantContext` sigue recomendando el `reload()` en su propio flujo.
@@ -1046,6 +1083,93 @@ Para lo que viene: una migracion que normaliza `tenant_id` desde `company_id`
 tabla cambia de genero y es el `tenant_id` el confiable, la direccion se
 invierte.
 
+**Migracion 041 - APLICADA Y VERIFICADA** (5 Oct 2026,
+`prisma/migrations/041_supplier_price_history_company_id.sql`): `supplier_price_history`
+tenia **drift de esquema**, y es el ejemplo de por que hay que mirar si una
+columna esta en las migraciones y no solo en la base.
+
+Medido ese dia contra la BD: `company_id` **existe** en `supplier_price_history`
+(nullable, con FK a `companies.id`), el codigo la escribe y la filtra, y **no
+esta en ninguna migracion ni en el modelo Prisma**. Se creo a mano en el SQL
+Editor. Dos consecuencias:
+
+1. Una base reconstruida desde el repo no la tiene, y la **040 aborta** en su
+   preflight si a alguna de sus 5 tablas le falta `company_id` (`040:110-115`).
+   La 040 figura como aplicada solo porque se corrio contra una base donde la
+   columna ya estaba puesta a mano: **"aplicada" no quiere decir "reproducible"**.
+2. `prisma generate` no conocia la columna, y a la vez el modelo dice que no
+   existe. Dos fuentes de verdad que se contradicen en silencio.
+
+Lo que hace la 041: columna + FK + indices idempotentes, backfill de
+`company_id` desde `Supplier` y luego `Purchase`, backfill de las filas de
+precio desde `PurchaseItem` x `Purchase`, y las 4 politicas RLS cambiadas de
+`tenant_id` a `user_company_access.company_id`.
+
+**Verificacion medida DESDE FUERA, no por el "Success" del SQL Editor.** Con la
+`service_role` (3 filas) contrastadas una a una contra `PurchaseItem x Purchase`:
+**3 filas de 3 esperadas**, y cada una cuadra en `price`, `effective_date`,
+`notes`, `currency`, `company_id`, `tenant_id` y `supplier_id` con su compra.
+Contenido: `119` Guantes 2026-09-03, `2` Guantes 2026-09-04, `6` gasas
+2026-09-04, todas DICOSA / Empresa 1 / `tenant_id='1'`. Los 3 `effective_date`
+son **medianoche UTC exacto** (`...T00:00:00+00:00`), que es lo que prueba que el
+`::text || 'T00:00:00Z'` no se movio de dia. **0 filas sin `company_id`, 0
+`company_id` que no exista en `companies`**, y `company_id` ya aparece en el
+`required` del OpenAPI, o sea que el **NOT NULL quedo puesto** y sigue siendo
+`text` (no `uuid`).
+
+Ojo con el otro sentido de la misma regla: **el post-check de la 041 ABORTA si
+queda alguna fila sin empresa**, asi que "no dio error" si es evidencia de algo
+(que el commit ocurrio y que no quedaron huerfanas resolubles). No es evidencia
+de que los importes sean los correctos: para eso hace falta contrastarlos contra
+la compra, como arriba. **Un abort y un "todo bien" pueden dar el mismo codigo de
+salida.**
+
+**El cuerpo de las 4 politicas: CONFIRMADO (5 Oct 2026).** Traido con
+```sql
+SELECT policyname, cmd, qual, with_check, roles FROM pg_policies
+WHERE tablename = 'supplier_price_history';
+```
+Las 4 citan `user_company_access.company_id` y **ninguna** menciona
+`User.tenantid`. La 041/014 esta bien aplicada en ese sentido.
+
+- **`qual` sale `null` en la de INSERT y es lo correcto**, no un agujero: en
+  `FOR INSERT` lo que decide es **`WITH CHECK`**, y `qual` solo se rellena para las
+  policies que filtran filas existentes (`SELECT`, `UPDATE`, `DELETE`). Si te
+  quedas con "`qual` es null, no hay filtro", estas contando la columna
+  equivocada. **Pide `qual` Y `with_check` a la vez**, o la policy de INSERT te
+  parece suelta cuando es la que impide escribir el historial de otra empresa.
+- **Los NOMBRES de las policies siguen diciendo "Tenants can ..."** aunque ya filtran
+  por empresa. No es un fallo de seguridad, pero es una mentira que invita a
+  "arreglar": el siguiente que lea `pg_policies` ve "Tenants can view own…" y
+  concluye (o peor, "corrige") que es una politica por tenant. Los nombres no se
+  renombraron porque cambiar el nombre de una policy es un `DROP` + `CREATE`, o sea
+  tocar una politica que ya funciona. Queda como deuda, no como bug.
+- Y recuerda que **esto sigue sin cambiar el comportamiento de la app**: la
+  `service_role` salta el RLS. Lo verificado es que la politica ya no esta
+  *equivocada* para el dia en que alguien si dependa del RLS.
+
+**`supplier_price_history.company_id` es NOT NULL** (lo pone la 041). No es
+cosmetico: el GET filtra por `.eq('company_id', ...)` (`route.ts:45`), asi que
+**una fila con `company_id` NULL no la ve nadie**. No da error, no aparece en
+ningun sitio: desaparece. Es el modo de fallo que mas caro sale, porque parece
+que no hay datos. Los dos caminos de escritura ya la ponen
+(`lib/purchase-db.ts:363`, `route.ts:20`) y el PATCH no puede dejarla en NULL
+porque `PRICE_COLUMNS` no la incluye.
+
+**Las politicas RLS de esta tabla NO filtran por `tenant_id`.** Antes lo hacian
+(`tenant_id = (SELECT tenantid FROM "User" WHERE authid = auth.uid()::TEXT)`), y
+eso es el patron del primer bug del proyecto: `TEST1DS` tiene dos empresas, asi
+que un filtro por tenant no las separa. Ahora van por
+`user_company_access.company_id`, que es la membresia real; `User.tenantid` es
+legacy. Y recuerda que **el RLS aqui no protege nada**: la app usa la
+`service_role`. Lo que se mantiene correcto es el `.eq('company_id', ...)` del
+codigo.
+
+**Y no confundas "existe en la base" con "esta en el repo".** Antes de dar por
+buena una columna, comprueba las tres: la base, **la migracion** y **el modelo
+Prisma**. Si las tres no coinciden, hay drift, y el siguiente que reconstruya
+la base desde cero se encuentra el fallo lejos de su causa.
+
 Y ojo con un fallback que parecia una red de seguridad y era una fuga: `fetchVentas`
 en `lib/services/diat-generator.ts` filtraba `libro_ventas` con un UUID contra
 una columna de codigo (0 filas) y su "respaldo" **consultaba la vista entera sin filtro
@@ -1229,14 +1353,79 @@ como red de seguridad convierte un error de 0 filas en una fuga de todos los dat
   | `product.id` | `uuid` |
   | `company_id` | `text` |
   | `paymentlink.invoice_id` | `uuid` (pero **no** referencia a `Invoice.id`, que es text: por eso `paymentlink` no tiene FKs) |
+  | `"Supplier".id`, `Purchase.supplier_id` | `uuid` |
+  | `"User".id` | `text` |
+  | `supplier_price_history.supplier_id` | `text` (**drift**: `"Supplier".id` es `uuid`) |
+  | `supplier_ratings.supplier_id` | `uuid` (la 042 lo hace bien; **no copies** el de al lado) |
 
   `company_id` es `text` porque apunta a `companies.id`, que es text; declararlo
   `uuid` rompe la migración. El vínculo real entre `paymentlink` y la factura es
   **`invoice_number` = `Invoice."invoiceNumber"`**.
+- **Dos tablas de usuario, y son distintas (medido 5 Oct 2026, 042).**
+
+  | | `"User"` (con comillas) | `users` (sin comillas) |
+  |---|---|---|
+  | `id` | `text` | `uuid` |
+  | identidad de Clerk | `authid` | `auth_id` |
+  | nombre | `firstname` / `lastname` | `first_name` / `last_name` |
+  | quién la usa | RLS, `user_company_access`, `"Supplier"`... | **el modelo `User` de Prisma** |
+
+  **`schema.prisma` modela la que no toca.** El modelo `User` hace
+  `@@map("users")`, o sea que un `from('users')` o una `@relation` a `User`
+  apuntan a la tabla equivocada y **devuelven 0 filas sin error**. Para
+  identidad de Clerk y membresía hay que ir a `"User"`, y para el nombre,
+  `firstname`+`lastname`: **`"User"` no tiene columna `name`**. Es el mismo
+  caso que `app/api/auth/check-email/route.ts`, que consulta `users` y cae a
+  `"User"` solo si la primera no existe.
+- **La 042 (`supplier_ratings`) deja dos decisiones que conviene no deshacer:**
+  - El **"global" NO se guarda**: es el promedio de los 4 criterios y se calcula
+    al leer, con `globalDe()` en `lib/supplier-ratings.ts`. Guardarlo crea una
+    segunda fuente de verdad que puede desincronizarse de los criterios (una fila
+    5/5/5/5 con global 3 es legal en la base y falsa en pantalla).
+  - Los **CHECK 1..5 viven en la base**, no solo en la API. Con el límite solo en
+    la API, un POST con el cuerpo a mano pasa: el único filtro estaba en el
+    cliente, que es justo lo que se puede no enviar.
+  - `PATCH`/`DELETE` filtran **por `author_id` además de `company_id`**.
+    El filtro por empresa aísla la empresa, **no la fila**: sin el de autor, un
+    id ajeno reventaba la calificación de otro usuario de la MISMA empresa.
+  - La FK a `"Supplier"` es `ON DELETE CASCADE`; la de `author_id` **NO**
+    lleva cascade a propósito: borrar un `"User"` no debe cambiar el promedio
+    de un proveedor.
 - **Mide los tipos con el OpenAPI de PostgREST** antes de escribir DDL:
   `GET {SUPABASE_URL}/rest/v1/` con `Accept: application/openapi+json` y
   `apikey`/`Authorization`. Da el tipo y el nombre exacto de cada columna (sirve
   también para confirmar el casing en `camelCase`).
+- **Que el JSON lo parezca no dice el tipo. Medido 5 Oct 2026, 041:** fuí a
+  escribir el backfill de precios creyendo que `Purchase.invoice_date` era `text`,
+  porque PostgREST lo devuelve como `'2026-09-03'` y eso *parece* texto. Es
+  **`date`**, así que `(invoice_date || 'T00:00:00')::timestamptz` y
+  `invoice_date ~ '^\d{4}...'` dan los dos `operator does not exist: date || unknown`
+  / `date ~~ unknown`. Ni el validador ni un `select('*')` lo detectan, porque
+  **el error es de runtime, no de parseo**: la sentencia compila y revienta al
+  ejecutarse, ya dentro de la transacción, y el mensaje apunta a la línea del
+  `INSERT`, muy lejos de la decisión que lo causó. El OpenAPI lo dice en
+  `format: "date"`.
+- **`uuid` y `text` NO se comparan solos: `s.id = r.supplier_id` da
+  `operator does not exist: uuid = text`.** Igual que el punto anterior pero al
+  revés, y es el fallo que esta sección ya había cobrado una vez. En la 041 lo
+  toca `supplier_price_history.supplier_id` y `.product_id` (**`text`**) frente a
+  `Supplier.id` / `Purchase.supplier_id` / `PurchaseItem.product_id` (**`uuid`**):
+  5 sitios, incluidos los dos joins del backfill y el `NOT EXISTS` de idempotencia.
+  Pon `::text` explícito **en los dos lados**; no confíes en que la conversión
+  por I/O funcione, y no dependas de cómo `uuid_out` formatee. Lo grave del
+  `NOT EXISTS` es que sin los casts **el mecanismo que hace la migración
+  idempotente es justo lo que impide que corra una vez**.
+- **`date` + `'T00:00:00Z'`, con la `Z` explícita, no sin ella.** Para replicar
+  `new Date('YYYY-MM-DD' + 'T00:00:00').toISOString()` en SQL hace falta pasar por
+  `::text`. Y una cadena `'YYYY-MM-DDT00:00:00'` **sin offset** la interpreta
+  Postgres en el `TimeZone` de la *sesión*, así que el backfill desplaza la fila un
+  día entero respecto a la app si el servidor no corre en UTC. Con `Z` el valor no
+  depende de dónde se ejecute.
+- **Un `date` real hace imposible la "fecha ilegible", así que el guard es
+  `IS NOT NULL`.** La regexp `~` que parecía necesaria era además el motivo del
+  `operator does not exist: date ~~ unknown`: Postgres no admite una fecha
+  inválida en un `date`, así que el único caso real es `NULL`. Un guard que
+  inventa una amenaza que la base no puede tener es ruido que además se rompe.
 - En un `DO $$`, **todo identificador dinámico va dentro de `format()`**. Un
   `%1$I` suelto en el cuerpo no se sustituye: Postgres lo lee como SQL y falla con
   `syntax error at or near %`, aunque el `format()` esté unas líneas más arriba.
@@ -1247,10 +1436,41 @@ como red de seguridad convierte un error de 0 filas en una fuga de todos los dat
   correcta es `EXECUTE format($f$ SELECT count(*) FROM ... $f$, v) INTO v_n;`.
   Corregido, la 040 corrio **sin error el 2 Oct 2026**.
 - **Un validador que mira la FORMA no prueba que el SQL corra.** El previo de la
-  040 contou bloques `DO` y usos de `%I` y dio "0 problemas" con la migración
+  040 contó bloques `DO` y usos de `%I` y dio "0 problemas" con la migración
   rota: el bug estaba en la tercera línea del cuerpo. Para SQL dinámico, lo que
   se necesita es o la BD real, o un chequeo del contenido de las cadenas, no un
   recuento de estructura.
+- **Ese mismo validador dio verde con la 041 rota** (5 Oct 2026, corriendo en
+  Supabase: `ERROR: 42601: unterminated quoted string at or near "'; END "`, por
+  un apóstrofo de más en `coalesce(v_faltan || ', '')`. Dos razones por las que no
+  lo vio: **no tenía ninguna regla de comillas**, y para contar comillas usaba un
+  tokenizer que **trata `''` como escape**, así que un apóstrofo *de más* es
+  justamente el caso que no distingue. Ahora `validar-040.mjs` exige que el total de
+  `'` (comentarios fuera) sea **par** y localiza la línea donde se rompe el
+  emparejamiento; la paridad **global** es el requisito duro y la **por línea** solo
+  localiza, porque un literal puede cruzar líneas y eso es legítimo.
+  - **La prueba de un validador nuevo es reintroducir el bug que acabas de pagar.**
+    Arreglé la línea, di verde, y volví a meter el apóstrofo: tiene que **fallar**
+    apuntando a esa línea exacta. Un validador que no falla con el error que
+    acaba de ocurrir no está probando nada.
+  - Y lo que sigue valiendo: esto detecta *comillas*, no *tipos*. Los `uuid` vs
+    `text` y el `date` de arriba no los ve ningún recuento de estructura, porque
+    son errores de runtime. Para eso, el OpenAPI.
+- **Para localizar un UNIQUE por columnas, `pg_get_indexdef(..., n, true)` por
+  POSICIÓN + `indnkeyatts`, o un conteo con `generate_series`; nunca compares un
+  `array_agg(... ORDER BY ...)` contra un literal escrito a mano.** La 051 (8 Oct
+  2026) abortó por esto: `array_agg(a.attname ORDER BY a.attname)` devuelve las
+  columnas **ordenadas alfabéticamente** (`company_id, cost_key, cost_type`) y el
+  literal estaba en orden de **declaración** (`company_id, cost_type, cost_key`).
+  La igualdad de arrays es **posición a posición**, así que la comparación era
+  falsa siempre: el "¿ya existe?" no veía el índice y el post-check tampoco — pero
+  **el post-check abortó y la transacción hizo rollback, que es justo lo que debe
+  pasar**. El `validar-040.mjs` dio verde porque solo mira forma. La versión buena
+  es la de la **044**: recorre `pg_index` (`indisunique`, `indnkeyatts`) y compara
+  `pg_get_indexdef(i.indexrelid, n, true)` por posición; si el orden de las
+  columnas debe dar igual, cuenta coincidencias con `generate_series` (set, no
+  secuencia). Y de paso: `unnest(i.indkey)` es `int2vector`, no un array — no lo
+  uses como `anyarray`.
 - **Un validador que se engancha con su propia documentación es un validador
   roto.** El de la 040 dio 7 falsos positivos porque la cabecera mencionaba `$f$`
   en prosa, y eso descolocó el emparejamiento de cadenas. Por eso ignora
@@ -1263,14 +1483,64 @@ como red de seguridad convierte un error de 0 filas en una fuga de todos los dat
   `"tenantId"`. Agrupa por convención real, medida.
 - No uses la API REST para cambiar constraints o índices: no puede.
 
+### Proveedores: NINGUNA unicidad que separe empresas (regla explícita del usuario, 7 Oct 2026)
+
+**No se pone ninguna restricción de unicidad sobre proveedores que impida que el
+mismo proveedor exista en empresas distintas, del mismo tenant o de otro.** El usuario
+lo dijo dos veces y no es una preferencia de estilo: un mismo negocio atendiendo a
+varias empresas es legítimo, y las mismas empresas pueden existir en tenants
+distintos. Un `UNIQUE (rtn, tenant_id)` —que había— hacía imposible registrar al
+mismo proveedor en dos empresas del mismo tenant, y eso **no es un bug de datos, es
+un error de diseño**.
+
+- **043 APLICADA Y VERIFICADA:** `Supplier.company_id` NOT NULL, índice y —lo que
+  no existía— **FK a `companies.id`**. Antes se podía insertar un proveedor con una
+  empresa inventada y la fila luego no la veía nadie (201, no error).
+- **044 APLICADA Y VERIFICADA (7 Oct 2026):** `DROP` del `UNIQUE (rtn, tenant_id)`
+  y la FK pasa de `ON DELETE CASCADE` a **`NO ACTION`**.
+  - Medido desde fuera: mismo RTN en **test 1 y test 2** (tenant `TEST1DS`, empresas
+    distintas) → **201 y 201**, cuando antes el segundo daba `409`.
+  - Borrar una empresa con proveedor referenciado → **`409 23503`** citando
+    `supplier_company_id_fkey`, o sea que ya **no es CASCADE** (con cascade habría
+    dado 204 y el proveedor habría desaparecido).
+  - 3 proveedores intactos, 0 NULL, 0 huérfanos; filas de prueba borradas.
+
+**`DROP ... IF EXISTS` con el nombre equivocado no falla: no hace nada.** El `DROP`
+de la 044 busca el índice **por columnas** (`indisunique` + `rtn`,`tenant_id`) porque
+Prisma lo llama `unique_supplier_rtn_tenant` y el objeto real tiene otro nombre. Mismo
+error ya pagado con `Account_name_key`: un `DROP` que no encuentra su objetivo deja
+la restricción viva y el `INSERT` siguiente revienta con el mismo error de antes, sin
+pista de que el `DROP` no ocurrió.
+
+**La unicidad dentro de una empresa la resuelve el código, no la base**: el import
+deduplica por RTN **por empresa** (`app/api/suppliers/import/route.ts:231`), no por
+tenant. `rtn` y `email` **no son únicos** en la base, y `prisma/schema.prisma` ya no
+declara `@unique` sobre ellos (declararlo habría creado índices que la base no tiene).
+
 ## 6. Verificación
 
 ```bash
-# Typecheck. El baseline es 481 errores preexistentes (era 483; la revision de
-# aislamiento bajo 2 al corregir rutas mal filtradas).
+# Typecheck. El baseline es 462 errores preexistentes (medido 7 Oct 2026;
+# era 481, y fue bajando al arreglar ficheros: 481 -> 472 -> 464 -> 462).
 node node_modules/typescript/bin/tsc --noEmit
-# Solo suma si el total supera 481, o si toca un archivo que editeste.
+# Solo suma si el total supera 462, o si toca un archivo que editeste.
+
+# Antes de aplicar CUALQUIER migracion nueva: valida la forma del SQL.
+node scripts/validar-040.mjs
+
+# Pruebas de compras/proveedores (104 casos).
+node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types \
+  --import ./tests/purchases/register.mjs --test tests/purchases/*.test.mjs
+
+# Aislamiento (solo lectura).
+node scripts/verificar-aislamiento.mjs
+node scripts/_auditar-comparticion-tenant.mjs   # 221 superficies: 158/13/50
 ```
+
+> **El umbral de 462 está por debajo del 481 que decían `docs/AGENTS.md` y
+> `docs/DOCUMENTATION.md`.** Ese 481 dejó de ser cierto: si usas el número viejo
+> como tope, permites 19 errores nuevos sin que salte nada. (Pendiente de corregir
+> en esos dos ficheros.)
 
 - No confíes en el typecheck global como prueba de éxito.
 - **Toda migración SQL se prueba contra la BD real**, no de palabra.

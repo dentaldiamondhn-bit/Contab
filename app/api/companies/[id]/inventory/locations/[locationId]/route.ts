@@ -4,12 +4,7 @@ import {
   isLocationMigrationMissingError,
   updateLocation,
 } from '@/lib/services/location-service';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 export async function PUT(
   request: NextRequest,
@@ -23,9 +18,19 @@ export async function PUT(
         { status: 400 },
       );
     }
+    // Contexto validado: sin esto, el `[id]` de la ruta ni se comprobaba y el
+    // `updateLocation` de `location-service` solo verificaba `id` + `tenant_id`,
+    // o sea que un PUT alcanzaba la fila de la empresa hermana del mismo tenant.
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.companyId || !empresa.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'No se pudo determinar la empresa de la petición' },
+        { status: 400 },
+      );
+    }
     const body = await request.json();
     const location = await updateLocation(
-      companyId,
+      empresa.companyId,
       locationId,
       {
         code: body.code,
@@ -37,7 +42,7 @@ export async function PUT(
         warehouse_id: body.warehouse_id,
         is_active: body.is_active,
       },
-      tenantHint(request),
+      empresa.tenantId,
     );
     if (!location) {
       return NextResponse.json(
@@ -47,6 +52,8 @@ export async function PUT(
     }
     return NextResponse.json({ success: true, data: { location } });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error updating location:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     if (isLocationMigrationMissingError(error)) {
@@ -71,7 +78,14 @@ export async function DELETE(
         { status: 400 },
       );
     }
-    const deleted = await deleteLocation(companyId, locationId, tenantHint(request));
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.companyId || !empresa.tenantId) {
+      return NextResponse.json(
+        { success: false, error: 'No se pudo determinar la empresa de la petición' },
+        { status: 400 },
+      );
+    }
+    const deleted = await deleteLocation(empresa.companyId, locationId, empresa.tenantId);
     if (!deleted) {
       return NextResponse.json(
         { success: false, error: 'Ubicación no encontrada' },
@@ -80,6 +94,8 @@ export async function DELETE(
     }
     return NextResponse.json({ success: true });
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error deleting location:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     if (isLocationMigrationMissingError(error)) {

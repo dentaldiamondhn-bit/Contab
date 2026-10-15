@@ -1,25 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase as supabaseService } from '@/lib/supabase-db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
-// Obtener ingresos y número de transacciones reales por tenant
+// Obtener ingresos y número de transacciones reales por EMPRESA.
+// OJO: antes se pasaba el `[id]` de la ruta (un `companies.id`, casi siempre
+// UUID) como valor de `tenant_id`/`tenantId`, asi que devolvia 0 filas sin error;
+// ademas `Transaction.company_id` es el filtro correcto (49/50 filas, medido;
+// ver AGENTS.md, la columna SI existe).
 async function getTicketPromedio(companyId: string): Promise<{ value: number | null; ingresos: number; transacciones: number }> {
-  let data: any[] = [];
-  let { data: tx, error } = await supabaseService
+  const { data: tx } = await supabaseService
     .from('Transaction')
     .select('id, voucherType, voucher_type, totalAmount, total_amount')
-    .eq('tenant_id', companyId);
+    .eq('company_id', companyId);
 
-  if (error || !tx || tx.length === 0) {
-    const alt = await supabaseService
-      .from('Transaction')
-      .select('id, voucherType, voucher_type, totalAmount, total_amount')
-      .eq('tenantId', companyId);
-    if (!alt.error && alt.data) {
-      tx = alt.data;
-    }
-  }
-
-  data = tx || [];
+  const data = tx || [];
 
   let ingresos = 0;
   let transacciones = 0;
@@ -42,8 +36,13 @@ export async function GET(
 ) {
   const { id: companyId } = await params;
   try {
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.companyId) {
+      return NextResponse.json([], { status: 400 });
+    }
+
     // KPIs derivados de datos reales: solo los que tienen fuente en el sistema
-    const ticket = await getTicketPromedio(companyId);
+    const ticket = await getTicketPromedio(empresa.companyId);
 
     const kpis: any[] = [];
 
@@ -76,6 +75,8 @@ export async function GET(
     return NextResponse.json(kpis);
   } catch (error) {
     console.error('Error fetching custom KPIs:', error);
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     return NextResponse.json([]);
   }
 }
@@ -85,6 +86,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: companyId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.companyId) {
+      return NextResponse.json({ error: 'Company no encontrada' }, { status: 400 });
+    }
+
     const body = await request.json();
     const { name, description, unit, value, target, category = 'custom' } = body;
 
@@ -116,6 +123,8 @@ export async function POST(
     });
   } catch (error) {
     console.error('Error creating custom KPI:', error);
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     return NextResponse.json(
       { error: 'Failed to create custom KPI' },
       { status: 500 }
@@ -128,6 +137,12 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: companyId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.companyId) {
+      return NextResponse.json({ error: 'Company no encontrada' }, { status: 400 });
+    }
+
     const { searchParams } = new URL(request.url);
     const kpiId = searchParams.get('id');
 
@@ -145,6 +160,8 @@ export async function DELETE(
     });
   } catch (error) {
     console.error('Error deleting custom KPI:', error);
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     return NextResponse.json(
       { error: 'Failed to delete custom KPI' },
       { status: 500 }

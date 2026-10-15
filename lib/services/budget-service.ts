@@ -366,6 +366,7 @@ async function fetchActualsByAccount(
   tenantId: string,
   start: string,
   end: string,
+  companyId?: string | null,
 ): Promise<Map<string, { debit: number; credit: number }>> {
   const supabase = getSupabaseServer();
   const byAccount = new Map<string, { debit: number; credit: number }>();
@@ -395,22 +396,28 @@ async function fetchActualsByAccount(
   const select = '*, JournalEntry (*, Account (code, name))';
   let data: unknown[] | null = null;
 
-  const first = await supabase
+  // `company_id` es el aislamiento real: sin el, dos empresas del mismo tenant
+  // (test 1 / test 2) sumaban los movimientos la una de la otra.
+  let first = supabase
     .from('Transaction')
     .select(select)
     .eq('tenant_id', tenantId)
     .gte('date', start)
     .lte('date', end);
-  if (!first.error && first.data) {
-    data = first.data as unknown[];
+  if (companyId) first = first.eq('company_id', companyId);
+  const firstRes = await first;
+  if (!firstRes.error && firstRes.data) {
+    data = firstRes.data as unknown[];
   } else {
-    const alt = await supabase
+    let alt = supabase
       .from('Transaction')
       .select(select)
       .eq('tenantId', tenantId)
       .gte('date', start)
       .lte('date', end);
-    if (!alt.error && alt.data) data = alt.data as unknown[];
+    if (companyId) alt = alt.eq('company_id', companyId);
+    const altRes = await alt;
+    if (!altRes.error && altRes.data) data = altRes.data as unknown[];
   }
   accumulate(data);
   return byAccount;
@@ -433,7 +440,7 @@ export async function getBudgetComparison(
 
   const { start, end } = periodRange(period);
   const tenantId = await resolveTenant(companyId, tenantHint);
-  const actuals = await fetchActualsByAccount(tenantId, start, end);
+  const actuals = await fetchActualsByAccount(tenantId, start, end, companyId);
 
   const lines: LineComparison[] = budget.lines.map((l) => {
     const acc = actuals.get(l.account_code) || { debit: 0, credit: 0 };
@@ -480,7 +487,7 @@ export async function getBudgetTrend(
   for (let m = 1; m <= 12; m++) {
     const period = `${budget.year}-${pad(m)}`;
     const { start, end } = periodRange(period);
-    const actuals = await fetchActualsByAccount(tenantId, start, end);
+    const actuals = await fetchActualsByAccount(tenantId, start, end, companyId);
     const lines: LineComparison[] = budget.lines.map((l) => {
       const acc = actuals.get(l.account_code) || { debit: 0, credit: 0 };
       return computeLineComparison(

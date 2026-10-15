@@ -68,8 +68,13 @@ export function buildPdfDocument(type, data) {
 }
 
 // --- @/lib/services/period-variations ---
-export async function getVariationsReport(tenantId, from, to) {
-  mockState.calls.variations.push({ tenantId, from, to });
+export async function getVariationsReport(client, tenantOrScope, from, to) {
+  mockState.calls.variations.push({
+    tenantId: tenantOrScope?.tenantId ?? null,
+    companyId: tenantOrScope?.companyId ?? null,
+    from,
+    to,
+  });
   return mockState.variations;
 }
 

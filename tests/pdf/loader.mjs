@@ -15,6 +15,13 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  if (specifier === '@/lib/tenant-resolver') {
+    return {
+      url: new URL('./tenant-resolver-stub.mjs', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   if (specifier === '@/lib/services/pdf-documents') {
     return {
       url: new URL('../../lib/services/pdf-documents.ts', import.meta.url).href,

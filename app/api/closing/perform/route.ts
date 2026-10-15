@@ -3,6 +3,7 @@ import { performYearEndClosing } from '@/app/services/closing';
 import { db } from '@/lib/db';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { assertYearOpen } from '@/lib/services/period-lock';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 // @deprecated — punto único es /api/accounting/period-closing (mensual) + anual via month=0.
 // Este handler mantiene compatibilidad y delega al candado unificado (period_locks).
@@ -26,19 +27,30 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // El cierre es POR EMPRESA. El tenant sale de la cuenta de patrimonio; la
-    // empresa se resuelve desde `companies`. Si el tenant tiene varias empresas
-    // (TEST1DS) no se puede inferir: se deja null y el trigger de la 029 lo
-    // rechaza, en vez de cerrar la empresa equivocada en silencio.
+    // El cierre es POR EMPRESA: se valida el contexto (`?companyId`, header
+    // `x-company-id` de la cookie o `[id]`) y que la cuenta de patrimonio sea de
+    // esa empresa. Antes esta ruta no tenia ni auth ni comprobacion de empresa,
+    // y deducia la empresa del tenant solo si este tenia exactamente una.
     const supabaseScope = getSupabaseServer();
-    const cuentaPatrimonio = await db.account.findUnique({ where: { id: equityAccountId } });
-    const tenantIdScope = cuentaPatrimonio?.tenantId ? String(cuentaPatrimonio.tenantId) : null;
-    let companyIdScope: string | null = null;
-    if (tenantIdScope) {
-      const { data: empresas } = await (supabaseScope as any)
-        .from('companies').select('id').eq('tenant_id', tenantIdScope);
-      companyIdScope = empresas?.length === 1 ? empresas[0].id : null;
+    const empresa = await contextoDeEmpresa(request);
+    if (!empresa.companyId) {
+      return NextResponse.json(
+        { error: 'No se pudo determinar la empresa de la peticion' },
+        { status: 400 },
+      );
     }
+    const cuentaPatrimonio = await db.account.findUnique({ where: { id: equityAccountId } });
+    if (
+      !cuentaPatrimonio ||
+      (cuentaPatrimonio.companyId && cuentaPatrimonio.companyId !== empresa.companyId)
+    ) {
+      return NextResponse.json(
+        { error: 'Cuenta de patrimonio no encontrada para esta empresa' },
+        { status: 404 },
+      );
+    }
+    const tenantIdScope: string | null = empresa.tenantId;
+    const companyIdScope: string | null = empresa.companyId;
 
     // Candado unificado: si el año ya está cerrado (month=0), rechaza
     try {
@@ -79,6 +91,8 @@ export async function POST(request: Request) {
     });
 
   } catch (error) {
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     console.error('Error performing year-end closing:', error);
     
     // Handle specific errors

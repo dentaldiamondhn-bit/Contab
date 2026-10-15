@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, FileText, Calendar, CreditCard, AlertCircle, ChevronLeft, Trash2, Upload, Printer, Eye, Edit, BarChart3, Wallet, MoreHorizontal, Menu } from 'lucide-react';
+import { Search, Plus, FileText, Calendar, CreditCard, AlertCircle, ChevronLeft, Trash2, Upload, Printer, Eye, Edit, BarChart3, Wallet, MoreHorizontal, Menu, Package, RotateCcw } from 'lucide-react';
 import PaymentManager from '@/components/purchases/PaymentManager';
 
 import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
@@ -94,6 +94,9 @@ export default function PurchasesPage() {
   const [expenseCategory, setExpenseCategory] = useState('administrative');
   const [documentUrl, setDocumentUrl] = useState('');
   const [taxRate, setTaxRate] = useState(15);
+  const [showCreateProduct, setShowCreateProduct] = useState(false);
+  const [newProduct, setNewProduct] = useState({ code: "", name: "", unit_price: 0, stock_quantity: 0, category: "", unit: "Unidad" });
+  const [creatingProduct, setCreatingProduct] = useState(false);
 
   const [items, setItems] = useState<PurchaseItem[]>([]);
   const [newItem, setNewItem] = useState<Partial<PurchaseItem>>({
@@ -304,6 +307,37 @@ export default function PurchasesPage() {
     }
   };
 
+  const handleCreateProduct = async () => {
+    if (!newProduct.name || !newProduct.code) {
+      alert('Ingrese nombre y codigo del producto');
+      return;
+    }
+    setCreatingProduct(true);
+    try {
+      const res = await fetch(`/api/inventory/products?companyId=${companyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProduct),
+      });
+      if (res.ok) {
+        const created = await res.json();
+        await loadProducts();
+        setShowCreateProduct(false);
+        setNewProduct({ code: '', name: '', unit_price: 0, stock_quantity: 0, category: '', unit: 'Unidad' });
+        if (created && created.id) {
+          selectProduct(created.id);
+        }
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert((err as any).error || 'Error al crear producto');
+      }
+    } catch (e) {
+      alert('Error al crear producto');
+    } finally {
+      setCreatingProduct(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!selectedSupplier) {
       alert('Seleccione un proveedor');
@@ -356,7 +390,7 @@ export default function PurchasesPage() {
         companyId,
       };
 
-      const res = await fetch('/api/purchases', {
+      const res = await fetch(`/api/purchases?companyId=${companyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(purchaseData),
@@ -408,7 +442,7 @@ export default function PurchasesPage() {
     }
 
     try {
-      const res = await fetch(`/api/purchases?id=${purchaseId}`, {
+      const res = await fetch(`/api/purchases?id=${purchaseId}&companyId=${companyId}`, {
         method: 'DELETE',
       });
 
@@ -535,7 +569,7 @@ export default function PurchasesPage() {
         companyId,
       };
 
-      const res = await fetch(`/api/purchases?id=${selectedPurchase?.id}`, {
+      const res = await fetch(`/api/purchases?id=${selectedPurchase?.id}&companyId=${companyId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(purchaseData),
@@ -597,8 +631,26 @@ export default function PurchasesPage() {
           </div>
         </div>
         
-        {/* Single Dropdown Menu - Same level as title */}
-        <DropdownMenu>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            className="h-10 px-3 bg-cyan-600 hover:bg-cyan-700"
+            onClick={() => router.push(`/companies/${companyId}/purchase-orders`)}
+          >
+            <Package className="w-4 h-4 mr-2" />
+            Orden de Compra
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-10 px-3"
+            onClick={() => router.push(`/companies/${companyId}/purchases/returns`)}
+          >
+            <RotateCcw className="w-4 h-4 mr-2" />
+            Devoluciones
+          </Button>
+          {/* Single Dropdown Menu - Same level as title */}
+          <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" size="sm" className="h-10 px-3">
               <Menu className="w-4 h-4 mr-2" />
@@ -622,12 +674,21 @@ export default function PurchasesPage() {
               <BarChart3 className="w-4 h-4 mr-2" />
               Dashboard de Compras
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchase-orders`)}>
+              <Package className="w-4 h-4 mr-2" />
+              Órdenes de Compra
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchases/returns`)}>
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Devoluciones a Proveedores
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
               <Plus className="w-4 h-4 mr-2" />
               Nueva Compra
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        </div>
       </div>
 
       {/* Stats */}
@@ -987,6 +1048,11 @@ export default function PurchasesPage() {
                             </SelectItem>
                           ))}
                         </SelectContent>
+                        <div className="p-2 border-t">
+                          <Button type="button" variant="outline" size="sm" className="w-full" onClick={() => { setShowCreateProduct(true); }}>
+                            + Nuevo producto
+                          </Button>
+                        </div>
                       </Select>
                     </div>
                   )}
@@ -1616,10 +1682,33 @@ export default function PurchasesPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Create Product Modal */}
+      <Dialog open={showCreateProduct} onOpenChange={setShowCreateProduct}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Nuevo Producto</DialogTitle>
+            <DialogDescription>Crear producto para usar en esta compra</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Código" value={newProduct.code} onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })} />
+            <Input placeholder="Nombre" value={newProduct.name} onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })} />
+            <Input type="number" placeholder="Precio unitario" value={newProduct.unit_price} onChange={(e) => setNewProduct({ ...newProduct, unit_price: parseFloat(e.target.value) || 0 })} />
+            <Input type="number" placeholder="Existencia inicial" value={newProduct.stock_quantity} onChange={(e) => setNewProduct({ ...newProduct, stock_quantity: parseFloat(e.target.value) || 0 })} />
+            <Input placeholder="Categoría" value={newProduct.category} onChange={(e) => setNewProduct({ ...newProduct, category: e.target.value })} />
+            <Input placeholder="Unidad" value={newProduct.unit} onChange={(e) => setNewProduct({ ...newProduct, unit: e.target.value })} />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateProduct(false)} disabled={creatingProduct}>Cancelar</Button>
+            <Button onClick={handleCreateProduct} disabled={creatingProduct}>{creatingProduct ? 'Creando...' : 'Crear'}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Payment Manager Modal */}
       {selectedPurchase && (
         <PaymentManager
           purchase={selectedPurchase}
+          companyId={companyId}
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
           onPaymentUpdate={loadPurchases}

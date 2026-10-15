@@ -100,8 +100,8 @@ export type ContextoEmpresa = {
 
 /** Error de contexto: 401 sin sesión, 400 si no se puede deducir, 403 si no le pertenece. */
 export class ErrorDeEmpresa extends Error {
-  readonly estado: 400 | 401 | 403;
-  constructor(estado: 400 | 401 | 403, mensaje: string) {
+  readonly estado: 400 | 401 | 403 | 409 | 500;
+  constructor(estado: 400 | 401 | 403 | 409 | 500, mensaje: string) {
     super(mensaje);
     this.estado = estado;
     this.name = "ErrorDeEmpresa";

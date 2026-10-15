@@ -1,7 +1,19 @@
-# Aislamiento entre empresas (28 Septiembre 2026)
+# Aislamiento entre empresas (28 Septiembre 2026 · actualizado 8 Octubre 2026)
 
 Documento de referencia del modelo de datos multi-empresa. Complementa a
 `AGENTS.md` (que tiene las reglas) y a `CLAUDE.md` (que tiene el historial).
+
+> **Sobre las fechas.** El cuerpo se escribió el **28 Sept** y se conserva: donde un
+> número cambió, aparece **"28 Sept → 7 Oct"** en vez de reescribirlo, para que se
+> vea qué se corrigió. Secciones nuevas: **§Rutas (medido)**, **§`product_location`
+> sin empresa** y **§Ninguna unicidad que separe empresas**.
+>
+> | Qué cambió desde el 28 Sept | |
+> |---|---|
+> | Rutas migradas | 1 de 43 (28 Sept) → hoy **28 siguen solo en `tenant_id`** (8 Oct: `costs` y `custom-kpis` salieron en la 051); las de compras/proveedores ya están |
+> | Compras y proveedores | aislados por `company_id` (§Compras) |
+> | `Supplier.company_id` | NOT NULL + FK; **sin** unicidad de RTN (§Ninguna unicidad) |
+> | Tablas descubiertas con `company_id` incoherente | `product_location` — abajo, *"`product_location` sin empresa"* |
 
 ## El modelo
 
@@ -122,7 +134,11 @@ El campo que decide es `relationship` en `user_company_access`. Con **1** empres
 un empresario; con **2 o más** es un contador. La 024 hizo ese reparto solo, a
 partir de cuántas empresas tiene el tenant del usuario.
 
-### Estado real (verificado el 28 Sept 2026)
+### Estado real (verificado el 28 Sept 2026 — **instantánea, no re-medida**)
+
+> Se conserva tal cual. Lo único que sí se re-midió después fue el número de
+> membresías (**8**, no 7: la 036 añadió la de Empresa 1) y la resolución por
+> identidad de Clerk (5 Oct). Ver `AGENTS.md` §1b.
 
 | usuario | empresas | relationship |
 |---|---|---|
@@ -213,14 +229,144 @@ filtra por la columna equivocada, devolviendo productos de otra sede. El
 `product.location` (a secas) es texto libre descriptive, del tipo
 `"Edificio Principal - Planta Baja"`. No sirve para filtrar.
 
+### `product_location` sin empresa (descubierto 7 Oct 2026)
+
+Dato **vivo**, no histórico. Medido sobre producción:
+
+| Tabla | filas | `company_id` | ¿correcto? |
+|---|---|---|---|
+| `product` | 13 | 3 UUIDs de `companies` | ✅ |
+| `warehouse` | 3 | 3 UUIDs de `companies` | ✅ |
+| **`product_location`** | **2** | **`TEST1DS`** ×2 | ❌ **es el código del tenant** |
+
+`product_location.company_id` guarda un **tenant** donde debe haber una **empresa**.
+Es el mismo problema que la 023 normalizó en `cai`, `warehouse`, `Transaction` y
+`Purchase` — esta tabla se quedó fuera. Consecuencias:
+
+- Un `.eq('company_id', uuidEmpresa)` sobre `product_location` **no da error**: compara
+  un UUID contra `"TEST1DS"`, no casa nunca, y devuelve **0 filas**. Falla en silencio
+  hacia el otro lado del que estábamos acostumbrados.
+- Cualquier filtro por empresa sobre estantes no verá nada.
+
+**Reparación APLICADA Y VERIFICADA (8 Oct 2026):** las 2 filas se reasignaron a los
+UUIDs reales de `companies` de test 1 (B2 por **decisión explícita del usuario**;
+C1 por evidencia directa). Está escrita en
+`prisma/migrations/046_product_location_company_id_tenant.sql`. Cómo resolvió cada
+fila:
+
+| Fila | Evidencia | Empresa asignada |
+|---|---|---|
+| C1 `79d3d2bb…` | única: `warehouse_id` → `warehouse` (test 1) + 1 producto en el estante (test 1) | test 1 |
+| B2 `20845b5f…` | **ninguna**: `warehouse_id` NULL, 0 productos, 0 movimientos | test 1, **decidido por el usuario** (mismo batch/serie UB que C1) |
+
+El preflight **aborta si la evidencia es ambigua** — nunca inferir la empresa a partir
+del tenant, que es exactamente el error. La decisión del usuario es explícita y cerrada:
+si aparece una fila rota nueva sin decisión, la migración aborta en vez de adivinar; y
+si la evidencia directa (bodega/productos) contradice la decisión, gana la evidencia y
+aborta para resolver a mano.
+
+**Verificación medida desde fuera** (PostgREST con `service_role`, 8 Oct 2026), no por
+el "Success" del SQL Editor:
+
+- B2 `20845b5f…` → `company_id = 8143dd4e-…` (test 1) y C1 `79d3d2bb…` →
+  `company_id = 8143dd4e-…` ✅
+- filas con `company_id = 'TEST1DS'` → **0** ✅
+- filas con `company_id` que no existe en `companies` → **0** ✅
+- total de `product_location` sigue en 2 (no se tocó nada más).
+
+**Paso siguiente que quedaba desbloqueado — HECHO 8 Oct 2026:** el filtro por empresa ya
+está en las dos rutas de inventario que aún leían `product_location` solo por tenant
+(`locations/import`, `locations/image`, ver "Rutas que siguen en tenant"). Y el mismo
+día también `warehouses/import` (la última de inventario). De la lista de rutas
+pendientes quedan los de `billing/*` y los de subida fiscal (`costs` y
+`custom-kpis` se cerraron el mismo día, ver 051 más abajo y en `CLAUDE.md`).
+
+## Ninguna unicidad que separe empresas
+
+**Regla explícita del usuario (7 Oct 2026): no se impone NINGUNA restricción de
+unicidad que trate a las empresas de un mismo tenant como si fueran familia.**
+
+El motivo no es teórico: las empresas de un tenant ya **pueden ser físicamente
+distintas** (`TEST1DS` tiene test 1 y test 2), y además un mismo proveedor puede
+repetirse en tenants distintos porque es un negocio atendiendo a clientes varios.
+
+Lo que se **eliminó** por esto:
+
+| Qué | Por qué estaba mal |
+|---|---|
+| `UNIQUE (rtn, tenant_id)` en `Supplier` | Decía "dentro de este tenant, este RTN es único" — un tenant con dos empresas no puede dar de alta al mismo proveedor |
+| FK `Supplier.company_id` `ON DELETE CASCADE` | Borrar una empresa borraba sus proveedores **sin error** (el modo de fallo silencioso de siempre) |
+| `UNIQUE (tenant_id, cost_type, cost_key)` en `cost_payments` | Decía "dentro de este tenant, este costo es único" — test 2 guardando `fixed::renta` **le cambiaba `company_id` e importe a la fila de test 1** en la misma sentencia (upsert). La 051 lo cambia por `(company_id, cost_type, cost_key)`: cada empresa tiene su propia clave de costo. **APLICADA Y VERIFICADA 8 Oct 2026** (desde fuera: test 1 y test 2 con la misma clave → 201 los dos) |
+
+Verificado el 7 Oct: mismo RTN en test 1 → `201`; mismo RTN en test 2 (mismo
+tenant) → **`201`**; borrar empresa con proveedor → **`409 23503`**.
+
+> **Al añadir una restricción nueva, la pregunta es:** ¿separa empresas o solo evita
+> duplicados dentro de una? Si toca el segundo caso está bien; si toca el primero,
+> no. La frontera es `company_id`, nunca `tenant_id`.
+
+Esto es **coherente con** el resto del documento: `tenant_id` agrupa, `company_id`
+aísla. Una restricción unique sobre `tenant_id` es aislamiento en falso.
+
 ## Estado de las rutas
 
-Solo `app/api/inventory/products/route.ts` está migrada. **Los otros 42 archivos
-con filtro por `tenant_id` (103 filtros) siguen mostrando los datos de las empresas
-hermanas del mismo tenant**, incluido el libro contable.
+**28 Sept:** solo `app/api/inventory/products/route.ts` estaba migrada; **42 archivos
+(103 filtros)** se quedaban en `tenant_id`, incluido el libro contable.
 
-Hasta que se migren, no se puede considerar cerrado el aislamiento. El patrón a
-seguir está en el GET/POST/PATCH de `products/route.ts`.
+**7 Oct (medido con `node scripts/_auditar-comparticion-tenant.mjs`):**
+
+| Superficies (tablas y vistas) | Cantidad |
+|---|---|
+| Con `company_id` → **separables** | **158** |
+| Solo `tenant_id` → **no separables** | 13 (casi todas `*_backup_*`, `outbox_audit`, `auditlog`) |
+| Ni tenant ni company (se entra por el padre) | 50 |
+
+| Rutas | |
+|---|---|
+| Siguen **solo en `tenant_id`** | **28 rutas** (medido 8 Oct 2026; eran 33 el 7 Oct: `locations/import`, `locations/image` y `warehouses/import` en 048/050, `costs` y `custom-kpis` en 051) |
+| Tocan una superficie sin `company_id` sin contexto validado | **0** ← el hallazgo bueno |
+
+El avance es real pero **el aislamiento sigue abierto**: hasta que esas 28 no migren
+(no son 43 — la cifra del 28 Sept contaba ficheros, aquí se cuentan rutas distintas),
+no se puede considerar cerrado. El patrón a seguir está en el GET/POST/PATCH de
+`app/api/inventory/products/route.ts`.
+
+### Rutas que siguen en tenant (las que importan para datos)
+
+Excluye las de `tenant/*`, `admin/*` y `support/*`, que son **de tenant por
+naturaleza** (leen `User`, `companies`, `Tenant` a nivel de organización):
+
+| Ruta | Tabla | Nota |
+|---|---|---|
+| `app/api/billing/products/route.ts` | `product` | datos ya con `company_id` correcto |
+| `app/api/billing/cai/route.ts` | `cai` | idem |
+| ~~`app/api/companies/[id]/inventory/warehouses/import/route.ts`~~ | ~~`warehouse`~~ | **RESUELTO 8 Oct 2026:** `contextoDeEmpresa` con el `[id]` de la ruta (antes el tenant salía de `x-tenant-id` o del campo `tenantId` del cliente), lectura de duplicados con `company_id.eq.X OR company_id.is.null`, INSERT con `company_id = empresa.companyId`, `respuestaDeErrorDeEmpresa` en el catch |
+| ~~`app/api/companies/[id]/inventory/locations/import/route.ts`~~ | ~~`product_location`, `warehouse`~~ | **RESUELTO 8 Oct 2026:** `contextoDeEmpresa` con el `[id]` de la ruta (antes el tenant salía de `x-tenant-id` o del campo `tenantId` del cliente), INSERT con `company_id = empresa.companyId`, escritura con el tenant del servidor |
+| ~~`app/api/companies/[id]/inventory/locations/image/route.ts`~~ | ~~`product_location`~~ | **RESUELTO 8 Oct 2026:** `contextoDeEmpresa`; UPDATE/DELETE del estante con `id`+`tenant`+`company_id.eq.X OR company_id.is.null` (el UPDATE de solo `id`+tenant era un IDOR dentro de `TEST1DS`); prefijo del bucket `{tenantId}/locations/` con tenant del servidor |
+| ~~`app/api/companies/[id]/costs/route.ts`~~ | ~~`cost_payments`~~ | **RESUELTO 8 Oct 2026 (051):** `contextoDeEmpresa` + guard 400 en GET/POST; GET filtra `.eq('company_id', X)` (antes solo tenant, y sin tenant **sin filtro**); POST escribe `tenant_id`/`company_id` del servidor con read-then-write en vez de `upsert` ciego — el `UNIQUE (tenant_id, cost_type, cost_key)` viejo haría que la hermana **pisara** el importe ajeno; choca → **409** pidiendo la migración `051_cost_payments_unicidad_por_empresa.sql` (**ya aplicada y verificada** 8 Oct 2026) |
+| ~~`app/api/companies/[id]/custom-kpis/route.ts`~~ | ~~`Transaction`~~ | **RESUELTO 8 Oct 2026 (051):** `getTicketPromedio` filtraba `Transaction` por el `companies.id` de la ruta **como si fuera `tenant_id`** (UUID contra columna de código → 0 filas silenciosas, KPIs que no aparecen); ahora `.eq('company_id', X)` (49/50 filas, medido). GET/POST/DELETE con `contextoDeEmpresa` + guard 400 + `respuestaDeErrorDeEmpresa` |
+| `app/api/billing/{customers,payment-links,payment-receipts,bank-accounts}` | | |
+| `app/api/closing/perform/route.ts` | | cierre de periodo |
+| `app/api/accounting/*-upload`, `sar-*` | `companies` | subida fiscal |
+
+**Rutas de compras/proveedores: NO están en la lista** — migradas el 2-7 Oct
+(9 rutas). Ver `docs/COMPRAS_PROVEEDORES_REPORT.md` §6.1. **Órdenes de compra**
+(`app/api/purchase-orders/*`) se alineó el **8 Oct 2026**: `lib/purchase-orders-db.ts`
+nuevo con toda la lógica aislada por `company_id`, la ruta ya no lee `?companyId`
+del cliente (solo `contextoDeEmpresa`), y "Recibir una O.C." crea la `Purchase`
+real vía `createPurchase`. Ver `docs/COMPRAS_PROVEEDORES_REPORT.md` §6.6.
+
+**El IDOR del CRUD de estantes: RESUELTO 8 Oct 2026.** `lib/services/location-service.ts`
+— `updateLocation` y `deleteLocation` verificaban solo `id` + `tenant_id`, así que dentro
+de `TEST1DS` un `PUT`/`DELETE` a `locations/[locationId]` podía tocar el estante de la
+empresa hermana. Ahora las dos funciones encadenan `companyScope`
+(`company_id.eq.X OR company_id.is.null`) en la comprobación **y** en el `UPDATE`/`DELETE`
+(las filas con empresa NULL siguen siendo válidas, misma convención que `listLocations`),
+y las rutas `locations/route.ts` / `locations/[locationId]/route.ts` usan
+`contextoDeEmpresa` + `respuestaDeErrorDeEmpresa` en vez del `tenantHint` del cliente
+(`resolveTenant` prefiere ese hint, o sea que lo mandaba el cliente).
+Prueba: `tests/inventory/locations-crud.test.mjs` (8 casos, código real) → 18/18 con
+`contexto-empresa.test.mjs`; entran en `npm test`.
 
 ## Lo que falta para cerrar el aislamiento
 
@@ -230,8 +376,9 @@ Verificado el 28 Sept 2026 con `node scripts/verificar-contexto.mjs`:
 |---|---|---|
 | **Vistas de reportes sin filtrar** | 42 vistas | `libro_ventas`, `libro_mayor`, `balance_general`, `balanza_comprobacion`, `estado_resultados`, `flujo_efectivo_mensual`… Se leen de tablas ya aisladas pero **no filtran por `company_id`**, así que un reporte puede mezclar empresas. **Bloquea la vista consolidada del Empresario.** Es la 027. |
 | Tablas sin `company_id` | 51 tablas | Las que no tenían `tenant_id`: `AccountReceivable`, `BookClosing`, `Reconciliation`, `payment_vouchers`, `payroll_vouchers`, `asset_*`, `itr_produccion`, `budget_lines`. Sin `company_id` no se pueden aislar. |
-| Rutas API con filtro por tenant | 42 archivos | El patrón de `products/route.ts` sin aplicar. |
-| `location_id` con dos significados | 2 tablas | Ver la trampa de abajo. |
+| Rutas API con filtro por tenant | ~~42 archivos~~ → **28 rutas** (8 Oct) | El patrón de `products/route.ts` sin aplicar. **Compras/proveedores ya salió de esta lista**, igual que `locations/import` + `locations/image` + `warehouses/import` (048/050) y `costs` + `custom-kpis` (051). |
+| `location_id` con dos significados | 2 tablas | Ver la trampa de arriba. |
+| ~~`product_location.company_id` guarda un tenant~~ | ~~2 filas (100%)~~ | **RESUELTO 8 Oct 2026 (046 aplicada y verificada):** las 2 filas apuntan a test 1; quedan 0 con `TEST1DS` y 0 inválidas. El filtro por empresa ya está en las rutas que la leen (`locations/import`, `locations/image`) **y** en el CRUD (`updateLocation`/`deleteLocation` con `companyScope`, rutas con `contextoDeEmpresa`): probado en `tests/inventory/locations-crud.test.mjs`. |
 
 **El orden importa:** la 027 (vistas) antes que cualquier reporte consolidado. Con
 las vistas mezclando empresas, un "estado de resultados consolidado" de un

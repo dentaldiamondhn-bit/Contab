@@ -1,32 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
-import { resolveTenant as resolveTenantDelRequest } from "@/lib/tenant-resolver";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { exigirEmpresa } from "@/lib/purchase-db";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 
 export const dynamic = "force-dynamic";
 
-// El tenant se toma del id de empresa de la URL del POS, que es lo mas
-// autoritativo para esa pantalla, y luego del header que inyecta middleware.ts.
-// Antes estaba fijado en "1", asi que el POS de cualquier otra empresa listaba
-// los productos de "Empresa 1" y nunca los suyos.
-// El tenant sale del header de sesion (`x-tenant-id`, lo inyecta middleware.ts),
-// NO de `?companyId`: ese parametro lo manda el cliente y antes ganaba al header,
-// asi que cualquier usuario autenticado podia leer y escribir los datos de otra
-// empresa con `?companyId=ANGELOH7`. Ademas `?companyId` es un companies.id, no el
-// tenant_id que guardan las tablas, y sin traducir daba cero filas.
-// Ver lib/tenant-resolver.ts.
-async function resolveTenant(request: NextRequest): Promise<string | null> {
-  return resolveTenantDelRequest(request);
-}
-
+// La empresa sale del contexto validado (`contextoDeEmpresa`), NUNCA solo del
+// tenant. `product` tiene `company_id` (migracion 023) y `TEST1DS` tiene dos
+// empresas: filtrar por `tenant_id` hacia que el POS de test 1 listara el
+// inventario de test 2. Antes estaba fijado en "1". Ver AGENTS.md seccion 1.
 export async function GET(request: NextRequest) {
   try {
-    const tenantId = await resolveTenant(request);
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
 
     const supabase = getSupabaseServer();
 
@@ -34,7 +19,7 @@ export async function GET(request: NextRequest) {
       .from("product")
       .select("*")
       .eq("is_active", true)
-      .eq("tenant_id", tenantId)
+      .eq("company_id", empresa.companyId)
       .order("code", { ascending: true })) as { data: any[]; error: any };
 
     if (error) {
@@ -59,6 +44,8 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json(formattedProducts);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in products GET route:", error);
     return NextResponse.json(
       { error: "Internal server error" },
@@ -69,16 +56,9 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const tenantId = await resolveTenant(request) || body.tenant_id;
-    if (!tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
-    }
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request));
 
-    const { code, name, description, unit_price, tax_rate, is_service, stock_quantity, category } = body;
+    const { code, name, description, unit_price, tax_rate, is_service, stock_quantity, category } = await request.json();
     const price = Number(unit_price) || 0;
     const stock = Number(stock_quantity) || 0;
 
@@ -98,7 +78,8 @@ export async function POST(request: NextRequest) {
         stock_quantity: stock,
         current_stock: stock,
         category,
-        tenant_id: tenantId,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
       })
       .select()
       .single()) as { data: any; error: any };
@@ -113,6 +94,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(data);
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error("Error in products POST route:", error);
     return NextResponse.json(
       { error: "Internal server error" },

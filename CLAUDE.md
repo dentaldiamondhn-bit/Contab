@@ -3722,3 +3722,1185 @@ no regresiones:
   no tocarlos aqui: usan la **anon key** (el RLS si aplica, a diferencia del service
   role del servidor) y **ninguna pagina los renderiza**. Si en algun momento se
   montan, hay que migrarlos a las rutas.
+
+### Update (5 Oct 2026) - Historial de precios por proveedor: cerrar el drift y llenarlo
+
+**Estado: APLICADA Y VERIFICADA.** La tabla paso de **0 a 3 filas** (las 3
+compras de DICOSA) y `company_id` quedo **NOT NULL**. La pantalla ya ensena
+historial. Las 4 politicas RLS de la 014 tambien se confirmaron contra
+`pg_policies`.
+
+El historial de precios por proveedor **ya existia entero**: tabla, modelo Prisma,
+ruta CRUD (`app/api/suppliers/price-history/route.ts`), registro automatico al
+crear compra (`recordSupplierPriceHistory`, `lib/purchase-db.ts:350`), UI
+(`components/purchasing/SupplierPriceHistory.tsx`) y tests. Lo que no existia era
+la migracion, y por eso la pantalla no ensenaba nada.
+
+**Medido 5 Oct 2026 contra la BD (PostgREST, solo lectura):**
+
+| Comprobacion | Resultado |
+|---|---|
+| `supplier_price_history` filas | **0** |
+| La columna `company_id` existe | **si** (nullable, con FK a `companies.id`) |
+| `company_id` en alguna migracion del repo | **NO** |
+| `company_id` en el modelo Prisma | **NO** |
+| `Purchase` filas | 2, las 2 de DICOSA, `tenant_id '1'`, Empresa 1 |
+| `PurchaseItem` filas | 3, las **3** bien enlazadas (no huerfanas) |
+
+**El drift, y por que era grave:** `company_id` se escribia
+(`lib/purchase-db.ts:363`) y se filtraba en GET, PATCH y DELETE
+(`route.ts:45,166,198`), pero **no estaba en ninguna migracion**: se creo a mano
+en el SQL Editor. Dos consecuencias:
+
+1. Una base reconstruida desde el repo **no tendria la columna**, y la `040`
+   aborta en su preflight si a alguna de sus 5 tablas le falta `company_id`
+   (`040:110-115`). La `040` figura como aplicada solo porque se corrio contra
+   una base donde la columna ya estaba puesta a mano.
+2. El modelo Prisma tampoco la declaraba, asi que `prisma generate` no la
+   conocia: dos fuentes de verdad que se contradician en silencio.
+
+**Lo que hace la 041** (`prisma/migrations/041_supplier_price_history_company_id.sql`,
+**APLICADA Y VERIFICADA el 5 Oct 2026**): `ADD COLUMN IF NOT EXISTS`, FK e indices idempotentes;
+backfill de `company_id` desde `Supplier` (3/3 coherente) y luego `Purchase`;
+backfill de las **3 filas de precio** desde `PurchaseItem` x `Purchase`, con las
+mismas fechas y el mismo formato de `notes` que escribe el codigo; y las 4
+politicas RLS cambiadas de `tenant_id` a `user_company_access.company_id`.
+
+**Primer intento: FALLO con `ERROR: 42601: unterminated quoted string at or near
+"'; END "`.** No se aplico nada (todo va en una transaccion). Tres bugs que el
+validador **no** vio y que solo aparecen al ejecutar:
+
+1. **Un apostrofo de mas** en `coalesce(v_faltan || ', '')` (L123). El validador
+   dio verde porque no tenia ninguna regla de comillas y ademas contaba con un
+   tokenizer que trata `''` como escape, o sea que un apostrofo *de mas* es
+   justo el caso que no distingue. Ahora `validar-040.mjs` exige que el total de
+   `'` sea par y senala la linea donde se rompe el emparejamiento.
+   **Probado reintroduciendo el bug: ahora falla y senala la L123 exacta.**
+2. **`Purchase.invoice_date` NO es `text`, es `date`** (medido en el OpenAPI:
+   `format: "date"`). Yo lo decia texto porque PostgREST lo devuelve como
+   `'2026-09-03'`, y eso *parece* texto. Con `date`, tanto
+   `(invoice_date || 'T00:00:00')::timestamptz` como el guard `~ regex` dan
+   `operator does not exist`. El cast va ahora por `::text`, y con la `Z`
+   explicita para que no dependa del `TimeZone` de la sesion. Y el guard de "fecha
+   ilegible" es `IS NOT NULL`: un `date` real no admite fechas invalidas.
+3. **`uuid` contra `text` en 5 sitios**, incluido el `NOT EXISTS` de idempotencia:
+   `supplier_price_history.supplier_id`/`.product_id` son `text`, y
+   `Supplier.id`, `Purchase.supplier_id` y `PurchaseItem.product_id` son `uuid`.
+   Sin `::text` da `operator does not exist: uuid = text`. Lo grave: el mecanismo
+   que hace la migracion idempotente era lo que impedia que corriera.
+
+Los tres son **errores de runtime**, no de parseo: la sentencia compila y revienta
+al ejecutarse, con el mensaje apuntando lejos de la causa. **Un recuento de
+estructura no los ve; solo los ve el OpenAPI y la BD real.**
+
+**Verificacion desde fuera (NO el "Success" del SQL Editor):** contrastadas una a
+una las filas con `PurchaseItem x Purchase`. **3 filas de 3 esperadas**, y cada
+una cuadra en `price`, `effective_date`, `notes`, `currency`, `company_id`,
+`tenant_id` y `supplier_id`:
+
+| price | notes | effective_date | company_id |
+|---|---|---|---|
+| 119 | `Registrado en compra - Guantes` | 2026-09-03T00:00:00+00:00 | Empresa 1 |
+| 2 | `Registrado en compra - Guantes` | 2026-09-04T00:00:00+00:00 | Empresa 1 |
+| 6 | `Registrado en compra - gasas` | 2026-09-04T00:00:00+00:00 | Empresa 1 |
+
+Las tres DICOSA (`693af3cd-…`), `tenant_id='1'`, `currency='HNL'`. Los tres
+`effective_date` son **medianoche UTC exacto**, que es lo que prueba que el
+`::text || 'T00:00:00Z'` no movio la fila de dia. **0 filas sin `company_id`, 0
+`company_id` que no exista en `companies`**, y `company_id` ya sale en el
+`required` del OpenAPI: el **NOT NULL quedo puesto** y sigue siendo `text`.
+**El drift cerrado**: 041 seguida de 042 ya da el mismo esquema que la base viva.
+
+**Pendiente de confirmar: el cuerpo de las 4 politicas RLS.** La 014 corrio sin
+error y se midio que el RLS **restaura y restringe** (con `anon` la tabla devuelve
+**0 filas**, con `service_role` 3), lo que descarta el modo grave (RLS
+deshabilitado con la anon key leyendo el historico entero). Pero 0 filas para anon
+**no prueba** que la politica sea la nueva por `company_id`: la vieja por
+`tenant_id` tambien daba 0 sin sesion, y PostgREST no puede leer `pg_policies`.
+Para cerrarlo, en el SQL Editor:
+```sql
+SELECT policyname, cmd, qual FROM pg_policies WHERE tablename = 'supplier_price_history';
+-- las 4 cales deben citar user_company_access y NINGUNA User.tenantid
+```
+
+**CONFIRMADO despues con esa consulta:** las 4 politicas de la 014 citan
+`user_company_access.company_id` y **ninguna** menciona `User.tenantid`. La 041 y la
+014 estan bien aplicadas.
+
+Tres cosas que salieron al mirarlas, ninguna un fallo de seguridad:
+
+1. **`qual` sale `null` en la policy de INSERT y es lo correcto**: en `FOR INSERT`
+   decide el **`WITH CHECK`**, y `qual` solo se rellena para `SELECT`/`UPDATE`/
+   `DELETE`. Yo primero pedi solo `qual`, asi que la de INSERT *parecia* no tener
+   filtro. **Pide `qual` y `with_check` a la vez.**
+2. **Los nombres siguen diciendo "Tenants can ..."** aunque ya filtran por empresa.
+   No es un bug, pero es una mentira operativa: el siguiente que lea `pg_policies`
+   ve "Tenants can view own…" y puede "corregirlo" de vuelta a tenant. No se
+   renombraron porque cambiar el nombre de una policy es `DROP` + `CREATE`, y no
+   toco una policy que ya funciona.
+3. **Medido el puente de identidad** (`auth.uid() → "User".authid →
+   user_company_access.user_id`) sobre las 8 membresias: **las 8 resuelven y 0
+   identidades de Clerk quedan fuera**, y **ningun `authid` esta duplicado**, asi
+   que la subconsulta nunca devuelve las membresias de dos identidades a la vez (lo
+   que seria la fuga). Pero `User.authid` **no tiene indice unico**, asi que eso
+   puede cambiar sin avisar.
+   Y una trampa concreta que sale de ahi: **`Empresa 1` cuelga del SEGUNDO Clerk de
+   `gcalix12`** (`user_3Ibve…`, junto con Angelos), no del primero
+   (`user_3D99…`, que solo tiene Clinica Dental Diamond). Si entra con la otra,
+   la membresia existe y el RLS no la cuenta: fail-closed, pero se manifiesta como
+   "la empresa desaparecio". Lo mismo con test 1 y test 2, que cuelgan del segundo
+   Clerk de `azuna22`. Ver AGENTS.md 1b.
+
+**`company_id` pasa a NOT NULL.** Medido: hoy es nullable, y con el filtro
+`.eq('company_id', ...)` del GET, una fila con `company_id` NULL **no la ve
+nadie**: no da error, desaparece. Los dos unicos caminos de escritura ya la
+ponen (`lib/purchase-db.ts:363` y `route.ts:20`) y el PATCH no puede dejarla en
+NULL porque `PRICE_COLUMNS` no la incluye, asi que el NOT NULL no rompe nada
+legitimo.
+
+**Las politicas RLS eran exactamente el bug que el proyecto ya pago:** las 4
+filtraban por `tenant_id = (SELECT tenantid FROM "User" WHERE authid = ...)`, y
+`TEST1DS` tiene **dos** empresas, asi que no las separaba. Ahora van por
+`user_company_access.company_id`, que es la fuente de verdad de la membresia
+(`AGENTS.md` 1b); `User.tenantid` es legacy.
+
+**Ojo: nada de esto cambia el comportamiento de la app.** `server-lazy.ts` usa la
+`service_role`, que salta el RLS. El aislamiento real sigue dependiendo del
+`.eq('company_id', ...)` del codigo. Lo que se arregla es que la politica no
+este equivocada.
+
+**Ademas:** `recordSupplierPriceHistory` hacia `Math.round(Number(unit_price))`
+sobre una columna `numeric` / `Decimal` (DECIMAL(18,4) en la 014), asi que un
+precio de **12.75 se guardaba como 13** y el historial no cuadraba con la linea
+de compra de la que salia. Quitado el redondeo. El test
+`conserva los decimales del precio` se comprobo que **falla** si se vuelve a
+poner.
+
+**`scripts/validar-040.mjs`** ahora acepta una ruta (`node scripts/validar-040.mjs
+prisma/migrations/041_...sql`) porque la 041 es estatica entera y el validador
+exigia un `EXECUTE`. La regla nueva que sustituyo a la de "tiene que haber un
+EXECUTE" es la de `AGENTS.md`: **todo `%I` tiene que estar dentro de un
+`format()`**, que es el fallo que se paga con `syntax error at or near %`.
+
+#### Bugs preexistentes que NO se tocaron
+
+- **`Purchase` NO tiene columna `supplier_name`.** Confirmado con `42703 column
+  Purchase.supplier_name does not exist`, o sea que el DDL de
+  `supabase/MASTER_SETUP.sql:1071` esta equivocado. Por eso el backfill saca el
+  proveedor de `Purchase.supplier_id`, que si existe.
+- **`currency` sigue hardcodeado a `'HNL'`** en el codigo y en el backfill,
+  aunque la columna existe y hay infra multi-moneda (`ExchangeRateHistory`,
+  `lib/currency-utils.ts`). Queda como esta.
+- **La idempotencia del backfill tiene un limite que no se puede quitar:**
+  `supplier_price_history` no guarda el id de la compra, asi que la mejor clave
+  disponible es `(supplier_id, product_id, effective_date, price, notes)`. Dos
+  compras del mismo proveedor, mismo producto, mismo dia y mismo precio se
+  confundiran. Hoy no colisiona (las 2 facturas son de dias distintos).
+
+---
+
+## 5 Oct 2026 � Calificaciones y comentarios de proveedor (042)
+
+**PETICION.** Poder calificar a un proveedor: historial (varias por persona y
+fecha), escala de 1 a 5 estrellas, varios criterios mas una nota global, visible
+en el modal de detalle.
+
+**Decisiones que fij� el usuario:** multiples calificaciones por proveedor con
+autor y fecha; escala 1-5; "varios criterios + un global"; se muestra en una
+seccion del modal de detalle, no como columna del listado.
+
+**POR QUE UNA TABLA NUEVA Y NO COLUMNAS EN `Supplier`.** Con columnas solo
+cabia una fila por proveedor, osea que el segundo voto tendria que sobrescribir
+al primero. Una tabla hija da las dos cosas: el historial Y el promedio.
+`supplier_ratings` es esa tabla.
+
+**Lo que hay:**
+
+| Pieza | Fichero |
+|---|---|
+| Tabla, FKs, indices, RLS | `prisma/migrations/042_supplier_ratings.sql` (nueva, **APLICADA Y VERIFICADA**) |
+| Modelo | `prisma/schema.prisma` (`SupplierRating`) |
+| Reglas compartidas | `lib/supplier-ratings.ts` (nuevo) |
+| API GET/POST/PATCH/DELETE | `app/api/suppliers/ratings/route.ts` (nuevo) |
+| UI | `components/purchasing/SupplierRatings.tsx` (nuevo) |
+| Montaje | `app/companies/[id]/suppliers/page.tsx`, antes de `SupplierPriceHistory` |
+| Pruebas | `tests/purchases/supplier-ratings.test.mjs` (21, nuevo) |
+
+### Tipos MEDIDOS (OpenAPI de PostgREST, 5 Oct 2026), no supuestos
+
+| Columna | Tipo real | Consecuencia |
+|---|---|---|
+| `"Supplier".id` | **uuid** | `supplier_id` es `uuid` con FK a `"Supplier"(id)` |
+| `supplier_price_history.supplier_id` | `text` | NO se copio: es drift |
+| `companies.id` | `text` | `company_id` es `text`, no `uuid` |
+| `"User".id` | **text** | `author_id` es `text` |
+| `User.name` | **NO EXISTE** | el label sale de `firstname` + `lastname` |
+
+El preflight de la 042 **vuelve a medir** `Supplier.id`, `companies.id` y
+`User.id` y ABORTA si un tipo no es el esperado, en vez de fallar al final con
+un `42703` lejos de la causa.
+
+### El "global" NO se guarda
+
+Es el promedio de los cuatro criterios, calculado al leer. Guardarlo seria una
+segunda fuente de verdad que se puede desincronizar de los criterios: una fila
+con criterio 5/5/5/5 y global 3 seria legal en la base y mentirosa en pantalla.
+`globalDe()` esta en `lib/supplier-ratings.ts`, o sea que la UI y la API
+calculan lo mismo con el mismo codigo.
+
+### `author_id` sale de la sesion, NUNCA del cuerpo
+
+`auth()` de Clerk -> `"User".authid` -> `"User"(id)`. Si `author_id` fuera del
+cliente, uno podria calificar en nombre de otro. Si la sesion no resuelve a un
+`"User"`, se responde **401** y no se escribe: una calificacion sin autor no se
+puede ni editar ni borrar despues.
+
+**Ojo con las DOS tablas de usuario** (medido, y es una trampa):
+
+| | `"User"` (con comillas) | `users` (sin comillas) |
+|---|---|---|
+| `id` | `text` | `uuid` |
+| identidad | `authid` | `auth_id` |
+| nombre | `firstname` | `first_name` |
+| quien la usa | RLS, `user_company_access`, **la 042** | **el modelo `User` de Prisma** |
+
+Son dos tablas distintas y el modelo `User` de `schema.prisma` apunta a la que
+**no** es la real (`@@map("users")`). Por eso `SupplierRating.authorId` es un
+escalar sin `@relation`: cablearlo ahi apuntaria a `users` y devolveria 0 filas
+siempre, sin error. Es drift **preexistente**, fuera de alcance.
+
+### PATCH y DELETE: solo los propios
+
+`.eq('author_id', autor.id)` en el UPDATE y en el DELETE, ademas de
+`.eq('company_id', ...)`. El filtro por empresa aisla la empresa, **no la fila**:
+sin el de autor, un PATCH o un DELETE con un id ajeno reventaba la calificacion
+de otro usuario de la MISMA empresa. Con 0 filas afectadas se responde **404**,
+no exito silencioso.
+
+### Aislamiento
+
+`company_id` NOT NULL + FK a `companies(id)`, filtro por `company_id` en las 4
+operaciones, y 4 politicas RLS por `user_company_access.company_id` (no por
+`User.tenantid`, que es legacy). Las de INSERT/UPDATE/DELETE llevan **ademas**
+`author_id IN (select id from "User" where authid = auth.uid())`, o sea que
+tambien acotan el autor cuando se llegue a depender del RLS.
+
+El RLS no protege nada hoy (la app usa `service_role`). Lo que se mantiene
+correcto es el `.eq('company_id', ...)` del codigo.
+
+La FK a `"Supplier"` es **ON DELETE CASCADE**: al borrar un proveedor no quedan
+calificaciones huerfanas, que no se verian (el GET filtra por `supplier_id`) pero
+seguirian contando en los agregados de la empresa. La FK a `author_id` **NO**
+lleva cascade a proposito: `"User"` es legacy y su `authid` puede duplicarse, y
+borrar un usuario no debe cambiar el promedio de un proveedor.
+
+### Los CHECK 1..5 viven en la BASE, no solo en la API
+
+Cuatro `CHECK (BETWEEN 1 AND 5)` mas `comment <= 2000`. Si el limite estuviera
+solo en la API, un POST con un cuerpo enorme pasaria: el unico filtro estaba en
+el cliente, que es justo lo que el usuario puede no enviar. Los CHECK dan
+`23514` en vez de un 500 de validacion.
+
+### Verificado
+
+- `prisma validate`: **schema valido** (con `DIRECT_URL` pasado a mano: no esta
+  en `.env.local` y Prisma solo carga `.env`).
+- Pruebas de ratings: **21/21**. Se probaron re-introduciendo el bug: si
+  `nota(0)` devolviera `0` en vez de `null`, el suite pasa a **20/21**. Un
+  validador que no falla con el error que acabas de permitir no prueba nada.
+- Pruebas de compras completas: **39/39** (18 previas + 21 nuevas).
+- `npm test`: las 9 suites siguen en verde.
+- Typecheck: **462 errores, sin cambio** respecto al baseline (462), y **0** en
+  los 6 ficheros tocados.
+- `validar-040.mjs` sobre la 042: estructura consistente, 4 `DROP POLICY IF
+  EXISTS`, paridad global de comillas OK.
+
+### 042 APLICADA Y VERIFICADA desde fuera (5 Oct 2026)
+
+El usuario la aplico en el SQL Editor: **"Success. No rows returned"**. Como la
+014, ese texto no prueba nada, asi que se verifico por PostgREST con la
+`service_role`. **"No rows returned" es lo NORMAL** aqui: la migracion crea
+esquema y no devuelve filas, y el `SELECT count(*)` del post-check final da 0
+en una tabla recien creada. No es un fallo.
+
+**El esquema, medido en el OpenAPI (no deducido):**
+
+| Columna | Tipo real | Correcto |
+|---|---|---|
+| `id` | `uuid` | si |
+| `company_id` | `text` | si, y esta en `required` = **NOT NULL puesto** |
+| `tenant_id` | `text` | si (nullable) |
+| `supplier_id` | `uuid` | si, **NO el `text` de `supplier_price_history`** |
+| `author_id` | `text` | si |
+| los 4 criterios | `smallint` | si |
+| `comment` | `text` | nullable |
+| `created_at` / `updated_at` | `timestamp with time zone` | si |
+
+`required` sale como `id, company_id, supplier_id, author_id, quality, price,
+punctuality, service, created_at, updated_at`: los 4 criterios y `company_id`
+NOT NULL, `comment` y `tenant_id` no. Es exactamente lo pedido.
+
+**Los CHECK y las FKs, probados de verdad (insertando filas que deberian fallar).**
+Cada caso dio su codigo de error de Postgres:
+
+| Se intento | Codigo | Que demuestra |
+|---|---|---|
+| `quality=0` | `23514` check_violation | el CHECK 1..5 esta en la base |
+| `quality=6` | `23514` check_violation | idem por arriba |
+| `quality=4.5` | `22P02` invalid smallint | el `smallint` rechaza el decimal |
+| `company_id=null` | `23502` not_null_violation | el NOT NULL puesto |
+| `supplier_id` inexistente | `23503` FK, cita `"Supplier"` | la FK a `Supplier` existe |
+| `author_id` inexistente | `23503` FK, cita `"User"` | la FK a `"User"` existe |
+| `comment` de 2001 | `23514` check_violation | el limite de 2000 esta en la base |
+
+**El trigger de `updated_at` funciona**: tras un PATCH la fecha paso de
+`15:53:46.108` a `15:53:49.596` (con `quality` de 5 a 3). Probado con 1.1 s de
+espera, para que la precision del timestamp no lo hiciera ambiguo.
+
+**RLS, con una fila real presente (la 014 solo se midio con la tabla vacia).**
+Con 1 fila puesta: `anon` devuelve **0 filas** y `service_role` devuelve **1**.
+Y un INSERT con `anon` da **401 `42501` "new row violates row-level security
+policy for table supplier_ratings"**. Ese `42501` es la prueba de que la
+politica de INSERT (la que va por `WITH CHECK`) esta puesta: el `42501` viene
+del `WITH CHECK`, no del `qual`, que como ya se sabe sale `null` en `FOR INSERT`.
+
+Ojo con el orden de las mediciones: con la tabla **vacia**，`anon` da 0 filas
+tambien, y eso **no prueba nada** (no hay nada que filtrar). Con la fila puesta
+el 0 si significa "filtrada". Por eso el RLS se midio dos veces y la segunda es
+la que vale.
+
+**Lo que NO se pudo verificar desde fuera:** los **indices** y el texto exacto de
+las 4 politicas por `pg_policies` (`qual` y `with_check`). PostgREST no expone
+`pg_index` ni `pg_policies`, y el host de BD no resuelve desde esta maquina. Para
+eso haria falta ejecutar en el SQL Editor:
+
+```sql
+SELECT policyname, cmd, roles, qual, with_check FROM pg_policies
+ WHERE schemaname = 'public' AND tablename = 'supplier_ratings';
+
+SELECT indexname FROM pg_indexes
+ WHERE schemaname = 'public' AND tablename = 'supplier_ratings';
+```
+
+Los datos de prueba se borraron al terminar: **0 filas** en `supplier_ratings`.
+
+### Detalle de la transaccion
+
+La 042 mete tabla, FKs, indices, RLS y trigger dentro de un `BEGIN`/`COMMIT`, a
+diferencia de la 040 y la 041. Es a proposito: asi un fallo deshace todo y el
+"no dio error" es garantia de que esta TODO puesto. El post-check final va
+**fuera** de la transaccion, porque ya no podria deshacer nada: solo mide y avisa
+con `RAISE NOTICE`/WARNING. El abort que protege de verdad es el del preflight.
+
+
+---
+
+## 043 y 044: aislamiento de proveedores (`company_id`) y fin de las restricciones de tenant
+
+Ambas **APLICADAS Y VERIFICADAS desde fuera** (7 Oct 2026). El SQL Editor respondio
+`Success. No rows returned` **en las dos, y eso no vale como evidencia**: las dos
+usan `RAISE NOTICE`, que el editor no muestra. Lo que sigue esta medido con
+PostgREST y la `service_role`, no por el mensaje del editor.
+
+### 043 `supplier_company_id_not_null.sql`
+
+| Comprobacion | Resultado |
+|---|---|
+| `Supplier.company_id` en `required` (OpenAPI) | si, ya no nullable |
+| insert con empresa inventada | `23503` FK `supplier_company_id_fkey` (antes daba 201: **la FK no existia**) |
+| insert sin `company_id` | `23502` not_null_violation |
+| insert valido | 201 |
+| anon / authenticated | 200 con 0 filas |
+| 3 proveedores reales | intactos, 0 residuos |
+
+La FK **no existia**: la 043 la creo. Antes se podia escribir un proveedor con una
+empresa que no existe, y la fila luego no la veia nadie.
+
+Se descarto el indice compuesto `(company_id, tenant_id)` que venia propuesto: ninguna
+consulta filtra por los dos, y `idx_supplier_company` ya existia
+(`supabase/purchase-db-migration-01-company-id-text.sql:24`).
+
+### 044 `supplier_rtn_por_empresa.sql`
+
+Dos cosas, ambas porque **el mismo negocio atendiendo a varias empresas es legítimo**:
+
+1. `DROP` del `UNIQUE (rtn, tenant_id)`.
+2. La FK a `companies` pasa de `ON DELETE CASCADE` a **`NO ACTION`**.
+
+Evidencia medida:
+
+| Se intento | Resultado | Que demuestra |
+|---|---|---|
+| mismo RTN en **test 1** | `201` | — |
+| mismo RTN en **test 2** (mismo tenant `TEST1DS`, otra empresa) | **`201`** (antes `409`) | el UNIQUE por tenant ya **no existe** |
+| borrar una empresa con un proveedor referenciado | **`409` `23503`**, citando `supplier_company_id_fkey` | la FK **ya no es CASCADE** |
+| estado final | 3 proveedores, 0 NULL, 0 huerfanos, 0 empresas de prueba | no dejo residuos |
+
+El `23503` es ademas la prueba de que la FK **existe** (con `CASCADE` habria dado 204
+y el proveedor habria desaparecido). Las filas de prueba (`ZZTMP ...`) se borraron:
+0 en `Supplier`, 0 en `companies`.
+
+**El `DROP` busca el indice por COLUMNAS, no por nombre** (`indisunique` + `rtn`,
+`tenant_id`): Prisma lo llama `unique_supplier_rtn_tenant` mientras que el objeto real
+tiene otro nombre, y un `DROP ... IF EXISTS` con el nombre equivocado **no falla: no
+hace nada**, y el `INSERT` posterior revienta igual que antes. Mismo error ya pagado
+con `Account_name_key`.
+
+### El validador pago 4 errores mas, y dos de ellos eran suyos
+
+`scripts/validar-040.mjs` tiene 4 reglas nuevas. Cada una nacio de un fallo real de
+la 043/044 y **cada una se probo reintroduciendo el bug**:
+
+| Regla | Error que detecta | Codigo |
+|---|---|---|
+| 6 | columna `name` comparada con columna `oid` | `42883 operator does not exist: name = oid` |
+| 7 | columna de catalogo con tipo conocido en una variable de otro tipo | `22P02 invalid input syntax for type boolean: "c"` |
+| 8 | mas columnas en el `SELECT` que variables en el `INTO` | error de runtime de PL/pgSQL |
+| 9 | comentario `//` de JavaScript en SQL | `42601 syntax error at or near "//"` |
+
+Y dos hallazgos sobre el propio validador, que son los que importan:
+
+- **La regla 0b (paridad de comillas) solo contaba las comillas que quedaban DENTRO
+  de los bloques `$$`**, que es exactamente donde vivia el bug de la 041. Al arreglar
+  el otro fallo (abajo), se la podia dejar contando `0` para siempre. Rehecha: cuenta
+  las posiciones reales de `'` en codigo durante el propio barrido.
+- **El validador se analizaba a si mismo.** `sinComentarios` se saltaba los `$$`
+  enteros, y el contenido de un `$$` **es SQL**: al citar el SQL roto dentro de un
+  comentario de un bloque `DO`, la regla 8 lo senalo como bug. Tercera vez que pasa
+  (ya documentado en AGENTS.md). Arreglado limpiando tambien el interior de los `$$`.
+
+Bateria de 8 pruebas, todas en verde, y las 5 migraciones sin falsos positivos.
+
+**Cuidado con CRLF y `.` en JavaScript:** `.env.local` termina en `\r`, y en JS `.`
+no coincide con `\r`, asi que un `/^\s*KEY\s*=\s*(.*)$/` **no matchea nunca** y el
+script acaba con `URL = undefined` sin que salte ningun error. PowerShell no lo ve
+porque su `-match` no es igual. Y ojo: PowerShell manglea los `node -e` con backticks
+y `$` en la linea de comandos; para pruebas, fichero.
+
+### 045 `supplier_indice_company_id_duplicado.sql` — APLICADA Y VERIFICADA (7 Oct 2026)
+
+Deja **UN SOLO indice sobre `Supplier(company_id)`**: el mas completo. Hoy hay dos
+maneras de indexar la misma columna, y cada alta/edicion/borrado de proveedor escribe
+`company_id` dos veces para devolver exactamente lo mismo.
+
+| Indice | Origen |
+|---|---|
+| `idx_supplier_company` | declarado en `prisma/schema.prisma:349`; creado por `supabase/purchase-db-migration-01-company-id-text.sql:24` y repetido por la 043 |
+| `idx_Supplier_ec136b_ci` | **no esta en el repo**; autogenerado |
+
+Medido el 5 Oct 2026 con `pg_indexes` dentro de la 043: los dos son btree sobre
+`company_id`, solo cambia el nombre.
+
+**"El mas completo" es una decision explicita, no un `LIMIT 1`:** 1) no parcial
+(`indpred IS NULL`), 2) con columnas `INCLUDE` (`indnatts > indnkeyatts`), 3) empate
+-> el declarado en el schema (si no, la base y el repo discrepan y `prisma migrate`
+volveria a crear el otro), 4) si aun asi empata, **ABORTA** con las dos definiciones.
+Si algun candidato es `UNIQUE`, tambien aborta: los 3 proveedores comparten empresa,
+asi que un unique ahi es una anomalia, no una invariante.
+
+**Toma de decision y `DROP` van en el MISMO bloque DO**, dentro de `BEGIN/COMMIT`, asi
+que no pueden divergir; si algo falla, no se borra nada. Cada `DROP` va en su propio
+bloque con `EXCEPTION WHEN SQLSTATE '2BP01'`: si el indice que hay que borrar es el
+que sostiene `supplier_company_id_fkey`, **aborta con mensaje en vez de borrarlo**
+(sin ese indice la FK se queda sin apoyo).
+
+**El post-check corre SIEMPRE**, tambien cuando no habia duplicado, y relee `pg_index`:
+exige que quede como maximo 1 candidato, que sea exactamente el que gano, y que la FK
+sigua en pie. Es lo que distingue "lo hizo" de "no hizo nada": `DROP INDEX` sin
+encontrar su objetivo **no falla**.
+
+Estado: **APLICADA y VERIFICADA el 7 Oct 2026**, medida desde fuera y no por el
+"Success" del SQL Editor.
+
+| Se midio | Resultado | Que demuestra |
+|---|---|---|
+| `node scripts/validar-040.mjs .../045_...sql` | **OK** | forma consistente |
+| SQL Editor | `Success. No rows returned` | **ningun `RAISE EXCEPTION`**: no habia `UNIQUE`, no hubo empate, ningun `DROP` choco con una constraint, y el post-check (que corre siempre) encontro como maximo 1 candidato y la FK viva |
+| `Supplier` por PostgREST | **3/3 intactos**, 0 `company_id` NULL, 0 huerfano | no toco ninguna fila (la 045 no tiene ni un `UPDATE` ni un `INSERT`) |
+| insertar proveedor con empresa inventada | **`23503` citando `supplier_company_id_fkey`** | la FK sigue en pie |
+| **`SELECT` sobre `pg_index`** | **exactamente 1 fila**: `idx_supplier_company`, `unico=false`, `es_parcial=false`, `cubre_columnas=false` | **el duplicado `idx_Supplier_ec136b_ci` ya no existe** y sobrevive el declarado en `prisma/schema.prisma:349` |
+
+Con ese ultimo resultado ademas se ve como se decidio: ninguno de los dos era parcial
+ni tenia columnas `INCLUDE`, asi que ambos puntuaban 0 y el desempate lo gano el
+**-10 de llevar el nombre `idx_supplier_company`**, el declarado en el schema. Sin
+ese bonus habria habido empate y la 045 habria **abortado** en vez de elegir.
+
+**Estructura revisada a mano** antes de aplicarla: `DO`/`END $$` 1/1,
+`IF`/`END IF` 13/13, bloque `BEGIN`/`END;` 1/1. Y probada **en negativo**: con cada
+uno de los 4 bugs tipicos (columnas del `SELECT` de mas para el `INTO`, comilla sin
+cerrar, `DO` sin `END $$`, `BEGIN` sin `COMMIT`) el validador **falla senalando la
+linea exacta**, y con el fichero real vuelve a OK. Un validador que no falla con el
+error que acabas de pagar no esta probando nada.
+
+Nota sobre el entorno: **no hay `psql`, ni docker, ni puerto 5432 local** (medido el
+7 Oct), y el host de BD no resuelve, asi que el DDL solo puede correrlo el usuario en
+el SQL Editor. Lo que se puede comprobar por fuera (PostgREST con `service_role`) es
+lo de arriba; `pg_indexes`/`pg_constraint` **no estan expuestos** por PostgREST, por
+eso la ultima fila del tiro se pidio como `SELECT`.
+
+## 8 Oct 2026 - Ordenes de compra: aislamiento por empresa y el flujo O.C. -> Compra
+
+`/api/purchase-orders` era el unico modulo de compras que habia quedado fuera del
+saneado: operaba sin el frontend aislado y sin crear compras reales. Medido antes de
+tocar nada: `PurchaseOrder` y `PurchaseOrderItem` estan **vacias (0 filas)**, asi que
+no hay datos legacy que migrar.
+
+### Lo que se construyo
+
+| Pieza | Que hace |
+|---|---|
+| `lib/purchase-orders-db.ts` (nuevo) | Toda la logica aislada por `company_id`, nunca tenant. **`createPurchaseOrder`** valida el proveedor contra la empresa (`idsDeEstaEmpresa`), crea en `DRAFT`, suelta `product_id` ajeno y **ignora `companyId` del body** (el servidor escribe el del contexto). **`updatePurchaseOrder`** hace 404 si la orden no es de la empresa, whitelist de campos, y **bloquea `RECEIVED`/`COMPLETED`** por PATCH (solo el flujo de recibir llega ahi). **`recibirPurchaseOrder`** es el flujo O.C. -> Compra. |
+| `app/api/purchase-orders/route.ts` | GET/POST/PATCH/DELETE con `exigirEmpresa(await contextoDeEmpresa(request))`. **Ya no lee `?companyId`** del cliente (mismo patron que `/api/purchases`); 404 ante ids ajenos; `respuestaDeErrorDeEmpresa` en catch. |
+| `app/api/purchase-orders/receive/route.ts` (nuevo) | POST `{ id, invoice_number, invoice_date, cai, is_credit, due_date }` -> 201 `{ order, purchase }`. |
+| Pagina `purchase-orders/page.tsx` | Modal Recibir con factura (Nº Factura obligatorio, fecha, CAI, contado/credito/vencimiento); badge "Compra registrada" + boton a Compras; fix de display de totales (`* 100`). |
+| Pruebas | +34 (oc-test + route-test) con supabase falso + `contextoDeEmpresa` por headers; total **73/73**. |
+
+### El flujo `recibirPurchaseOrder` (los fallos que se evitaron)
+
+- Exige `status === 'APPROVED'` y `purchase_id` NULL -> **409**; `invoice_number`
+  obligatorio -> **400**.
+- **Marca `RECEIVED` ANTES de crear la compra y revierte a `APPROVED` si la creacion
+  falla.** Sin esa compensacion, un error a mitad de la creacion dejaba la orden
+  marcada como recibida aunque la compra no existiera, y un reintento la duplicaba.
+- Reutiliza **`createPurchase`** de `lib/purchase-db.ts`: misma tuberia que el modulo
+  de Compras (items, upsert de producto, historial de precios, asiento). `purchase_type`
+  `'merchandise'`, `tax_rate` 15; la cabecera de la orden (`subtotal/tax_amount/total`)
+  es autoritativa y el asiento se calcula sobre ella.
+- Enlaza `purchase_id` a la orden devuelta.
+
+### Convencion de moneda en la pagina O.C.
+
+Almacena **lempiras** enteros y `formatCurrency(x) = x/100` (truco de display, no es
+centavos). Por eso los totales de lista/ver/aprobar se muestran con
+`formatCurrency(total * 100)`. Los items ya usaban `* 100` desde el principio; la
+cabecera se arreglo en esta sesion.
+
+### Detalles que costaron
+
+- **`ErrorDeEmpresa.estado` solo aceptaba `400 | 401 | 403`** y el modulo usa `409`
+  (conflictos de estado) y `500`. Ampliado a `400 | 401 | 403 | 409 | 500` en
+  `lib/tenant-resolver.ts`. Typecheck sigue en el baseline de 462.
+- **El mapa de transiciones bloqueba `DRAFT -> APPROVED`**, que es justo lo que hace la
+  pagina (aprobar directo). Corregido a `DRAFT: ['PENDING', 'APPROVED']`. Se pago
+  cuando los tests lo pidieron, no antes.
+- **En los tests, una orden "de otra empresa" no da 409 en recibir: da 404** (no la
+  encuentra). El test de "409 si no esta aprobada" tenia que apuntar a una orden propia
+  en `DRAFT`.
+- Los tests de rutas importan `next/server` (las rutas reales usan `NextResponse`):
+  hay que mapearlo en el loader (como en accounting) o `ERR_MODULE_NOT_FOUND`.
+
+Estado: suite 73/73 verde, `tsc --noEmit` sin subir del baseline, temp de medicion
+borrados. Documentado en `docs/COMPRAS_PROVEEDORES_REPORT.md` §6.6 y
+`docs/AISLAMIENTO_EMPRESAS.md`.
+
+## 8 Oct 2026 - 046 APLICADA y verificada desde fuera
+
+El usuario corrió `046_product_location_company_id_tenant.sql` en el SQL Editor y dió
+**"Success. No rows returned"** — el esperado: el cuerpo es un `DO $$` con
+`RAISE NOTICE`/`RAISE EXCEPTION` (no devuelve filas), y ningún `RAISE EXCEPTION` saltó,
+ni el preflight ni los dos post-checks. Como manda la regla, se verificó **desde fuera**
+(PostgREST con `service_role`), no por el "Success":
+
+| Se midio | Resultado | Que demuestra |
+|---|---|---|
+| B2 `20845b5f…` y C1 `79d3d2bb…` | ambas `company_id = 8143dd4e-…` (test 1) | las 2 filas de la decision quedaron con la empresa decida |
+| `product_location` con `company_id='TEST1DS'` | **0** | no queda ninguna fila rota con el codigo de tenant |
+| `product_location` con `company_id` inexistente en `companies` | **0** | no quedo ninguna fila invalida |
+| total `product_location` | 2 | no se toco (ni inserto ni borro) nada mas |
+
+Paso siguiente **HECHO 8 Oct 2026**: el filtro por empresa ya esta en las dos rutas de
+inventario que todavia leian `product_location` solo por tenant
+(`locations/import`, `locations/image`):
+
+- **`import/route.ts`**: antes el tenant salia de `x-tenant-id` o del campo `tenantId`
+  del formulario (lo manda el cliente) y el `[id]` de la ruta NO se validaba. Ahora
+  `contextoDeEmpresa(request, { companyIdDeRuta: companyId })`, el INSERT escribe
+  `company_id = empresa.companyId` y las lecturas mantienen
+  `.or('company_id.eq.X,company_id.is.null')` (convencion de `location-service`).
+- **`image/route.ts`** (POST y DELETE): `contextoDeEmpresa`; el estante se valida por
+  id+tenant+empresa (el UPDATE de solo `id`+`tenant_id` era un **IDOR** dentro de
+  `TEST1DS`) y el prefijo del bucket sale del tenant del servidor
+  (`{tenantId}/locations/`), asi que `?path=` no puede borrar objetos ajenos.
+- Verificado: `tsc --noEmit` en 462 (los 5 errores del import son de `Papa.parse`,
+  preexistentes), suite de compras 73/73 PASS, y `_auditar-comparticion-tenant.mjs` ya
+  no lista las dos rutas (31 rutas quedan solo en `tenant_id`).
+- **Queda documentado, no tocado:** `location-service.ts` `updateLocation`/
+  `deleteLocation` verifican solo `id`+`tenant_id` (IDOR entre empresas hermanas) y
+  sus rutas `locations/route.ts` / `locations/[locationId]/route.ts` usan `tenantHint`
+  sin contexto validado. Ver `docs/AISLAMIENTO_EMPRESAS.md`.
+
+El temp de verificacion se borro al terminar.
+
+## 8 Oct 2026 - CRUD de estantes: IDOR en `updateLocation`/`deleteLocation` (049)
+
+Dejado documentado en la entrada anterior, hoy arreglado.
+
+**El bug:** `lib/services/location-service.ts` — `updateLocation` y `deleteLocation`
+comprobaban la fila con `id` + `tenant_id` **a secas**. Como test 1 y test 2 comparten
+`TEST1DS`, un `PUT`/`DELETE` a `/companies/<test1>/inventory/locations/<id-de-test2>`
+actualizaba o borraba el estante de la empresa hermana sin error. Mismo IDOR que hoy
+cerro `locations/image`, pero en el maestro del modulo.
+
+**Lo que cambio:**
+
+- `location-service.ts`: las dos funciones encadenan `companyScope`
+  (`company_id.eq.X,company_id.is.null`) en la comprobacion **y** en el `UPDATE`/
+  `DELETE`. La convencion con NULL la mantiene `listLocations` (una fila sin empresa es
+  valida y visible para todas); `createLocation` ya escribia `company_id`.
+- `locations/route.ts` (GET/POST) y `locations/[locationId]/route.ts` (PUT/DELETE):
+  `contextoDeEmpresa(request, { companyIdDeRuta })`, guarda de 400 si no hay empresa y
+  `respuestaDeErrorDeEmpresa` en cada catch. **Se borro el helper `tenantHint()`**: leia
+  `x-tenant-id`/`?tenantId`, y `resolveTenant` de budget-service **prefiere ese hint**
+  (`if (hint && hint.trim()) return hint.trim()`), o sea que el tenant lo estaba mandando
+  el cliente. Ahora pasan `empresa.tenantId`, resuelto y validado en servidor.
+
+**Prueba nueva:** `tests/inventory/locations-crud.test.mjs` (8 casos) contra el
+`location-service.ts` **real**: update/borrar de la hermana -> `null`/`false` con la
+fila intacta; propio -> funciona; fila con `company_id` NULL -> visible (convencion);
+otra empresa -> `null`; `listLocations` de test 1 -> solo los suyos + los NULL; y que
+**ningun** `UPDATE`/`DELETE` se ejecuta sin el filtro de empresa. Para poder probarlo se
+amplio `tests/inventory/fake-companies.mjs` (tabla `product_location`, `.or()` con
+parsing `col.op.val`, verbos `update`/`delete`, y `multi` devolviendo todas las filas,
+que antes solo existia el caso single) y el loader del bloque mapea
+`@/lib/services/budget-service` + `@/lib/services/budget-calc` a los ficheros **reales**
+(sin doble: lo que se prueba es el codigo que corre).
+
+**Verificado:** inventory **18/18** (`contexto-empresa` 10 + `locations-crud` 8), compras
+**73/73**, `tsc --noEmit` **462** exacto (sin errores en los ficheros tocados), auditor
+`_auditar-comparticion-tenant.mjs` sigue sin listar estas rutas. El test nuevo entro en
+`npm test` (se añadio al bloque inventory, con `--experimental-strip-types`).
+
+**Aviso, no de este cambio:** `npm test` muere en el bloque **accounting** (43 pass /
+16 fail): `assert.property` no existe en `node:assert` (escritos con API de chai) y
+mensajes esperados que ya no cuadran con la ruta (`/fechas/`, `/bloqueado/`,
+`/Cuentas repetidas/`). Esos 7 ficheros de test y sus rutas estan **sin modificar** en
+`git status`: fallo preexistente, no de hoy. Las suites que tocan este trabajo (inventory,
+purchases) estan en verde.
+
+## 8 Oct 2026 - 050 warehouses/import: ultima de inventario aislada
+
+Mismo patron que `locations/import`, unico que quedaba del modulo de inventario en la
+lista "solo en `tenant_id`":
+
+- **`warehouses/import/route.ts`**: el tenant salia de `x-tenant-id` o del campo
+  `tenantId` del formulario (cliente) y el `[id]` de la ruta no se validaba. Ahora
+  `contextoDeEmpresa(request, { companyIdDeRuta })` dentro del `try` (si se pone
+  fuera, su 403 escapa sin traducir y Next responde 500), guarda de 400, lectura de
+  duplicados con `company_id.eq.${empresa.companyId}` + `is.null`, INSERT con
+  `company_id = empresa.companyId`, y `respuestaDeErrorDeEmpresa(error)` en el catch
+  (esa funcion toma UN argumento y devuelve `null` si el error no es de empresa: si
+  devuelve algo se devuelve, si no se mantiene el 500 con el mensaje original).
+- Verificado: `tsc --noEmit` **462** exacto (los 5 errores de `Papa.parse` de este
+  fichero ya estaban en el baseline; 0 errores nuevos), inventory **18/18**, compras
+  **73/73**, y `_auditar-comparticion-tenant.mjs` ya no la lista: **30 rutas**
+  quedan solo en `tenant_id` (las de `costs`, `custom-kpis`, `billing/*`, subida
+  fiscal, `closing/perform`, `documents/pdf`, `companies/route.ts` y las de
+  `tenant|admin|support`, que son de tenant por naturaleza).
+- Actualizados `docs/AISLAMIENTO_EMPRESAS.md` (fila tachada + conteos 31 -> 30),
+  `docs/COMPRAS_PROVEEDORES_REPORT.md` (fila 4) y la memoria raiz `CLAUDE.md`
+  (bloque **050**, y el pie de pendientes: la 046 ya aplicada, solo queda decidir
+  la unicidad de `email` en `Supplier`).
+
+## 8 Oct 2026 - 051 costs + custom-kpis aislados por empresa
+
+Dos rutas, dos bugs distintos, ambos medidos antes de tocar nada:
+
+- **`companies/[id]/costs/route.ts`**:
+  - GET filtraba `cost_payments` por `tenant_id`, y **si no habia tenant no filtraba
+    nada** (fail-open: costos de TODAS las empresas). Ahora `contextoDeEmpresa` +
+    `.eq('company_id', empresa.companyId)` + guarda de 400.
+  - POST escribia `tenant_id` a secas con un `upsert` sobre el
+    `UNIQUE (tenant_id, cost_type, cost_key)` de `COST_PAYMENTS.sql:16`. Como test 1
+    y test 2 comparten `TEST1DS`, test 2 guardando `fixed::renta` **le cambiaba
+    `company_id` e importe a la fila de test 1 en la misma sentencia** (upsert
+    = select por tenant + update). Es el error de diseño que la 023/044 normalizaron
+    en `cai`/`warehouse`/`Supplier` y que `cost_payments` no alcanzo. Ahora:
+    read-then-write (select por `company_id` + `.in('cost_key')`, update por `id` +
+    `.eq('company_id')`, insert de lo nuevo), escribe `tenant_id`/`company_id` del
+    servidor, y si el unique viejo aun existe y choca (23505) responde **409** con
+    "Aplica la migracion 051_..." — en vez de pisar la fila ajena.
+- **`companies/[id]/custom-kpis/route.ts`**: `getTicketPromedio` usaba el `[id]` de
+  la ruta (un `companies.id`, casi siempre UUID) como valor de `tenant_id`, con
+  cadena de fallbacks. Con UUID: **0 filas silenciosas** (los KPIs no aparecian); con
+  el codigo de tenant, las dos empresas del tenant sumarian las transacciones de
+  ambas. Ahora `.eq('company_id', companyId)` (49/50 filas, medido), mismo precedente
+  que `kpis/route.ts:131`. GET/POST/DELETE con `contextoDeEmpresa` + guarda 400 +
+  `respuestaDeErrorDeEmpresa` en cada catch. El `/100` de las unidades NO se toco
+  (unidades, no centavos — fuera de alcance).
+
+**Migracion `prisma/migrations/051_cost_payments_unicidad_por_empresa.sql` — APLICADA
+Y VERIFICADA (8 Oct 2026).** Preflight que aborta si hay filas con `company_id` NULL
+o falta la tabla/columna; `DROP` del unique viejo **por columnas** (leccion de 030/044:
+el nombre del indice no es el nombre del constraint); `CREATE UNIQUE (company_id,
+cost_type, cost_key)` solo si no existe; post-checks con `RAISE EXCEPTION` que exigen el
+nuevo y prohiben que el viejo siga vivo. Coherente con la regla del usuario: la frontera
+es `company_id`, nunca `tenant_id`.
+
+**Primer intento (8 Oct): el post-check aborto, no se aplico nada (rollback).** El bug:
+comparaba `array_agg(a.attname ORDER BY a.attname)` (columnas ordenadas
+ALFABETICAMENTE: `company_id, cost_key, cost_type`) contra un literal en orden de
+DECLARACION (`company_id, cost_type, cost_key`). La igualdad de arrays es posicion a
+posicion, asi que nunca era verdadera: el paso "ya existe el nuevo" no lo veia, lo
+creaba, y el post-check (mismo literal mal ordenado) no lo encontraba -> `RAISE
+EXCEPTION`. `validar-040.mjs` dio verde en las dos versiones (solo mira FORMA; un
+validador estructural no ve errores de runtime — leccion ya conocida de 040/041). Aqui
+lo cazo el post-check al abortar. Reescrito con el patron de la **044** (`pg_index` +
+`pg_get_indexdef(..., n, true)` por posicion + conteo con `generate_series`), que
+ademas ignora el orden de las columnas del indice y evita `unnest` sobre `int2vector`.
+Validado con `node scripts/validar-040.mjs` -> OK.
+
+**Verificada DESDE FUERA** (PostgREST + `service_role`), no por el "Success" del SQL
+Editor: test 1 inserta `(TEST1DS, fixed, clave)` -> **201**, repite -> **409 23505**,
+**test 2 con la MISMA (tenant, cost_type, cost_key) -> 201** (prueba de que el unique
+viejo POR TENANT ya no existe), test 2 repite la suya -> **409 23505**; 2 filas de
+prueba borradas y `cost_payments` de 0 -> 0 filas.
+
+**Pruebas nuevas `tests/costs/` — 17 casos** (10 costs + 7 custom-kpis) contra las
+rutas y `tenant-resolver` REALES: GET aisla en los dos sentidos (test 1 no ve el
+`sueldo` de test 2 ni el `renta` de Angelos; test 2 no ve el `renta` de test 1), la
+consulta registrada lleva filtro `company_id` y **sin** `tenant_id`, 403 de tenant
+ajeno, 400 fail-closed (empresa inexistente sin sesion), POST escribe la empresa del
+servidor y la hermana no la ve, **clave repetida por la hermana -> 409 con la fila
+ajena intacta** (amount y `company_id` sin cambiar), segunda vez actualiza por id sin
+duplicar, ninguna escritura sin filtro de empresa, y en custom-kpis: ticket/ingresos
+solo con las transacciones propias (500 vs 900). El fake **emula el unique viejo** de
+`cost_payments` (el estado real de la BD hasta aplicar la 051), y hay shim nuevo
+`@/lib/supabase-db` -> falso (mismo modulo que `server-lazy`, para que contexto y
+rutas vean las mismas tablas).
+
+**`package.json`**: al bloque de compras le faltaban `purchase-orders-route.test.mjs`
+y `purchase-orders-oc.test.mjs` (34 casos que la memoria daba como parte de los 73 pero
+`npm test` no los ejecutaba); restaurados. Nuevo bloque `costs` tras inventory.
+
+**Verificado:** `tsc --noEmit` **462** (0 nuevos), inventory **18/18**, costs
+**17/17**, compras **73/73**, diat **8/8**, budgets **21/21**, warehouse **14/14**,
+pdf **13/13**; `_auditar-comparticion-tenant.mjs` ya no lista estas dos -> **28 rutas**
+siguen solo en `tenant_id` (`billing/*`, subida fiscal, `closing/perform`,
+`documents/pdf`, `companies/route.ts`, `billing/config/*` y las de
+`tenant|admin|support`). Borrado `_tmp-medir-costs.mjs`.
+
+Actualizados `docs/AISLAMIENTO_EMPRESAS.md` (dos filas tachadas, conteos 30 -> 28,
+fila del unique de `cost_payments` en "Ninguna unicidad que separe empresas"),
+`docs/COMPRAS_PROVEEDORES_REPORT.md` (fila 4: 30 -> 28) y la memoria raiz `CLAUDE.md`
+(bloque **051** + pendientes).
+
+## 8 Oct 2026 - Respuesta a "boton de O.C. en Compras" + GET /api/purchase-orders devolvia 500
+
+### Pedido: boton para crear una Orden de Compra ligada al inventario
+
+En la pagina `app/companies/[id]/purchases/page.tsx` (el usuario eligió la opcion
+"boton que abre el modulo de O.C.", no un wizard en la misma pagina). El flujo
+"al ingresar la orden incrementa el inventario" **ya lo hacia el modulo**:
+`recibirPurchaseOrder` -> `createPurchase` -> `lib/purchase-db.ts` (279-334)
+incrementa `product.current_stock`/`stock_quantity` emparejando por **nombre**
+dentro de la empresa (o crea el producto si no coincide). Se añadió en la
+cabecera de la pagina un boton visible **"Orden de Compra"** y una entrada
+**"Órdenes de Compra"** en el menu -> `router.push('/companies/${companyId}/purchase-orders')`.
+Verificado: `tsc --noEmit` 462 exacto (0 errores nuevos).
+
+### El 500 de GET /api/purchase-orders: las tablas REALES no tienen FK (PGRST200)
+
+El usuario reportó el 500 al abrir la pagina de O.C. Medido por PostgREST con la
+`service_role`, no supuesto:
+
+| Sonda | Resultado |
+|---|---|
+| `select('*')` de `PurchaseOrder` / `PurchaseOrderItem` | 200, **0 filas** — existen y vacias |
+| embed `PurchaseOrder?select=*,Supplier:supplier_id(...),PurchaseOrderItem:...` | **400 `PGRST200`** "Could not find a relationship between 'PurchaseOrder' and 'supplier_id'" |
+| embed `PurchaseItem vs Purchase` (modulo de Compras) | **200** — Compras SI tiene sus FK |
+
+Conclusion: las tablas `PurchaseOrder`/`PurchaseOrderItem` se crearon con las
+columnas correctas (`order_number`, `supplier_id`, `purchase_order_id`,
+`company_id`...) pero **sin las FK**, y un embed de PostgREST a una relacion
+inexistente no devuelve vacio: **aborta el SELECT entero**, y la ruta mapea el
+error a 500. El modulo de Compras funciona porque su FK `Purchase.supplier_id ->
+"Supplier".id` y `PurchaseItem.purchase_id -> Purchase.id` SI existen; el modulo
+de O.C. (047) quedo sin ellas (se probo contra el supabase falso, y la BD real
+no las declara). Mismo caso que `paymentlink` hereda solo si la FK no existe.
+
+Tipos medidos (OpenAPI): `PurchaseOrder.supplier_id` uuid, `PurchaseOrderItem.purchase_order_id`
+uuid. Compatibles con `"Supplier".id`/`PurchaseOrder.id`.
+
+### Dos capas de arreglo (ambas)
+
+- **Codigo (`lib/purchase-orders-db.ts`)**: `fetchPurchaseOrders` ya no usa
+  embeds. Resuelve `Supplier` y `items` con consultas aparte en el helper
+  nuevo `hidratarOrdenes` (patron de `paymentlink`): el proveedor por id **y por
+  empresa** (un `supplier_id` viejo ajeno resuelve a `null`, no cola el nombre de
+  la hermana) y los items por `purchase_order_id` de las ordenes ya acotadas a la
+  empresa. `transformOrder` mantiene la forma de salida. `search`/filtros siguen
+  igual. Así la ruta funciona tengas o no las FK (red de seguridad contra el
+  schema cache de PostgREST, que puede tardar tras un DDL).
+- **Migracion `prisma/migrations/052_purchase_order_fks.sql` — APLICADA y
+  verificada** (8 Oct 2026): añade `PurchaseOrder.supplier_id -> "Supplier".id`
+  (NO ACTION) y `PurchaseOrderItem.purchase_order_id -> "PurchaseOrder".id`
+  (ON DELETE CASCADE). Comprueba las FK **por columnas** (pg_constraint +
+  pg_attribute + `attnum = ANY(conkey)`), preflight que aborta si falta alguna
+  de las 3 tablas, post-check con `RAISE EXCEPTION` que exige las dos FK, todo en
+  `BEGIN;`/`COMMIT;` con rollback. No hay FK de `company_id`: `PurchaseOrder.company_id`
+  es `uuid` y `companies.id` es `text` (no se puede); el aislamiento lo hace el
+  codigo. `node scripts/validar-040.mjs` -> OK. Notable: `PGRST200` NO lo ve
+  ningun validador de forma (es un error de runtime de PostgREST).
+
+**Verificado:** purchases **73/73 PASS**, `tsc --noEmit` **462** (sin errores en
+los ficheros tocados), `validar-040.mjs` OK sobre la 052. **El usuario la corrio
+en el SQL Editor el 8 Oct 2026**; queda re-probar la pagina de O.C. y el fin a fin
+(crear O.C. -> aprobar -> recibir con factura -> el `stock_quantity`/`current_stock`
+del producto sube). Sondas temporales borradas. Documentado en la memoria raiz
+(bloque **052**).
+
+
+
+
+### 053 Compras: seleccionar producto del inventario o crear nuevo (8 Oct 2026)
+
+En el modal de Nueva Compra (`app/companies/[id]/purchases/page.tsx`), pestaña
+"items", se puede elegir un artículo del inventario **o crear uno nuevo**:
+
+- Botón **"+ Nuevo producto"** dentro del `Select` de productos (solo cuando
+  `purchaseType === 'merchandise'`).
+- `Dialog` nuevo con campos `code`, `name`, `unit_price`, `stock_quantity`,
+  `category`, `unit`.
+- `handleCreateProduct` hace `POST /api/inventory/products?companyId=${companyId}`,
+  recarga productos (`loadProducts()`), cierra el diálogo y llama a `selectProduct`
+  con el recién creado, que precarga la línea (nombre, código, precio unitario,
+  cantidad 1, tasa de ISV).
+- Estados nuevos: `showCreateProduct`, `newProduct`, `creatingProduct`. No cambia
+  el comportamiento existente de selección de producto.
+
+Verificado: `tsc --noEmit` **462** (0 errores), compras **73/73 PASS**.
+
+### 054 O.C.: enviar companyId en POST de crear orden (8 Oct 2026)
+
+`app/companies/[id]/purchase-orders/page.tsx`: el `fetch` de
+`POST /api/purchase-orders` iba sin `?companyId`, así que `contextoDeEmpresa`
+no podía resolver la empresa y respondía **400 "No se pudo determinar la empresa
+de la petición"**. Ahora usa
+`` `/api/purchase-orders?companyId=${companyId}` `` (igual que el GET).
+
+Verificado: `tsc --noEmit` **462** (0 errores), compras **73/73 PASS**.
+
+### 055 Proveedores: POST/PATCH/DELETE con companyId por query (8 Oct 2026)
+
+`app/companies/[id]/suppliers/page.tsx`: POST y PATCH pasan
+`?companyId=${companyId}` y DELETE pasa `?id=...&companyId=${companyId}` para
+que `/api/suppliers` resuelva la empresa desde el contexto. Evita el 400
+"No se pudo determinar la empresa de la petición".
+
+Verificado: `tsc --noEmit` **462** (0 errores), compras **73/73 PASS**.
+
+### 056 O.C.: corregir template string del POST (8 Oct 2026)
+
+`app/companies/[id]/purchase-orders/page.tsx`: al introducir el 054 quedó el
+`fetch` con `companyId=` **literal** (el template string no interpolaba la
+variable), así que seguía mandando el parámetro vacío y devolvía 400. Corregido
+a `` `/api/purchase-orders?companyId=${companyId}` ``.
+
+Verificado: `tsc --noEmit` **462** (0 errores), compras **73/73 PASS**.
+
+### 057 O.C.: aprobar (PATCH) y recibir llamaban sin `companyId` (8 Oct 2026)
+
+`app/companies/[id]/purchase-orders/page.tsx`: `handleApprove` (PATCH
+`/api/purchase-orders`) y `handleReceive` (POST `/api/purchase-orders/receive`)
+no incluían `?companyId`, así que `contextoDeEmpresa` devolvía **400** al aprobar
+o recibir una O.C. El GET y el POST de crear ya lo mandaban (054/056). Ambos
+ahora usan `` `/api/...?companyId=${companyId}` ``.
+
+Verificado: `tsc --noEmit` **462** (0 errores), compras **73/73 PASS**.
+
+### 058 Causa raíz de la cascada de 400: la cookie `active_company_id` no se escribía en la carga inicial (8 Oct 2026)
+
+La cascada de 400 "No se pudo determinar la empresa de la petición" (051-057) **no
+eran 8 bugs sueltos: era uno**. `ponerCookie('active_company_id', …)` solo se llama
+en `cambiarEmpresa`/`cambiarSede` (`lib/contexts/WorkspaceContext.tsx:236,237,246,
+271,273`); **nunca en la carga inicial ni en `cargar()`**. En una sesión nueva /
+recarga / enlace directo la cookie no existe, `middleware.ts` no pone
+`x-company-id`, y toda ruta que **no** viva bajo `/api/companies/[id]/...` (que
+deriva la empresa del `[id]`) y que no reciba `?companyId` responde **400**. Por eso
+el mismo `fetch` funcionaba con `?companyId` y fallaba sin él.
+
+Arreglado en la **raíz**, en un solo punto (`middleware.ts`): si el pathname es
+`/companies/<id>/...`, ese `[id]` **es** la empresa consultada (`companies.id`;
+`empresaDesde` también acepta el código de tenant), así que se deriva de ahí
+`x-company-id` (**gana sobre la cookie**) y se deja escrita la cookie
+`active_company_id` en la respuesta, para que los `fetch` siguientes a `/api/...`
+—que no llevan `/companies/` en la ruta— la manden solos. La cookie sigue siendo
+una **pista**: el servidor valida pertenencia (`contextoDeEmpresa` → 403). No se
+toca `x-tenant-id` (sale de los claims de Clerk).
+
+Con esto, los callers que **omitían `?companyId` a propósito** (`SupplierRatings`,
+`SupplierPriceHistory`, el GET de `PaymentManager`, las páginas de inventario,
+`/api/suppliers/import`) recuperan el header y dejan de dar 400 **sin tocarlos**.
+Los `?companyId` de 054-057 se mantienen: son defensa en profundidad y no hacen
+daño (la query se valida contra la sesión).
+
+Pendiente de retest en navegador (sesión sin cookie): Compras → pagos, O.C.
+aprobar/recibir, calificaciones e historial de precios de proveedor, inventario.
+Verificado: `tsc --noEmit` **462** (0 en el fichero tocado), compras **73/73 PASS**.
+
+### 059 O.C.: recepción parcial + conciliación 3 vías (8 Oct 2026)
+
+Cierra los dos pendientes que quedaban del módulo de Órdenes de Compra (§6.5 #6 y #7 del
+reporte). Hasta aquí "Recibir" era todo o nada: `recibirPurchaseOrder` exigía `APPROVED`,
+creaba **una sola** `Purchase` con la orden entera y marcaba `RECEIVED` de golpe.
+
+**Modelo nuevo — cada entrega es una fila.** Migración
+`059_purchase_order_receipts.sql` (escrita y validada con `scripts/validar-040.mjs` →
+OK; **pendiente de aplicar por el usuario en el SQL Editor**):
+
+- `PurchaseOrderReceipt` — cabecera de una entrega: `purchase_order_id` (FK a
+  `PurchaseOrder`, ON DELETE CASCADE), `company_id` (text), `tenant_id`, `invoice_number`
+  NOT NULL, `invoice_date`, `cai`, `purchase_id` (text, **sin FK**), `received_at`,
+  `received_by`, `notes`, `created_at`.
+- `PurchaseOrderReceiptItem` — línea: `receipt_id` (FK al recibo, ON DELETE CASCADE),
+  `company_id`, `tenant_id`, `purchase_order_item_id` (**sin FK**), `product_id`,
+  `product_name`, `quantity_received numeric`, `unit_price bigint`, `total bigint`.
+- Índices idempotentes, RLS + política `service_role` + GRANT, `preflight` que aborta y
+  `post-check` con `RAISE EXCEPTION`; **quita cualquier CHECK sobre `PurchaseOrder.status`**
+  (los estados válidos ahora incluyen `PARTIALLY_RECEIVED`).
+
+**`lib/purchase-orders-db.ts` (`recibirPurchaseOrder` reescrito).** Cada llamada
+registra UNA entrega:
+
+- Exige `status ∈ {APPROVED, PARTIALLY_RECEIVED}` → si no, **409**; `invoice_number`
+  obligatorio → **400**; línea que no casa con ningún artículo → **400**.
+- Sin `items` en el cuerpo recibe **lo pendiente** de cada línea (compatibilidad con el
+  flujo de 052); si ya no queda nada → **409**.
+- Crea la `Purchase` **de esta entrega** vía `createPurchase` (misma tubería: ítems,
+  upsert de producto, historial y asiento), inserta la cabecera y las líneas del recibo,
+  y acumula `PurchaseOrderItem.quantity_received` con un mapa `recibidoPrevio` capturado
+  **antes** (una sola escritura por línea).
+- Estado: `RECEIVED` cuando cada línea queda completa; si no, `PARTIALLY_RECEIVED`.
+  Enlaza `purchase_id` (la orden se queda con la última).
+- **No reserva estado**: la validación va ANTES de escribir, así que si `createPurchase`
+  falla la orden queda intacta y no hace falta `revertirAprobado` (se eliminó). Reemplaza
+  el "marca RECEIVED antes y revierte" de la 052.
+- Una orden **sin líneas** (a nivel de cabecera) se sigue recibiendo con los totales de
+  la cabecera.
+
+**`conciliarOrden` (matching 3 vías, solo lectura).** Compara **ordenado** (O.C.) vs
+**recibido** (recepciones) vs **facturado** (las `Purchase` de las recepciones),
+agrupando por producto (`claveProducto` = `product_id` o nombre). Estado por línea: `OK`,
+`SIN_RECIBIR`, `PARCIAL`, `EXCESO`, `FALTANTE_FACTURA`, `DIF_PRECIO`, con `tolerancia`
+(cantidades) y `toleranciaPrecio` (0.01 por defecto). Devuelve `totals` y
+`hayDiscrepancias`. Nuevas `fetchPurchaseOrderReceipts` (sin embeds, mismo motivo que
+`hidratarOrdenes`) y `acumularPorProducto`.
+
+**Rutas / UI.**
+- `app/api/purchase-orders/conciliation/route.ts` (**nueva**): GET `?orderId=` (detalle)
+  o lista de toda la empresa; `?soloConDiscrepancias=1`, `?tolerancia=`, `?toleranciaPrecio=`.
+- `app/companies/[id]/purchase-orders/conciliation/page.tsx` (**nueva**): detalle por
+  orden + lista con diferencias.
+- `app/companies/[id]/purchase-orders/page.tsx`: `status` incluye `PARTIALLY_RECEIVED`
+  (badge, opción de filtro, stat "Parciales" — la grilla pasa a `md:grid-cols-6`);
+  `canReceive` = `APPROVED`/`PARTIALLY_RECEIVED` con pendiente, `canCancel` lo excluye;
+  `openReceiveModal(order)` + `handleReceive` manda `items: [{ purchase_order_item_id,
+  quantity_received }]`; modal Recibir con cantidades por artículo; columna "Recibido" en
+  Ver; botón "Ver conciliación"/"Conciliación".
+- `app/api/purchase-orders/receive/route.ts`: la respuesta ahora es
+  `{ order, purchase, receipt }`.
+
+**Pruebas.** Nuevo `tests/purchases/purchase-orders-receipts.test.mjs` (15 casos) contra
+el `purchase-orders-db` REAL: recepción parcial, acumulación a `PARTIALLY_RECEIVED` y a
+`RECEIVED` con dos compras, "sin items recibe lo pendiente", 409 sin pendientes, 400 de
+línea inexistente, 404 de orden ajena, aislamiento de `fetchPurchaseOrderReceipts` y los 6
+estados de `conciliarOrden`. Para que las filas creadas no compartan id, el test fija
+`sb.estado.seq = 0` (el fake arranca el correlativo en `undefined` → `nuevo-NaN`). El
+archivo se añadió al bloque `purchases` de `npm test` en `package.json`.
+
+**Verificado:** `tsc --noEmit` **462** (0 nuevos; el fix de `receivedQuantities[it.id]` →
+`it.id!` en `page.tsx:296` era un `TS2538`), compras **88/88 PASS** (73 + 15).
+
+**Ojo para el retest:** la migración 059 NO está aplicada, así que en runtime las lecturas
+y escrituras a `PurchaseOrderReceipt`/`PurchaseOrderReceiptItem` fallarán hasta que el
+usuario la corra en el SQL Editor. Después: crear O.C. → aprobar → recibir **parcial**
+(badge "Parcialmente recibidas") → recibir el resto (`RECEIVED`) → abrir Conciliación y
+ver la línea `OK`/`PARCIAL`.
+
+### 060 Devoluciones a proveedores (8 Oct 2026)
+
+Cierra el pendiente "Sin devoluciones a proveedores" (§4.1 del reporte). Una devolución
+es un **documento propio** ligado a la **compra de origen** (`Purchase`), y se registra
+**por líneas** de esa compra, de forma **parcial**: cada línea no puede exceder lo
+disponible de la línea de compra (lo comprado menos lo ya devuelto de esa misma línea,
+sumando líneas del cuerpo que apunten al mismo artículo).
+
+**Modelo nuevo.** Migración `060_purchase_returns.sql` (escrita y validada con
+`scripts/validar-040.mjs` → OK; **pendiente de aplicar por el usuario en el SQL Editor**):
+
+- `PurchaseReturn` — cabecera: `purchase_id` (**text, sin FK**), `company_id` (**text**),
+  `tenant_id`, `supplier_id` (**uuid, sin FK**), `invoice_number`, `return_number`,
+  `return_date`, `return_type` (`credit`|`cash`), `reason`, `notes`,
+  `subtotal`/`tax_amount`/`total` (bigint), `journal_entry_id` (text), `created_at`/`updated_at`.
+- `PurchaseReturnItem` — línea: `return_id` (**FK a `PurchaseReturn`, ON DELETE CASCADE**),
+  `company_id`, `tenant_id`, `purchase_item_id` (text, sin FK), `product_id` (uuid, sin FK),
+  `product_name`, `quantity numeric`, `unit_price bigint`, `tax_rate numeric DEFAULT 15`,
+  `subtotal`/`tax_amount`/`total` (bigint), `created_at`.
+- Índices idempotentes, RLS + política `service_role` + GRANT, `preflight` que aborta y
+  `post-check` con `RAISE EXCEPTION`. **Sin FK de company/supplier/product/purchase**: los
+  tipos no encajan (`companies.id` es text) y el aislamiento lo hace el código.
+
+**`lib/purchase-returns-db.ts` (nuevo).** Aislamiento por `company_id` (nunca tenant);
+la compra de origen se comprueba contra la empresa **antes** de escribir y si es de otra
+se devuelve **`notFound` (404)**, no 403. Dos efectos, ambos **best-effort** (nunca
+bloquean, igual que `createPurchase`):
+
+- **Baja de stock** del producto (inverso del alta de compra), por **nombre** dentro de la
+  empresa; se **repone** al eliminar la devolución.
+- **Asiento de reversa / nota de crédito** (`createReturnJournalEntry`): debita **CxP**
+  (`2101`) si el reembolso es a cuenta o **Banco** (`1101`) si es en efectivo; acredita
+  **Inventario** (`1105`, mercadería), **Gasto** (`4100`/`4101`, administrativo) e **ISV
+  crédito fiscal** (`1110`). El `journal_entry_id` se escribe de vuelta en la cabecera.
+
+Funciones: `createPurchaseReturn` (falta `purchase_id` → 400; compra sin artículos → 400;
+línea que no casa → 400; cantidad ≤ 0 → 400; exceso → 400 con el disponible en el mensaje),
+`fetchPurchaseReturns` (filtros `purchaseId`/`supplierId`/`search`), `fetchPurchaseReturn`,
+`deletePurchaseReturn`, `transformReturn`. **Sin embeds** (patrón `paymentlink`): proveedor
+e items se resuelven en consultas aparte, un embed a una FK inexistente aborta el SELECT
+(`PGRST200`, lección de la 052).
+
+**Rutas / UI.**
+- `app/api/purchases/returns/route.ts` (**nueva**): GET lista + POST crear (201); empresa
+  vía `exigirEmpresa(await contextoDeEmpresa(request))`; `respuestaDeErrorDeEmpresa` en el catch.
+- `app/api/purchases/returns/[id]/route.ts` (**nueva**): GET detalle + DELETE. El `[id]` es
+  el de la devolución; 404 en ajeno.
+- `app/companies/[id]/purchases/returns/page.tsx` (**nueva**): stats, búsqueda, tabla,
+  modal "Nueva Devolución" (elige compra y cantidades por artículo) y modal Ver.
+- `app/companies/[id]/purchases/page.tsx`: botón "Devoluciones" en la cabecera + item de
+  menú "Devoluciones a Proveedores".
+
+**Pruebas.** Nuevo `tests/purchases/purchase-returns.test.mjs` (16 casos) contra el
+`purchase-returns-db` REAL: cabecera/líneas/stock/asiento, reembolso a CxP (`2101`) vs
+banco (`1101`), 400 por exceso / línea inexistente / compra sin artículos / falta
+`purchase_id`, 404 de compra ajena sin escribir, tope acumulado tras una devolución previa,
+líneas del cuerpo sobre el mismo artículo que suman, aislamiento de listado y detalle, y
+borrado con reposición de stock y asiento. Requirió mapear `@/lib/purchase-returns-db` en
+`tests/purchases/loader.mjs` y añadir el fichero al bloque `purchases` de `package.json`.
+
+**Verificado:** `tsc --noEmit` **462** (0 nuevos), compras **104/104 PASS** (88 + 16).
+Actualizados `docs/COMPRAS_PROVEEDORES_REPORT.md` (§1.1 fila Devoluciones, métricas y
+§6.9) y la memoria raíz `CLAUDE.md` (bloque **060**).
+
+**Ojo para el retest:** la migración 060 NO está aplicada, así que leer/escribir
+`PurchaseReturn*` fallará en runtime hasta que el usuario la corra en el SQL Editor.
+Después: Compras → Devoluciones → Nueva Devolución (elegir compra, cantidades) → verificar
+baja de stock y asiento; Eliminar → stock repuesto.
+
+### 061 Rutas POS de billing aisladas por empresa + alcance restante (8 Oct 2026)
+
+Continuación de la 051. Cinco rutas de `billing` resolvían el tenant con
+`resolveTenant` (header o `?companyId` crudo) y filtraban por `tenant_id`/`tenantId`,
+así que test 1 y test 2 (que comparten `TEST1DS`) veían los datos la una de la otra.
+
+- **`app/api/billing/bank-accounts/route.ts`** (tenía el tenant fijado en `"1"`),
+  **`customers`**, **`products`**, **`payment-links`**, **`payment-receipts`**: ahora
+  `exigirEmpresa(await contextoDeEmpresa(request))` (400 fail-closed), GET con
+  `.eq("company_id", empresa.companyId)`, INSERT/UPDATE escriben
+  `tenant_id: empresa.tenantId, company_id: empresa.companyId`, y
+  `respuestaDeErrorDeEmpresa` en cada `catch` (antes un 403 salía como 500).
+- **`payment-links`**: la factura (`Invoice`) pasa a validarse por **`company_id`**
+  (antes se leía por `id` sin filtro de empresa → un `invoiceId` ajeno se aceptaba) y
+  el embed del banco se resuelve en una segunda consulta filtrada por empresa. El
+  `*100`/`/100` de montos **no se tocó** (unidades, no centavos).
+- **`payment-receipts`**: el enlace se filtra por `id` **+ `company_id`** (antes
+  `tenant_id`), el `UPDATE` del enlace y la búsqueda de la factura van por
+  `company_id`. `postPaymentJournal` sigue llamando a
+  `/api/accounting/transactions?tenantId=` (subsistema contable por tenant, fuera de
+  este alcance).
+- **Verificado:** `tsc --noEmit` **462** (0 nuevos), compras **104/104 PASS**,
+  `_auditar-comparticion-tenant.mjs` ya no lista las 5. `scripts/_tmp-cols.cjs`
+  (script de medición) borrado.
+
+**Decisión del usuario (8 Oct 2026): `billing/cai`, `billing/cai/debug` y
+`companies/[id]/billing/config*` se dejan como están.** AGENTS.md §3 fija como
+invariante la serie de factura por **tenant** (`previewInvoiceNumber` /
+`reserveInvoiceNumber` en `lib/billing/invoice-number.ts`, unicidad
+`UNIQUE("tenantId","invoiceNumber")`). Aislar la tabla `cai` o el config por empresa
+dejaría la lectura por empresa y la emisión por tenant **incoherentes**; primero hay
+que decidir si la serie es por empresa (cambio contable, no de código).
+
+**Resto de superficies "solo tenant" — NO son swaps mecánicos (pendientes con
+decisión):**
+
+- **`accounting/{annual-tax-upload,det-upload,diat-upload,sar-config,sar-session}`**:
+  la config SAR vive en `system_settings` con clave derivada del id que manda el
+  cliente (`sar_config:<id>`, `annual_tax_sar_config:<id>`, `diat_sar_config:<id>`) y
+  la validación es `canAccessTenant` (nivel **tenant**). Aislarlas por empresa exige
+  decidir el esquema de claves y **migrar las claves existentes** (hoy pueden estar
+  bajo el código de tenant: `sar_config:ANGELOH7`): es decisión de datos y rompería la
+  config SAR viva si se cambia en seco.
+- **`closing/perform`**: `@deprecated`, **sin auth**, cierra el año de la empresa del
+  `equityAccountId`; el `company_id` solo se resuelve si el tenant tiene **una** empresa
+  (si no, va null y lo rechaza el trigger de la 029). Requiere decidir cómo gatearlo
+  con `contextoDeEmpresa`.
+- **`documents/pdf`**: confía en el `?companyId` del cliente sin `contextoDeEmpresa`,
+  y `fetchInvoiceData` (`lib/services/pdf-data.ts`) filtra `Invoice` por **`tenantId`**
+  (fuga entre empresas del mismo tenant; lo usan también
+  `billing/invoices/[id]/send-email`). Además `getBudgetComparison`
+  (`fetchActualsByAccount`) y `getVariationsReport` (llamado con un **string** tenant)
+  también filtran por tenant. Arreglarlo toca `pdf-data.ts`, `budget-service` y el
+  harness de `tests/pdf` (que hoy no tiene stub de `tenant-resolver`).
+- **`companies/route.ts`**: IDOR de lectura con **24 consumidores**; devuelve
+  `id = c.tenant_id || c.id` (o sea un **tenant**, no una empresa). Decidir el shape
+  antes de tocar.
+- Las de `tenant|admin|support` quedan fuera por naturaleza (son de tenant).
+
+### 062 documents/pdf, closing/perform y companies/route.ts aislados (8 Oct 2026)
+
+Cierra tres de las superficies "solo tenant" que la 061 dejó con decisión pendiente.
+El usuario eligió **seguir con código y consultar el SAR aparte**, así que las 5 rutas
+de `accounting/*` (SAR) siguen **deferred**.
+
+- **`app/api/documents/pdf/route.ts`**: el `?companyId` del cliente ya no basta. Ahora
+  `contextoDeEmpresa(request)` (deriva companyId/tenantHint del `?companyId`, del
+  header `x-company-id` de la cookie o del `[id]`), guardas 400, y
+  `respuestaDeErrorDeEmpresa` en el `catch`. De paso se corrigieron **dos bugs
+  latentes** que el harness no veía: la rama `variations` llamaba a
+  `getVariationsReport` con **3 argumentos** (la firma real es
+  `(client, tenantOrScope, from, to)`), y la rama `audit` referenciaba
+  `supabaseService` y `tenant.id`, que **no existen** (código muerto, porque
+  `isValidPdfType` no acepta `'audit'`). La rama audit ahora filtra
+  `.eq('company_id', companyId)`.
+- **`lib/services/pdf-data.ts`**: `fetchInvoiceData(companyId, id, tenantHint)` filtra
+  `Invoice` por `.eq('id', id).eq('company_id', companyId)` (**antes por `tenantId`**:
+  fuga entre empresas del mismo tenant). Pasa `tenantHint` a `fetchCompanyHeader`.
+- **`app/api/billing/invoices/[id]/send-email/route.ts`**: como `fetchInvoiceData` ya
+  filtra por empresa, el `companyId` del **body** había que validarlo o era un IDOR;
+  ahora `contextoDeEmpresa(request, { companyIdDeRuta: str(body.companyId) || undefined })`
+  (única forma de validar un id que viaja en el body, porque `contextoDeEmpresa` no lo
+  lee). Eliminada la función local `tenantHint`.
+- **`lib/services/budget-service.ts`**: `fetchActualsByAccount(tenantId, start, end,
+  companyId?)` acepta y aplica `.eq('company_id', companyId)`; `getBudgetComparison` y
+  `getBudgetTrend` lo propagan.
+- **Harness `tests/pdf`**: nuevo `tenant-resolver-stub.mjs`, `server-lazy-stub.mjs`
+  devuelve un dummy `{ from() { throw 'Sin DB en tests' } }`, `loader.mjs` mapea
+  `@/lib/tenant-resolver`, `pdf-services-mock.mjs` cambia la firma de
+  `getVariationsReport` y `pdf-route.test.mjs` verifica `tenantHint:'C1'` y
+  `companyId:'C1'`.
+- **`app/api/closing/perform/route.ts`**: era `@deprecated`, **sin auth** y deducía la
+  empresa del tenant solo si este tenía **una**. Ahora `contextoDeEmpresa(request)` (400
+  si no hay empresa), valida que la `equityAccountId` sea de esa empresa (404 si no), fija
+  `tenantIdScope`/`companyIdScope` desde el contexto (se elimina la inferencia por tabla
+  `companies`) y `respuestaDeErrorDeEmpresa` en el `catch`.
+- **`app/api/companies/route.ts`**: **IDOR de lectura y de escritura**.
+  - **GET**: filtraba `companies` por **`tenant_id`** de `User.tenantid` (legacy): un
+    usuario veía **todas** las empresas de su tenant aunque no fuera miembro de todas.
+    Ahora resuelve la identidad con `usuarioAppId()` (`lib/workspace.ts`, que maneja el
+    `authid` **no único** tomando la primera fila de forma determinista) y devuelve solo
+    las empresas de `user_company_access`. Los conteos `polizas`/`accounts` siguen siendo
+    por tenant (cosmético) y ahora están guardados tras `if (tenantId)`.
+  - **PUT**: **no tenía auth ni comprobación de pertenencia**: cualquier autenticado podía
+    editar cualquier `companies.id`. Ahora `usuarioAppId()` + fila en
+    `user_company_access` (`user_id`+`company_id`) o **404**.
+  - **Ojo, sigue listada por el auditor:** `_auditar-comparticion-tenant.mjs` la marca
+    "SOLO TENANT" porque el **conteo** de pólizas usa `.eq('tenant_id', ...)` — es un
+    heurístico de texto. El aislamiento de la lista ya es por membresía.
+- **Verificado:** `tsc --noEmit` **459** (bajó de 462; se eliminaron los 2 refs rotos de
+  `documents/pdf` y los 2 de `pdf-documents.ts` son preexistentes), `tests/pdf` **13/13**,
+  `tests/budgets` **21/21**, compras **104/104 PASS**. El auditor ya **no** lista
+  `documents/pdf` ni `closing/perform`.
+- **Sigue deferred (decisión del usuario):** `accounting/{annual-tax-upload,det-upload,
+  diat-upload,sar-config,sar-session}` (SAR: scoping y migración de las claves
+  `system_settings`), `billing/cai`(+debug) y `companies/[id]/billing/config*` (serie por
+  tenant), y las de `tenant|admin|support`.
+

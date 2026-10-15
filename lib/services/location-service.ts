@@ -163,12 +163,17 @@ export async function updateLocation(
 ): Promise<ProductLocation | null> {
   const supabase = getSupabaseServer();
   const tenantId = await resolveTenant(companyId, tenantHint);
-  const { data: existing } = await supabase
+  // OJO: dentro de un tenant compartido (`TEST1DS`) un `id` + `tenant_id` a solas
+  // es un IDOR: alcanza la fila de la empresa hermana. El scope de empresa es
+  // imprescindible (`.or('company_id.eq.X,company_id.is.null')`, las filas NULL
+  // son validas y visibles para todas las empresas del tenant).
+  let findQuery = supabase
     .from('product_location')
     .select('id')
     .eq('id', locationId)
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
+    .eq('tenant_id', tenantId);
+  findQuery = companyScope(findQuery, companyId) as typeof findQuery;
+  const { data: existing } = await findQuery.maybeSingle();
   if (!existing) return null;
 
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -184,12 +189,13 @@ export async function updateLocation(
   if (patch.image_url !== undefined) updates.image_url = String(patch.image_url || '').trim() || null;
   if (patch.warehouse_id !== undefined) updates.warehouse_id = String(patch.warehouse_id || '').trim() || null;
 
-  const { data, error } = await supabase
+  let updateQuery = supabase
     .from('product_location')
     .update(updates)
     .eq('id', locationId)
-    .select()
-    .single();
+    .eq('tenant_id', tenantId);
+  updateQuery = companyScope(updateQuery, companyId) as typeof updateQuery;
+  const { data, error } = await updateQuery.select().single();
   if (error) {
     if (isLocationMigrationMissingError(error)) throw locationMigrationError();
     throw error;
@@ -204,12 +210,13 @@ export async function deleteLocation(
 ): Promise<boolean> {
   const supabase = getSupabaseServer();
   const tenantId = await resolveTenant(companyId, tenantHint);
-  const { data: existing } = await supabase
+  let findQuery = supabase
     .from('product_location')
     .select('id')
     .eq('id', locationId)
-    .eq('tenant_id', tenantId)
-    .maybeSingle();
+    .eq('tenant_id', tenantId);
+  findQuery = companyScope(findQuery, companyId) as typeof findQuery;
+  const { data: existing } = await findQuery.maybeSingle();
   if (!existing) return false;
 
   // Desvincular productos antes de eliminar (si existiera la columna location_id)
@@ -218,7 +225,13 @@ export async function deleteLocation(
     await supabase.from('product').update({ location_id: null }).eq('location_id', locationId);
   }
 
-  const { error } = await supabase.from('product_location').delete().eq('id', locationId);
+  let deleteQuery = supabase
+    .from('product_location')
+    .delete()
+    .eq('id', locationId)
+    .eq('tenant_id', tenantId);
+  deleteQuery = companyScope(deleteQuery, companyId) as typeof deleteQuery;
+  const { error } = await deleteQuery;
   if (error) {
     if (isLocationMigrationMissingError(error)) throw locationMigrationError();
     throw error;

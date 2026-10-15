@@ -111,6 +111,130 @@ test('PriceHistory: no lanza error si la tabla no está disponible', async () =>
   assert.equal((store['supplier_price_history'] || []).length, 0, 'Sin registros insertados');
 });
 
+// ── company_id: la invariante que cierra la migracion 041 ───────────────────
+//
+// El GET de `/api/suppliers/price-history` filtra por
+// `.eq('company_id', empresa.companyId)` (`route.ts:45`). Eso significa que una
+// fila con `company_id` NULL no la ve NADIE: no da error, simplemente desaparece.
+// Por eso `company_id` es NOT NULL en la BD (migracion 041) y por eso el codigo
+// tiene que ponerlo siempre.
+
+test('PriceHistory: escribe company_id de la empresa validada', async () => {
+  const supabase = buildFakeSupabase();
+
+  await recordSupplierPriceHistory(
+    supabase,
+    empresa('TENANT-A', 'COMPANY-A'),
+    'supplier-1',
+    [{ product_name: 'Guantes', unit_price: 119 }],
+    '2026-09-03'
+  );
+
+  const rows = supabase._store['supplier_price_history'];
+  assert.equal(rows.length, 1);
+  // `tenant_id` agrupa, `company_id` aisla. Los dos se escriben, y el que
+  // decide la visibilidad es el segundo.
+  assert.equal(rows[0].company_id, 'COMPANY-A', 'company_id viene de la empresa validada');
+  assert.equal(rows[0].tenant_id, 'TENANT-A');
+});
+
+test('PriceHistory: toda fila insertada lleva company_id (invariante NOT NULL)', async () => {
+  const supabase = buildFakeSupabase();
+
+  await recordSupplierPriceHistory(
+    supabase,
+    empresa('t', 'c'),
+    's',
+    [
+      { product_id: 'p1', product_name: 'A', unit_price: 10 },
+      { product_name: 'B', unit_price: 20 },
+      { description: 'C', unit_price: 30 },
+    ],
+    '2026-09-03'
+  );
+
+  const rows = supabase._store['supplier_price_history'];
+  for (const r of rows) {
+    assert.notEqual(r.company_id, null, 'ninguna fila puede quedar sin company_id');
+    assert.notEqual(r.company_id, undefined, 'la clave debe existir, no ser undefined');
+  }
+});
+
+test('PriceHistory: dos empresas del mismo tenant no se ven entre si', async () => {
+  // El caso que `TEST1DS` produce en la base real: dos empresas, un tenant.
+  const supabase = buildFakeSupabase();
+
+  await recordSupplierPriceHistory(
+    supabase,
+    empresa('TEST1DS', 'test-1'),
+    'supplier-1',
+    [{ product_name: 'Guantes', unit_price: 119 }],
+    '2026-09-03'
+  );
+  await recordSupplierPriceHistory(
+    supabase,
+    empresa('TEST1DS', 'test-2'),
+    'supplier-1',
+    [{ product_name: 'Gasas', unit_price: 6 }],
+    '2026-09-04'
+  );
+
+  const total = supabase._store['supplier_price_history'];
+  assert.equal(total.length, 2, 'hay 2 filas en total');
+
+  // Esto es lo que hace el GET de la ruta: filtrar por company_id.
+  const deTest1 = await supabase.from('supplier_price_history').select('*').eq('company_id', 'test-1');
+  const deTest2 = await supabase.from('supplier_price_history').select('*').eq('company_id', 'test-2');
+
+  assert.equal(deTest1.data.length, 1, 'test 1 ve solo lo suyo');
+  assert.equal(deTest1.data[0].notes.includes('Guantes'), true);
+  assert.equal(deTest2.data.length, 1, 'test 2 ve solo lo suyo');
+  assert.equal(deTest2.data[0].notes.includes('Gasas'), true);
+
+  // Y el filtro por tenant NO alcanza: las dos comparten TEST1DS. Por eso la
+  // ruta filtra por empresa y no por tenant.
+  const porTenant = await supabase.from('supplier_price_history').select('*').eq('tenant_id', 'TEST1DS');
+  assert.equal(porTenant.data.length, 2, 'el tenant no separa: ver las 2 prueba por que no vale');
+});
+
+test('PriceHistory: conserva los decimales del precio', async () => {
+  // La columna es `numeric` / `Decimal` (DECIMAL(18,4) en la 014). El codigo
+  // hacia `Math.round(Number(item.unit_price) || 0)`, que guardaba 12.75 como 13
+  // y hacia que el historial no cuadrase con la linea de compra de la que salio.
+  const supabase = buildFakeSupabase();
+
+  await recordSupplierPriceHistory(
+    supabase,
+    empresa('t', 'c'),
+    'supplier-1',
+    [
+      { product_name: 'Harina', unit_price: 12.75 },
+      { product_name: 'Azucar', unit_price: 0.5 },
+    ],
+    '2026-09-03'
+  );
+
+  const rows = supabase._store['supplier_price_history'];
+  assert.equal(rows[0].price, 12.75, '12.75 no se redondea a 13');
+  assert.equal(rows[1].price, 0.5, '0.5 no se redondea a 1 (ni a 0)');
+});
+
+test('PriceHistory: un unit_price ausente o 0 no rompe el registro', async () => {
+  // `Number(undefined) || 0` -> 0. Es el comportamiento anterior al cambio y se
+  // mantiene a proposito: una linea sin precio se registra como 0 en vez de
+  // colarse un `undefined` en una columna NOT NULL.
+  const supabase = buildFakeSupabase();
+
+  await recordSupplierPriceHistory(supabase, empresa('t', 'c'), 's', [
+    { product_name: 'Sin precio', unit_price: undefined },
+    { product_name: 'Precio cero', unit_price: 0 },
+  ]);
+
+  const rows = supabase._store['supplier_price_history'];
+  assert.equal(rows[0].price, 0);
+  assert.equal(rows[1].price, 0);
+});
+
 test('PriceHistory: resumen - historial de precios por proveedor', async () => {
   console.log('\n💲 ==========================================');
   console.log('   HISTORIAL DE PRECIOS POR PROVEEDOR - RESUMEN');
@@ -126,8 +250,14 @@ test('PriceHistory: resumen - historial de precios por proveedor', async () => {
 
   console.log('✅ Registro automático al crear compra: OK');
   console.log('✅ Ruta API: GET/POST/PATCH/DELETE /api/suppliers/price-history: OK');
-  console.log('✅ Tabla supplier_price_history con tenant_id: OK');
-  console.log('✅ RLS policies: 4 (SELECT/INSERT/UPDATE/DELETE): OK');
+  console.log('✅ Aislamiento por company_id (NO por tenant_id): OK');
+  console.log('✅ Toda fila lleva company_id (columna NOT NULL): OK');
+  console.log('✅ Decimales del precio preservados: OK');
   console.log('✅ Componente SupplierPriceHistory en proveedores: OK');
+  // Lo que estos tests NO comprueban, porque no hay Postgres accesible desde la
+  // maquina del asistente: que la migracion 041 corra y que las 4 politicas
+  // RLS queden por user_company_access. Eso se verifica leyendo los NOTICE y
+  // con las consultas de solo lectura del pie de la 041.
+  console.log('⏳ Migracion 041 (company_id NOT NULL + backfill) y RLS: PENDIENTES de aplicar en el SQL Editor');
   console.log('\n🎯 Price History:', 'ALL CHECKS PASSED ✅');
 });

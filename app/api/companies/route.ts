@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { createClient } from '@supabase/supabase-js';
 import { db } from '@/lib/db';
+import { usuarioAppId } from '@/lib/workspace';
 
 export async function GET() {
   try {
@@ -20,31 +21,53 @@ export async function GET() {
 
     console.log('API: Direct Supabase client created for GET');
 
-    // Obtener el tenant del usuario usando el cliente directo
-    const { data: userData, error: userError } = await directSupabase
-      .from('User')
-      .select('tenantid')
-      .eq('authid', userId)
-      .single();
+    // Membresia real del usuario: `auth.uid() -> "User".authid ->
+    // user_company_access.user_id`. `User.tenantid` es legacy y NO aisla: un
+    // usuario puede ser contador de unas empresas y no de otras del mismo
+    // tenant, asi que filtrar por `tenant_id` devolvia empresas ajenas.
+    const userIdApp = await usuarioAppId();
 
-    console.log('API: User data query result:', { userData, userError });
-
-    if (userError || !userData?.tenantid) {
-      console.log('API: No tenant found for user, returning empty companies');
+    if (!userIdApp) {
+      console.log('API: No user found, returning empty companies');
       return NextResponse.json({ companies: [] }, { status: 200 });
     }
 
-    const tenantId = userData.tenantid;
-    console.log('API: Using tenant ID:', tenantId);
+    const { data: userData } = await directSupabase
+      .from('User')
+      .select('tenantid')
+      .eq('id', userIdApp)
+      .maybeSingle();
 
-    // Obtener empresas filtrando por tenant_id
+    const { data: acceso, error: accesoError } = await directSupabase
+      .from('user_company_access')
+      .select('company_id')
+      .eq('user_id', userIdApp);
+
+    if (accesoError) {
+      console.error('API: Error fetching memberships:', accesoError);
+      return NextResponse.json({ error: 'Error obteniendo empresas' }, { status: 500 });
+    }
+
+    const companyIds = Array.from(
+      new Set(
+        (acceso || [])
+          .map((r) => (r as { company_id?: string }).company_id)
+          .filter((v): v is string => Boolean(v)),
+      ),
+    );
+
+    if (companyIds.length === 0) {
+      return NextResponse.json({ companies: [] }, { status: 200 });
+    }
+
+    const tenantId = userData?.tenantid ?? null;
+
+    // Solo las empresas de las que el usuario es miembro.
     const { data: companies, error } = await directSupabase
       .from('companies')
       .select('*')
-      .eq('tenant_id', tenantId)
+      .in('id', companyIds)
       .order('created_at', { ascending: false });
-
-    console.log('API: Companies query result:', { companies, error });
 
     if (error) {
       console.error('API: Error fetching companies:', error);
@@ -61,10 +84,12 @@ export async function GET() {
     let polizasCount = 0;
     let accountsCount = 0;
 
-    const { count: polizasRows, error: polizasError } = await directSupabase
-      .from('polizas')
-      .select('id', { count: 'exact', head: true })
-      .eq('tenant_id', tenantId);
+    const { count: polizasRows, error: polizasError } = tenantId
+      ? await directSupabase
+          .from('polizas')
+          .select('id', { count: 'exact', head: true })
+          .eq('tenant_id', tenantId)
+      : { count: 0, error: null };
 
     if (polizasError) {
       console.error('API: Error counting polizas:', polizasError);
@@ -73,10 +98,12 @@ export async function GET() {
     }
 
     try {
-      const accountsRows = await db.$queryRawUnsafe<{ tenant_id: string; total: bigint }[]>(
-        `SELECT "tenant_id" AS tenant_id, COUNT(*)::bigint AS total FROM "Account" WHERE "tenant_id" = $1 GROUP BY "tenant_id"`,
-        tenantId
-      );
+      const accountsRows = tenantId
+        ? await db.$queryRawUnsafe<{ tenant_id: string; total: bigint }[]>(
+            `SELECT "tenant_id" AS tenant_id, COUNT(*)::bigint AS total FROM "Account" WHERE "tenant_id" = $1 GROUP BY "tenant_id"`,
+            tenantId
+          )
+        : [];
       accountsCount = Number((accountsRows || []).reduce((sum, row) => sum + Number(row.total), 0) || 0);
     } catch (countError) {
       console.error('API: Error counting accounts:', countError);
@@ -144,6 +171,23 @@ export async function PUT(request: Request) {
     );
 
     console.log('API: Direct Supabase client created for PUT');
+
+    // Aislamiento de escritura: solo un miembro de la empresa puede editarla.
+    // Antes esta rama no tenia ni auth ni comprobacion de pertenencia, asi que
+    // cualquier usuario autenticado podia editar cualquier `companies.id`.
+    const userIdApp = await usuarioAppId();
+    if (!userIdApp) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
+    }
+    const { data: accesoFila } = await directSupabase
+      .from('user_company_access')
+      .select('company_id')
+      .eq('user_id', userIdApp)
+      .eq('company_id', id)
+      .maybeSingle();
+    if (!accesoFila) {
+      return NextResponse.json({ error: 'Empresa no encontrada' }, { status: 404 });
+    }
 
     // Mapear campos del frontend a la BD
     const dbUpdateData = {

@@ -363,7 +363,13 @@ export async function recordSupplierPriceHistory(
       company_id: empresa.companyId,
       supplier_id: supplierId,
       product_id: item.product_id || null,
-      price: Math.round(Number(item.unit_price) || 0),
+      // Sin redondear: la columna es `numeric` (Prisma la declara `Decimal`, y la
+      // 014 como DECIMAL(18,4)). `Math.round` tiraba los decimales, asi que un
+      // precio de 12.75 lempira se guardaba como 13: el historico no cuadraba
+      // con la linea de compra de la que salio. Los importes del proyecto ya
+      // estan en lempiras (AGENTS.md, seccion 2), asi que aqui no se divide ni
+      // se multiplica por 100.
+      price: Number(item.unit_price) || 0,
       currency: 'HNL',
       effective_date: effectiveDate,
       notes: `Registrado en compra - ${item.product_name || item.description || 'Producto'}${item.invoice_number ? ` (Factura ${item.invoice_number})` : ''}`,

@@ -99,7 +99,22 @@ export default clerkMiddleware(async (auth, req) => {
   // son un solo tenant, y el contexto nuevo deriva el tenant de la empresa
   // activa. Reemplazarlo por el de la cookie rompería al contador que administra
   // empresas de varios tenants.
-  const activeCompany = req.cookies.get('active_company_id')?.value;
+  // La cookie `active_company_id` la escribe el selector de empresa, y SOLO al
+  // cambiar de empresa a mano. En una carga inicial (sesion nueva, recarga,
+  // enlace directo) todavia no existe, asi que el header quedaba sin poner y
+  // toda ruta que no viva bajo `/api/companies/[id]/...` respondia 400 ("No se
+  // pudo determinar la empresa"): el cliente manda `?companyId` en unas y en
+  // otras no, y las que no, caian a este header.
+  //
+  // Para las paginas `/companies/<id>/...` el `[id]` de la URL ES la empresa que
+  // se esta consultando (es `companies.id`; `empresaDesde` tambien acepta el
+  // codigo de tenant). Se deriva de ahi, gana sobre la cookie, y se deja escrita
+  // para que los `fetch` posteriores a `/api/...` —que no llevan `/companies/` en
+  // la ruta— la manden solos. Sigue siendo una PISTA, no una garantia: el servidor
+  // valida pertenencia (`contextoDeEmpresa` -> 403 si no es del usuario).
+  const activeCompanyCookie = req.cookies.get('active_company_id')?.value;
+  const idDeEmpresaEnUrl = pathname.match(/^\/companies\/([^/]+)/)?.[1];
+  const activeCompany = idDeEmpresaEnUrl || activeCompanyCookie;
   if (activeCompany) {
     requestHeaders.set('x-company-id', activeCompany);
   }
@@ -109,9 +124,22 @@ export default clerkMiddleware(async (auth, req) => {
     requestHeaders.set('x-location-id', activeLocation);
   }
 
-  return NextResponse.next({
+  const response = NextResponse.next({
     request: { headers: requestHeaders },
   });
+
+  // Dejar la cookie alineada con la URL (o crearla si faltaba) para que las
+  // siguientes peticiones a `/api/...` lleven el header aunque no vuelvan a
+  // pasar por `/companies/[id]`.
+  if (activeCompany && activeCompany !== activeCompanyCookie) {
+    response.cookies.set('active_company_id', activeCompany, {
+      path: '/',
+      maxAge: 60 * 60 * 8,
+      sameSite: 'lax',
+    });
+  }
+
+  return response;
 });
 
 export const config = {

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { isMigrationMissingError } from '@/lib/services/warehouse-service';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
@@ -94,9 +94,12 @@ export async function POST(
 ) {
   try {
     const { id: companyId } = await params;
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.tenantId || !empresa.companyId) {
+      return NextResponse.json({ success: false, error: 'Company no encontrada' }, { status: 400 });
+    }
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const tenantHint = request.headers.get('x-tenant-id') || (formData.get('tenantId') as string) || null;
 
     if (!file) {
       return NextResponse.json({ success: false, error: 'Se requiere un archivo (CSV o Excel)' }, { status: 400 });
@@ -122,7 +125,7 @@ export async function POST(
     }
 
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint);
+    const tenantId = empresa.tenantId;
     const now = new Date().toISOString();
 
     // Cargar códigos existentes (scope tenant+company) para omitir duplicados
@@ -132,7 +135,7 @@ export async function POST(
         .from('warehouse')
         .select('code')
         .eq('tenant_id', tenantId)
-        .or(`company_id.eq.${companyId},company_id.is.null`)
+        .or(`company_id.eq.${empresa.companyId},company_id.is.null`)
         .limit(10000);
       if (!error && existing) {
         for (const e of existing) existingCodes.add(String(e.code).trim().toUpperCase());
@@ -160,7 +163,7 @@ export async function POST(
       seenInFile.add(code);
       rowsToInsert.push({
         tenant_id: tenantId,
-        company_id: companyId,
+        company_id: empresa.companyId,
         code,
         name,
         location: String(r.location || '').trim(),
@@ -219,6 +222,8 @@ export async function POST(
     });
   } catch (error) {
     console.error('inventory/warehouses/import error', error);
+    const respuesta = respuestaDeErrorDeEmpresa(error);
+    if (respuesta) return respuesta;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
-import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Calendar, Filter, Download, Menu, ChevronLeft, FileText, CreditCard, BarChart3, Plus } from 'lucide-react';
+import { TrendingUp, TrendingDown, DollarSign, ShoppingCart, Calendar, Filter, Download, Menu, ChevronLeft, FileText, CreditCard, BarChart3, Plus, RotateCcw } from 'lucide-react';
 
 interface DashboardData {
   totalPurchases: number;
@@ -215,6 +215,10 @@ export default function PurchasesDashboard({ companyId }: PurchasesDashboardProp
               <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchases`)}>
                 <ShoppingCart className="w-4 h-4 mr-2" />
                 Compras
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchases/returns`)}>
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Devoluciones a Proveedores
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchases/dashboard`)}>
                 <BarChart3 className="w-4 h-4 mr-2" />
