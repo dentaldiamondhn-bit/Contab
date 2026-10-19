@@ -69,5 +69,15 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // `product-measures` importa `isMigrationMissingError` de warehouse-service
+  // (unico sitio donde vive el helper). Se resuelve al fichero REAL; sus propios
+  // imports por alias ya estan mapeados arriba.
+  if (specifier === '@/lib/services/warehouse-service') {
+    return {
+      url: new URL('../../lib/services/warehouse-service.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }

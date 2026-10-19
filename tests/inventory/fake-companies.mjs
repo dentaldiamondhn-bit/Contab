@@ -90,6 +90,21 @@ export function reiniciarMedidas() {
   PRODUCT_MEASURE.push(...PRODUCT_MEASURE_INICIAL.map((f) => ({ ...f })));
 }
 
+// Tablas "ocultas" a proposito para simular una migracion sin aplicar: toda
+// consulta a ellas responde como PostgREST cuando la relacion no existe, que es
+// lo que detecta `isMigrationMissingError`. No se usa para las tablas realmente
+// ausentes (esas conservan el mensaje `tabla desconocida: X`, del que dependen
+// otras suites).
+const tablasOcultas = new Set();
+
+export function ocultarTabla(nombre) {
+  tablasOcultas.add(nombre);
+}
+
+export function restaurarTablas() {
+  tablasOcultas.clear();
+}
+
 const TABLAS = {
   companies: COMPANIES,
   product_location: PRODUCT_LOCATION,
@@ -195,6 +210,15 @@ function construir(tabla) {
       ordenarPorCreada,
     });
     const filas = TABLAS[tabla];
+    if (tablasOcultas.has(tabla)) {
+      return {
+        data: null,
+        error: {
+          code: '42P01',
+          message: `relation public.${tabla} does not exist`,
+        },
+      };
+    }
     if (!filas) return { data: null, error: { message: `tabla desconocida: ${tabla}` } };
 
     const encontradas = filas.filter((f) => coincide(f, filtros, orConds));
