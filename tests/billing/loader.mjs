@@ -31,7 +31,8 @@ export function resolve(specifier, context, nextResolve) {
   if (specifier === '@/lib/billing/issuer-sanitizer') {
     return { url: new URL('../../lib/billing/issuer-sanitizer.ts', import.meta.url).href, shortCircuit: true };
   }
-  // Aritmetica pura de medidas, que `stock-sale.ts` importa: fichero real.
+  // Aritmetica pura de medidas: fichero real. `stock-sale.ts` aun NO la importa;
+  // el mapeo queda puesto para cuando la Tarea 11 (POS) lo haga.
   if (specifier === '@/lib/services/measure-calc') {
     return { url: new URL('../../lib/services/measure-calc.ts', import.meta.url).href, shortCircuit: true };
   }

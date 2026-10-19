@@ -109,6 +109,9 @@ export function limpiarConsultas() {
 function coincide(fila, filtros, orConds) {
   for (const { columna, valor, op } of filtros) {
     if (op === 'gt') {
+      // PostgREST excluye NULL de `gt`; sin este guard `Number(null) === 0`
+      // dejaria pasar una fila vacia contra cualquier umbral negativo.
+      if (fila[columna] === null || fila[columna] === undefined) return false;
       if (!(Number(fila[columna]) > Number(valor))) return false;
       continue;
     }
@@ -121,11 +124,17 @@ function coincide(fila, filtros, orConds) {
       continue;
     }
     if (typeof valor === 'string' && valor.startsWith('__ilike:')) {
-      // Mismo patron que `tests/purchases/supabase-falso.mjs`: `%` es comodin,
-      // el resto se escapa y la comparacion es en minusculas (bandera `i`).
-      const rx = valor.slice(8).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
+      // Mismo patron que `tests/purchases/supabase-falso.mjs`, pero fiel a LIKE:
+      // `%` -> cualquier secuencia, `_` -> un caracter, el resto se escapa, la
+      // comparacion es en minusculas y anclada. Una columna NULL nunca casa.
+      if (fila[columna] === null || fila[columna] === undefined) return false;
+      const rx = valor
+        .slice(8)
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/%/g, '.*')
+        .replace(/_/g, '.');
       const pat = new RegExp('^' + rx + '$', 'i');
-      if (!pat.test(String(fila[columna] ?? ''))) return false;
+      if (!pat.test(String(fila[columna]))) return false;
       continue;
     }
     if (String(fila[columna]) !== String(valor)) return false;
@@ -157,6 +166,12 @@ function construir(tabla) {
     update(p) { verb = 'update'; patch = p; return q; },
     delete() { verb = 'delete'; return q; },
     eq(columna, valor) { filtros.push({ columna, valor }); return q; },
+    // `filtroEmpresaOCompany(empresa)` devuelve `{ company_id }` y las rutas lo
+    // encadenan con `.match(...)`: sin esto revientan con `match is not a function`.
+    match(objeto) {
+      for (const [columna, valor] of Object.entries(objeto ?? {})) filtros.push({ columna, valor });
+      return q;
+    },
     ilike(columna, valor) { filtros.push({ columna, valor: '__ilike:' + valor }); return q; },
     gt(columna, valor) { filtros.push({ columna, valor, op: 'gt' }); return q; },
     in(columna, valores) { filtros.push({ columna, valor: valores, op: 'in' }); return q; },
