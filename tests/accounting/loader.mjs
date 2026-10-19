@@ -62,5 +62,27 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // `supplier-price-history.test.mjs` importa `lib/purchase-db.ts` REAL, y desde
+  // las tareas 7 y 8 ese fichero importa los servicios de medidas. Sin estos
+  // mapeos el fichero entero moria con `ERR_MODULE_NOT_FOUND: @/lib` (los 10
+  // casos del historial de precios, que son los que guardan `price` en neto y
+  // por unidad base, quedaban sin correr). Se cargan a los ficheros REALES, el
+  // mismo conjunto que mapea `tests/purchases/loader.mjs`.
+  const reales = {
+    '@/lib/supplier-withholding': 'supplier-withholding',
+    '@/lib/services/measure-calc': 'services/measure-calc',
+    '@/lib/services/product-measures': 'services/product-measures',
+    '@/lib/services/budget-service': 'services/budget-service',
+    '@/lib/services/budget-calc': 'services/budget-calc',
+    '@/lib/services/warehouse-service': 'services/warehouse-service',
+    '@/lib/services/transfer-calc': 'services/transfer-calc',
+  }[specifier];
+  if (reales) {
+    return {
+      url: new URL(`../../lib/${reales}.ts`, import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }
