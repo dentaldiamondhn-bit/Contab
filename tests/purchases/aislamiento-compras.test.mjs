@@ -435,4 +435,21 @@ describe('aplicarEfectosCompra: unidad base y neto', () => {
     assert.equal(medida.company_id, T1);
     assert.equal(medida.price_includes_tax, false);
   });
+
+  test('si falla la lectura del producto, lanza y NO inventa un duplicado', async () => {
+    // `product.price_includes_tax` no existe antes de la 074: PostgREST daria
+    // 42703 y `data` vendria nulo. Confundir eso con "el producto no existe"
+    // crearia una copia en cada aprobacion. Debe lanzar (fail-closed).
+    const { data } = await createPurchase(sb, em(T1), cuerpo([
+      { product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit_factor: 1, unit_price: 50, total: 100 },
+    ]));
+    const productosAntes = bd.product.length;
+
+    sb.estado.bloquearSelect = ['product'];
+    await assert.rejects(() => aprobarCompra(sb, em(T1), data.id), /producto|leer/i);
+    sb.estado.bloquearSelect = [];
+
+    assert.equal(bd.product.length, productosAntes, 'no debe crear un producto duplicado');
+    assert.equal(bd.Purchase.find((p) => p.id === data.id).approval_status, 'PENDING_APPROVAL');
+  });
 });

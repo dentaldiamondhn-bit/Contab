@@ -118,6 +118,12 @@ class Builder {
       return { data: null, error: null };
     }
 
+    if (!this.sb.esSeleccionable(this.tabla)) {
+      // Simula una columna inexistente (42703), como `price_includes_tax` antes
+      // de la 074. Lo pide el test de "no se inventa un producto duplicado".
+      return { data: null, error: { code: '42703', message: `column inexistente simulada en ${this.tabla}` } };
+    }
+
     let out = applying(filas, this.filtros, this.cols);
     if (this.orden) {
       const col = this.orden;
@@ -145,6 +151,10 @@ export function crearSupabaseFalso(mockState) {
     },
     esInsertable(nombre) {
       if (mockState.bloquearInsert?.includes(nombre)) return false;
+      return true;
+    },
+    esSeleccionable(nombre) {
+      if (mockState.bloquearSelect?.includes(nombre)) return false;
       return true;
     },
     from(nombre) {

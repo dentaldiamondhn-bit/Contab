@@ -439,14 +439,29 @@ export async function aplicarEfectosCompra(
 
       // El producto existente se lee aqui (solo lectura) porque de el sale el
       // fallback de `price_includes_tax` de la fila base (`product`).
+      //
+      // FAIL-CLOSED: si la lectura falla, se LANZA y no se sigue. Un `data` nulo
+      // por un error no significa "el producto no existe": tratarlo asi crearia
+      // un producto DUPLICADO al aprobar. Pasa de verdad si la 074 no esta
+      // aplicada (`product.price_includes_tax` no existe -> 42703); preferimos
+      // un error claro a duplicar el catalogo. El modulo de medidas ya degrada
+      // en `medidasDeProductosCon` porque ahi "no hay medida" es seguro (cae al
+      // factor del payload); aqui no lo es.
       let existing: any | null = null;
       if (productName) {
-        const { data } = await supabase
+        const { data, error } = await supabase
           .from('product')
           .select('id, current_stock, stock_quantity, unit_price, current_cost, price_includes_tax')
           .eq('company_id', companyId)
           .ilike('name', productName)
           .limit(1);
+        if (error) {
+          const msg = error?.message ?? String(error);
+          throw new Error(
+            `No se pudo leer el producto "${productName}" para aplicar la compra ` +
+              `(no se asume que no exista, para no duplicarlo): ${msg}`
+          );
+        }
         existing = (data && data[0]) || null;
       }
       const isv = incluyeIsv === undefined ? !!existing?.price_includes_tax : incluyeIsv;
