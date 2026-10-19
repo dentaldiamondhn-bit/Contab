@@ -5394,3 +5394,49 @@ proveedor), redondeado a lempiras enteras.
 round-trip de una `Purchase` con `ISR_1`/`rate 0.01`/`amount 10`/`exonerated true`
 -> insert 201 / lectura correcta / delete 200. Queda el retest en navegador (crear compra
 con retencion y ver el neto y el asiento).
+
+### 074 Medidas por producto: tabla `product_measure` (18 Oct 2026)
+
+- **Migracion `prisma/migrations/074_product_measures.sql`** — **PENDIENTE de aplicar en
+  el SQL Editor de Supabase por el usuario** (el asistente no puede ejecutar DDL: el host
+  de Postgres no resuelve por DNS y solo hay PostgREST con `service_role`). No se aplica
+  sola; queda aqui marcada hasta que confirme que corrio.
+- **Que crea:**
+  - Tabla **`product_measure`** (12 columnas): `id uuid` PK, `tenant_id text NOT NULL`,
+    `company_id text NOT NULL`, `product_id uuid NOT NULL` con FK a `product(id)`
+    **ON DELETE CASCADE**, `name text NOT NULL`, `factor integer NOT NULL DEFAULT 1`,
+    `cost numeric`, `sale_price bigint`, `price_includes_tax boolean NOT NULL DEFAULT
+    false`, `is_active boolean NOT NULL DEFAULT true`, `created_at`/`updated_at
+    timestamptz`. Importes en **lempiras**, sin /100.
+  - CHECK **`product_measure_factor_positivo` (`factor >= 1`)**: el guard vive en la
+    BASE, no solo en la API (leccion de los CHECK de `supplier_ratings`, 042).
+  - Indice unico **`product_measure_empresa_producto_nombre_key`** sobre
+    `(company_id, product_id, lower(name))`: el mismo nombre de medida en dos empresas
+    distintas es legitimo; dentro de una empresa no se repite. Mas
+    `product_measure_producto_idx` sobre `(company_id, product_id)`.
+  - `product.price_includes_tax boolean NOT NULL DEFAULT false`.
+  - `unit text` y `unit_factor integer DEFAULT 1` en **`PurchaseItem`**, **`InvoiceItem`**
+    y **`PurchaseReturnItem`** (6 columnas; esas tablas son camelCase y con comillas
+    dobles).
+  - **Sin GRANT** (regla de la 062: lo nuevo no se expone al Data API; `service_role`
+    sigue teniendo acceso por defecto). `prisma/schema.prisma` NO se toca (drift
+    consciente).
+- **Medido antes de escribirla (18 Oct 2026, OpenAPI de PostgREST con `service_role`,
+  script temporal `_tmp-openapi-measures.mjs` ya borrado):** `product.id` = `uuid`,
+  `product.company_id` = `text`, `product_measure` NO existe aun, y ninguna de las 3
+  tablas de linea tiene hoy `unit` ni `unit_factor`. Si lo medido hubiera contradicho el
+  plan, se habria parado en vez de inventar el tipo.
+- Idempotente, con **preflight** que aborta con detalle (tipos reales de `product.id` /
+  `product.company_id`, tipos de las 6 columnas de linea si ya existieran, duplicados por
+  empresa y `factor < 1` existentes) y **post-check** que aborta si falta la tabla,
+  alguna de las 19 columnas, el CHECK o algun indice, o si queda alguna fila con
+  `factor < 1`. El indice unico se localiza **por columnas** con `pg_index` +
+  `pg_get_indexdef(..., n, true)` + `btrim(..., '"')` (lecciones 044/051/067), con
+  respaldo por el nombre fijo del indice por si `pg_pretty` formatea la expression
+  `lower(name)` de otra manera (sin medir aun: la tabla no existe hasta que se aplique).
+
+**Verificado:** `node scripts/validar-040.mjs prisma/migrations/074_product_measures.sql`
+-> **OK** (4 bloques DO, paridad de comillas global OK); `tsc --noEmit` -> **456**
+errores (= baseline, 0 nuevos). **PENDIENTE: que el usuario la aplique en el SQL Editor y
+lo confirme**; despues toca verificar desde fuera por OpenAPI que las columnas aparecen y
+el retest en navegador (tareas posteriores del plan).
