@@ -73,6 +73,25 @@ test('validarMedidas: cost o sale_price negativo lanza', () => {
   );
 });
 
+test('validarMedidas: factor vacio ("", "  ", null) se lee como 1', () => {
+  assert.equal(validarMedidas([{ name: 'Caja', factor: '' }], 'Unidad')[0].factor, 1);
+  assert.equal(validarMedidas([{ name: 'Caja', factor: '  ' }], 'Unidad')[0].factor, 1);
+  assert.equal(validarMedidas([{ name: 'Caja', factor: null }], 'Unidad')[0].factor, 1);
+});
+
+test('validarMedidas: factor no vacio invalido ("abc") sigue lanzando', () => {
+  assert.throws(() => validarMedidas([{ name: 'Caja', factor: 'abc' }], 'Unidad'));
+});
+
+test('validarMedidas: cost/sale_price en blanco (" " y "") quedan en null', () => {
+  const [m] = validarMedidas(
+    [{ name: 'Caja', factor: 2, cost: ' ', sale_price: '' }],
+    'Unidad',
+  );
+  assert.equal(m.cost, null);
+  assert.equal(m.sale_price, null);
+});
+
 test('reemplazarMedidas: inserta el lote con la empresa y el tenant de la sesion', async () => {
   antes();
   const r = await reemplazarMedidas(TEST1, 'TEST1DS', 'p-test1', [
