@@ -158,6 +158,24 @@ function medidasIniciales(): MedidaEntrada[] {
   ];
 }
 
+// Las filas del atajo (Docena 12, Caja sin factor) son una SUGERENCIA de la UI,
+// no datos del producto: si el usuario las deja intactas (sin precios, mismo
+// nombre y mismo factor) no se guardan. Si no, todo producto nuevo quedaria con
+// una "Caja" de factor 1 sin precio, y esa medida apareceria como real en los
+// selectores de medida de compras y de POS.
+function sinSugerenciasIntactas(medidas: MedidaEntrada[]): MedidaEntrada[] {
+  const factorSugerido = new Map(
+    medidasIniciales().map((s) => [String(s.name).toLowerCase(), String(s.factor ?? '')]),
+  );
+  return medidas.filter((m) => {
+    const esperado = factorSugerido.get(String(m.name ?? '').trim().toLowerCase());
+    if (esperado === undefined) return true;
+    const conPrecios =
+      String(m.cost ?? '').trim() !== '' || String(m.sale_price ?? '').trim() !== '';
+    return conPrecios || m.price_includes_tax === true || String(m.factor ?? '') !== esperado;
+  });
+}
+
 // Descompone el stock en las medidas del producto, de mayor a menor factor:
 // 104 Unidad (2 Caja + 4). El parentesis solo aparece si alguna medida entra
 // completa; el resto queda en unidades base. Factores <= 1 no aportan nada.
@@ -252,7 +270,11 @@ export default function InventoryPage() {
     barcode: '',
     barcodeImageUrl: '',
     isService: false,
-    measures: medidasIniciales(),
+    // Vacio a proposito: el atajo Docena/Caja se prellena al ABRIR el alta
+    // (`abrirCrearProducto`), no al construir el estado. Si arrancara con las
+    // sugerencias, todo producto nuevo guardaria una "Caja" (factor 1, sin
+    // precio) aunque el usuario nunca abriera el modal.
+    measures: [] as MedidaEntrada[],
     priceIncludesTax: false,
   });
   const [showEditModal, setShowEditModal] = useState(false);
@@ -388,7 +410,7 @@ export default function InventoryPage() {
 
     let medidas: MedidaEntrada[];
     try {
-      medidas = validarMedidas(editForm.measures, editingProduct.unit || 'Unidad');
+      medidas = validarMedidas(sinSugerenciasIntactas(editForm.measures), editingProduct.unit || 'Unidad');
     } catch (error: any) {
       alert('Medidas: ' + (error?.message || 'datos inválidos'));
       return;
@@ -657,7 +679,7 @@ export default function InventoryPage() {
   const handleCreateProduct = async () => {
     let medidas: MedidaEntrada[];
     try {
-      medidas = validarMedidas(newProduct.measures, newProduct.unit);
+      medidas = validarMedidas(sinSugerenciasIntactas(newProduct.measures), newProduct.unit);
     } catch (error: any) {
       alert('Medidas: ' + (error?.message || 'datos inválidos'));
       return;
@@ -718,7 +740,7 @@ export default function InventoryPage() {
           barcode: '',
           barcodeImageUrl: '',
           isService: false,
-          measures: medidasIniciales(),
+          measures: [] as MedidaEntrada[],
           priceIncludesTax: false,
         });
         loadInventoryData();

@@ -5483,6 +5483,14 @@ existente (076/074). Archivo principal `app/companies/[id]/inventory/page.tsx`
   `product.price_includes_tax`. `interface Product` local se amplio con
   `unit?`, `price_includes_tax?` y `measures?` (mix de 079/080).
 - **Comentarios:** solo porques no obvios, en español.
+- **El atajo del modal NO es dato (fix de la review):** Docena(12)/Caja son una
+  **sugerencia** de la UI. El formulario arranca con `measures: []` y el atajo se
+  prellena al abrir el alta (`abrirCrearProducto`); al enviar, `sinSugerenciasIntactas`
+  descarta las filas que siguen siendo la sugerencia (mismo nombre y factor, sin
+  costo, sin precio y sin marcar "Incluye ISV"). Sin esto, **todo producto nuevo**
+  guardaba una "Caja" de factor 1 sin precio y esa medida aparecia como real en los
+  selectores de medida de compras (T7-T9) y POS (T11). Solo descarta las dos filas
+  del atajo: una medida propia (aunque no tenga precios) se guarda siempre.
 
 **Verificado:** tsc `--noEmit` -> **455** (baseline 456; el `product.unit` TS2339
 de la tabla era el unico error del fichero y se resolvio al añadir `unit?` a
@@ -5490,6 +5498,12 @@ de la tabla era el unico error del fichero y se resolvio al añadir `unit?` a
 `Select-String -Pattern 'product-measures'` en la pagina -> **vacio** (no importa
 el modulo servidor). Suites (0 fail): inventario **64/64**, warehouse **15/15**,
 purchases **183/183**, billing **34/34**, transfers-import **10/10**.
-`node scripts/verificar-credenciales.mjs` -> `TODO OK`. **PENDIENTE: retest en
-navegador** (crear medida, editar medida, ver la descomposicion bajo el stock y
-la columna ISV). Sin migracion para esto (074/076 ya cubren el esquema).
+`node scripts/verificar-credenciales.mjs` -> `TODO OK`. La sonda
+`_tmp-probe-sugerencias.mjs` (extrae y ejecuta `medidasIniciales`+
+`sinSugerenciasIntactas` del propio fichero, 9 casos) dio **TODO OK**: sin abrir el
+modal `[]`, atajo intacto `[]`, Docena con precio -> `[Docena]`, Caja con factor 50
+-> `[Caja]`, medida propia sin precios -> `[Pallet]`, `" docena "` con espacios
+-> `[]`; sonda borrada. **PENDIENTE: retest en navegador** (crear medida, editar
+medida, ver la descomposicion bajo el stock, la columna ISV y que un producto
+nuevo sin tocar el modal NO quede con Docena/Caja). Sin migracion para esto
+(074 ya cubre el esquema).
