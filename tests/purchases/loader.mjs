@@ -118,5 +118,43 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // Servicio de medidas por producto (Tarea 4). `purchase-db.ts` lo importa en la
+  // Tarea 8: `medidasDeProductosCon` (autoridad del maestro al aplicar efectos) y
+  // `reemplazarMedidasCon` (alta de medidas de un producto nuevo). Se carga REAL.
+  if (specifier === '@/lib/services/product-measures') {
+    return {
+      url: new URL('../../lib/services/product-measures.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  // Dependencias transitivas de `product-measures` / `warehouse-service`: mismo
+  // conjunto que mapea `tests/inventory/loader.mjs`, tambien a los ficheros reales
+  // (sus imports por alias caen en los mapeos de arriba o en los puros de abajo).
+  if (specifier === '@/lib/services/budget-service') {
+    return {
+      url: new URL('../../lib/services/budget-service.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  if (specifier === '@/lib/services/budget-calc') {
+    return {
+      url: new URL('../../lib/services/budget-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  if (specifier === '@/lib/services/warehouse-service') {
+    return {
+      url: new URL('../../lib/services/warehouse-service.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  if (specifier === '@/lib/services/transfer-calc') {
+    return {
+      url: new URL('../../lib/services/transfer-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }

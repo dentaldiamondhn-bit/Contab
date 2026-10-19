@@ -10,7 +10,8 @@ import {
   tasaDeRetencion,
   calcularRetencion,
 } from '@/lib/supplier-withholding';
-import { exigirFactor } from '@/lib/services/measure-calc';
+import { exigirFactor, factorValido, precioNeto, unidadesBase } from '@/lib/services/measure-calc';
+import { medidasDeProductosCon, reemplazarMedidasCon } from '@/lib/services/product-measures';
 
 /**
  * La empresa, YA VALIDADA por `contextoDeEmpresa`. Es la MISMA forma que devuelve
@@ -382,47 +383,149 @@ export async function aplicarEfectosCompra(
   // Cada efecto aplicado registra como deshacerlo, por si el asiento falla.
   const revertir: Array<() => Promise<void>> = [];
 
+  // Los items normalizados (factor e `price_includes_tax` ya resueltos) son los
+  // que recibe el historial: nunca consulta la BD, confia en lo que le pasemos.
+  let itemsNormalizados: any[] = items;
+
   // Create/update products in Supabase product table
   if (items.length > 0) {
+    // DOS PASADAS. La primera resuelve la medida, lee el producto y calcula TODO
+    // lo que puede lanzar (`exigirFactor`, `unidadesBase`) SIN escribir nada. Si
+    // la segunda linea tiene una cantidad que no da base entera, la primera no
+    // debe haber tocado el stock: `aplicarEfectosCompra` solo revierte cuando
+    // falla el asiento, no entre items, asi que un throw a mitad de la iteracion
+    // dejaria efectos a medias.
+    //
+    // El factor y el "incluye ISV" tienen AUTORIDAD DEL MAESTRO (§4.6, §11.1):
+    // una sola consulta a `product_measure` (degrada a Map vacio si falta la 074,
+    // nunca lanza). Si hay una medida de ese producto cuyo `name` coincide con
+    // `item.unit`, mandan su factor y su flag; si no, se usa el `unit_factor` del
+    // payload y el `price_includes_tax` del item o del producto existente.
+    const idsConProducto = Array.from(
+      new Set(
+        items
+          .map((i) => i.product_id)
+          .filter((id): id is string => typeof id === 'string' && id.length > 0)
+      )
+    );
+    const mapaMedidas = await medidasDeProductosCon(supabase, { tenantId, companyId }, idsConProducto);
+
+    type LineaPlan = {
+      item: any;
+      productName: string;
+      factor: number;
+      cantidadBase: number;
+      precioMedida: number;
+      netoMedida: number;
+      costoBase: number;
+      incluyeIsv: boolean;
+      existing: any | null;
+    };
+
+    const plan: LineaPlan[] = [];
     for (const item of items) {
       const productName = item.product_name || item.description || '';
-      if (!productName) continue;
+      const medida = buscarMedidaDe(mapaMedidas.get(String(item.product_id ?? '')), item.unit);
 
-      const quantity = Number(item.quantity) || 0;
-      const unitPrice = Math.round(Number(item.unit_price) || 0);
+      let factor: number;
+      let incluyeIsv: boolean | undefined;
+      if (medida) {
+        factor = exigirFactor(medida.factor);
+        incluyeIsv = !!medida.price_includes_tax;
+      } else {
+        factor = exigirFactor(item.unit_factor ?? 1);
+        incluyeIsv = typeof item.price_includes_tax === 'boolean' ? item.price_includes_tax : undefined;
+      }
 
-      const { data: existing } = await supabase
-        .from('product')
-        .select('id, current_stock, stock_quantity, unit_price, current_cost')
-        .eq('company_id', companyId)
-        .ilike('name', productName)
-        .limit(1);
+      // El producto existente se lee aqui (solo lectura) porque de el sale el
+      // fallback de `price_includes_tax` de la fila base (`product`).
+      let existing: any | null = null;
+      if (productName) {
+        const { data } = await supabase
+          .from('product')
+          .select('id, current_stock, stock_quantity, unit_price, current_cost, price_includes_tax')
+          .eq('company_id', companyId)
+          .ilike('name', productName)
+          .limit(1);
+        existing = (data && data[0]) || null;
+      }
+      const isv = incluyeIsv === undefined ? !!existing?.price_includes_tax : incluyeIsv;
 
-      if (existing && existing.length > 0) {
-        const row = existing[0];
+      const tasa = Number(item.tax_rate) || 0;
+      const precioMedida = Number(item.unit_price) || 0;
+      const netoMedida = precioNeto(precioMedida, tasa, isv, 2);
+      // El redondeo a entero va AL FINAL, despues de dividir entre el factor:
+      // redondear el neto antes infla el costo base (12.75 / 12 -> 1.06, no 1.08).
+      const costoBase = Math.round(netoMedida / factor);
+      // La base solo se exige para lineas que tocan stock (`inventory_movement`
+      // es integer y `cantidadBase` debe ser entero > 0); una linea sin nombre no
+      // escribe stock y no debe rechazarse por su cantidad.
+      const cantidadBase = productName ? unidadesBase(Number(item.quantity) || 0, factor) : 0;
+
+      plan.push({
+        item,
+        productName,
+        factor,
+        cantidadBase,
+        precioMedida,
+        netoMedida,
+        costoBase,
+        incluyeIsv: isv,
+        existing,
+      });
+    }
+
+    // Segunda pasada: se agrupa por producto para que dos lineas del mismo
+    // producto sumen su base (antes se leia el stock ya actualizado entre lineas).
+    type Grupo = {
+      productName: string;
+      existing: any | null;
+      cantidadBase: number;
+      costoBase: number;
+      lineas: LineaPlan[];
+    };
+    const grupos = new Map<string, Grupo>();
+    for (const p of plan) {
+      if (!p.productName) continue;
+      const clave = p.existing ? `id:${p.existing.id}` : `nuevo:${p.productName.toLowerCase()}`;
+      const g = grupos.get(clave);
+      if (g) {
+        g.cantidadBase += p.cantidadBase;
+        g.costoBase = p.costoBase; // el ultimo precio de la compra gana (como hoy)
+        g.lineas.push(p);
+      } else {
+        grupos.set(clave, {
+          productName: p.productName,
+          existing: p.existing,
+          cantidadBase: p.cantidadBase,
+          costoBase: p.costoBase,
+          lineas: [p],
+        });
+      }
+    }
+
+    for (const g of grupos.values()) {
+      if (g.existing) {
+        const row = g.existing;
         const antes = {
           current_stock: row.current_stock,
           stock_quantity: row.stock_quantity,
           unit_price: row.unit_price,
           current_cost: row.current_cost,
         };
-        const newStock = (Number(row.current_stock) || 0) + quantity;
+        const newStock = (Number(row.current_stock) || 0) + g.cantidadBase;
         await supabase
           .from('product')
           .update({
             current_stock: newStock,
             stock_quantity: newStock,
-            unit_price: unitPrice || undefined,
-            current_cost: unitPrice,
+            unit_price: g.costoBase || undefined,
+            current_cost: g.costoBase,
           })
           .eq('id', row.id)
           .eq('company_id', companyId);
         revertir.push(async () => {
-          await supabase
-            .from('product')
-            .update(antes)
-            .eq('id', row.id)
-            .eq('company_id', companyId);
+          await supabase.from('product').update(antes).eq('id', row.id).eq('company_id', companyId);
         });
       } else {
         const productCode = 'PRD-' + Date.now().toString(36).toUpperCase().slice(-4);
@@ -432,14 +535,19 @@ export async function aplicarEfectosCompra(
             tenant_id: tenantId,
             company_id: companyId,
             code: productCode,
-            name: productName,
-            description: item.description || '',
+            name: g.productName,
+            description: g.lineas[0].item.description || '',
             category: purchase.purchase_type === 'expense' ? 'Servicios' : 'Insumos',
-            unit: item.unit || 'Unidad',
-            unit_price: unitPrice,
-            current_cost: unitPrice,
-            current_stock: quantity,
-            stock_quantity: quantity,
+            // Un producto creado desde una compra nace en la UNIDAD BASE
+            // (`Unidad`); la medida de la linea queda como fila de
+            // `product_measure`, no como unidad base (diseño §5.2). Asi la base y
+            // la medida no se confunden (`unit='Caja'` + medida 'Caja' seria un
+            // factor sobre si mismo).
+            unit: 'Unidad',
+            unit_price: g.costoBase,
+            current_cost: g.costoBase,
+            current_stock: g.cantidadBase,
+            stock_quantity: g.cantidadBase,
             min_stock: 0,
             max_stock: 0,
             tax_rate: 15,
@@ -453,15 +561,33 @@ export async function aplicarEfectosCompra(
         const nuevoId = creado?.id;
         if (nuevoId) {
           revertir.push(async () => {
-            await supabase
-              .from('product')
-              .delete()
-              .eq('id', nuevoId)
-              .eq('company_id', companyId);
+            await supabase.from('product').delete().eq('id', nuevoId).eq('company_id', companyId);
           });
+          // Producto nuevo: la medida que traia la linea queda registrada al alta
+          // (el `cost` guarda lo que registro el usuario, sin convertirlo a neto).
+          // Si el alta de la medida falla, se deshacen los efectos ya aplicados y
+          // se propaga: nunca queda un producto a medias.
+          const medidasNuevas = medidasDeLineas(g.lineas);
+          if (medidasNuevas.length > 0) {
+            try {
+              await reemplazarMedidasCon(supabase, { tenantId, companyId }, nuevoId, medidasNuevas);
+            } catch (error) {
+              await revertirEfectos(revertir);
+              throw error;
+            }
+          }
         }
       }
     }
+
+    // El historial recibe los items YA NORMALIZADOS (factor resuelto del maestro
+    // y `price_includes_tax` resuelto): asi guarda el precio en la unidad base y
+    // en neto sin volver a consultar la BD.
+    itemsNormalizados = plan.map((p) => ({
+      ...p.item,
+      unit_factor: p.factor,
+      price_includes_tax: p.incluyeIsv,
+    }));
   }
 
   // Historial de precios del proveedor (se revierte junto con el resto si el
@@ -471,7 +597,7 @@ export async function aplicarEfectosCompra(
       supabase,
       empresa,
       purchase.supplier_id,
-      items,
+      itemsNormalizados,
       purchase.invoice_date
     );
     const idsHistorial = (historial || [])
@@ -512,6 +638,54 @@ export async function aplicarEfectosCompra(
   }
 
   return asiento;
+}
+
+/** Nombre de medida comparable: sin mayusculas ni espacios ("Caja Grande" = "CajaGrande"). */
+function claveMedida(valor: unknown): string {
+  return String(valor ?? '')
+    .toLowerCase()
+    .replace(/\s+/g, '');
+}
+
+/** Medida del maestro cuyo nombre coincide con el de la linea (o `undefined`). */
+function buscarMedidaDe(medidas: any[] | undefined, unidad: unknown): any | undefined {
+  const objetivo = claveMedida(unidad);
+  if (!objetivo || !medidas) return undefined;
+  return medidas.find((m: any) => claveMedida(m?.name) === objetivo);
+}
+
+/**
+ * Medidas a registrar para un producto recien creado desde la compra: una fila
+ * por cada unidad empaquetada de sus lineas (factor > 1; el factor 1 es la
+ * unidad base y no necesita fila). Deduplica por nombre.
+ */
+function medidasDeLineas(
+  lineas: Array<{ item: any; factor: number; precioMedida: number; incluyeIsv: boolean }>
+) {
+  const vistas = new Set<string>();
+  const salida: Array<{
+    name: string;
+    factor: number;
+    cost: number;
+    sale_price: null;
+    price_includes_tax: boolean;
+    is_active: boolean;
+  }> = [];
+  for (const l of lineas) {
+    const name = String(l.item?.unit ?? '').trim();
+    const clave = claveMedida(name);
+    if (!name || l.factor <= 1 || vistas.has(clave)) continue;
+    vistas.add(clave);
+    salida.push({
+      name,
+      factor: l.factor,
+      cost: Math.round(l.precioMedida),
+      sale_price: null,
+      price_includes_tax: l.incluyeIsv,
+      is_active: true,
+    });
+  }
+  return salida;
 }
 
 /**
@@ -785,24 +959,39 @@ export async function recordSupplierPriceHistory(
 
   const rows = items
     .filter((item: any) => item.product_id || item.product_name || item.description)
-    .map((item: any) => ({
-      tenant_id: empresa.tenantId,
-      company_id: empresa.companyId,
-      supplier_id: supplierId,
-      product_id: item.product_id || null,
-      // Sin redondear: la columna es `numeric` (Prisma la declara `Decimal`, y la
-      // 014 como DECIMAL(18,4)). `Math.round` tiraba los decimales, asi que un
-      // precio de 12.75 lempira se guardaba como 13: el historico no cuadraba
-      // con la linea de compra de la que salio. Los importes del proyecto ya
-      // estan en lempiras (AGENTS.md, seccion 2), asi que aqui no se divide ni
-      // se multiplica por 100.
-      price: Number(item.unit_price) || 0,
-      currency: 'HNL',
-      effective_date: effectiveDate,
-      notes: `Registrado en compra - ${item.product_name || item.description || 'Producto'}${item.invoice_number ? ` (Factura ${item.invoice_number})` : ''}`,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    }));
+    .map((item: any) => {
+      // El precio se guarda POR UNIDAD BASE y en NETO: una compra de "2 Cajas" a
+      // 500 con factor 50 vale 10 por unidad, y si el precio de la medida incluye
+      // ISV hay que quitarlo para que sea comparable con las demas filas. El
+      // factor se resuelve con `factorValido` (no `exigirFactor`): el historial es
+      // best-effort y no debe reventar por un factor invalido. `aplicarEfectosCompra`
+      // le pasa los items ya normalizados, asi que aqui el factor es el del maestro.
+      const factor = factorValido(item.unit_factor);
+      const precioBase = precioNeto(
+        Number(item.unit_price) || 0,
+        Number(item.tax_rate) || 0,
+        !!item.price_includes_tax,
+        2
+      );
+      return {
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
+        supplier_id: supplierId,
+        product_id: item.product_id || null,
+        // Sin redondear: la columna es `numeric` (Prisma la declara `Decimal`, y la
+        // 014 como DECIMAL(18,4)). `Math.round` tiraba los decimales, asi que un
+        // precio de 12.75 lempira se guardaba como 13: el historico no cuadraba
+        // con la linea de compra de la que salio. Los importes del proyecto ya
+        // estan en lempiras (AGENTS.md, seccion 2), asi que aqui no se divide ni
+        // se multiplica por 100.
+        price: precioBase / factor,
+        currency: 'HNL',
+        effective_date: effectiveDate,
+        notes: `Registrado en compra - ${item.product_name || item.description || 'Producto'}${item.invoice_number ? ` (Factura ${item.invoice_number})` : ''}`,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+    });
 
   if (rows.length === 0) return [];
 

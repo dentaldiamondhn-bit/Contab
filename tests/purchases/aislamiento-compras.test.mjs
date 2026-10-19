@@ -45,6 +45,13 @@ function sembrar() {
     product: [
       { id: 'prod-e1', company_id: E1, tenant_id: '1', name: 'Cafe', current_stock: 10 },
       { id: 'prod-t1', company_id: T1, tenant_id: TEN, name: 'Cafe', current_stock: 50 },
+      { id: 'prod-t1b', company_id: T1, tenant_id: TEN, name: 'Gasas', current_stock: 7 },
+    ],
+    // Medidas del maestro. Vacio por defecto: el efecto degrada a "sin medida"
+    // (factor del payload). Los tests que prueban la autoridad del maestro siembran
+    // aqui una fila para `prod-t1`.
+    product_measure: [
+      { id: 'm-t2-caja', tenant_id: TEN, company_id: T2, product_id: 'prod-t1', name: 'Caja', factor: 999, cost: 1, sale_price: null, price_includes_tax: false, is_active: true },
     ],
     supplier_price_history: [],
     SupplierPayment: [],
@@ -311,5 +318,121 @@ describe('deletePurchase', () => {
     assert.notEqual(res.notFound, true);
     assert.equal(bd.Purchase.length, 2);
     assert.equal(bd.Purchase.find((p) => p.id === 'p-t1'), undefined);
+  });
+});
+
+/**
+ * Al aprobar, el stock vive en la UNIDAD BASE y el costo se guarda en NETO por
+ * unidad base. Factor y "incluye ISV" tienen autoidad del maestro (`product_measure`);
+ * el fake no registra `consultas`, asi que todo se afirma sobre el estado final de
+ * `bd`.
+ */
+describe('aplicarEfectosCompra: unidad base y neto', () => {
+  const cuerpo = (items, extra = {}) => ({
+    invoice_number: 'F-MEDIDA',
+    supplier_id: 's-t1',
+    subtotal: 100,
+    tax_amount: 15,
+    total: 115,
+    items,
+    ...extra,
+  });
+
+  // Crea y aprueba una compra; devuelve la compra persistida.
+  async function comprarYaprobar(items, extra = {}) {
+    const { data } = await createPurchase(sb, em(T1), cuerpo(items, extra));
+    await aprobarCompra(sb, em(T1), data.id);
+    return bd.Purchase.at(-1);
+  }
+
+  const prod = (id) => bd.product.find((p) => p.id === id);
+
+  test('2 Caja x factor 50 a 450 sube 100 al stock y deja costo 9', async () => {
+    await comprarYaprobar([
+      { product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit: 'Caja', unit_factor: 50, unit_price: 450, total: 900 },
+    ]);
+
+    const p = prod('prod-t1');
+    assert.equal(p.current_stock, 150); // 50 + 2*50
+    assert.equal(p.stock_quantity, 150);
+    assert.equal(p.current_cost, 9); // 450 / 50
+    assert.equal(p.unit_price, 9);
+  });
+
+  test('el historial guarda el precio en neto por unidad base (9), no 450', async () => {
+    await comprarYaprobar([
+      { product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit: 'Caja', unit_factor: 50, unit_price: 450, total: 900 },
+    ]);
+
+    const fila = bd.supplier_price_history.at(-1);
+    assert.equal(fila.price, 9);
+    assert.equal(fila.company_id, T1);
+  });
+
+  test('con ISV incluido usa el factor y el flag del maestro: costo 10', async () => {
+    // La medida de test 1 (Caja, factor 50, incluye ISV). La medida homonima de
+    // test 2 (factor 999) NO debe usarse: el aislamiento por empresa lo impide.
+    bd.product_measure.push({
+      id: 'm-t1-caja', tenant_id: TEN, company_id: T1, product_id: 'prod-t1',
+      name: 'Caja', factor: 50, cost: 450, sale_price: null, price_includes_tax: true, is_active: true,
+    });
+
+    await comprarYaprobar([
+      { product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit: 'Caja', unit_factor: 50, tax_rate: 15, unit_price: 575, total: 1150 },
+    ]);
+
+    const p = prod('prod-t1');
+    assert.equal(p.current_stock, 150); // 2*50, factor del maestro
+    assert.equal(p.current_cost, 10); // 575 / 1.15 = 500 neto; 500 / 50 = 10
+    // El historial tambien va neto/base: 500 / 50 = 10.
+    assert.equal(bd.supplier_price_history.at(-1).price, 10);
+  });
+
+  test('cantidad que no da base entera lanza y no deja stock a medias', async () => {
+    // Item 1 valido, item 2 con 1.3. Si no hubiera dos pasadas, el item 1 ya
+    // habria escrito stock antes de fallar el 2.
+    await assert.rejects(
+      () => comprarYaprobar([
+        { product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit_factor: 1, unit_price: 50, total: 100 },
+        { product_id: 'prod-t1b', product_name: 'Gasas', quantity: 1.3, unit_factor: 1, unit_price: 50, total: 65 },
+      ]),
+      /entero|base/i
+    );
+
+    assert.equal(prod('prod-t1').current_stock, 50);
+    assert.equal(prod('prod-t1b').current_stock, 7);
+    assert.equal(bd.supplier_price_history.length, 0);
+  });
+
+  test('sin unit_factor todo se comporta como antes (factor 1)', async () => {
+    await comprarYaprobar([
+      { product_id: 'prod-t1', product_name: 'Cafe', quantity: 3, unit_price: 100, total: 300 },
+    ]);
+
+    const p = prod('prod-t1');
+    assert.equal(p.current_stock, 53); // 50 + 3
+    assert.equal(p.current_cost, 100);
+  });
+
+  test('producto nuevo con medida: registra la medida al alta', async () => {
+    await comprarYaprobar([
+      { product_name: 'Producto Nuevo', quantity: 2, unit: 'Caja', unit_factor: 50, unit_price: 450, total: 900 },
+    ]);
+
+    const creado = bd.product.find((p) => p.name === 'Producto Nuevo');
+    assert.ok(creado, 'debe crear el producto');
+    assert.equal(creado.current_stock, 100); // 2*50
+    assert.equal(creado.current_cost, 9);
+    // Un producto creado desde una compra nace en la unidad base (diseño §5.2):
+    // "Caja" es una medida, no la base.
+    assert.equal(creado.unit, 'Unidad');
+
+    const medida = bd.product_measure.find((m) => m.product_id === creado.id);
+    assert.ok(medida, 'debe registrar la medida del producto nuevo');
+    assert.equal(medida.name, 'Caja');
+    assert.equal(medida.factor, 50);
+    assert.equal(medida.cost, 450); // lo que registro el usuario, no el neto
+    assert.equal(medida.company_id, T1);
+    assert.equal(medida.price_includes_tax, false);
   });
 });
