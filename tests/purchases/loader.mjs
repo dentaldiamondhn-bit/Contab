@@ -109,5 +109,13 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // Aritmetica pura de medidas, que `purchase-db.ts` importa: fichero real.
+  if (specifier === '@/lib/services/measure-calc') {
+    return {
+      url: new URL('../../lib/services/measure-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }

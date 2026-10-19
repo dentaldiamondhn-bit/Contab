@@ -57,7 +57,46 @@ export function reiniciarWarehouse() {
   WAREHOUSE.push(...WAREHOUSE_INICIAL.map((f) => ({ ...f })));
 }
 
-const TABLAS = { companies: COMPANIES, product_location: PRODUCT_LOCATION, warehouse: WAREHOUSE };
+// Productos: dos del mismo tenant con empresas distintas (test 1/test 2) y uno
+// de otro tenant. `current_stock` desigual (100 vs 10) para poder probar `.gt`
+// y `name` distinto para `.ilike`. `product_measure` cuelga de `product_id`.
+const PRODUCT_INICIAL = [
+  { id: 'p-test1', tenant_id: 'TEST1DS', company_id: 'c-test1', name: 'Guantes', unit: 'Unidad', unit_price: 10, current_stock: 100, price_includes_tax: false, is_active: true },
+  { id: 'p-test2', tenant_id: 'TEST1DS', company_id: 'c-test2', name: 'Gasas', unit: 'Unidad', unit_price: 5, current_stock: 10, price_includes_tax: false, is_active: true },
+  { id: 'p-angelos', tenant_id: 'ANGELOH7', company_id: 'c-angelos', name: 'Sonda', unit: 'Unidad', unit_price: 0, current_stock: 0, price_includes_tax: false, is_active: true },
+];
+
+export const PRODUCT = PRODUCT_INICIAL.map((f) => ({ ...f }));
+
+export function reiniciarProduct() {
+  PRODUCT.length = 0;
+  PRODUCT.push(...PRODUCT_INICIAL.map((f) => ({ ...f })));
+}
+
+// Medidas: test 1 tiene dos sobre el mismo producto (Caja y Docena) y test 2
+// repite "Caja" sobre su producto: la misma medida en otra empresa y sobre otro
+// producto, para probar que el aislamiento por `company_id` y el filtro `.in`
+// por `product_id` no las mezclan.
+const PRODUCT_MEASURE_INICIAL = [
+  { id: 'm-test1-caja', tenant_id: 'TEST1DS', company_id: 'c-test1', product_id: 'p-test1', name: 'Caja', factor: 50, cost: 450, sale_price: 600, price_includes_tax: false, is_active: true },
+  { id: 'm-test1-docena', tenant_id: 'TEST1DS', company_id: 'c-test1', product_id: 'p-test1', name: 'Docena', factor: 12, cost: 110, sale_price: 150, price_includes_tax: false, is_active: true },
+  { id: 'm-test2-caja', tenant_id: 'TEST1DS', company_id: 'c-test2', product_id: 'p-test2', name: 'Caja', factor: 100, cost: 400, sale_price: 550, price_includes_tax: false, is_active: true },
+];
+
+export const PRODUCT_MEASURE = PRODUCT_MEASURE_INICIAL.map((f) => ({ ...f }));
+
+export function reiniciarMedidas() {
+  PRODUCT_MEASURE.length = 0;
+  PRODUCT_MEASURE.push(...PRODUCT_MEASURE_INICIAL.map((f) => ({ ...f })));
+}
+
+const TABLAS = {
+  companies: COMPANIES,
+  product_location: PRODUCT_LOCATION,
+  warehouse: WAREHOUSE,
+  product: PRODUCT,
+  product_measure: PRODUCT_MEASURE,
+};
 
 /** Consultas registradas, para comprobar que se filtraron por la columna correcta. */
 export const consultas = [];
@@ -68,9 +107,25 @@ export function limpiarConsultas() {
 
 /** `coincide`-era de `.eq()`: y de `.or('col.op.val,col.op.val,...')`. */
 function coincide(fila, filtros, orConds) {
-  for (const { columna, valor } of filtros) {
+  for (const { columna, valor, op } of filtros) {
+    if (op === 'gt') {
+      if (!(Number(fila[columna]) > Number(valor))) return false;
+      continue;
+    }
+    if (op === 'in') {
+      if (!valor.map(String).includes(String(fila[columna]))) return false;
+      continue;
+    }
     if (valor === null) {
       if (fila[columna] !== null && fila[columna] !== undefined) return false;
+      continue;
+    }
+    if (typeof valor === 'string' && valor.startsWith('__ilike:')) {
+      // Mismo patron que `tests/purchases/supabase-falso.mjs`: `%` es comodin,
+      // el resto se escapa y la comparacion es en minusculas (bandera `i`).
+      const rx = valor.slice(8).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
+      const pat = new RegExp('^' + rx + '$', 'i');
+      if (!pat.test(String(fila[columna] ?? ''))) return false;
       continue;
     }
     if (String(fila[columna]) !== String(valor)) return false;
@@ -102,6 +157,9 @@ function construir(tabla) {
     update(p) { verb = 'update'; patch = p; return q; },
     delete() { verb = 'delete'; return q; },
     eq(columna, valor) { filtros.push({ columna, valor }); return q; },
+    ilike(columna, valor) { filtros.push({ columna, valor: '__ilike:' + valor }); return q; },
+    gt(columna, valor) { filtros.push({ columna, valor, op: 'gt' }); return q; },
+    in(columna, valores) { filtros.push({ columna, valor: valores, op: 'in' }); return q; },
     or(cond) { orConds.push(cond); return q; },
     limit() { return q; },
     order(columna, opciones) {

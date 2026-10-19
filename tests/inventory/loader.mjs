@@ -37,5 +37,37 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  // Contexto de empresa REAL: el test de la ruta de productos importa sus dos
+  // helpers por alias (la suite de servicios los resolvia por ruta relativa).
+  if (specifier === '@/lib/tenant-resolver') {
+    return {
+      url: new URL('../../lib/tenant-resolver.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  if (specifier === '@/lib/company-scope') {
+    return {
+      url: new URL('../../lib/company-scope.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  // Servicio de medidas (lo crea la Tarea 4). El mapeo se anade ya para que la
+  // suite de inventario pueda importarlo en cuanto exista; hoy nadie lo importa,
+  // asi que apuntar a un fichero inexistente no rompe nada.
+  if (specifier === '@/lib/services/product-measures') {
+    return {
+      url: new URL('../../lib/services/product-measures.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+  // Aritmetica pura de medidas (medio de `product-measures`): fichero real.
+  if (specifier === '@/lib/services/measure-calc') {
+    return {
+      url: new URL('../../lib/services/measure-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }
