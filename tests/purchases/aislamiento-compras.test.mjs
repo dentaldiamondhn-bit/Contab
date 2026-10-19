@@ -172,6 +172,48 @@ describe('createPurchase', () => {
     await aprobarCompra(sb, em(T1), data.id);
     assert.equal(bd.product.length, n);
   });
+
+  test('persiste unit y unit_factor de cada linea como numeros', async () => {
+    await createPurchase(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', quantity: 2, unit: 'Caja', unit_factor: 50, unit_price: 450, total: 900 }],
+    }));
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.unit, 'Caja');
+    assert.equal(item.unit_factor, 50);
+    assert.equal(typeof item.unit_factor, 'number');
+  });
+
+  test('sin unit_factor la linea queda con factor 1 (no undefined)', async () => {
+    await createPurchase(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', quantity: 2, unit: 'Docena', unit_price: 50, total: 100 }],
+    }));
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.unit_factor, 1);
+    assert.notEqual(item.unit_factor, undefined);
+  });
+
+  test('sin unit la linea queda en NULL (no undefined)', async () => {
+    await createPurchase(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', quantity: 2, unit_price: 50, total: 100 }],
+    }));
+    const item = bd.PurchaseItem.at(-1);
+    assert.ok('unit' in item);
+    assert.equal(item.unit, null);
+  });
+
+  test('un unit_factor invalido (0) lanza y no guarda la linea', async () => {
+    const antes = bd.PurchaseItem.length;
+    await assert.rejects(() => createPurchase(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', quantity: 2, unit_factor: 0, unit_price: 50, total: 100 }],
+    })));
+    assert.equal(bd.PurchaseItem.length, antes);
+  });
+
+  test("un unit_factor no numerico ('abc') lanza", async () => {
+    await assert.rejects(() => createPurchase(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', quantity: 2, unit_factor: 'abc', unit_price: 50, total: 100 }],
+    })));
+  });
 });
 
 describe('updatePurchase', () => {
@@ -209,6 +251,30 @@ describe('updatePurchase', () => {
       (e) => e.estado === 400
     );
     assert.equal(bd.PurchaseItem.length, antes);
+  });
+
+  test('al reescribir lineas persiste unit y unit_factor', async () => {
+    await updatePurchase(sb, em(T1), 'p-t1', {
+      items: [{ product_id: 'prod-t1', quantity: 3, unit: 'Caja', unit_factor: 12, unit_price: 100, total: 300 }],
+    });
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.unit, 'Caja');
+    assert.equal(item.unit_factor, 12);
+  });
+
+  test('al reescribir sin unit_factor queda 1 y sin unit queda NULL', async () => {
+    await updatePurchase(sb, em(T1), 'p-t1', {
+      items: [{ product_id: 'prod-t1', quantity: 3, unit_price: 100, total: 300 }],
+    });
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.unit_factor, 1);
+    assert.equal(item.unit, null);
+  });
+
+  test('al reescribir con unit_factor invalido (-3) lanza', async () => {
+    await assert.rejects(() => updatePurchase(sb, em(T1), 'p-t1', {
+      items: [{ product_id: 'prod-t1', quantity: 3, unit_factor: -3, unit_price: 100, total: 300 }],
+    }));
   });
 });
 

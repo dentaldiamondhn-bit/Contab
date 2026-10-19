@@ -10,6 +10,7 @@ import {
   tasaDeRetencion,
   calcularRetencion,
 } from '@/lib/supplier-withholding';
+import { exigirFactor } from '@/lib/services/measure-calc';
 
 /**
  * La empresa, YA VALIDADA por `contextoDeEmpresa`. Es la MISMA forma que devuelve
@@ -321,6 +322,11 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
       tax_rate: item.tax_rate ?? body.tax_rate ?? 15.0,
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
+      // La medida de la linea: el factor se exige ESTRICTO, pero el default lo
+      // decide aqui `?? 1` (una linea sin empaque es factor 1). Con `Number(x) || 1`
+      // un factor invalido como 'abc' pasaria en silencio.
+      unit: item.unit || null,
+      unit_factor: exigirFactor(item.unit_factor ?? 1),
       exonerated: !!item.exonerated,
       tenant_id: tenantId,
       company_id: companyId,
@@ -911,6 +917,10 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
       tax_rate: item.tax_rate ?? updates.tax_rate ?? 15.0,
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
+      // Mismo contrato que en `createPurchase`: reescribe las lineas al editar,
+      // asi que la medida se persiste igual (default decidido aqui, factor estricto).
+      unit: item.unit || null,
+      unit_factor: exigirFactor(item.unit_factor ?? 1),
       exonerated: !!item.exonerated,
       tenant_id: empresa.tenantId,
       company_id: empresa.companyId,
