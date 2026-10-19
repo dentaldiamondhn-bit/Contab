@@ -2,6 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { contextoDeEmpresa } from "@/lib/tenant-resolver";
 import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import {
+  medidasDeProductosCon,
+  reemplazarMedidasCon,
+  validarMedidas,
+} from '@/lib/services/product-measures';
 
 export const dynamic = "force-dynamic";
 
@@ -57,7 +62,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Map database columns to frontend expected names
-    const products = rawProducts?.map((p: any) => ({
+    const products = (rawProducts ?? []).map((p: any) => ({
       ...p,
       price: p.unit_price,
       sale_price: p.sale_price ?? p.unit_price,
@@ -67,7 +72,24 @@ export async function GET(request: NextRequest) {
       current_cost: p.current_cost ?? 0,
     }));
 
-    return NextResponse.json(products);
+    // Una sola consulta para TODOS los productos (nunca una por fila). Si la 074
+    // no esta aplicada el servicio devuelve un Map vacio y cada fila sale con
+    // `measures: []`, que es lo que la UI espera.
+    const medidas = await medidasDeProductosCon(
+      getSupabaseServer(),
+      {
+        tenantId: empresa.tenantId,
+        companyId: empresa.companyId as string,
+      },
+      products.map((p: any) => String(p.id)),
+    );
+
+    const conMedidas = products.map((p: any) => ({
+      ...p,
+      measures: medidas.get(String(p.id)) ?? [],
+    }));
+
+    return NextResponse.json(conMedidas);
   } catch (error: any) {
     console.error("=== ERROR IN INVENTORY PRODUCTS ===");
     console.error("Error message:", error?.message);
@@ -103,6 +125,8 @@ export async function PATCH(request: NextRequest) {
       barcode,
       barcodeImageUrl,
       isActive,
+      measures,
+      price_includes_tax,
     } = body;
 
     if (!id) {
@@ -139,6 +163,9 @@ export async function PATCH(request: NextRequest) {
     if (barcode !== undefined) updateData.barcode = barcode || null;
     if (barcodeImageUrl !== undefined) updateData.barcode_image_url = barcodeImageUrl || null;
     if (isActive !== undefined) updateData.is_active = isActive;
+    if (price_includes_tax !== undefined) {
+      updateData.price_includes_tax = Boolean(price_includes_tax);
+    }
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
 
@@ -171,6 +198,25 @@ export async function PATCH(request: NextRequest) {
         { error: "Error updating product", details: error.message, code: error.code },
         { status: 500 }
       );
+    }
+
+    if (Array.isArray(measures)) {
+      const medidas = await reemplazarMedidasCon(
+        getSupabaseServer(),
+        {
+          tenantId: empresaPatch.tenantId,
+          companyId: empresaPatch.companyId as string,
+        },
+        id,
+        measures,
+      );
+
+      return NextResponse.json({
+        success: true,
+        product: { ...(product as any), measures: medidas },
+        measures: medidas,
+        message: "Producto actualizado exitosamente",
+      });
     }
 
     return NextResponse.json({
@@ -214,6 +260,8 @@ export async function POST(request: NextRequest) {
       barcode,
       barcodeImageUrl,
       isService = false,
+      measures,
+      price_includes_tax,
     } = body;
     // Contexto de empresa con comprobacion de pertenencia. Antes esta ruta
     // aceptaba `?companyId` POR DELANTE del header y luego `body.tenantId`, o
@@ -224,6 +272,25 @@ export async function POST(request: NextRequest) {
     if (!tenantId) {
       return NextResponse.json(
         { error: "Falta el tenant de la empresa" },
+        { status: 400 }
+      );
+    }
+
+    if (!name || !String(name).trim()) {
+      return NextResponse.json(
+        { error: "El nombre del producto (name) es requerido" },
+        { status: 400 }
+      );
+    }
+
+    // Se valida ANTES de insertar: un factor invalido no debe dejar un producto
+    // creado sin sus medidas.
+    let medidasValidadas: ReturnType<typeof validarMedidas>;
+    try {
+      medidasValidadas = validarMedidas(measures ?? [], unit || "Unidad");
+    } catch (medidaError: any) {
+      return NextResponse.json(
+        { error: medidaError?.message || "Medidas del producto invalidas" },
         { status: 400 }
       );
     }
@@ -297,6 +364,7 @@ export async function POST(request: NextRequest) {
         barcode_image_url: barcodeImageUrl || null,
         is_service: isService,
         is_active: true,
+        price_includes_tax: Boolean(price_includes_tax),
       })
       .select()
       .single();
@@ -305,6 +373,41 @@ export async function POST(request: NextRequest) {
       console.error("Error creating product:", error);
       return NextResponse.json(
         { error: "Error creating product", details: error.message },
+        { status: 500 }
+      );
+    }
+
+    // Las medidas son parte del alta: si fallan, se borra el producto recien
+    // creado. Dejar un producto sin sus empaques es peor que no crearlo.
+    let medidasCreadas: Awaited<ReturnType<typeof reemplazarMedidasCon>>;
+    try {
+      medidasCreadas = await reemplazarMedidasCon(
+        getSupabaseServer(),
+        {
+          tenantId,
+          companyId: empresa.companyId as string,
+        },
+        (product as any).id,
+        medidasValidadas,
+      );
+    } catch (medidaError: any) {
+      console.error("Error creating product measures:", medidaError);
+      const { error: deleteError } = await getSupabaseServer()
+        .from("product")
+        .delete()
+        .eq("id", (product as any).id)
+        .eq("tenant_id", tenantId)
+        .eq("company_id", empresa.companyId as string);
+
+      if (deleteError) {
+        console.error("Error compensating product:", deleteError);
+      }
+
+      return NextResponse.json(
+        {
+          error: medidaError?.message || "Error guardando las medidas del producto",
+          details: medidaError?.message,
+        },
         { status: 500 }
       );
     }
@@ -327,11 +430,15 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    return NextResponse.json({
-      success: true,
-      product,
-      message: "Producto creado exitosamente",
-    });
+    return NextResponse.json(
+      {
+        success: true,
+        product: { ...(product as any), measures: medidasCreadas },
+        measures: medidasCreadas,
+        message: "Producto creado exitosamente",
+      },
+      { status: 201 }
+    );
   } catch (error: any) {
     console.error("Error in products POST:", error);
     return NextResponse.json(
