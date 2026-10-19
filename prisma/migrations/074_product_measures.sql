@@ -56,13 +56,15 @@
 -- Post-check que ABORTA si falta la tabla, alguna columna, el CHECK o algun
 -- indice, o si queda alguna fila con `factor < 1`.
 --
--- El indice unico se localiza POR COLUMNAS con `pg_index` + `pg_get_indexdef`
--- (lecciones 044/051/067): nunca comparando un `array_agg` contra un literal
--- escrito a mano, y con `btrim(..., '"')` porque `pg_get_indexdef` entrecomilla
--- los identificadores mixtos. Como ademas la expression es `lower(name)` (el
--- texto exacto que devuelve pg_pretty no esta medido aun, porque la tabla no
--- existe), el post-check acepta TAMBIEN el nombre fijo que aqui se crea
--- (`product_measure_empresa_producto_nombre_key`): el nombre si es nuestro.
+-- El indice unico se localiza SOLO POR DEFINICION con `pg_index` +
+-- `pg_get_indexdef` (lecciones 044/051/067): `indisunique`, `indnkeyatts = 3`,
+-- `indexprs IS NOT NULL` y las 3 posiciones con `btrim(..., '"')` porque
+-- `pg_get_indexdef` entrecomilla los identificadores mixtos, mas `ILIKE
+-- 'lower(%'` en la tercera para no depender del texto exacto que formatee
+-- pg_pretty en `lower(name)`. NUNCA por nombre: un indice que se llame
+-- `product_measure_empresa_producto_nombre_key` con OTRA definicion no cuenta
+-- (falso verde, ya pagado con `Account_name_key` y la 067); entonces el
+-- CREATE UNIQUE INDEX falla por nombre duplicado y la transaccion hace rollback.
 
 -- ============================================================================
 -- PREFLIGHT
@@ -95,7 +97,10 @@ DECLARE
   v_pm_tipos text[] := ARRAY[
     'product_id|uuid',
     'company_id|text',
-    'factor|integer'
+    'factor|integer',
+    'name|text',
+    'price_includes_tax|boolean',
+    'is_active|boolean'
   ];
 BEGIN
   -- ---------------------------------------------------------------------------
@@ -233,16 +238,15 @@ BEGIN
   -- ---------------------------------------------------------------------------
   SELECT pg_get_indexdef(i.indexrelid) INTO v_idx_unico
     FROM pg_index i
-    JOIN pg_class ic ON ic.oid = i.indexrelid
     JOIN pg_class tc ON tc.oid = i.indrelid
     JOIN pg_namespace nsp ON nsp.oid = tc.relnamespace
    WHERE nsp.nspname = 'public' AND tc.relname = 'product_measure'
-     AND i.indisunique AND i.indnkeyatts = 3
-     AND (ic.relname = 'product_measure_empresa_producto_nombre_key'
-          OR (btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
-              AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
-              AND btrim(pg_get_indexdef(i.indexrelid, 3, true), '"')
-                  IN ('lower(name)', '(lower(name))')))
+     AND i.indisunique
+     AND i.indnkeyatts = 3
+     AND i.indexprs IS NOT NULL
+     AND btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
+     AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
+     AND pg_get_indexdef(i.indexrelid, 3, true) ILIKE 'lower(%'
    LIMIT 1;
 
   IF v_idx_unico IS NULL THEN
@@ -339,16 +343,15 @@ BEGIN
   SELECT EXISTS (
     SELECT 1
       FROM pg_index i
-      JOIN pg_class ic ON ic.oid = i.indexrelid
       JOIN pg_class tc ON tc.oid = i.indrelid
       JOIN pg_namespace nsp ON nsp.oid = tc.relnamespace
      WHERE nsp.nspname = 'public' AND tc.relname = 'product_measure'
-       AND i.indisunique AND i.indnkeyatts = 3
-       AND (ic.relname = 'product_measure_empresa_producto_nombre_key'
-            OR (btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
-                AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
-                AND btrim(pg_get_indexdef(i.indexrelid, 3, true), '"')
-                    IN ('lower(name)', '(lower(name))')))
+       AND i.indisunique
+       AND i.indnkeyatts = 3
+       AND i.indexprs IS NOT NULL
+       AND btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
+       AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
+       AND pg_get_indexdef(i.indexrelid, 3, true) ILIKE 'lower(%'
   ) INTO v_existe;
 
   IF v_existe THEN
@@ -478,16 +481,15 @@ BEGIN
 
   SELECT pg_get_indexdef(i.indexrelid) INTO v_idx
     FROM pg_index i
-    JOIN pg_class ic ON ic.oid = i.indexrelid
     JOIN pg_class tc ON tc.oid = i.indrelid
     JOIN pg_namespace nsp ON nsp.oid = tc.relnamespace
    WHERE nsp.nspname = 'public' AND tc.relname = 'product_measure'
-     AND i.indisunique AND i.indnkeyatts = 3
-     AND (ic.relname = 'product_measure_empresa_producto_nombre_key'
-          OR (btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
-              AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
-              AND btrim(pg_get_indexdef(i.indexrelid, 3, true), '"')
-                  IN ('lower(name)', '(lower(name))')))
+     AND i.indisunique
+     AND i.indnkeyatts = 3
+     AND i.indexprs IS NOT NULL
+     AND btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') = 'company_id'
+     AND btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') = 'product_id'
+     AND pg_get_indexdef(i.indexrelid, 3, true) ILIKE 'lower(%'
    LIMIT 1;
   IF v_idx IS NULL THEN
     RAISE EXCEPTION '074 FALLA: no quedo el indice unico
