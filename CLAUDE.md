@@ -5440,3 +5440,56 @@ con retencion y ver el neto y el asiento).
 errores (= baseline, 0 nuevos). **PENDIENTE: que el usuario la aplique en el SQL Editor y
 lo confirme**; despues toca verificar desde fuera por OpenAPI que las columnas aparecen y
 el retest en navegador (tareas posteriores del plan).
+
+### 083 UI del modal "Medidas y precios" en Productos (19 Oct 2026)
+
+Tarea 6 del plan de medidas por producto: la UI que faltaba sobre la API ya
+existente (076/074). Archivo principal `app/companies/[id]/inventory/page.tsx`
+(`'use client'`).
+
+- **Seguridad (el motivo del movimiento):** `lib/services/product-measures.ts`
+  importa `@/lib/supabase/server-lazy`, que lee `SUPABASE_SERVICE_ROLE_KEY` en la
+  primera linea de modulo y lanza si falta. Como esta pagina es cliente, importar
+  **valores** de ese modulo mete la clave de servicio en el bundle del navegador.
+  Por eso `validarMedidas` y sus helpers (`factorPorDefecto`, `opcionalNoNegativo`)
+  se movieron a **`lib/services/measure-calc.ts`** (sigue **sin ningun import**), y
+  `product-measures.ts` los **re-exporta** (`export { validarMedidas }` y
+  `export type { MedidaEntrada }`, ademas del `import type` local). El tipo `Medida`
+  (fila con `tenant_id`/`company_id`) se queda en `product-measures.ts`. La pagina
+  solo importa de `measure-calc`: `validarMedidas`, `precioNeto` y el tipo
+  `MedidaEntrada`.
+- **UI:** en crear y editar hay un boton **"Medidas y precios"** que abre un
+  `Dialog` con tabla `Medida | Unidades por medida | Costo | Precio de venta |
+  Incluye ISV` (checkbox por fila) y boton de añadir/quitar. Al abrir en crear,
+  prellena **Docena (12)** y **Caja** (factor vacio -> se lee como 1). Fila
+  informativa al pie con la **unidad base** (`${unit} (unidad base)`), su checkbox
+  "Incluye ISV" y costo/precio actuales del formulario. Bajo cada costo y precio se
+  muestra **siempre** el equivalente por unidad: `= L 9.00 por ${unit}`, calculado
+  con `precioNeto(precio, taxRate, incluye, 2) / factor`, para que un precio con
+  ISV sea comparable con uno sin ISV.
+- **Estado:** `newProduct` y `editForm` ganan `measures: MedidaEntrada[]` y
+  `priceIncludesTax: boolean`; el borrador de fila guarda `name/factor/cost/
+  sale_price` como **texto** y convierte al enviar. El modal edita el formulario
+  activo segun `medidasAbiertas: 'crear' | 'editar' | null`.
+- **Validacion y payload:** antes de POST/PATCH, `validarMedidas(measures, unit)` en
+  `try/catch`; si lanza, `alert` (mismo patron de aviso de la pagina) y **no** se
+  envia. El payload manda `measures` (normalizadas, sin/dev con `[]`) y
+  `price_includes_tax`. Al abrir edicion, carga `product.measures` y
+  `product.price_includes_tax` (vacias -> `[]`/`false`).
+- **Tabla de productos:** bajo el stock se descompone con las medidas del producto
+  en orden **descendente de factor** (`104 Unidad (2 Caja + 4)`; el parentesis solo
+  si alguna medida entra completa, el resto en unidad base; factores <= 1 no
+  cuentan). Nueva columna **"Incluye ISV"** con `Sí`/`No` desde
+  `product.price_includes_tax`. `interface Product` local se amplio con
+  `unit?`, `price_includes_tax?` y `measures?` (mix de 079/080).
+- **Comentarios:** solo porques no obvios, en español.
+
+**Verificado:** tsc `--noEmit` -> **455** (baseline 456; el `product.unit` TS2339
+de la tabla era el unico error del fichero y se resolvio al añadir `unit?` a
+`Product`: **1 -> 0** errores en `app/companies/[id]/inventory/page.tsx`).
+`Select-String -Pattern 'product-measures'` en la pagina -> **vacio** (no importa
+el modulo servidor). Suites (0 fail): inventario **64/64**, warehouse **15/15**,
+purchases **183/183**, billing **34/34**, transfers-import **10/10**.
+`node scripts/verificar-credenciales.mjs` -> `TODO OK`. **PENDIENTE: retest en
+navegador** (crear medida, editar medida, ver la descomposicion bajo el stock y
+la columna ISV). Sin migracion para esto (074/076 ya cubren el esquema).

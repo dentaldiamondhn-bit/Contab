@@ -119,3 +119,76 @@ export function precioNeto(
 ): number {
   return desglosarImpuesto(precio, tasa, incluye, decimales).base;
 }
+
+// Entrada de una medida tal como la manda la UI (texto mientras se escribe) o
+// la API. Vive aqui para que el formulario cliente pueda validar sin importar
+// `product-measures.ts`, que arrastra la clave de servicio (`server-lazy`).
+export interface MedidaEntrada {
+  name?: string;
+  factor?: number | string;
+  cost?: number | string | null;
+  sale_price?: number | string | null;
+  price_includes_tax?: boolean;
+  is_active?: boolean;
+}
+
+// Un factor vacio (null, undefined, '' o solo espacios) se lee como 1: sin
+// medida / empaque de 1, la convencion de este modulo. NO vale `factorValido`
+// aqui: ese es laxo y traduce 'abc', 0 o -1 a 1, y estos casos si deben lanzar.
+function factorPorDefecto(value: number | string | null | undefined): number {
+  if (value === null || value === undefined) return 1;
+  if (typeof value !== 'number' && value.trim() === '') return 1;
+  return exigirFactor(value);
+}
+
+// Un cost/sale_price vacio es "sin dato" (null); un numero (o su texto) no puede
+// ser negativo ni no-numerico. Importes en LEMPIRAS, sin /100 (AGENTS.md §2).
+function opcionalNoNegativo(
+  value: number | string | null | undefined,
+  campo: string,
+): number | null {
+  if (value === null || value === undefined) return null;
+  let n: number;
+  if (typeof value === 'number') {
+    n = value;
+  } else {
+    // El trim va ANTES del guard: ' ' (solo espacios) es "sin dato", no el 0 que
+    // daria `Number(' ')`.
+    const texto = value.trim();
+    if (texto === '') return null;
+    n = Number(texto);
+  }
+  if (!Number.isFinite(n)) throw new Error(`${campo} invalido: ${value}`);
+  if (n < 0) throw new Error(`${campo} no puede ser negativo`);
+  return n;
+}
+
+// Valida el lote y devuelve las entradas normalizadas (nombre recortado, factor
+// y montos numericos). `unidadBase` puede ir vacia cuando el llamador (el
+// reemplazo) no la conoce y solo necesita el resto de comprobaciones.
+export function validarMedidas(
+  medidas: MedidaEntrada[] | undefined | null,
+  unidadBase: string,
+): MedidaEntrada[] {
+  if (!medidas || medidas.length === 0) return [];
+  const base = String(unidadBase ?? '').trim().toLowerCase();
+  const vistos = new Set<string>();
+  return medidas.map((entrada, i) => {
+    const name = String(entrada?.name ?? '').trim();
+    if (!name) throw new Error(`medida ${i + 1}: nombre requerido`);
+    const clave = name.toLowerCase();
+    if (base && clave === base) {
+      throw new Error(`la medida "${name}" no puede llamarse igual que la unidad base`);
+    }
+    if (vistos.has(clave)) throw new Error(`medida repetida: ${name}`);
+    vistos.add(clave);
+    return {
+      name,
+      factor: factorPorDefecto(entrada.factor),
+      cost: opcionalNoNegativo(entrada.cost, 'cost'),
+      sale_price: opcionalNoNegativo(entrada.sale_price, 'sale_price'),
+      price_includes_tax: !!entrada.price_includes_tax,
+      is_active: entrada.is_active !== false,
+    };
+  });
+}

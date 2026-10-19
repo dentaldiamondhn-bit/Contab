@@ -10,6 +10,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
+// Solo del modulo PURO (measure-calc): el servicio de medidas importa
+// `server-lazy` y traeria la clave de servicio al bundle del navegador (esta
+// pagina es 'use client').
+import { validarMedidas, precioNeto, type MedidaEntrada } from '@/lib/services/measure-calc';
 import WarehousesManager from '@/components/inventory/WarehousesManager';
 import TransfersManager from '@/components/inventory/TransfersManager';
 import InventoryVariations from '@/components/inventory/InventoryVariations';
@@ -78,9 +82,18 @@ interface Product {
   expiration_date?: string;
   location?: string;
   location_id?: string;
+  unit?: string;
   image_url?: string;
   barcode?: string;
   barcode_image_url?: string;
+  price_includes_tax?: boolean;
+  measures?: Array<{
+    name: string;
+    factor: number;
+    cost?: number | null;
+    sale_price?: number | null;
+    price_includes_tax?: boolean;
+  }>;
 }
 
 interface InventoryAlert {
@@ -136,6 +149,62 @@ function generarCodigoBarrasUnico(ocupados: Set<string>) {
   return '';
 }
 
+// Filas de medida con las que arranca el formulario de crear: Docena (12) por
+// defecto y Caja con el factor vacio (se lee como 1 si se deja asi).
+function medidasIniciales(): MedidaEntrada[] {
+  return [
+    { name: 'Docena', factor: '12', cost: '', sale_price: '', price_includes_tax: false },
+    { name: 'Caja', factor: '', cost: '', sale_price: '', price_includes_tax: false },
+  ];
+}
+
+// Descompone el stock en las medidas del producto, de mayor a menor factor:
+// 104 Unidad (2 Caja + 4). El parentesis solo aparece si alguna medida entra
+// completa; el resto queda en unidades base. Factores <= 1 no aportan nada.
+function descomponerStock(
+  stock: number,
+  unidad: string,
+  measures?: Product['measures'],
+): string {
+  const total = Number(stock) || 0;
+  const base = unidad || 'Unidad';
+  const ordenadas = [...(measures ?? [])]
+    .filter((m) => Number(m.factor) >= 2)
+    .sort((a, b) => Number(b.factor) - Number(a.factor));
+  if (ordenadas.length === 0 || total <= 0) return `${total} ${base}`;
+
+  let restante = Math.floor(total);
+  const partes: string[] = [];
+  for (const m of ordenadas) {
+    const factor = Math.floor(Number(m.factor));
+    const cantidad = Math.floor(restante / factor);
+    if (cantidad > 0) {
+      partes.push(`${cantidad} ${m.name}`);
+      restante -= cantidad * factor;
+    }
+  }
+  if (partes.length === 0) return `${total} ${base}`;
+  if (restante > 0) partes.push(String(restante));
+  return `${total} ${base} (${partes.join(' + ')})`;
+}
+
+// Equivalente por unidad base, SIEMPRE visible bajo cada medida. Pasa precio y
+// costo por `precioNeto` para que un precio con ISV sea comparable con uno sin
+// ISV. Devuelve '—' si todavia no hay precio o factor utilizables.
+function equivalentePorUnidad(
+  precio: string | number | null | undefined,
+  factor: string | number | null | undefined,
+  tasa: number,
+  incluye: boolean,
+  unidad: string,
+): string {
+  const p = typeof precio === 'number' ? precio : parseFloat(String(precio ?? ''));
+  const f = Number(factor);
+  if (!Number.isFinite(p) || !Number.isFinite(f) || f < 1) return '—';
+  const neto = precioNeto(p, tasa, incluye, 2) / f;
+  return `= L ${neto.toFixed(2)} por ${unidad}`;
+}
+
 export default function InventoryPage() {
   const params = useParams();
   const router = useRouter();
@@ -183,6 +252,8 @@ export default function InventoryPage() {
     barcode: '',
     barcodeImageUrl: '',
     isService: false,
+    measures: medidasIniciales(),
+    priceIncludesTax: false,
   });
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -203,7 +274,13 @@ export default function InventoryPage() {
     barcode: '',
     barcodeImageUrl: '',
     isActive: true,
+    measures: [] as MedidaEntrada[],
+    priceIncludesTax: false,
   });
+  // Modal de medidas: a que formulario edita (crear o editar).
+  const [medidasAbiertas, setMedidasAbiertas] = useState<'crear' | 'editar' | null>(
+    null,
+  );
 
   const [previewBarcode, setPreviewBarcode] = useState<Product | null>(null);
 
@@ -215,6 +292,64 @@ export default function InventoryPage() {
     parseFloat(editForm.salePrice) || 0,
     parseFloat(editForm.currentCost) || parseFloat(editForm.unitPrice) || 0
   );
+
+  // El modal de medidas edita el formulario de crear o el de editar; estos
+  // valores derivan de cual este abierto para pintar la fila base y el
+  // equivalente por unidad.
+  const medidasEsEdicion = medidasAbiertas === 'editar';
+  const medidasActuales = medidasEsEdicion ? editForm.measures : newProduct.measures;
+  const unidadBaseActual = medidasEsEdicion
+    ? editingProduct?.unit || 'Unidad'
+    : newProduct.unit || 'Unidad';
+  const tasaActual = parseFloat(medidasEsEdicion ? editForm.taxRate : newProduct.taxRate) || 0;
+  const incluyeIsvActual = medidasEsEdicion
+    ? editForm.priceIncludesTax
+    : newProduct.priceIncludesTax;
+  const costoBaseActual = medidasEsEdicion
+    ? parseFloat(editForm.currentCost) || parseFloat(editForm.unitPrice) || 0
+    : parseFloat(newProduct.currentCost) || parseFloat(newProduct.unitPrice) || 0;
+  const precioBaseActual = medidasEsEdicion
+    ? parseFloat(editForm.salePrice) || 0
+    : parseFloat(newProduct.salePrice) || 0;
+
+  // Prellena las medidas por defecto cada vez que se abre el alta.
+  const abrirCrearProducto = () => {
+    setNewProduct((prev) => ({ ...prev, measures: medidasIniciales(), priceIncludesTax: false }));
+    setShowCreateModal(true);
+  };
+
+  const actualizarMedidas = (actualizador: (prev: MedidaEntrada[]) => MedidaEntrada[]) => {
+    if (medidasEsEdicion) {
+      setEditForm((prev) => ({ ...prev, measures: actualizador(prev.measures) }));
+    } else {
+      setNewProduct((prev) => ({ ...prev, measures: actualizador(prev.measures) }));
+    }
+  };
+
+  const actualizarMedida = (indice: number, cambios: Partial<MedidaEntrada>) => {
+    actualizarMedidas((prev) =>
+      prev.map((m, i) => (i === indice ? { ...m, ...cambios } : m))
+    );
+  };
+
+  const agregarMedida = () => {
+    actualizarMedidas((prev) => [
+      ...prev,
+      { name: '', factor: '', cost: '', sale_price: '', price_includes_tax: false },
+    ]);
+  };
+
+  const quitarMedida = (indice: number) => {
+    actualizarMedidas((prev) => prev.filter((_, i) => i !== indice));
+  };
+
+  const cambiarIncluyeIsv = (valor: boolean) => {
+    if (medidasEsEdicion) {
+      setEditForm((prev) => ({ ...prev, priceIncludesTax: valor }));
+    } else {
+      setNewProduct((prev) => ({ ...prev, priceIncludesTax: valor }));
+    }
+  };
 
   const openEditModal = (product: Product) => {
     setEditingProduct(product);
@@ -235,12 +370,29 @@ export default function InventoryPage() {
       barcode: product.barcode || '',
       barcodeImageUrl: product.barcode_image_url || '',
       isActive: true,
+      measures: (product.measures ?? []).map((m) => ({
+        name: m.name,
+        factor: String(m.factor ?? ''),
+        cost: m.cost === null || m.cost === undefined ? '' : String(m.cost),
+        sale_price:
+          m.sale_price === null || m.sale_price === undefined ? '' : String(m.sale_price),
+        price_includes_tax: !!m.price_includes_tax,
+      })),
+      priceIncludesTax: !!product.price_includes_tax,
     });
     setShowEditModal(true);
   };
 
   const handleUpdateProduct = async () => {
     if (!editingProduct) return;
+
+    let medidas: MedidaEntrada[];
+    try {
+      medidas = validarMedidas(editForm.measures, editingProduct.unit || 'Unidad');
+    } catch (error: any) {
+      alert('Medidas: ' + (error?.message || 'datos inválidos'));
+      return;
+    }
 
     try {
       const res = await fetch(`/api/inventory/products`, {
@@ -264,6 +416,8 @@ export default function InventoryPage() {
           barcode: editForm.barcode,
           barcodeImageUrl: editForm.barcodeImageUrl,
           isActive: editForm.isActive,
+          measures: medidas,
+          price_includes_tax: editForm.priceIncludesTax,
         }),
       });
 
@@ -501,6 +655,14 @@ export default function InventoryPage() {
   };
 
   const handleCreateProduct = async () => {
+    let medidas: MedidaEntrada[];
+    try {
+      medidas = validarMedidas(newProduct.measures, newProduct.unit);
+    } catch (error: any) {
+      alert('Medidas: ' + (error?.message || 'datos inválidos'));
+      return;
+    }
+
     try {
       const res = await fetch('/api/inventory/products', {
         method: 'POST',
@@ -526,6 +688,8 @@ export default function InventoryPage() {
           barcode: newProduct.barcode,
           barcodeImageUrl: newProduct.barcodeImageUrl,
           isService: newProduct.isService,
+          measures: medidas,
+          price_includes_tax: newProduct.priceIncludesTax,
         }),
       });
 
@@ -554,6 +718,8 @@ export default function InventoryPage() {
           barcode: '',
           barcodeImageUrl: '',
           isService: false,
+          measures: medidasIniciales(),
+          priceIncludesTax: false,
         });
         loadInventoryData();
       } else {
@@ -588,7 +754,7 @@ export default function InventoryPage() {
             Dashboard
           </Button>
           <Button
-            onClick={() => setShowCreateModal(true)}
+            onClick={abrirCrearProducto}
             className="bg-cyan-600 hover:bg-cyan-700"
           >
             <Plus className="w-4 h-4 mr-2" />
@@ -614,7 +780,7 @@ export default function InventoryPage() {
                 <History className="w-4 h-4 mr-2" />
                 Kardex
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setShowCreateModal(true)} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
+              <DropdownMenuItem onClick={abrirCrearProducto} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
                 <Plus className="w-4 h-4 mr-2" />
                 Nuevo Producto
               </DropdownMenuItem>
@@ -763,6 +929,9 @@ export default function InventoryPage() {
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
                       Precio Venta
                     </th>
+                    <th className="px-4 py-3 text-center text-sm font-medium text-gray-600">
+                      Incluye ISV
+                    </th>
                     <th className="px-4 py-3 text-right text-sm font-medium text-gray-600">
                       Ganancia
                     </th>
@@ -825,12 +994,18 @@ export default function InventoryPage() {
                       <td className="px-4 py-3 text-sm">{product.location || '—'}</td>
                       <td className="px-4 py-3 text-sm text-right">
                         {product.current_stock} / {product.min_stock} min
+                        <div className="text-xs text-gray-500">
+                          {descomponerStock(product.current_stock, product.unit || 'Unidad', product.measures)}
+                        </div>
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
                         L {product.current_cost?.toFixed(2)}
                       </td>
                       <td className="px-4 py-3 text-sm text-right">
                         L {product.sale_price?.toFixed(2)}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-center">
+                        {product.price_includes_tax ? 'Sí' : 'No'}
                       </td>
                       <td
                         className={`px-4 py-3 text-sm text-right font-medium ${
@@ -1308,6 +1483,24 @@ export default function InventoryPage() {
               )}
             </div>
 
+            <div className="col-span-2 space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => setMedidasAbiertas('crear')}
+              >
+                <span className="flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Medidas y precios
+                </span>
+                <Badge variant="secondary">{newProduct.measures.length}</Badge>
+              </Button>
+              <p className="text-xs text-gray-500">
+                Empaques (Docena, Caja…) sobre la unidad base: {newProduct.unit}.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label>Stock Mínimo</Label>
               <Input
@@ -1588,6 +1781,24 @@ export default function InventoryPage() {
               )}
             </div>
 
+            <div className="col-span-2 space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-between"
+                onClick={() => setMedidasAbiertas('editar')}
+              >
+                <span className="flex items-center gap-2">
+                  <Package className="w-4 h-4" />
+                  Medidas y precios
+                </span>
+                <Badge variant="secondary">{editForm.measures.length}</Badge>
+              </Button>
+              <p className="text-xs text-gray-500">
+                Empaques (Docena, Caja…) sobre la unidad base: {editingProduct?.unit || 'Unidad'}.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label>Stock Mínimo</Label>
               <Input
@@ -1710,6 +1921,159 @@ export default function InventoryPage() {
             <Button onClick={handleUpdateProduct}>
               Guardar Cambios
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de medidas y precios (crear o editar) */}
+      <Dialog
+        open={medidasAbiertas !== null}
+        onOpenChange={(abierto) => {
+          if (!abierto) setMedidasAbiertas(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Medidas y precios</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-3">
+            <p className="text-sm text-gray-500">
+              Cada medida es un empaque sobre la unidad base{' '}
+              <strong>{unidadBaseActual}</strong>. Marque «Incluye ISV» por fila para
+              comparar precios con y sin impuesto.
+            </p>
+
+            <table className="w-full">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-2 py-2 text-left text-sm font-medium text-gray-600">
+                    Medida
+                  </th>
+                  <th className="px-2 py-2 text-left text-sm font-medium text-gray-600">
+                    Unidades por medida
+                  </th>
+                  <th className="px-2 py-2 text-left text-sm font-medium text-gray-600">
+                    Costo
+                  </th>
+                  <th className="px-2 py-2 text-left text-sm font-medium text-gray-600">
+                    Precio de venta
+                  </th>
+                  <th className="px-2 py-2 text-center text-sm font-medium text-gray-600">
+                    Incluye ISV
+                  </th>
+                  <th className="px-2 py-2"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y">
+                {medidasActuales.map((m, i) => (
+                  <tr key={i}>
+                    <td className="px-2 py-2">
+                      <Input
+                        value={m.name ?? ''}
+                        onChange={(e) => actualizarMedida(i, { name: e.target.value })}
+                        placeholder="Caja"
+                      />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input
+                        type="number"
+                        value={m.factor ?? ''}
+                        onChange={(e) => actualizarMedida(i, { factor: e.target.value })}
+                        placeholder="50"
+                      />
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input
+                        type="number"
+                        value={m.cost ?? ''}
+                        onChange={(e) => actualizarMedida(i, { cost: e.target.value })}
+                        placeholder="0.00"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {equivalentePorUnidad(
+                          m.cost,
+                          m.factor,
+                          tasaActual,
+                          !!m.price_includes_tax,
+                          unidadBaseActual,
+                        )}
+                      </p>
+                    </td>
+                    <td className="px-2 py-2">
+                      <Input
+                        type="number"
+                        value={m.sale_price ?? ''}
+                        onChange={(e) => actualizarMedida(i, { sale_price: e.target.value })}
+                        placeholder="0.00"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        {equivalentePorUnidad(
+                          m.sale_price,
+                          m.factor,
+                          tasaActual,
+                          !!m.price_includes_tax,
+                          unidadBaseActual,
+                        )}
+                      </p>
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={!!m.price_includes_tax}
+                        onChange={(e) =>
+                          actualizarMedida(i, { price_includes_tax: e.target.checked })
+                        }
+                      />
+                    </td>
+                    <td className="px-2 py-2 text-center">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        title="Quitar medida"
+                        onClick={() => quitarMedida(i)}
+                      >
+                        <X className="w-4 h-4" />
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+                {medidasActuales.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-2 py-6 text-center text-sm text-gray-500">
+                      Sin medidas: el producto se vende en su unidad base.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+
+            <Button type="button" variant="outline" size="sm" onClick={agregarMedida}>
+              <Plus className="w-4 h-4 mr-2" /> Añadir medida
+            </Button>
+
+            <div className="rounded-md border border-gray-200 bg-gray-50 p-3">
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
+                <span className="font-medium">{unidadBaseActual} (unidad base)</span>
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4"
+                    checked={incluyeIsvActual}
+                    onChange={(e) => cambiarIncluyeIsv(e.target.checked)}
+                  />
+                  Incluye ISV
+                </label>
+                <span>Costo actual: L {costoBaseActual.toFixed(2)}</span>
+                <span>Precio de venta: L {precioBaseActual.toFixed(2)}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button onClick={() => setMedidasAbiertas(null)}>Listo</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

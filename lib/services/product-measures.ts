@@ -16,17 +16,14 @@
 // que es el unico sitio donde vive ese helper; no se reimplementa.
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { resolveTenant } from '@/lib/services/budget-service';
-import { exigirFactor } from '@/lib/services/measure-calc';
+import { validarMedidas, type MedidaEntrada } from '@/lib/services/measure-calc';
 import { isMigrationMissingError } from '@/lib/services/warehouse-service';
 
-export interface MedidaEntrada {
-  name?: string;
-  factor?: number | string;
-  cost?: number | string | null;
-  sale_price?: number | string | null;
-  price_includes_tax?: boolean;
-  is_active?: boolean;
-}
+// Re-exportado desde `measure-calc` (modulo puro, sin `server-lazy`): la UI
+// cliente valida ahi sin arrastrar la clave de servicio al bundle del navegador.
+// Se re-exporta para no romper a los consumidores que ya importaban de aqui.
+export { validarMedidas };
+export type { MedidaEntrada };
 
 export interface Medida {
   id?: string;
@@ -48,64 +45,6 @@ export interface AlcanceEmpresa {
 
 const MIGRATION_HINT =
   'Falta la tabla product_measure. Ejecute prisma/migrations/074_product_measures.sql en el SQL Editor de Supabase.';
-
-// Un factor vacio (null, undefined, '' o solo espacios) se lee como 1: sin
-// medida / empaque de 1, la convencion de measure-calc.ts. NO vale `factorValido`
-// aqui: ese es laxo y traduce 'abc', 0 o -1 a 1, y estos casos si deben lanzar.
-function factorPorDefecto(value: number | string | null | undefined): number {
-  if (value === null || value === undefined) return 1;
-  if (typeof value !== 'number' && value.trim() === '') return 1;
-  return exigirFactor(value);
-}
-
-// Un cost/sale_price vacio es "sin dato" (null); un numero (o su texto) no puede
-// ser negativo ni no-numerico. Importes en LEMPIRAS, sin /100 (AGENTS.md §2).
-function opcionalNoNegativo(value: number | string | null | undefined, campo: string): number | null {
-  if (value === null || value === undefined) return null;
-  let n: number;
-  if (typeof value === 'number') {
-    n = value;
-  } else {
-    // El trim va ANTES del guard: ' ' (solo espacios) es "sin dato", no el 0 que
-    // daria `Number(' ')`.
-    const texto = value.trim();
-    if (texto === '') return null;
-    n = Number(texto);
-  }
-  if (!Number.isFinite(n)) throw new Error(`${campo} invalido: ${value}`);
-  if (n < 0) throw new Error(`${campo} no puede ser negativo`);
-  return n;
-}
-
-// Valida el lote y devuelve las entradas normalizadas (nombre recortado, factor
-// y montos numericos). `unidadBase` puede ir vacia cuando el llamador (el
-// reemplazo) no la conoce y solo necesita el resto de comprobaciones.
-export function validarMedidas(
-  medidas: MedidaEntrada[] | undefined | null,
-  unidadBase: string,
-): MedidaEntrada[] {
-  if (!medidas || medidas.length === 0) return [];
-  const base = String(unidadBase ?? '').trim().toLowerCase();
-  const vistos = new Set<string>();
-  return medidas.map((entrada, i) => {
-    const name = String(entrada?.name ?? '').trim();
-    if (!name) throw new Error(`medida ${i + 1}: nombre requerido`);
-    const clave = name.toLowerCase();
-    if (base && clave === base) {
-      throw new Error(`la medida "${name}" no puede llamarse igual que la unidad base`);
-    }
-    if (vistos.has(clave)) throw new Error(`medida repetida: ${name}`);
-    vistos.add(clave);
-    return {
-      name,
-      factor: factorPorDefecto(entrada.factor),
-      cost: opcionalNoNegativo(entrada.cost, 'cost'),
-      sale_price: opcionalNoNegativo(entrada.sale_price, 'sale_price'),
-      price_includes_tax: !!entrada.price_includes_tax,
-      is_active: entrada.is_active !== false,
-    };
-  });
-}
 
 export async function reemplazarMedidasCon(
   supabase: unknown,
