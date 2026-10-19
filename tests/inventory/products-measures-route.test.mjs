@@ -226,3 +226,45 @@ test('POST compensa si falla product_measure: 500 y el producto no queda', async
     restaurarTablas();
   }
 });
+
+test('PATCH 400 con factor 0: cita el factor y no toca las medidas', async () => {
+  reiniciarProduct();
+  reiniciarMedidas();
+
+  const antes = medidasDe('p-test1').map((m) => ({ ...m }));
+
+  const res = await patch({
+    id: 'p-test1',
+    measures: [{ name: 'Caja', factor: 0 }],
+  });
+  const body = await res.json();
+
+  assert.equal(res.status, 400);
+  assert.match(body.error, /factor/i);
+  // La validacion del servicio corre ANTES del delete, asi que el lote previo
+  // (Caja + Docena) sigue igual.
+  assert.deepEqual(medidasDe('p-test1'), antes);
+  assert.equal(medidasDe('p-test1').length, 2);
+});
+
+test('GET sin header de empresa: 200 y todas las filas con measures: []', async () => {
+  reiniciarProduct();
+  reiniciarMedidas();
+  limpiarConsultas();
+
+  // Solo el tenant de sesion, sin empresa: `companyId` queda null. En PostgREST
+  // real `.eq('company_id', null)` no es `IS NULL`, asi que la unica salida
+  // segura es cerrar en fallo y no consultar.
+  const res = await get({ 'x-tenant-id': 'TEST1DS' });
+  const body = await res.json();
+
+  assert.equal(res.status, 200);
+  assert.equal(Array.isArray(body), true);
+  assert.ok(body.length > 0, 'el tenant tiene productos');
+  assert.ok(
+    body.every((p) => Array.isArray(p.measures) && p.measures.length === 0),
+    'sin empresa no se adjuntan medidas',
+  );
+  // Ni siquiera se intento: cero consultas a product_measure.
+  assert.equal(consultas.filter((c) => c.tabla === 'product_measure').length, 0);
+});

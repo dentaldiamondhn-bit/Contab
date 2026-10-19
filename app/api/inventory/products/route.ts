@@ -75,14 +75,22 @@ export async function GET(request: NextRequest) {
     // Una sola consulta para TODOS los productos (nunca una por fila). Si la 074
     // no esta aplicada el servicio devuelve un Map vacio y cada fila sale con
     // `measures: []`, que es lo que la UI espera.
-    const medidas = await medidasDeProductosCon(
-      getSupabaseServer(),
-      {
-        tenantId: empresa.tenantId,
-        companyId: empresa.companyId as string,
-      },
-      products.map((p: any) => String(p.id)),
-    );
+    //
+    // Sin empresa no se consulta: `.eq('company_id', null)` NO es `IS NULL` en
+    // PostgREST, filtra por el literal `null` y devolveria 0 medidas sin avisar
+    // (el fake de los tests si lo interpreta como IS NULL y ocultaria el fallo).
+    // Se cierra en fallo: `measures: []` en todas las filas, coherente con que
+    // el producto tampoco tiene empresa.
+    const medidas = empresa.companyId
+      ? await medidasDeProductosCon(
+          getSupabaseServer(),
+          {
+            tenantId: empresa.tenantId,
+            companyId: empresa.companyId,
+          },
+          products.map((p: any) => String(p.id)),
+        )
+      : new Map();
 
     const conMedidas = products.map((p: any) => ({
       ...p,
@@ -201,15 +209,43 @@ export async function PATCH(request: NextRequest) {
     }
 
     if (Array.isArray(measures)) {
-      const medidas = await reemplazarMedidasCon(
-        getSupabaseServer(),
-        {
-          tenantId: empresaPatch.tenantId,
-          companyId: empresaPatch.companyId as string,
-        },
-        id,
-        measures,
-      );
+      // La validacion del servicio corre ANTES del delete, asi que si falla las
+      // medidas del producto quedan intactas. Solo hay que clasificar la
+      // respuesta: entrada invalida (400) frente a fallo del servidor (500).
+      let medidas: Awaited<ReturnType<typeof reemplazarMedidasCon>>;
+      try {
+        medidas = await reemplazarMedidasCon(
+          getSupabaseServer(),
+          {
+            tenantId: empresaPatch.tenantId,
+            companyId: empresaPatch.companyId as string,
+          },
+          id,
+          measures,
+        );
+      } catch (medidaError: any) {
+        if (medidaError?.code === 'PRODUCT_MEASURE_MISSING') {
+          return NextResponse.json(
+            { error: medidaError.message },
+            { status: 500 }
+          );
+        }
+        // Las validaciones del servicio lanzan `Error` plano: es culpa de la
+        // entrada, no del servidor. PostgREST, en cambio, devuelve un objeto
+        // plano que no es `instanceof Error` y ese si es un 500.
+        if (medidaError instanceof Error) {
+          return NextResponse.json(
+            { error: medidaError.message },
+            { status: 400 }
+          );
+        }
+        console.error("=== ERROR SAVING PRODUCT MEASURES ===");
+        console.error("Error:", medidaError);
+        return NextResponse.json(
+          { error: "Error guardando las medidas del producto" },
+          { status: 500 }
+        );
+      }
 
       return NextResponse.json({
         success: true,
