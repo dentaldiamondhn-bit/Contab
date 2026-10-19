@@ -22,6 +22,11 @@ const SUPPLIER_COLUMNS = [
   'account_type',
   'is_active',
   'is_preferred',
+  'cai',
+  'cai_expiration_date',
+  'cai_range_from',
+  'cai_range_to',
+  'withholding_type',
 ];
 
 /**

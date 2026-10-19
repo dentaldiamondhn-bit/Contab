@@ -370,6 +370,68 @@ export default function PurchaseOrdersPage() {
     }
   };
 
+  // Al escoger proveedor, precarga los articulos que ese proveedor suministra
+  // desde su historial de precios (`supplier_price_history`), con el ultimo
+  // precio registrado por producto. El GET ya viene ordenado por
+  // `effective_date` descendente, asi que basta con quedarse con la primera
+  // aparicion de cada `product_id`. Solo se ofrecen productos que sigan
+  // existiendo en el inventario de esta empresa (la ruta esta aislada por
+  // `company_id`). No hay relacion directa proveedor -> articulos: esta es la
+  // unica fuente disponible.
+  const articulosDelProveedor = async (supplier: Supplier): Promise<PurchaseOrderItem[]> => {
+    try {
+      const res = await fetch(
+        `/api/suppliers/price-history?companyId=${companyId}&supplierId=${supplier.id}`
+      );
+      if (!res.ok) return [];
+      const historial = await res.json();
+      if (!Array.isArray(historial)) return [];
+
+      const vistos = new Set<string>();
+      const nuevos: PurchaseOrderItem[] = [];
+      for (const row of historial) {
+        const productId = row.product_id ? String(row.product_id) : '';
+        if (!productId || vistos.has(productId)) continue;
+        const product = products.find(p => p.id === productId);
+        if (!product) continue;
+        vistos.add(productId);
+        const unitPrice = Number(row.price) || 0;
+        nuevos.push({
+          product_id: product.id,
+          product_code: product.code,
+          product_name: product.name,
+          quantity_requested: 1,
+          unit_price: unitPrice,
+          total: Math.round(unitPrice),
+        });
+      }
+      return nuevos;
+    } catch (error) {
+      console.error('Error cargando articulos del proveedor:', error);
+      return [];
+    }
+  };
+
+  const handleSupplierChange = async (value: string) => {
+    const supplier = suppliers.find(s => s.id === value) || null;
+    setSelectedSupplier(supplier);
+    if (!supplier) return;
+
+    const nuevos = await articulosDelProveedor(supplier);
+    if (nuevos.length === 0) return;
+
+    if (
+      items.length > 0 &&
+      !window.confirm(
+        'Este proveedor tiene artículos en su historial de precios. ¿Reemplazar los artículos actuales de la orden?'
+      )
+    ) {
+      return;
+    }
+
+    setItems(nuevos);
+  };
+
   const resetForm = () => {
     setSelectedSupplier(null);
     setOrderNumber('');
@@ -661,10 +723,7 @@ export default function PurchaseOrdersPage() {
                 <Label>Proveedor *</Label>
                 <Select
                   value={selectedSupplier?.id || ''}
-                  onValueChange={(value) => {
-                    const supplier = suppliers.find(s => s.id === value);
-                    setSelectedSupplier(supplier || null);
-                  }}
+                  onValueChange={handleSupplierChange}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Seleccione un proveedor" />

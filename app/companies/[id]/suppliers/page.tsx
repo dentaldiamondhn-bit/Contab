@@ -15,6 +15,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Search, Plus, Building2, Phone, Mail, MapPin, History, CreditCard, AlertCircle, ChevronLeft, Trash2, Edit, Menu, FileText, ShoppingCart, BarChart3, Upload, Download } from 'lucide-react';
 
 import { formatDateForDisplay, formatDateRange, isDateExpired } from '@/lib/date-utils';
+import { RETENCIONES } from '@/lib/supplier-withholding';
 import SupplierPriceHistory from '@/components/purchasing/SupplierPriceHistory';
 import SupplierRatings from '@/components/purchasing/SupplierRatings';
 import * as XLSX from 'xlsx';
@@ -34,6 +35,11 @@ interface Supplier {
   payment_method: string;
   is_active: boolean;
   is_preferred: boolean;
+  cai?: string;
+  cai_expiration_date?: string;
+  cai_range_from?: string;
+  cai_range_to?: string;
+  withholding_type?: string;
   tenant_id: string;
   company_id: string;
   created_at: string;
@@ -90,6 +96,11 @@ export default function SuppliersPage() {
     account_type: 'checking',
     is_active: true,
     is_preferred: false,
+    cai: '',
+    cai_expiration_date: '',
+    cai_range_from: '',
+    cai_range_to: '',
+    withholding_type: 'NONE',
   });
 
   // Validar RTN de Honduras
@@ -293,6 +304,11 @@ export default function SuppliersPage() {
         ...formData,
         companyId,
         payment_terms: parseInt(formData.payment_terms),
+        cai: formData.cai.trim() || null,
+        cai_expiration_date: formData.cai_expiration_date || null,
+        cai_range_from: formData.cai_range_from.trim() || null,
+        cai_range_to: formData.cai_range_to.trim() || null,
+        withholding_type: formData.withholding_type === 'NONE' ? null : formData.withholding_type,
       };
       console.log('Frontend: Creating supplier:', supplierData);
       
@@ -337,6 +353,11 @@ export default function SuppliersPage() {
           id: selectedSupplier.id,
           ...formData,
           payment_terms: parseInt(formData.payment_terms),
+          cai: formData.cai.trim() || null,
+          cai_expiration_date: formData.cai_expiration_date || null,
+          cai_range_from: formData.cai_range_from.trim() || null,
+          cai_range_to: formData.cai_range_to.trim() || null,
+          withholding_type: formData.withholding_type === 'NONE' ? null : formData.withholding_type,
         }),
       });
 
@@ -395,6 +416,11 @@ export default function SuppliersPage() {
       account_type: 'checking',
       is_active: supplier.is_active,
       is_preferred: supplier.is_preferred,
+      cai: supplier.cai || '',
+      cai_expiration_date: supplier.cai_expiration_date ? String(supplier.cai_expiration_date).slice(0, 10) : '',
+      cai_range_from: supplier.cai_range_from || '',
+      cai_range_to: supplier.cai_range_to || '',
+      withholding_type: supplier.withholding_type || 'NONE',
     });
     setRtnError('');
     setShowEditModal(true);
@@ -426,6 +452,11 @@ export default function SuppliersPage() {
       account_type: 'checking',
       is_active: true,
       is_preferred: false,
+      cai: '',
+      cai_expiration_date: '',
+      cai_range_from: '',
+      cai_range_to: '',
+      withholding_type: 'NONE',
     });
     setRtnError('');
   };
@@ -676,10 +707,11 @@ export default function SuppliersPage() {
           </DialogHeader>
 
           <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="contact">Contacto</TabsTrigger>
               <TabsTrigger value="payment">Pagos</TabsTrigger>
+              <TabsTrigger value="cai">Fiscal / CAI</TabsTrigger>
             </TabsList>
 
             <TabsContent value="general" className="space-y-4">
@@ -906,6 +938,77 @@ export default function SuppliersPage() {
                 </div>
               </div>
             </TabsContent>
+
+            <TabsContent value="cai" className="space-y-4">
+              <p className="text-sm text-gray-500">
+                CAI autorizado del proveedor. En Compras se avisa si la factura cae fuera
+                del rango o si el CAI está vencido (es un aviso, no bloquea la compra).
+              </p>
+
+              <div className="space-y-2">
+                <Label>CAI del Proveedor</Label>
+                <Input
+                  value={formData.cai}
+                  onChange={(e) => setFormData({ ...formData, cai: e.target.value.toUpperCase() })}
+                  placeholder="XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-XX"
+                  className="font-mono"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Fecha Límite de Emisión</Label>
+                <Input
+                  type="date"
+                  value={formData.cai_expiration_date}
+                  onChange={(e) => setFormData({ ...formData, cai_expiration_date: e.target.value })}
+                />
+                {formData.cai_expiration_date && isDateExpired(formData.cai_expiration_date) && (
+                  <p className="text-sm text-red-600">La fecha límite de emisión ya venció.</p>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Rango desde</Label>
+                  <Input
+                    value={formData.cai_range_from}
+                    onChange={(e) => setFormData({ ...formData, cai_range_from: e.target.value })}
+                    placeholder="000-001-01-00000001"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Rango hasta</Label>
+                  <Input
+                    value={formData.cai_range_to}
+                    onChange={(e) => setFormData({ ...formData, cai_range_to: e.target.value })}
+                    placeholder="000-001-01-00005000"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Retención ISR por defecto</Label>
+                <Select
+                  value={formData.withholding_type}
+                  onValueChange={(value) => setFormData({ ...formData, withholding_type: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETENCIONES.map((r) => (
+                      <SelectItem key={r.value} value={r.value}>
+                        {r.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-gray-500">
+                  Se aplica por defecto al registrar una compra de este proveedor (se puede
+                  cambiar en la compra). Se retiene sobre el subtotal sin ISV.
+                </p>
+              </div>
+            </TabsContent>
           </Tabs>
 
           <DialogFooter>
@@ -977,6 +1080,25 @@ export default function SuppliersPage() {
                   </div>
                 )}
               </div>
+
+              {(selectedSupplier.cai || selectedSupplier.cai_expiration_date || selectedSupplier.cai_range_from || selectedSupplier.cai_range_to) && (
+                <div className="rounded border p-3 space-y-1">
+                  <h3 className="font-medium">CAI</h3>
+                  {selectedSupplier.cai && (
+                    <div className="font-mono text-sm break-all">{selectedSupplier.cai}</div>
+                  )}
+                  <div className="text-sm text-gray-600">
+                    {selectedSupplier.cai_expiration_date && (
+                      <span className={isDateExpired(selectedSupplier.cai_expiration_date) ? 'text-red-600 font-medium' : ''}>
+                        Vence: {formatDateForDisplay(selectedSupplier.cai_expiration_date)}
+                      </span>
+                    )}
+                    {selectedSupplier.cai_range_from && selectedSupplier.cai_range_to && (
+                      <span> · Rango: {selectedSupplier.cai_range_from} - {selectedSupplier.cai_range_to}</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               <div>
                 <h3 className="font-medium mb-3">Historial de Compras</h3>

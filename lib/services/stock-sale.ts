@@ -33,6 +33,7 @@ export type StockShortage = {
 type ProductRow = {
   id: string;
   tenant_id: string;
+  company_id: string | null;
   code: string | null;
   name: string | null;
   current_stock: number | null;
@@ -67,7 +68,7 @@ async function loadProducts(ids: string[]): Promise<Map<string, ProductRow>> {
   if (ids.length === 0) return map;
   const { data, error } = await (supabase as any)
 .from('product')
-    .select('id,tenant_id,code,name,current_stock,is_service,warehouse_id,current_cost')
+    .select('id,tenant_id,company_id,code,name,current_stock,is_service,warehouse_id,current_cost')
     .in('id', ids);
   if (error) {
     console.error('[stock-sale] No se pudieron leer los productos:', error.message);
@@ -78,8 +79,12 @@ async function loadProducts(ids: string[]): Promise<Map<string, ProductRow>> {
 }
 
 // Fase 1. Devuelve las carencias; array vacio = se puede emitir.
+//
+// El aislamiento es por EMPRESA (`company_id`), no por tenant: test 1 y test 2
+// comparten `TEST1DS`, asi que un producto de la hermana pasaba el filtro por
+// tenant y se descontaba stock ajeno. Misma frontera que el resto del proyecto.
 export async function checkSaleStock(
-  tenantId: string,
+  companyId: string,
   lines: SaleLine[],
 ): Promise<StockShortage[]> {
   const wanted = aggregate(lines);
@@ -102,9 +107,10 @@ export async function checkSaleStock(
       });
       continue;
     }
-    if (p.tenant_id !== tenantId) {
+    if (p.company_id !== companyId) {
       // No se descuenta stock de otra empresa. Antes ya paso: la factura
-      // 001-01-01-00000008 de ANGELOH7 apuntaba a PRD-001, del tenant 1.
+      // 001-01-01-00000008 de ANGELOH7 apuntaba a PRD-001, del tenant 1. Con el
+      // filtro por tenant, ademas, test 1 podia vender el producto de test 2.
       shortages.push({
         code: p.code || productId,
         name: `${p.name || 'Producto'} (pertenece a otra empresa)`,
@@ -139,12 +145,13 @@ export type ApplyResult = {
 
 // Fase 2. Se llama despues de que la factura y sus lineas ya existen.
 export async function applySaleStock(params: {
+  companyId: string;
   tenantId: string;
   invoiceId: string;
   invoiceNumber: string;
   lines: SaleLine[];
 }): Promise<ApplyResult> {
-  const { tenantId, invoiceId, invoiceNumber, lines } = params;
+  const { companyId, tenantId, invoiceId, invoiceNumber, lines } = params;
   const supabaseClient = supabase as any;
   const result: ApplyResult = { applied: 0, skipped: 0, shortages: [], errors: [], reverted: 0 };
 
@@ -158,9 +165,10 @@ export async function applySaleStock(params: {
     .select('id')
     .eq('reference_type', 'invoice')
     .eq('reference_id', invoiceId)
+    .eq('company_id', companyId)
     .limit(1);
   if (dupError) {
-    result.errors.push(`No se pudo verificar si ya se habia descontado: ${dupError.message}`);
+    result.errors.push(`No se pudo verificar si ya hay movimientos de esta factura: ${dupError.message}`);
     return result;
   }
   if (already && already.length > 0) {
@@ -170,7 +178,7 @@ export async function applySaleStock(params: {
 
   // Las carencias se vuelven a comprobar aqui porque el stock pudo cambiar
   // entre la fase 1 y ahora.
-  const shortages = await checkSaleStock(tenantId, lines);
+  const shortages = await checkSaleStock(companyId, lines);
   if (shortages.length > 0) {
     result.shortages = shortages;
     return result;
@@ -198,7 +206,7 @@ export async function applySaleStock(params: {
         .from('product')
         .update({ current_stock: after, updated_at: now })
         .eq('id', productId)
-        .eq('tenant_id', tenantId)
+        .eq('company_id', companyId)
         .eq('current_stock', before)
         .select('current_stock');
       if (updErr) {
@@ -214,6 +222,7 @@ export async function applySaleStock(params: {
           .from('product')
           .select('current_stock')
           .eq('id', productId)
+          .eq('company_id', companyId)
           .maybeSingle();
         if (!fresh) break;
         before = qty(fresh.current_stock);
@@ -227,7 +236,8 @@ export async function applySaleStock(params: {
         await supabaseClient
 .from('product')
           .update({ current_stock: d.before, updated_at: now })
-          .eq('id', d.product.id);
+          .eq('id', d.product.id)
+          .eq('company_id', companyId);
         result.reverted += 1;
       }
       await supabaseClient
@@ -248,6 +258,7 @@ export async function applySaleStock(params: {
 
   const movements = done.map((d) => ({
     tenant_id: tenantId,
+    company_id: companyId,
     product_id: d.product.id,
     warehouse_id: d.product.warehouse_id,
     movement_type: 'OUT',

@@ -129,8 +129,8 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
   };
 
   const saveWarehouse = async () => {
-    if (!formCode.trim() || !formName.trim()) {
-      setError('Código y nombre son requeridos');
+    if (!formName.trim()) {
+      setError('El nombre es requerido');
       return;
     }
     try {
@@ -141,7 +141,10 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
         method: editing ? 'PUT' : 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          code: formCode.trim(),
+          // Al crear, el codigo lo genera el servidor (ALM-001, ALM-002...):
+          // el campo esta deshabilitado y viaja vacio. Al editar no se manda
+          // el codigo (updateWarehouse no lo acepta).
+          ...(editing ? {} : { code: '' }),
           name: formName.trim(),
           location: formLocation.trim(),
           description: formDescription.trim(),
@@ -176,7 +179,7 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
   };
 
   const TEMPLATE_HEADERS = ['code', 'name', 'location', 'description'];
-  const TEMPLATE_SAMPLE = ['PRINCIPAL', 'Bodega Principal', 'Edificio Principal - Planta Baja', 'Almacén principal'];
+  const TEMPLATE_SAMPLE = ['', 'Bodega Principal', 'Edificio Principal - Planta Baja', 'Almacén principal'];
 
   const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
     const rows = [TEMPLATE_HEADERS, TEMPLATE_SAMPLE];
@@ -340,10 +343,13 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
                 <Input
                   value={formCode}
                   onChange={(e) => setFormCode(e.target.value)}
-                  placeholder="PRINCIPAL"
-                  disabled={!!editing}
+                  placeholder={editing ? undefined : 'Se generará automáticamente (ALM-001, ALM-002...)'}
+                  disabled
                   className="mt-1"
                 />
+                {!editing && (
+                  <p className="text-xs text-gray-500 mt-1">El código lo asigna el sistema al guardar</p>
+                )}
               </div>
               <div>
                 <Label>Nombre</Label>
@@ -528,8 +534,9 @@ export default function WarehousesManager({ companyId }: { companyId: string }) 
             <Alert>
               <AlertDescription className="text-sm">
                 Suba un archivo <strong>CSV</strong> o <strong>Excel (.xlsx / .xls)</strong> con los almacenes.
-                Requiere las columnas <code className="font-mono text-xs bg-muted px-1 rounded">code</code> y{' '}
-                <code className="font-mono text-xs bg-muted px-1 rounded">name</code>. Los códigos ya existentes
+                Requiere la columna <code className="font-mono text-xs bg-muted px-1 rounded">name</code>; la columna{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">code</code> es opcional y, si falta, el
+                sistema asigna el siguiente de la serie ALM-### de la empresa. Los códigos ya existentes
                 se omiten automáticamente.
               </AlertDescription>
             </Alert>

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { exigirEmpresa, recomputePurchase } from '@/lib/purchase-db';
+import { exigirEmpresa, recomputePurchase, crearAsientoPago, eliminarAsiento } from '@/lib/purchase-db';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 
 function transformPayment(p: any): any {
@@ -14,6 +14,7 @@ function transformPayment(p: any): any {
     reference: p.reference_number || null,
     reference_number: p.reference_number || null,
     notes: p.notes || null,
+    journal_entry_id: p.journal_entry_id || null,
     created_at: p.created_at,
   };
 }
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
     // cuerpo daba para colgar un pago de la compra de otra empresa.
     const { data: purchase, error: purchaseError } = await supabase
       .from('Purchase')
-      .select('id, supplier_id, company_id')
+      .select('id, supplier_id, invoice_number, company_id')
       .eq('id', purchase_id)
       .eq('company_id', empresa.companyId)
       .maybeSingle();
@@ -118,9 +119,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: paymentError.message }, { status: 500 });
     }
 
+    // El asiento del pago (debe CxP / haber Banco) es OBLIGATORIO: si falta la
+    // cuenta o falla el INSERT, se borra el pago recien creado para no dejar una
+    // fila sin contabilizar y se propaga el 409.
+    let asiento: any;
+    try {
+      asiento = await crearAsientoPago(supabase, empresa, payment, purchase);
+    } catch (asientoError) {
+      await supabase
+        .from('SupplierPayment')
+        .delete()
+        .eq('id', payment.id)
+        .eq('company_id', empresa.companyId);
+      throw asientoError;
+    }
+
+    const { data: enlazado } = await supabase
+      .from('SupplierPayment')
+      .update({ journal_entry_id: asiento.id, updated_at: new Date().toISOString() })
+      .eq('id', payment.id)
+      .eq('company_id', empresa.companyId)
+      .select()
+      .single();
+
     const updatedPurchase = await recomputePurchase(supabase, empresa, purchase_id);
 
-    return NextResponse.json({ payment: transformPayment(payment), updatedPurchase }, { status: 201 });
+    return NextResponse.json(
+      { payment: transformPayment(enlazado || { ...payment, journal_entry_id: asiento.id }), updatedPurchase },
+      { status: 201 }
+    );
   } catch (error) {
     const r = respuestaDeErrorDeEmpresa(error);
     if (r) return r;
@@ -144,7 +171,7 @@ export async function PUT(request: Request) {
 
     const { data: existing } = await supabase
       .from('SupplierPayment')
-      .select('purchase_id')
+      .select('id, purchase_id, supplier_id, amount, payment_date, payment_method, reference_number, journal_entry_id')
       .eq('id', paymentId)
       .eq('company_id', empresa.companyId)
       .maybeSingle();
@@ -152,11 +179,32 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Payment not found' }, { status: 404 });
     }
 
-    const updates: any = { updated_at: new Date().toISOString() };
-    if (body.amount !== undefined) updates.amount = Math.round(Number(body.amount));
-    if (body.payment_method !== undefined) updates.payment_method = body.payment_method;
-    if (body.reference !== undefined) updates.reference_number = body.reference;
-    if (body.payment_date !== undefined) updates.payment_date = body.payment_date;
+    const merged: any = { ...existing };
+    if (body.amount !== undefined) merged.amount = Math.round(Number(body.amount));
+    if (body.payment_method !== undefined) merged.payment_method = body.payment_method;
+    if (body.reference !== undefined) merged.reference_number = body.reference;
+    if (body.payment_date !== undefined) merged.payment_date = body.payment_date;
+
+    const { data: purchase } = await supabase
+      .from('Purchase')
+      .select('id, invoice_number')
+      .eq('id', existing.purchase_id)
+      .eq('company_id', empresa.companyId)
+      .maybeSingle();
+
+    // Asiento NUEVO antes de tocar la fila (fail-closed): si falta la cuenta o
+    // falla, el pago queda como estaba. Recien despues de enlazarlo se borra el
+    // asiento viejo, para no dejar un pago sin contabilizar en ningun momento.
+    const asiento = await crearAsientoPago(supabase, empresa, merged, purchase);
+
+    const updates: any = {
+      amount: merged.amount,
+      payment_method: merged.payment_method,
+      reference_number: merged.reference_number,
+      payment_date: merged.payment_date,
+      journal_entry_id: asiento.id,
+      updated_at: new Date().toISOString(),
+    };
 
     const { data: payment, error } = await supabase
       .from('SupplierPayment')
@@ -167,8 +215,14 @@ export async function PUT(request: Request) {
       .single();
 
     if (error) {
+      // La fila no cambio: se descarta el asiento nuevo y se conserva el viejo.
+      await eliminarAsiento(supabase, (asiento as { id: string }).id);
       console.error('Error updating payment:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (existing.journal_entry_id && existing.journal_entry_id !== asiento.id) {
+      await eliminarAsiento(supabase, existing.journal_entry_id);
     }
 
     await recomputePurchase(supabase, empresa, payment.purchase_id);
@@ -196,7 +250,7 @@ export async function DELETE(request: Request) {
 
     const { data: existing } = await supabase
       .from('SupplierPayment')
-      .select('purchase_id')
+      .select('purchase_id, journal_entry_id')
       .eq('id', paymentId)
       .eq('company_id', empresa.companyId)
       .maybeSingle();
@@ -214,6 +268,9 @@ export async function DELETE(request: Request) {
       console.error('Error deleting payment:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
+
+    // Borrar el asiento del pago (best-effort: el pago ya no existe).
+    await eliminarAsiento(supabase, existing.journal_entry_id);
 
     await recomputePurchase(supabase, empresa, existing.purchase_id);
 

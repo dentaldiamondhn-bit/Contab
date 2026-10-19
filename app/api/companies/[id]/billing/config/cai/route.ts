@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 
 function num(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -28,18 +23,15 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'companyId es requerido' }, { status: 400 });
     }
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
 
-    // La tabla `cai` tiene dos esquemas superpuestos: el legacy en ingles
-    // (cai, start_number, ... tenant_id) que usa la emision de facturas, y el
-    // esquema en espanol (cai_number, rango_inicial, ... company_id) con NOT NULL.
-    // Se leen ambos y se prioriza el que tenga valor.
+    // Los CAI de ESTA empresa (antes se leian por tenant y test 1 veia los de test 2).
     const { data, error } = await supabase
       .from('cai')
       .select(
         'id, cai, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status, rango_inicial, rango_final, current_correlative, fecha_asignacion, fecha_limite_emision, estado',
       )
-      .eq('tenant_id', tenantId)
+      .eq('company_id', empresa.companyId)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -89,7 +81,9 @@ export async function GET(
     });
 
     return NextResponse.json({ success: true, data: cais });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -108,7 +102,7 @@ export async function POST(
     }
     const body = await request.json();
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
 
     const cai = String(body.cai || '').trim();
     const rangeStart = num(body.rangeStart);
@@ -149,13 +143,13 @@ export async function POST(
     const { data: existing } = await supabase
       .from('cai')
       .select('id')
-      .eq('tenant_id', tenantId)
+      .eq('company_id', empresa.companyId)
       .or(`cai.eq.${cai},cai_number.eq.${cai}`)
       .limit(1)
       .maybeSingle();
     if (existing?.id) {
       return NextResponse.json(
-        { success: false, error: 'Este CAI ya existe para el tenant actual' },
+        { success: false, error: 'Este CAI ya existe para la empresa actual' },
         { status: 400 },
       );
     }
@@ -169,11 +163,13 @@ export async function POST(
     // Se escriben los dos esquemas de la tabla `cai`:
     // - espanol: cai_number/company_id/rango_*/... (varias columnas son NOT NULL)
     // - legacy ingles: cai/tenant_id/current_number/... (lo usa la emision de facturas)
+    // `company_id` es el `companies.id` real (antes se le colaba el codigo de
+    // tenant: la convencion mixta que la 023 normalizo en otras tablas).
     const { data, error } = await supabase
       .from('cai')
       .insert({
         cai_number: cai,
-        company_id: tenantId,
+        company_id: empresa.companyId,
         fecha_asignacion: today,
         fecha_limite_emision: expiryDate,
         rango_inicial: rangeStart,
@@ -190,7 +186,7 @@ export async function POST(
         issue_date: today,
         expiration_date: expiryDate,
         status: activeWord,
-        tenant_id: tenantId,
+        tenant_id: empresa.tenantId,
         created_at: now,
         updated_at: now,
       })
@@ -215,7 +211,9 @@ export async function POST(
       },
       message: 'CAI creado correctamente',
     });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

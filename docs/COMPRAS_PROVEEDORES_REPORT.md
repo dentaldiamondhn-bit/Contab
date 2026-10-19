@@ -1,176 +1,188 @@
-# Reporte de Estado y Plan de EjecuciÛn: Compras y Proveedores
+# Reporte de Estado y Plan de Ejecuci√≥n: Compras y Proveedores
 
-> **⁄ltima actualizaciÛn: 8 Octubre 2026.** Este informe acumula secciones fechadas
-> (8, 16, 22-23 Sept, 2-8 Oct) que se conservan **tal cual** como histÛrico. Lo nuevo
-> est· en **ß6 Actualizaciones (2-8 Oct 2026)**; arriba solo se corrigieron las
+> **√öltima actualizaci√≥n: 18 Octubre 2026.** Este informe acumula secciones fechadas
+> (8, 16, 22-23 Sept, 2-8 Oct) que se conservan **tal cual** como hist√≥rico. Lo nuevo
+> est√° en **¬ß6 Actualizaciones**; arriba solo se corrigieron las
 > afirmaciones que dejaron de ser ciertas, marcadas con su fecha.
 >
-> Cambios de fondo desde la ˙ltima revisiÛn (23 Sept):
+> **Entre el 9 y el 18 Oct 2026 no hubo cambios funcionales en este m√≥dulo** (ver ¬ß6.18):
+> el trabajo de ese periodo fue de inventario (entradas 075-082 del diario: precio de
+> venta, ganancia, c√≥digo de barras, c√≥digos UB-###/ALM-###, importaci√≥n visible).
+> Las suites de compras se re-ejecutaron el 18 Oct: **183/183 PASS**, y el baseline de
+> `tsc --noEmit` baj√≥ de 459 a **456** por arreglos de inventario en ficheros compartidos.
+>
+> Cambios de fondo desde la √∫ltima revisi√≥n (23 Sept):
 >
 > | Tema | Antes | Ahora |
 > |---|---|---|
-> | Aislamiento | filtraba por `tenant_id` | **`company_id`** (ß6.1) |
+> | Aislamiento | filtraba por `tenant_id` | **`company_id`** (¬ß6.1) |
 > | `Supplier.company_id` | admite `NULL`, sin FK | **NOT NULL + FK** (043) |
 > | Unicidad de RTN | `UNIQUE (rtn, tenant_id)` | **ninguna** (044) |
 > | Historial de precios | "No Iniciado" | `supplier_price_history` (041) |
 > | Calificaciones | "No Iniciado" | `supplier_ratings` + UI (042) |
-> | ”rdenes de Compra | solo listado, sin FKs | **crear/aprobar/recibir ? `Purchase`** + FKs (052); **recepciÛn parcial + conciliaciÛn 3 vÌas** (059) (ß6.6-6.8) |
-> | Devoluciones | No iniciado | **por lÌneas de una compra** con baja de stock + nota de crÈdito (060) (ß6.9) |
-> | Pruebas | E2E manual | **104/104** automatizadas |
+> | √ìrdenes de Compra | solo listado, sin FKs | **crear/aprobar/recibir ? `Purchase`** + FKs (052); **recepci√≥n parcial + conciliaci√≥n 3 v√≠as** (059) (¬ß6.6-6.8) |
+> | Devoluciones | No iniciado | **por l√≠neas de una compra** con baja de stock + nota de cr√©dito (060) (¬ß6.9) |
+> | Aprobaci√≥n de compras | no exist√≠a | **la compra nace `PENDING_APPROVAL`**; aprueba el gerente o un designado; **sin efectos** (stock/contabilidad) hasta aprobar (061) (¬ß6.10) |
+> | Integraci√≥n contable | asiento best-effort (pod√≠a perderse en silencio) | **obligatorio** al aprobar (065) y al **pagar** (066) (¬ß6.11-6.12) |
+> | Exposici√≥n al Data API | tablas de Compras con `anon` | **cerradas a `anon`/`authenticated`** (062/063) (¬ß6.10) |
+> | Conciliaci√≥n bancaria de pagos | No iniciado | **pagos vs banco, marcar/desmarcar** (067) (¬ß6.13) |
+> | CAI del proveedor | no se registraba | **columnas en `Supplier` + aviso** al registrar la compra (068) (¬ß6.14) |
+> | Pruebas | E2E manual | **183/183** automatizadas (8 Oct 2026; reconfirmadas 18 Oct) |
 
-## 1. Estado Actual del CÛdigo
+## 1. Estado Actual del C√≥digo
 
 ### 1.1 Resumen Ejecutivo
 
-| Sub-¡rea | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
+| Sub-√Årea | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **GestiÛn de Proveedores** | Completo | 3 componentes (`SupplierManager`, `SupplierRatings`, `SupplierPriceHistory`) | 5 rutas (`suppliers`, `/import`, `/ratings`, `/price-history`, + `route-original.ts` legacy) | 3 tablas (`Supplier`, `supplier_ratings`, `supplier_price_history`) | Supabase |
-| **”rdenes de Compra** | Completo (8 Oct 2026) | 2 p·ginas (`purchase-orders` con crear/aprobar/recibir parcial; `purchase-orders/conciliation`) | 3 rutas (`purchase-orders`, `receive`, `conciliation`) | 4 tablas (`PurchaseOrder`, `PurchaseOrderItem`, `PurchaseOrderReceipt`, `PurchaseOrderReceiptItem`) | Supabase |
-| **Registro de Compras** | Completo | 1 p·gina | 4 rutas | 2 tablas | Supabase |
-| **Pagos a Proveedores** | Completo | 1 componente | 1 ruta | 1 tabla | Supabase |
-| **Cuentas por Pagar** | Parcial | En SupplierManager | ó | 1 tabla | Supabase |
-| **Devoluciones** | Completo (8 Oct 2026) | 1 p·gina (`purchases/returns`) | 2 rutas (`purchases/returns`, `purchases/returns/[id]`) | 2 tablas (`PurchaseReturn`, `PurchaseReturnItem`) | Supabase |
-| **Listas de Precios** | No Iniciado | 0 | 0 | 0 | ó |
-| **HistÛrico de Precios** | Completo (7 Oct 2026) | 1 componente | 1 ruta | 1 tabla (`supplier_price_history`) | Supabase |
+| **Gesti√≥n de Proveedores** | Completo | 3 componentes (`SupplierManager`, `SupplierRatings`, `SupplierPriceHistory`) | 5 rutas (`suppliers`, `/import`, `/ratings`, `/price-history`, + `route-original.ts` legacy) | 3 tablas (`Supplier`, `supplier_ratings`, `supplier_price_history`) | Supabase |
+| **√ìrdenes de Compra** | Completo (8 Oct 2026) | 2 p√°ginas (`purchase-orders` con crear/aprobar/recibir parcial; `purchase-orders/conciliation`) | 3 rutas (`purchase-orders`, `receive`, `conciliation`) | 4 tablas (`PurchaseOrder`, `PurchaseOrderItem`, `PurchaseOrderReceipt`, `PurchaseOrderReceiptItem`) | Supabase |
+| **Registro de Compras** | Completo | 1 p√°gina (`purchases`) | 6 rutas (`purchases`, `[id]`, `reports`, `export`, **`approval`**, **`approvers`**) | 3 tablas (`Purchase`, `PurchaseItem`, **`PurchaseApprover`**) | Supabase |
+| **Pagos a Proveedores** | Completo (8 Oct 2026) | 2 componentes (`PaymentManager`, conciliaci√≥n) | 2 rutas (`payments`, `payments/reconciliation`) | 1 tabla (`SupplierPayment`) | Supabase |
+| **Conciliaci√≥n Bancaria** | Completo (8 Oct 2026) | 1 p√°gina (`purchases/reconciliation`) | 1 ruta (`payments/reconciliation`) | ‚Äî (marca `SupplierPayment`) | Supabase |
+| **Cuentas por Pagar** | Parcial | En SupplierManager | ‚Äî | 1 tabla | Supabase |
+| **Devoluciones** | Completo (8 Oct 2026) | 1 p√°gina (`purchases/returns`) | 2 rutas (`purchases/returns`, `purchases/returns/[id]`) | 2 tablas (`PurchaseReturn`, `PurchaseReturnItem`) | Supabase |
+| **Listas de Precios** | No Iniciado | 0 | 0 | 0 | ‚Äî |
+| **Hist√≥rico de Precios** | Completo (7 Oct 2026) | 1 componente | 1 ruta | 1 tabla (`supplier_price_history`) | Supabase |
 | **Calificaciones de Proveedores** | Completo (7 Oct 2026) | 1 componente | 1 ruta | 1 tabla (`supplier_ratings`) | Supabase |
-| **Dashboard de Compras** | Completo | 1 p·gina | 1 ruta | ó | Supabase |
-| **Libro de Compras Legal** | Completo ó autom·tico desde transacciones + exportaciÛn Excel (22 Sept 2026) | 2 p·ginas (manual `app/api/reports/libro-compras` + autom·tica `app/companies/[id]/reports/purchase-book`) | 2 rutas (`reports/libro-compras` + trial-balance) | 1 vista | Supabase |
+| **Dashboard de Compras** | Completo | 1 p√°gina | 1 ruta | ‚Äî | Supabase |
+| **Libro de Compras Legal** | Completo ‚Äî autom√°tico desde transacciones + exportaci√≥n Excel (22 Sept 2026) | 2 p√°ginas (manual `app/api/reports/libro-compras` + autom√°tica `app/companies/[id]/reports/purchase-book`) | 2 rutas (`reports/libro-compras` + trial-balance) | 1 vista | Supabase |
 
-### 1.2 MÈtricas de Madurez
+### 1.2 M√©tricas de Madurez
 
-| MÈtrica | Valor | ObservaciÛn |
+| M√©trica | Valor | Observaci√≥n |
 |---|---|---|
-| Completitud Funcional | ~70% | N˙cleo de proveedores, compras, pagos y O.C. (crear/aprobar/recibir) en Supabase |
-| Cobertura de Pruebas | **104/104 automatizadas** (8 Oct 2026) | `tests/purchases/` ó 39 previos (humo, aislamiento, ratings, price-history) + 34 del mÛdulo O.C. + **15 de recepciÛn parcial y conciliaciÛn** + **16 de devoluciones** |
+| Completitud Funcional | ~75% | N√∫cleo de proveedores, compras, pagos, O.C. y devoluciones en Supabase |
+| Cobertura de Pruebas | **183/183 automatizadas** (8 Oct 2026; reconfirmadas 18 Oct) | `tests/purchases/` ‚Äî 39 previos (humo, aislamiento, ratings, price-history) + 34 del m√≥dulo O.C. + **15 de recepci√≥n parcial y conciliaci√≥n** + **16 de devoluciones** + **22 de aprobaci√≥n de compras** + **5 de contabilizaci√≥n obligatoria (065)** + **7 del asiento de pago (066)** + **13 de conciliaci√≥n bancaria (067)** + **19 de CAI del proveedor (068)** + **13 de retenci√≥n ISR y exoneraci√≥n (068, ¬ß6.15)** |
 | Persistencia | ~100% | Compras, pagos y proveedores persistidos en Supabase (ya no JSON) |
-| IntegraciÛn Contable | ~30% | Asiento contable best-effort al registrar compra (no bloquea) |
-| Workflow de Compra | ~85% | Crear ? aprobar ? **recibir parcial** ? `Purchase` por cada recepciÛn (**8 Oct 2026, 059**); **conciliaciÛn 3 vÌas** (solo lectura) en su propia p·gina |
+| Integraci√≥n Contable | ~95% | Asiento de compra **obligatorio** al aprobar (065) y asiento de **pago** obligatorio debe CxP / haber Banco (066); el de las devoluciones sigue best-effort |
+| Workflow de Compra | ~90% | Crear ? **aprobar** (061: nace `PENDING_APPROVAL`, sin efectos, aprueba gerente/designado; asiento obligatorio 065) ? **recibir parcial** ? `Purchase` por cada recepci√≥n (059); **conciliaci√≥n 3 v√≠as** (solo lectura) |
 
-### 1.3 MigraciÛn JSON ? Supabase (16 Sept 2026)
+### 1.3 Migraci√≥n JSON ? Supabase (16 Sept 2026)
 
 - Proveedores, compras y pagos ahora se leen/escriben en Supabase (`Supplier`, `Purchase`, `PurchaseItem`, `SupplierPayment`).
-- Migraciones aplicadas: `company_id` como texto, RTN ampliado a 20 caracteres, 4 claves for·neas entre las tablas.
-- Datos migrados e importados (1 proveedor, 2 compras, 3 Ìtems, 2 pagos).
-- Estados de compra normalizados en may˙sculas: `PENDING`, `PARTIAL`, `PAID`, `CANCELLED`.
-- Recompute de saldos/estado en cada operaciÛn de pago; `issue` de `PARTIAL` cuando queda saldo (incluso en compras convertidas a contado).
-- Legacy: `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan en el cÛdigo (candidatos a eliminar).
+- Migraciones aplicadas: `company_id` como texto, RTN ampliado a 20 caracteres, 4 claves for√°neas entre las tablas.
+- Datos migrados e importados (1 proveedor, 2 compras, 3 √≠tems, 2 pagos).
+- Estados de compra normalizados en may√∫sculas: `PENDING`, `PARTIAL`, `PAID`, `CANCELLED`.
+- Recompute de saldos/estado en cada operaci√≥n de pago; `issue` de `PARTIAL` cuando queda saldo (incluso en compras convertidas a contado).
+- Legacy: `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan en el c√≥digo (candidatos a eliminar).
 
 ---
 
 ## 2. Inventario Detallado
 
-### 2.1 GestiÛn de Proveedores
+### 2.1 Gesti√≥n de Proveedores
 
 **Estado: Completo**
 
 #### Archivos Implementados
 
-| Archivo | PropÛsito |
+| Archivo | Prop√≥sito |
 |---|---|
-| `components/purchasing/SupplierManager.tsx` | CRUD de proveedores + Cuentas por Pagar: seguimiento de pagables, procesamiento de pagos, exportaciÛn CSV |
-| `components/purchasing/SupplierRatings.tsx` | **Nuevo (7 Oct 2026)** ó calificaciones de 4 criterios + media |
-| `components/purchasing/SupplierPriceHistory.tsx` | **Nuevo (7 Oct 2026)** ó histÛrico de precios por proveedor |
-| `app/api/suppliers/route.ts` | API CRUD (`GET`/`POST`/`PATCH`/`DELETE`). **Filtra por `company_id` vÌa `contextoDeEmpresa()`, no por `?companyId`** (ver ß6.1) |
-| `app/api/suppliers/import/route.ts` | ImportaciÛn con dedup de RTN **por empresa** |
-| `app/api/suppliers/ratings/route.ts` | **Nuevo** ó calificaciones, aislada por `company_id` |
-| `app/api/suppliers/price-history/route.ts` | **Nuevo** ó histÛrico de precios, aislado por `company_id` |
-| `app/companies/[id]/suppliers/page.tsx` | P·gina de proveedores por empresa |
+| `components/purchasing/SupplierManager.tsx` | CRUD de proveedores + Cuentas por Pagar: seguimiento de pagables, procesamiento de pagos, exportaci√≥n CSV |
+| `components/purchasing/SupplierRatings.tsx` | **Nuevo (7 Oct 2026)** ‚Äî calificaciones de 4 criterios + media |
+| `components/purchasing/SupplierPriceHistory.tsx` | **Nuevo (7 Oct 2026)** ‚Äî hist√≥rico de precios por proveedor |
+| `app/api/suppliers/route.ts` | API CRUD (`GET`/`POST`/`PATCH`/`DELETE`). **Filtra por `company_id` v√≠a `contextoDeEmpresa()`, no por `?companyId`** (ver ¬ß6.1) |
+| `app/api/suppliers/import/route.ts` | Importaci√≥n con dedup de RTN **por empresa** |
+| `app/api/suppliers/ratings/route.ts` | **Nuevo** ‚Äî calificaciones, aislada por `company_id` |
+| `app/api/suppliers/price-history/route.ts` | **Nuevo** ‚Äî hist√≥rico de precios, aislado por `company_id` |
+| `app/companies/[id]/suppliers/page.tsx` | P√°gina de proveedores por empresa |
 
-> `app/api/suppliers/route-original.ts` es **cÛdigo muerto**: copia previa de la ruta,
-> sin referencia desde el cÛdigo. Candidato a eliminar (junto al legacy JSON, ß3.4).
+> `app/api/suppliers/route-original.ts` es **c√≥digo muerto**: copia previa de la ruta,
+> sin referencia desde el c√≥digo. Candidato a eliminar (junto al legacy JSON, ¬ß3.4).
 
 #### Tabla de Base de Datos
 
-- `Supplier` (Supabase) ó `rtn`, `name`, `commercial_name`, `email`, `phone`, `mobile`, `address`, `city`, `country`, `supplier_type`, `category`, `payment_terms`, `payment_method`, `bank_name`, `bank_account`, `account_type`, `is_active`, `is_preferred`, `tenant_id`, `company_id`, `created_at`, `updated_at`
+- `Supplier` (Supabase) ‚Äî `rtn`, `name`, `commercial_name`, `email`, `phone`, `mobile`, `address`, `city`, `country`, `supplier_type`, `category`, `payment_terms`, `payment_method`, `bank_name`, `bank_account`, `account_type`, `is_active`, `is_preferred`, `tenant_id`, `company_id`, `created_at`, `updated_at`; **CAI (066)**: `cai`, `cai_expiration_date`, `cai_range_from`, `cai_range_to` (nullable, sin unicidad: un CAI vigente por proveedor)
 
 **Restricciones (tras 043, 044 y 045, 7 Oct 2026):**
 
-| RestricciÛn | Estado | Por quÈ |
+| Restricci√≥n | Estado | Por qu√© |
 |---|---|---|
 | `company_id` **NOT NULL** | ? 043 | Un proveedor sin empresa es invisible para todo filtro por empresa |
-| **FK** `company_id ? companies(id)` | ? 043 | Antes no existÌa: se podÌa colgar de una empresa inexistente |
-| Õndice `idx_supplier_company` | ? 043 + **˙nico desde la 045** | El Ìndice de la frontera de aislamiento. ExistÌa un duplicado idÈntico (`idx_Supplier_ec136b_ci`), medido el 5 Oct: cada escritura de proveedor indexaba la dos veces. La 045 dejÛ solo este |
+| **FK** `company_id ? companies(id)` | ? 043 | Antes no exist√≠a: se pod√≠a colgar de una empresa inexistente |
+| √çndice `idx_supplier_company` | ? 043 + **√∫nico desde la 045** | El √≠ndice de la frontera de aislamiento. Exist√≠a un duplicado id√©ntico (`idx_Supplier_ec136b_ci`), medido el 5 Oct: cada escritura de proveedor indexaba la dos veces. La 045 dej√≥ solo este |
 | `UNIQUE (rtn, tenant_id)` | ? **eliminado** (044) | Trataba a las empresas de un mismo tenant como una sola |
 | FK `company_id` `ON DELETE CASCADE` | ? **cambiado a `NO ACTION`** | Borrar una empresa borraba sus proveedores sin error |
 
 > **Regla que no se negocia:** el mismo proveedor puede atender a varias empresas y
-> repetirse en tenants distintos. La ˙nica frontera es `company_id`.
+> repetirse en tenants distintos. La √∫nica frontera es `company_id`.
 > Detalle y evidencia en `AGENTS.md` ? *"Proveedores: NINGUNA unicidad que separe
 > empresas"* y en `docs/AISLAMIENTO_EMPRESAS.md`.
 
 #### Lo que Falta
 
 - ~~Sin historial de precios por proveedor~~ ? **resuelto 7 Oct 2026** (`supplier_price_history`, 041)
-- ~~Sin calificaciÛn de proveedores~~ ? **resuelto 7 Oct 2026** (`supplier_ratings`, 042)
+- ~~Sin calificaci√≥n de proveedores~~ ? **resuelto 7 Oct 2026** (`supplier_ratings`, 042)
 - Sin condiciones de pago configurables
-- ~~Õndice duplicado `idx_Supplier_ec136b_ci`~~ ? **resuelto 7 Oct 2026** (045): queda
-  **uno solo** sobre `company_id`, `idx_supplier_company`. Cada alta/ediciÛn/borrado
+- ~~√çndice duplicado `idx_Supplier_ec136b_ci`~~ ? **resuelto 7 Oct 2026** (045): queda
+  **uno solo** sobre `company_id`, `idx_supplier_company`. Cada alta/edici√≥n/borrado
   de proveedor ya no escribe la columna dos veces.
-- Unicidad de `email`: **sin tocar, pendiente de decisiÛn** (una misma empresa sÌ deberÌa poder dar de baja y reactivar un correo)
+- Unicidad de `email`: **sin tocar, pendiente de decisi√≥n** (una misma empresa s√≠ deber√≠a poder dar de baja y reactivar un correo)
 
 ---
 
-### 2.2 ”rdenes de Compra
+### 2.2 √ìrdenes de Compra
 
-**Estado: Completo ó crear ? aprobar ? recibir (parcial) ? `Purchase` + conciliaciÛn ó 8 Oct 2026**
+**Estado: Completo ‚Äî crear ? aprobar ? recibir (parcial) ? `Purchase` + conciliaci√≥n ‚Äî 8 Oct 2026**
 
 #### Archivos Implementados
 
-| Archivo | PropÛsito |
+| Archivo | Prop√≥sito |
 |---|---|
-| `lib/purchase-orders-db.ts` | LÛgica aislada por `company_id` (nunca tenant): `fetchPurchaseOrders`, `createPurchaseOrder`, `updatePurchaseOrder`, `deletePurchaseOrder`, `recibirPurchaseOrder` (parcial), `fetchPurchaseOrderReceipts`, `conciliarOrden`. `hidratarOrdenes` resuelve proveedor/Ìtems con consultas aparte (sin embeds) |
+| `lib/purchase-orders-db.ts` | L√≥gica aislada por `company_id` (nunca tenant): `fetchPurchaseOrders`, `createPurchaseOrder`, `updatePurchaseOrder`, `deletePurchaseOrder`, `recibirPurchaseOrder` (parcial), `fetchPurchaseOrderReceipts`, `conciliarOrden`. `hidratarOrdenes` resuelve proveedor/√≠tems con consultas aparte (sin embeds) |
 | `app/api/purchase-orders/route.ts` | GET/POST/PATCH/DELETE con `exigirEmpresa(contextoDeEmpresa)`. Ya no lee `?companyId` del cliente |
 | `app/api/purchase-orders/receive/route.ts` | POST `{ id, invoice_number, invoice_date, cai, is_credit, due_date, items? }` ? 201 `{ order, purchase, receipt }` |
-| `app/api/purchase-orders/conciliation/route.ts` | **Nuevo** ó GET conciliaciÛn 3 vÌas: `?orderId=` (detalle) o lista; `?soloConDiscrepancias=1`, `?tolerancia=`, `?toleranciaPrecio=` |
-| `app/companies/[id]/purchase-orders/page.tsx` | P·gina: listado + modales **Nueva Orden**, Ver, **Aprobar**, **Recibir** con cantidades por artÌculo; botÛn a ConciliaciÛn |
-| `app/companies/[id]/purchase-orders/conciliation/page.tsx` | **Nuevo** ó p·gina de conciliaciÛn (detalle por orden + lista con diferencias) |
+| `app/api/purchase-orders/conciliation/route.ts` | **Nuevo** ‚Äî GET conciliaci√≥n 3 v√≠as: `?orderId=` (detalle) o lista; `?soloConDiscrepancias=1`, `?tolerancia=`, `?toleranciaPrecio=` |
+| `app/companies/[id]/purchase-orders/page.tsx` | P√°gina: listado + modales **Nueva Orden**, Ver, **Aprobar**, **Recibir** con cantidades por art√≠culo; bot√≥n a Conciliaci√≥n |
+| `app/companies/[id]/purchase-orders/conciliation/page.tsx` | **Nuevo** ‚Äî p√°gina de conciliaci√≥n (detalle por orden + lista con diferencias) |
 
 #### Tablas y FKs
 
-- `PurchaseOrder` ó `id, order_number, supplier_id, order_date, expected_date, subtotal, tax_amount, total, status, requested_by, approved_by, approved_at, received_by, received_at, notes, purchase_id, tenant_id, company_id, created_at, updated_at, location_id`
-- `PurchaseOrderItem` ó `purchase_order_id`, `product_id`, `product_name`, `quantity_requested`, `quantity_received`, `unit_price`, `total`
+- `PurchaseOrder` ‚Äî `id, order_number, supplier_id, order_date, expected_date, subtotal, tax_amount, total, status, requested_by, approved_by, approved_at, received_by, received_at, notes, purchase_id, tenant_id, company_id, created_at, updated_at, location_id`
+- `PurchaseOrderItem` ‚Äî `purchase_order_id`, `product_id`, `product_name`, `quantity_requested`, `quantity_received`, `unit_price`, `total`
 - FK `PurchaseOrder.supplier_id ? "Supplier".id` (NO ACTION) y
   `PurchaseOrderItem.purchase_order_id ? "PurchaseOrder".id` (ON DELETE CASCADE). Antes
-  **no existÌan**: un embed a una relaciÛn inexistente da `PGRST200` y **aborta el
-  `SELECT` entero** (ver ß6.7).
-- **MigraciÛn 059** (`059_purchase_order_receipts.sql`, escrita y validada ó
-  **pendiente de aplicar por el usuario**): crea `PurchaseOrderReceipt` (cabecera de
+  **no exist√≠an**: un embed a una relaci√≥n inexistente da `PGRST200` y **aborta el
+  `SELECT` entero** (ver ¬ß6.7).
+- **Migraci√≥n 059** (`059_purchase_order_receipts.sql`, **APLICADA y verificada
+  8 Oct 2026**): crea `PurchaseOrderReceipt` (cabecera de
   cada entrega: `purchase_order_id`, `company_id`, `tenant_id`, `invoice_number`,
   `invoice_date`, `cai`, `purchase_id`, `received_at`, `received_by`, `notes`) y
-  `PurchaseOrderReceiptItem` (lÌneas: `receipt_id`, `company_id`, `tenant_id`,
+  `PurchaseOrderReceiptItem` (l√≠neas: `receipt_id`, `company_id`, `tenant_id`,
   `purchase_order_item_id`, `product_id`, `product_name`, `quantity_received`,
-  `unit_price`, `total`), con Ìndices, RLS y sin CHECK sobre `status`.
+  `unit_price`, `total`), con √≠ndices, RLS y sin CHECK sobre `status`.
 
-#### Flujo O.C. ? Compra (`recibirPurchaseOrder`, recepciÛn parcial)
+#### Flujo O.C. ? Compra (`recibirPurchaseOrder`, recepci√≥n parcial)
 
 - Exige `status ? {APPROVED, PARTIALLY_RECEIVED}` ? si no, **409**;
-  `invoice_number` obligatorio ? **400**; lÌnea que no casa con ning˙n artÌculo ? **400**.
-- **Cada llamada = una entrega**: crea su propia `Purchase` (vÌa `createPurchase`: Ìtems,
-  upsert de producto, historial de precios y asiento), guarda la cabecera y las lÌneas
+  `invoice_number` obligatorio ? **400**; l√≠nea que no casa con ning√∫n art√≠culo ? **400**.
+- **Cada llamada = una entrega**: crea su propia `Purchase` (v√≠a `createPurchase`: √≠tems,
+  upsert de producto, historial de precios y asiento), guarda la cabecera y las l√≠neas
   en `PurchaseOrderReceipt`/`PurchaseOrderReceiptItem`, y acumula
   `PurchaseOrderItem.quantity_received`.
-- Sin `items` en el cuerpo recibe **lo pendiente** de cada lÌnea (compatibilidad con el
+- Sin `items` en el cuerpo recibe **lo pendiente** de cada l√≠nea (compatibilidad con el
   "recibir todo" de la 052); si ya no queda nada ? **409**.
-- Estado: `RECEIVED` cuando cada lÌnea queda completa; si no, `PARTIALLY_RECEIVED`.
-  Enlaza `purchase_id` de la orden con la ˙ltima `Purchase`.
-- La validaciÛn va **antes** de escribir y **no se reserva el estado**: si algo falla, la
+- Estado: `RECEIVED` cuando cada l√≠nea queda completa; si no, `PARTIALLY_RECEIVED`.
+  Enlaza `purchase_id` de la orden con la √∫ltima `Purchase`.
+- La validaci√≥n va **antes** de escribir y **no se reserva el estado**: si algo falla, la
   orden queda intacta y no hace falta revertir. (Esto reemplaza el "marca `RECEIVED`
-  antes y revierte" de la 052 ó ver ß6.8.)
+  antes y revierte" de la 052 ‚Äî ver ¬ß6.8.)
 
-#### ConciliaciÛn 3 vÌas (`conciliarOrden`, solo lectura)
+#### Conciliaci√≥n 3 v√≠as (`conciliarOrden`, solo lectura)
 
 - Compara **ordenado** (O.C.) vs **recibido** (recepciones) vs **facturado** (las
   `Purchase` creadas por las recepciones), agrupando por producto.
-- Estado por lÌnea: `OK`, `SIN_RECIBIR`, `PARCIAL`, `EXCESO`, `FALTANTE_FACTURA`,
+- Estado por l√≠nea: `OK`, `SIN_RECIBIR`, `PARCIAL`, `EXCESO`, `FALTANTE_FACTURA`,
   `DIF_PRECIO`. `tolerancia` (cantidades) y `toleranciaPrecio` (precios). **No bloquea**;
   es un reporte con alertas.
 
 #### Lo que Falta
 
-- **Formulario de creaciÛn de Ûrdenes de compra en `components/purchasing/`** (la UI
-  vive en la p·gina `purchase-orders/page.tsx`): refactor de reutilizaciÛn, no
+- **Formulario de creaci√≥n de √≥rdenes de compra en `components/purchasing/`** (la UI
+  vive en la p√°gina `purchase-orders/page.tsx`): refactor de reutilizaci√≥n, no
   funcionalidad nueva.
-- Devoluciones a proveedores (Etapa 4.1).
+- ~~Devoluciones a proveedores (Etapa 4.1)~~ ? **resuelto 8 Oct 2026** (060, ¬ß6.9).
 
 ---
 
@@ -180,35 +192,37 @@
 
 #### Archivos Implementados
 
-| Archivo | PropÛsito |
+| Archivo | Prop√≥sito |
 |---|---|
-| `app/companies/[id]/purchases/page.tsx` | P·gina completa: CRUD de compras con Ìtems, proveedores, CAI, c·lculo de impuestos, integraciÛn con PaymentManager |
-| `lib/purchase-db.ts` | LÛgica compartida: `transformPurchase`, `fetchPurchases`, `createPurchase`, `updatePurchase`, `recomputePurchase`, `deletePurchase`, asiento contable best-effort, upsert de producto |
-| `app/api/purchases/route.ts` | API `GET`/`POST` sobre Supabase (tabla `Purchase` + Ìtems) |
+| `app/companies/[id]/purchases/page.tsx` | P√°gina completa: CRUD de compras con √≠tems, proveedores, CAI, c√°lculo de impuestos, integraci√≥n con PaymentManager; badge/columna **Aprobaci√≥n**, card **Por Aprobar**, bot√≥n **Aprobadores** y aprobar/rechazar con motivo |
+| `lib/purchase-db.ts` | L√≥gica compartida: `transformPurchase` (defaultea `APPROVED` para filas legacy), `fetchPurchases`, `createPurchase` (crea `PENDING_APPROVAL` **sin efectos**), `aplicarEfectosCompra` (con **reversi√≥n**), `aprobarCompra`/`rechazarCompra`, `updatePurchase`, `recomputePurchase`, `deletePurchase`, `fetchAprobadores`/`fetchMiembrosEmpresa`/`agregarAprobador`/`eliminarAprobador`/`esAprobadorDeCompras`, `resolverCuentasDeCompra`/`crearAsientoCompra` (**asiento obligatorio, 065**), upsert de producto |
+| `app/api/purchases/route.ts` | API `GET`/`POST` sobre Supabase (tabla `Purchase` + √≠tems) |
 | `app/api/purchases/[id]/route.ts` | API individual (`GET`/`PUT`/`DELETE`) |
-| `app/api/purchases/reports/route.ts` | Reportes: resumen, mensual, por categorÌa, por proveedor |
-| `app/api/purchases/export/route.ts` | ExportaciÛn de datos |
+| `app/api/purchases/approval/route.ts` | **Nuevo (061)** ‚Äî `POST` aprobar/rechazar; solo gerente-nivel o designado (**403**/**409**) |
+| `app/api/purchases/approvers/route.ts` | **Nuevo (061)** ‚Äî `GET` lista + `candidatos` + flags; `POST`/`DELETE` solo gestion |
+| `app/api/purchases/reports/route.ts` | Reportes: resumen, mensual, por categor√≠a, por proveedor |
+| `app/api/purchases/export/route.ts` | Exportaci√≥n de datos |
 | `app/api/purchase-book/route.ts` | Libro de compras legal |
 
 #### Tablas
 
-- `Purchase` ó `id`, `supplier_id`, `invoice_number`, `cai`, `invoice_date`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `purchase_type`, `expense_category`, `document_url`, `is_credit`, `due_date`, `status`, `amount_paid`, `balance_due`, `journal_entry_id`, `tenant_id`, `company_id`, `created_at`, `updated_at`
-- `PurchaseItem` ó `purchase_id`, `product_id`, `product_code`, `product_name`, `description`, `quantity`, `unit_price`, `discount_percentage`, `discount_amount`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `tenant_id`, `created_at`
+- `Purchase` ‚Äî `id`, `supplier_id`, `invoice_number`, `cai`, `invoice_date`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `purchase_type`, `expense_category`, `document_url`, `is_credit`, `due_date`, `status`, `amount_paid`, `balance_due`, `journal_entry_id`, `tenant_id`, `company_id`, `created_at`, `updated_at`; **aprobaci√≥n (061)**: `approval_status` (`PENDING_APPROVAL`/`APPROVED`/`REJECTED`), `approved_by`, `approved_at`, `rejection_reason`
+- `PurchaseItem` ‚Äî `purchase_id`, `product_id`, `product_code`, `product_name`, `description`, `quantity`, `unit_price`, `discount_percentage`, `discount_amount`, `subtotal`, `tax_rate`, `tax_amount`, `total`, `tenant_id`, `created_at`
+- `PurchaseApprover` (**061**) ‚Äî qui√©n puede aprobar compras de la empresa: unique `(company_id, user_id)`; la lista de candidatos sale de `user_company_access`
 
 #### Regla de Estado (recompute)
 
-`paid` = suma de `SupplierPayment.amount` (si hay pagos) o conserva `amount_paid` (contado sin pagos registrados); `balance` = `total - paid`; estado: `balance <= 0 ? PAID`, `paid > 0 ? PARTIAL`, crÈdito sin pagos ? `PENDING`, contado sin pagos ? `PARTIAL`.
+`paid` = suma de `SupplierPayment.amount` (si hay pagos) o conserva `amount_paid` (contado sin pagos registrados); `balance` = `total - paid`; estado: `balance <= 0 ? PAID`, `paid > 0 ? PARTIAL`, cr√©dito sin pagos ? `PENDING`, contado sin pagos ? `PARTIAL`.
 
 #### Efectos Laterales
 
 - Upsert best-effort del producto en la tabla `product` (stock y costo).
-- Asiento contable best-effort (no bloquea la operaciÛn, guarda `journal_entry_id`).
+- **Asiento contable obligatorio** al aprobar (065): cuadra debe/haber, exige las cuentas del cat√°logo y, si algo falla, **revierte** stock e historial y deja la compra `PENDING_APPROVAL` (no hay compra aprobada sin contabilizar).
 
 #### Lo que Falta
 
-- Sin integraciÛn contable obligatoria (asiento opcional)
-- Sin matching con Ûrdenes de compra
-- Sin workflow de aprobaciÛn
+- ~~Sin integraci√≥n contable obligatoria (asiento opcional)~~ ‚Üí **resuelto 8 Oct 2026** (065: asiento obligatorio al aprobar, fail-closed; ¬ß6.11)
+- ~~Sin workflow de aprobaci√≥n~~ ? **resuelto 8 Oct 2026** (061: `PENDING_APPROVAL` ? aprobar/rechazar; ¬ß6.10)
 
 ---
 
@@ -218,23 +232,26 @@
 
 #### Archivos Implementados
 
-| Archivo | PropÛsito |
+| Archivo | Prop√≥sito |
 |---|---|
-| `components/purchases/PaymentManager.tsx` | CRUD de pagos: mÈtodos de pago (efectivo, transferencia, cheque, tarjeta), seguimiento de saldo |
-| `app/api/purchases/payments/route.ts` | API `GET`/`POST`/`PUT`/`DELETE` sobre Supabase (tabla `SupplierPayment`) con rec·lculo autom·tico de saldo/estado |
+| `components/purchases/PaymentManager.tsx` | CRUD de pagos: m√©todos de pago (efectivo, transferencia, cheque, tarjeta), seguimiento de saldo |
+| `app/api/purchases/payments/route.ts` | API `GET`/`POST`/`PUT`/`DELETE` sobre Supabase (tabla `SupplierPayment`) con rec√°lculo autom√°tico de saldo/estado; **asiento de pago obligatorio** (066) fail-closed en POST/PUT/DELETE |
+| `lib/bank-reconciliation-db.ts` | **Nuevo (067)** ‚Äî pagos vs banco: `fetchPagosParaConciliar`, `resumenConciliacion`, `fetchCuentasBancarias`, `marcarPagosConciliados`/`desmarcarPagosConciliados` (hidrata en consultas aparte, sin embeds) |
+| `app/api/purchases/payments/reconciliation/route.ts` | **Nuevo (067)** ‚Äî GET/POST/DELETE conciliaci√≥n bancaria (marcar/desmarcar pagos), aislada por `company_id` |
+| `app/companies/[id]/purchases/reconciliation/page.tsx` | **Nuevo (067)** ‚Äî p√°gina de conciliaci√≥n bancaria |
 
 #### Tablas
 
-- `SupplierPayment` ó `id`, `supplier_id`, `purchase_id`, `company_id`, `amount`, `payment_date`, `payment_method`, `reference_number`, `notes`, `is_reconciled`, `tenant_id`, `created_at`, `updated_at`
+- `SupplierPayment` ‚Äî `id`, `supplier_id`, `purchase_id`, `company_id`, `amount`, `payment_date`, `payment_method`, `reference_number`, `notes`, `tenant_id`, `created_at`, `updated_at`; **asiento (064/066)**: `journal_entry_id` (text, nullable); **conciliaci√≥n (065/067)**: `is_reconciled` (NOT NULL, default false), `reconciled_at`, `bank_account_id`, `reconciliation_reference`
 
 #### Nota sobre Legacy
 
-- `app/api/supplier-payments/route.ts` sigue en el repo pero escribe en `supplier-payments.json`/`purchases-data.json` (mecanismo anterior). El cÛdigo actual usa `app/api/purchases/payments/route.ts`; los archivos JSON ya no se referencian.
+- `app/api/supplier-payments/route.ts` sigue en el repo pero escribe en `supplier-payments.json`/`purchases-data.json` (mecanismo anterior). El c√≥digo actual usa `app/api/purchases/payments/route.ts`; los archivos JSON ya no se referencian.
 
 #### Lo que Falta
 
-- Sin generaciÛn de asiento contable por pago
-- Sin conciliaciÛn bancaria de pagos
+- ~~Sin generaci√≥n de asiento contable por pago~~ ? **resuelto 8 Oct 2026** (066: asiento obligatorio debe CxP / haber Banco en POST/PUT/DELETE, ¬ß6.12)
+- ~~Sin conciliaci√≥n bancaria de pagos~~ ? **resuelto 8 Oct 2026** (067: pagos vs banco, marcar/desmarcar sobre `SupplierPayment`; ¬ß6.13)
 
 ---
 
@@ -244,60 +261,64 @@
 
 #### Archivos Implementados
 
-| Archivo | PropÛsito |
+| Archivo | Prop√≥sito |
 |---|---|
-| `components/purchases/PurchasesDashboard.tsx` | Dashboard analÌtico: tendencias mensuales, desglose por categorÌa, ranking de proveedores (Recharts) |
-| `app/companies/[id]/purchases/dashboard/page.tsx` | P·gina de dashboard |
-| `app/api/dashboard/purchase-stats/route.ts` | API de estadÌsticas |
+| `components/purchases/PurchasesDashboard.tsx` | Dashboard anal√≠tico: tendencias mensuales, desglose por categor√≠a, ranking de proveedores (Recharts) |
+| `app/companies/[id]/purchases/dashboard/page.tsx` | P√°gina de dashboard |
+| `app/api/dashboard/purchase-stats/route.ts` | API de estad√≠sticas |
 
 ---
 
-## 3. Problemas CrÌticos
+## 3. Problemas Cr√≠ticos
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | ~~Sin formulario de creaciÛn de Ûrdenes de compra~~ ? **resuelto 8 Oct 2026** (crear ? aprobar ? recibir, ß6.7) | ó | ? |
-| 2 | Sin integraciÛn contable completa (asiento best-effort) | Doble registro manual | Alta |
-| 3 | Sin devoluciones a proveedores | Sin control de calidad | Alta |
-| 4 | CÛdigo legacy JSON (route `supplier-payments` + 3 archivos) en repo | CÛdigo muerto, riesgo de confusiÛn | Media |
-| 5 | ~~Sin matching 3 vÌas~~ ? **resuelto 8 Oct 2026** (`conciliarOrden` + p·gina de conciliaciÛn, ß6.8) | ó | ? |
+| 1 | ~~Sin formulario de creaci√≥n de √≥rdenes de compra~~ ? **resuelto 8 Oct 2026** (crear ? aprobar ? recibir, ¬ß6.7) | ‚Äî | ? |
+| 2 | ~~Sin integraci√≥n contable completa (asiento best-effort)~~ ? **resuelto 8 Oct 2026** (065: asiento de compra **obligatorio** al aprobar; **066**: asiento de **pago** obligatorio, ¬ß6.12) | ‚Äî | ? |
+| 3 | ~~Sin devoluciones a proveedores~~ ? **resuelto 8 Oct 2026** (060, ¬ß6.9) | ‚Äî | ‚úì |
+| 4 | C√≥digo legacy JSON (route `supplier-payments` + 3 archivos) en repo | C√≥digo muerto, riesgo de confusi√≥n | Media |
+| 5 | ~~Sin matching 3 v√≠as~~ ? **resuelto 8 Oct 2026** (`conciliarOrden` + p√°gina de conciliaci√≥n, ¬ß6.8) | ‚Äî | ? |
+| 6 | ~~Sin conciliaci√≥n bancaria de pagos~~ ? **resuelto 8 Oct 2026** (067: pagos vs banco, marcar/desmarcar, ¬ß6.13) | ‚Äî | ? |
+| 7 | ~~Sin registro/validaci√≥n del CAI del proveedor~~ ? **resuelto 8 Oct 2026** (068: columnas CAI + aviso, ¬ß6.14) | ‚Äî | ? |
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: MigraciÛn a Base de Datos ó ? Completada (16 Sept 2026)
+### Etapa 1: Migraci√≥n a Base de Datos ‚Äî ? Completada (16 Sept 2026)
 
 | # | Tarea | Archivos | Entregable | Estado |
 |---|---|---|---|---|
 | 1.1 | Migrar proveedores de JSON a Supabase | `app/api/suppliers/route.ts` | API con Supabase | ? |
 | 1.2 | Migrar compras de JSON a Supabase | `app/api/purchases/route.ts`, `lib/purchase-db.ts` | API con Supabase | ? |
 | 1.3 | Migrar pagos de JSON a Supabase | `app/api/purchases/payments/route.ts` | API con Supabase | ? |
-| 1.4 | Script de migraciÛn de datos JSON existentes | `migrate-purchases-db.mjs` | MigraciÛn | ? |
+| 1.4 | Script de migraci√≥n de datos JSON existentes | `migrate-purchases-db.mjs` | Migraci√≥n | ? |
 
-### Etapa 2: Workflow de Compras ó ? Completada (b·sico, 8 Oct 2026)
+### Etapa 2: Workflow de Compras ‚Äî ? Completada (b√°sico, 8 Oct 2026)
 
 | # | Tarea | Archivos | Entregable | Estado |
 |---|---|---|---|---|
-| 2.1 | Formulario de creaciÛn de Ûrdenes de compra | `app/companies/[id]/purchase-orders/page.tsx` (modal "Nueva Orden") + `lib/purchase-orders-db.ts` | Formulario | ? |
-| 2.2 | Workflow de aprobaciÛn | `updatePurchaseOrder` (`DRAFT?PENDING?APPROVED`) | AprobaciÛn | ? (b·sico) |
-| 2.3 | RecepciÛn de mercancÌa | `recibirPurchaseOrder` ? `createPurchase` (+ `PurchaseOrderReceipt`, migraciÛn 059) | RecepciÛn | ? (recepciÛn **parcial**) |
+| 2.1 | Formulario de creaci√≥n de √≥rdenes de compra | `app/companies/[id]/purchase-orders/page.tsx` (modal "Nueva Orden") + `lib/purchase-orders-db.ts` | Formulario | ? |
+| 2.2 | Workflow de aprobaci√≥n | `updatePurchaseOrder` (`DRAFT?PENDING?APPROVED`) **+ `aprobarCompra`/`rechazarCompra` (`lib/purchase-db.ts`, 061)** | Aprobaci√≥n | ? (O.C. b√°sico; **compra: 061**) |
+| 2.3 | Recepci√≥n de mercanc√≠a | `recibirPurchaseOrder` ? `createPurchase` (+ `PurchaseOrderReceipt`, migraci√≥n 059) | Recepci√≥n | ? (recepci√≥n **parcial**) |
 
-### Etapa 3: IntegraciÛn Contable
+### Etapa 3: Integraci√≥n Contable
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 3.1 | Generar asiento contable por compra (obligatorio) | `lib/services/purchase-accounting.ts` | Asiento autom·tico |
-| 3.2 | Generar asiento contable por pago | `lib/services/payment-accounting.ts` | Asiento autom·tico |
-| 3.3 | ~~IntegraciÛn con libro de compras legal~~ | ~~`lib/services/legal-books.ts`~~ ? `lib/reports/purchase-book.ts` + `app/companies/[id]/reports/purchase-book/page.tsx` | ? Auto-generaciÛn del Libro de Compras desde transacciones contables + exportaciÛn Excel (22 Sept 2026) |
+| 3.1 | ~~Generar asiento contable por compra (obligatorio)~~ | `lib/purchase-db.ts` (`resolverCuentasDeCompra`/`crearAsientoCompra`) | ? **Asiento obligatorio al aprobar, con reversi√≥n (065), 8 Oct 2026** |
+| 3.2 | ~~Generar asiento contable por pago~~ | `lib/purchase-db.ts` (`crearAsientoPago`/`eliminarAsiento`) + `app/api/purchases/payments/route.ts` | ? **Asiento obligatorio debe CxP / haber Banco, rehecho en PUT y borrado en DELETE (066), 8 Oct 2026** |
+| 3.3 | ~~Integraci√≥n con libro de compras legal~~ | ~~`lib/services/legal-books.ts`~~ ? `lib/reports/purchase-book.ts` + `app/companies/[id]/reports/purchase-book/page.tsx` | ? Auto-generaci√≥n del Libro de Compras desde transacciones contables + exportaci√≥n Excel (22 Sept 2026) |
+| 3.4 | ~~Conciliaci√≥n bancaria de pagos~~ | `lib/bank-reconciliation-db.ts` + `app/api/purchases/payments/reconciliation/route.ts` | ? **067, 8 Oct 2026** (pagos vs banco, marcar/desmarcar) |
 
 ### Etapa 4: Devoluciones y Reportes
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 4.1 | Devoluciones a proveedores | `components/purchases/PurchaseReturnForm.tsx` | Formulario |
-| 4.2 | Matching 3 vÌas | `conciliarOrden` (`lib/purchase-orders-db.ts`) + `purchase-orders/conciliation` | Control | ? (solo lectura, 8 Oct 2026) |
+| 4.1 | Devoluciones a proveedores | `lib/purchase-returns-db.ts` + `app/companies/[id]/purchases/returns/page.tsx` | Documento por l√≠neas (baja de stock + nota de cr√©dito) | ? **060, 8 Oct 2026** |
+| 4.2 | Matching 3 v√≠as | `conciliarOrden` (`lib/purchase-orders-db.ts`) + `purchase-orders/conciliation` | Control | ? (solo lectura, 8 Oct 2026) |
 | 4.3 | Reportes avanzados de compras | `app/reports/purchases/page.tsx` | Reportes |
+| 4.4 | CAI del proveedor (registro + aviso) | `lib/supplier-cai.ts` + columnas CAI en `"Supplier"` | ? **068, 8 Oct 2026** (avisa, no bloquea) |
 
 ### Etapa 5: QA
 
@@ -308,16 +329,16 @@
 
 ---
 
-## 5. EstimaciÛn de Esfuerzo
+## 5. Estimaci√≥n de Esfuerzo
 
-| Etapa | Tareas | Complejidad | EstimaciÛn |
+| Etapa | Tareas | Complejidad | Estimaci√≥n |
 |---|---|---|---|
-| ~~Etapa 1: MigraciÛn BD~~ | ~~4 tareas~~ | ~~Alta~~ | ? Completada |
+| ~~Etapa 1: Migraci√≥n BD~~ | ~~4 tareas~~ | ~~Alta~~ | ? Completada |
 | Etapa 2: Workflow | 3 tareas | Alta | 3-4 semanas |
 | Etapa 3: Contabilidad | 3 tareas | Media | 2-3 semanas |
 | Etapa 4: Devoluciones | 3 tareas | Media | 2-3 semanas |
 | Etapa 5: QA | 2 tareas | Media | 1 semana |
-| **Total** | **11 tareas** | ó | **8-11 semanas** |
+| **Total** | **11 tareas** | ‚Äî | **8-11 semanas** |
 
 ---
 
@@ -325,7 +346,7 @@
 
 | Cambio | Detalle |
 |---|---|
-| Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout raÌz |
+| Vercel SpeedInsights + Analytics | `<SpeedInsights />` y `<Analytics />` integrados en layout ra√≠z |
 | Clerk SDK migrado | `@clerk/clerk-sdk-node` eliminado (deprecado), reemplazado por `lib/clerk-api.ts` (REST API directa) |
 | Supabase lazy init | Clientes inicializados bajo demanda via Proxy, evita errores de build en Vercel |
 | Next.js 16.3.5 | Restaurado desde 15.5.25; build y dev OK en Vercel (16 Sept 2026) |
@@ -336,23 +357,23 @@
 | Cambio | Detalle |
 |---|---|
 | Proveedores en Supabase | `app/api/suppliers/route.ts` (GET/POST/PATCH/DELETE) sobre tabla `Supplier` |
-| Compras en Supabase | `app/api/purchases/*` sobre `Purchase` + `PurchaseItem`, vÌa `lib/purchase-db.ts` |
+| Compras en Supabase | `app/api/purchases/*` sobre `Purchase` + `PurchaseItem`, v√≠a `lib/purchase-db.ts` |
 | Pagos en Supabase | `app/api/purchases/payments` sobre `SupplierPayment` con recompute de saldo/estado |
-| Estados normalizados | `PENDING` / `PARTIAL` / `PAID` / `CANCELLED` (may˙sculas en GET) |
+| Estados normalizados | `PENDING` / `PARTIAL` / `PAID` / `CANCELLED` (may√∫sculas en GET) |
 | Recompute PARTIAL | Saldo pendiente tras borrar/editar pago ? `PARTIAL` (incl. compras convertidas a contado) |
-| Migraciones SQL | `company_id` texto, RTN 20, 4 FKs ó aplicadas en Supabase |
-| Datos migrados | 1 proveedor, 2 compras, 3 Ìtems, 2 pagos |
+| Migraciones SQL | `company_id` texto, RTN 20, 4 FKs ‚Äî aplicadas en Supabase |
+| Datos migrados | 1 proveedor, 2 compras, 3 √≠tems, 2 pagos |
 | E2E | 37+ casos PASS sobre HTTP (dev server, Supabase real) |
-| Middleware Clerk | `/api/suppliers`, `/api/purchases/*` y `/api/purchases/payments` son rutas **protegidas**: `auth.protect()` ? HTTP 404 sin sesiÛn; se propaga `x-tenant-id` |
-| DDL vÌa SQL Editor | Sin acceso DDL directo (`DATABASE_URL` ? ENOTFOUND); tablas nuevas y migraciones se aplican en el SQL Editor de Supabase |
-| DIAT | El reporte DIAT (`lib/services/diat-generator.ts`, ver `docs/DIAT_REPORT.md`) consume `Purchase` + proveedor para las compras del perÌodo |
+| Middleware Clerk | `/api/suppliers`, `/api/purchases/*` y `/api/purchases/payments` son rutas **protegidas**: `auth.protect()` ? HTTP 404 sin sesi√≥n; se propaga `x-tenant-id` |
+| DDL v√≠a SQL Editor | Sin acceso DDL directo (`DATABASE_URL` ? ENOTFOUND); tablas nuevas y migraciones se aplican en el SQL Editor de Supabase |
+| DIAT | El reporte DIAT (`lib/services/diat-generator.ts`, ver `docs/DIAT_REPORT.md`) consume `Purchase` + proveedor para las compras del per√≠odo |
 
 ## Actualizaciones de Compras (22-23 Sept 2026)
 
 | Cambio | Detalle |
 |---|---|
-| Libro de Compras autom·tico desde contabilidad | `lib/reports/purchase-book.ts` (clasificaciÛn COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance del mes/aÒo, formato Excel es-HN) + integraciÛn en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle fuente **Manual/Autom·tica** y exportaciÛn a Excel; la vista manual (`app/api/reports/libro-compras`, CSV/PDF) se mantiene intacta. Fechas (˙ltima fecha de movimiento) alineadas en el libro (22 Sept 2026) |
-| AlineaciÛn de fechas en libros | `app/api/accounting/trial-balance/route.ts` incluye la ˙ltima fecha de movimiento por cuenta y el libro de compras la muestra en vez de `'-'` (fix `af42c46`, 23 Sept 2026) |
+| Libro de Compras autom√°tico desde contabilidad | `lib/reports/purchase-book.ts` (clasificaci√≥n COMPRA/GASTO/IMPUESTO/OTRO, transform + grouping desde trial-balance del mes/a√±o, formato Excel es-HN) + integraci√≥n en `app/companies/[id]/reports/purchase-book/page.tsx` con toggle fuente **Manual/Autom√°tica** y exportaci√≥n a Excel; la vista manual (`app/api/reports/libro-compras`, CSV/PDF) se mantiene intacta. Fechas (√∫ltima fecha de movimiento) alineadas en el libro (22 Sept 2026) |
+| Alineaci√≥n de fechas en libros | `app/api/accounting/trial-balance/route.ts` incluye la √∫ltima fecha de movimiento por cuenta y el libro de compras la muestra en vez de `'-'` (fix `af42c46`, 23 Sept 2026) |
 
 ---
 
@@ -361,13 +382,13 @@
 ### 6.1 Aislamiento: de `tenant_id` a `company_id`
 
 **Este fue el cambio estructural.** Antes, compras y proveedores filtraban por
-`tenant_id`, que **agrupa** pero **no aÌsla**: `TEST1DS` tiene dos empresas distintas
-(test 1 y test 2) y ambas compartÌan la misma superficie de datos.
+`tenant_id`, que **agrupa** pero **no a√≠sla**: `TEST1DS` tiene dos empresas distintas
+(test 1 y test 2) y ambas compart√≠an la misma superficie de datos.
 
 | Antes | Ahora |
 |---|---|
-| `.eq('tenant_id', ...)` | `.eq('company_id', ...)` vÌa `contextoDeEmpresa()` |
-| `?companyId` del cliente mandaba | el `[id]` de la ruta o la sesiÛn mandan; si no cuadran ? **403** |
+| `.eq('tenant_id', ...)` | `.eq('company_id', ...)` v√≠a `contextoDeEmpresa()` |
+| `?companyId` del cliente mandaba | el `[id]` de la ruta o la sesi√≥n mandan; si no cuadran ? **403** |
 | PATCH/DELETE por solo `.eq('id')` | id **+** `company_id` |
 | `company_id` tomado del cuerpo del `POST` | fijado en el servidor desde la empresa validada |
 
@@ -375,127 +396,127 @@ Las 9 rutas de compras/proveedores aisladas: `suppliers` (CRUD), `suppliers/impo
 `suppliers/ratings`, `suppliers/price-history`, `purchases`, `purchases/[id]`,
 `purchases/payments`, `purchases/reports`, `purchases/export`.
 
-**Rastro del error en el cÛdigo:** el comentario de `app/api/suppliers/route.ts`
-(L31-L37) documenta los tres fallos reales ó `buildInsert` fijaba `tenant_id` a `'1'`,
+**Rastro del error en el c√≥digo:** el comentario de `app/api/suppliers/route.ts`
+(L31-L37) documenta los tres fallos reales ‚Äî `buildInsert` fijaba `tenant_id` a `'1'`,
 el GET aceptaba `?tenantId` **como si fuera `company_id`** (son columnas distintas), y
 PATCH/DELETE no filtraban por empresa.
 
 > **Trampa latente:** `app/companies/[id]/suppliers/page.tsx:143` sigue mandando
 > `fetch(\`/api/suppliers?companyId=${companyId}\`)`, y la ruta **no lo lee**: solo
 > mira `search` y `id` (L59-60) y saca la empresa de `contextoDeEmpresa`. Funciona
-> bien, pero **parece** que la p·gina decide la empresa. Si alg˙n dÌa alguien
-> "arregla" la ruta para que haga caso al par·metro, reabre el agujero que ya tuvo
-> `?companyId` (cualquier autenticado leÌa otra empresa). El par·metro es
+> bien, pero **parece** que la p√°gina decide la empresa. Si alg√∫n d√≠a alguien
+> "arregla" la ruta para que haga caso al par√°metro, reabre el agujero que ya tuvo
+> `?companyId` (cualquier autenticado le√≠a otra empresa). El par√°metro es
 > inocente hoy **porque se ignora**, no porque se valide.
 
 ### 6.2 Migraciones 040-045
 
-| MigraciÛn | QuÈ hizo | Verificada |
+| Migraci√≥n | Qu√© hizo | Verificada |
 |---|---|---|
 | `040_compras_proveedores_tenant_coherente.sql` | Coherencia de `tenant_id` en compras/proveedores | ? |
 | `041_supplier_price_history_company_id.sql` | `supplier_price_history` + `company_id` | ? (10 tests) |
 | `042_supplier_ratings.sql` | `supplier_ratings` (4 criterios, `CHECK` de 2000 caracteres) | ? (21 tests) |
-| `043_supplier_company_id_not_null.sql` | **NOT NULL** + **FK** `company_id ? companies(id)` + Ìndice | ? por `23502`/`23503` desde PostgREST |
+| `043_supplier_company_id_not_null.sql` | **NOT NULL** + **FK** `company_id ? companies(id)` + √≠ndice | ? por `23502`/`23503` desde PostgREST |
 | `044_supplier_rtn_por_empresa.sql` | **`DROP` del `UNIQUE (rtn, tenant_id)`** + FK `CASCADE ? NO ACTION` | ? (ver abajo) |
-| `045_supplier_indice_company_id_duplicado.sql` | Deja **1 solo Ìndice** sobre `(company_id)`; borra el duplicado | ? (ver abajo) |
+| `045_supplier_indice_company_id_duplicado.sql` | Deja **1 solo √≠ndice** sobre `(company_id)`; borra el duplicado | ? (ver abajo) |
 
 **Evidencia de la 044** (7 Oct 2026, medida desde fuera, con `service_role`):
 
-| Se intentÛ | Resultado | QuÈ demuestra |
+| Se intent√≥ | Resultado | Qu√© demuestra |
 |---|---|---|
-| mismo RTN en test 1 | `201` | ó |
+| mismo RTN en test 1 | `201` | ‚Äî |
 | mismo RTN en test 2 (mismo tenant, otra empresa) | **`201`** (antes `409`) | el `UNIQUE` ya no existe |
 | borrar empresa con proveedor referenciado | **`409 23503`** citando `supplier_company_id_fkey` | la FK ya **no** es `CASCADE` |
 
 **Evidencia de la 045** (7 Oct 2026):
 
-| Se midiÛ | Resultado | QuÈ demuestra |
+| Se midi√≥ | Resultado | Qu√© demuestra |
 |---|---|---|
-| `SELECT` sobre `pg_index` | **exactamente 1 fila**: `idx_supplier_company`, no ˙nico, no parcial, sin `INCLUDE` | **`idx_Supplier_ec136b_ci` ya no existe**; sobrevive el declarado en `prisma/schema.prisma:349` |
-| `Supplier` por PostgREST | 3/3 intactos, 0 `company_id` NULL, 0 huÈrfanos | no tocÛ ninguna fila (la 045 no tiene ni un `UPDATE` ni un `INSERT`) |
+| `SELECT` sobre `pg_index` | **exactamente 1 fila**: `idx_supplier_company`, no √∫nico, no parcial, sin `INCLUDE` | **`idx_Supplier_ec136b_ci` ya no existe**; sobrevive el declarado en `prisma/schema.prisma:349` |
+| `Supplier` por PostgREST | 3/3 intactos, 0 `company_id` NULL, 0 hu√©rfanos | no toc√≥ ninguna fila (la 045 no tiene ni un `UPDATE` ni un `INSERT`) |
 | insertar proveedor con empresa inventada | **`23503` citando `supplier_company_id_fkey`** | la FK sigue en pie |
-| SQL Editor | `Success. No rows returned` | **ning˙n `RAISE EXCEPTION`**: no habÌa `UNIQUE`, no hubo empate y ning˙n `DROP` chocÛ con una constraint |
+| SQL Editor | `Success. No rows returned` | **ning√∫n `RAISE EXCEPTION`**: no hab√≠a `UNIQUE`, no hubo empate y ning√∫n `DROP` choc√≥ con una constraint |
 
-> **`Success. No rows returned` no es evidencia** de que algo ocurriÛ: el SQL Editor
+> **`Success. No rows returned` no es evidencia** de que algo ocurri√≥: el SQL Editor
 > no muestra los `RAISE NOTICE` de un `DO $$`. Verificar desde fuera con PostgREST.
-> Lo que **sÌ** prueba un "sin error" es que **no hubo excepciÛn**, y eso vale aquÌ
-> porque el post-check de la 045 corre **siempre** (tambiÈn cuando no hay duplicado)
-> y `RAISE EXCEPTION` si quedan m·s de 1 Ìndice, si no sobrevive el esperado o si
+> Lo que **s√≠** prueba un "sin error" es que **no hubo excepci√≥n**, y eso vale aqu√≠
+> porque el post-check de la 045 corre **siempre** (tambi√©n cuando no hay duplicado)
+> y `RAISE EXCEPTION` si quedan m√°s de 1 √≠ndice, si no sobrevive el esperado o si
 > desaparece la FK.
 
 > El `DROP` va **por columnas**, no por nombre: Prisma lo llama
 > `unique_supplier_rtn_tenant` y el objeto real tiene otro nombre. Con `IF EXISTS` y
-> nombre equivocado **no falla ó no hace nada**, y el `INSERT` posterior revienta sin
-> pista. La 045 aplica la misma lecciÛn: busca los candidatos con
+> nombre equivocado **no falla ‚Äî no hace nada**, y el `INSERT` posterior revienta sin
+> pista. La 045 aplica la misma lecci√≥n: busca los candidatos con
 > `pg_get_indexdef(oid, 1, true) = 'company_id'`, porque el nombre del duplicado
-> **no est· en el repo**.
+> **no est√° en el repo**.
 
 ### 6.3 Estado de los datos (medido 7 Oct 2026)
 
-| MÈtrica | Valor |
+| M√©trica | Valor |
 |---|---|
-| Proveedores totales | **3** ó todos en `Empresa 1` (`tenant 1`) |
+| Proveedores totales | **3** ‚Äî todos en `Empresa 1` (`tenant 1`) |
 | `company_id` NULL | 0 |
-| Filas huÈrfanas (FK) | 0 |
+| Filas hu√©rfanas (FK) | 0 |
 | RTNs repetidos | 0 (los 3 son distintos) |
 | Compras con proveedor | 2 (solo DICOSA) |
-| Pruebas compras/proveedores | **88/88 PASS** (8 Oct 2026; 39 + 34 del mÛdulo O.C. + 15 de recepciÛn parcial/conciliaciÛn) |
+| Pruebas compras/proveedores | **170/170 PASS** (8 Oct 2026; actualizado tras 065-068) |
 
 ### 6.4 Validador de migraciones
 
 `scripts/validar-040.mjs` analiza `prisma/migrations/*.sql` antes de aplicarlas.
-NaciÛ de este trabajo y arrastraba tres bugs propios (ya corregidos):
+Naci√≥ de este trabajo y arrastraba tres bugs propios (ya corregidos):
 
-1. **Se analizaba a sÌ mismo** ó un comentario de un `DO` que citaba SQL roto hacÌa
-   fallar el validador en vez de seÒalizar la migraciÛn.
+1. **Se analizaba a s√≠ mismo** ‚Äî un comentario de un `DO` que citaba SQL roto hac√≠a
+   fallar el validador en vez de se√±alizar la migraci√≥n.
 2. **La regla de paridad de comillas solo contaba las que quedaban dentro de los `$$`**
-   ó justo donde vivÌa el bug que debÌa cazar. Arreglar lo otro la habrÌa dejado
+   ‚Äî justo donde viv√≠a el bug que deb√≠a cazar. Arreglar lo otro la habr√≠a dejado
    contando 0 para siempre.
 3. **`sinComentarios` se saltaba los `$$` enteros**, y el contenido de un `$$` **es SQL**.
 
-Reglas activas: `name` vs `oid` de cat·logo (`42883`), tipo de columna de cat·logo vs
-tipo de variable `INTO` (`22P02`), n∫ de columnas del `SELECT` vs variables del `INTO`,
+Reglas activas: `name` vs `oid` de cat√°logo (`42883`), tipo de columna de cat√°logo vs
+tipo de variable `INTO` (`22P02`), n¬∫ de columnas del `SELECT` vs variables del `INTO`,
 `//` dentro de SQL (`42601`), paridad de comillas. **8 casos de prueba**, incluidos
-falsos positivos descartados (apÛstrofo en prosa de comentario, `//` dentro de una URL).
+falsos positivos descartados (ap√≥strofo en prosa de comentario, `//` dentro de una URL).
 
-### 6.6 MÛdulo de ”rdenes de Compra (O.C. ? Compra) ó 8 Oct 2026
+### 6.6 M√≥dulo de √ìrdenes de Compra (O.C. ? Compra) ‚Äî 8 Oct 2026
 
-Hasta ahora el mÛdulo de **Ûrdenes de compra** (`/api/purchase-orders`) quedÛ fuera
-del saneado: operaba sin el frontend de compras ya aislado. Se alineÛ con el resto
-del mÛdulo y se le aÒadiÛ lo que faltaba: **"Recibir una O.C." ahora crea la
+Hasta ahora el m√≥dulo de **√≥rdenes de compra** (`/api/purchase-orders`) qued√≥ fuera
+del saneado: operaba sin el frontend de compras ya aislado. Se aline√≥ con el resto
+del m√≥dulo y se le a√±adi√≥ lo que faltaba: **"Recibir una O.C." ahora crea la
 `Purchase` real**.
 
 **Estado medido antes de tocar nada:** `PurchaseOrder` y `PurchaseOrderItem`
-est·n **vacÌas (0 filas)** en la BD ó no hay datos legacy que migrar. Columnas de
+est√°n **vac√≠as (0 filas)** en la BD ‚Äî no hay datos legacy que migrar. Columnas de
 `PurchaseOrder`: `id, order_number, supplier_id, order_date, expected_date,
 subtotal, tax_amount, total, status, requested_by, approved_by, approved_at,
 received_by, received_at, notes, purchase_id, tenant_id, company_id, created_at,
 updated_at, location_id`.
 
-| Pieza | QuÈ hace |
+| Pieza | Qu√© hace |
 |---|---|
-| `lib/purchase-orders-db.ts` (nuevo) | Toda la lÛgica aislada por `company_id` (nunca tenant). `fetchPurchaseOrders`, `createPurchaseOrder` (proveedor estricto de la empresa vÌa `idsDeEstaEmpresa`; `DRAFT`; suelta `product_id` ajeno; ignora `companyId` del cuerpo), `updatePurchaseOrder` (404 si no es de la empresa; whitelist; bloquea `RECEIVED`/`COMPLETED` por PATCH; saltos `DRAFT?PENDING/APPROVED`, `PENDING?APPROVED`, `CANCELLED` libre), `deletePurchaseOrder` (404 + items), `recibirPurchaseOrder` |
-| `app/api/purchase-orders/route.ts` | GET/POST/PATCH/DELETE con `exigirEmpresa(await contextoDeEmpresa(request))`. **Ya no lee `?companyId`** del cliente (mismo patrÛn que `/api/purchases`). 404 (no 403) ante ids ajenos; `respuestaDeErrorDeEmpresa` en catch |
+| `lib/purchase-orders-db.ts` (nuevo) | Toda la l√≥gica aislada por `company_id` (nunca tenant). `fetchPurchaseOrders`, `createPurchaseOrder` (proveedor estricto de la empresa v√≠a `idsDeEstaEmpresa`; `DRAFT`; suelta `product_id` ajeno; ignora `companyId` del cuerpo), `updatePurchaseOrder` (404 si no es de la empresa; whitelist; bloquea `RECEIVED`/`COMPLETED` por PATCH; saltos `DRAFT?PENDING/APPROVED`, `PENDING?APPROVED`, `CANCELLED` libre), `deletePurchaseOrder` (404 + items), `recibirPurchaseOrder` |
+| `app/api/purchase-orders/route.ts` | GET/POST/PATCH/DELETE con `exigirEmpresa(await contextoDeEmpresa(request))`. **Ya no lee `?companyId`** del cliente (mismo patr√≥n que `/api/purchases`). 404 (no 403) ante ids ajenos; `respuestaDeErrorDeEmpresa` en catch |
 | `app/api/purchase-orders/receive/route.ts` (nuevo) | POST `{ id, invoice_number, invoice_date, cai, is_credit, due_date }` ? 201 `{ order, purchase }` |
-| P·gina `purchase-orders/page.tsx` | Modal Recibir con datos de la factura (N∫ Factura obligatorio, fecha, CAI, contado/crÈdito, vencimiento); badge "Compra registrada" + botÛn a Compras; fix de display de totales (`* 100`) en lista/ver/aprobar |
+| P√°gina `purchase-orders/page.tsx` | Modal Recibir con datos de la factura (N¬∫ Factura obligatorio, fecha, CAI, contado/cr√©dito, vencimiento); badge "Compra registrada" + bot√≥n a Compras; fix de display de totales (`* 100`) en lista/ver/aprobar |
 
 **`recibirPurchaseOrder` (el flujo O.C. ? Compra):**
 - Exige `status === 'APPROVED'` y `purchase_id` NULL ? en otro caso **409**.
 - `invoice_number` obligatorio ? **400**.
 - Marca la orden `RECEIVED` **antes** de crear la compra y **revierte a `APPROVED`**
-  si la creaciÛn falla (evita compras duplicadas en un reintento).
+  si la creaci√≥n falla (evita compras duplicadas en un reintento).
 - Reutiliza `createPurchase` de `lib/purchase-db.ts`: items (soltando `product_id`
   ajeno), upsert de producto, historial de precios y asiento. `purchase_type`
   `'merchandise'`, `tax_rate` 15 (la O.C. no guarda `tax_rate`, solo `tax_amount`.
   El iva del asiento se calcula sobre la cabecera de la orden, autoritativa).
 - Enlaza `purchase_id` a la orden devuelta.
 
-> **CorrecciÛn 8 Oct 2026 (059, ß6.8):** este flujo se reemplazÛ por la **recepciÛn
+> **Correcci√≥n 8 Oct 2026 (059, ¬ß6.8):** este flujo se reemplaz√≥ por la **recepci√≥n
 > parcial**. `recibirPurchaseOrder` ya **no** marca `RECEIVED` antes ni revierte: admite
 > `APPROVED` **y** `PARTIALLY_RECEIVED`, crea una `Purchase` por entrega y solo actualiza
-> el estado **despuÈs** de que todo fue bien.
+> el estado **despu√©s** de que todo fue bien.
 
-**ConvenciÛn de moneda en la p·gina O.C.:** almacena **lempiras** exactos y
+**Convenci√≥n de moneda en la p√°gina O.C.:** almacena **lempiras** exactos y
 `formatCurrency(x) = x/100`; por eso los totales de lista/ver/aprobar se muestran
 con `formatCurrency(total * 100)`. Es un truco de display, no centavos.
 
@@ -505,63 +526,65 @@ con `formatCurrency(total * 100)`. Es un truco de display, no centavos.
 headers `x-company-id`/`x-tenant-id` (como hace `middleware.ts`). 73/73 en total.
 `tsc --noEmit` sin subir del baseline (462).
 
-**Para no perder de vista:** `ErrorDeEmpresa` acepta ahora tambiÈn `409` y `500`
+**Para no perder de vista:** `ErrorDeEmpresa` acepta ahora tambi√©n `409` y `500`
 (`lib/tenant-resolver.ts`), no solo `400/401/403`.
 
 ### 6.5 Pendiente en compras/proveedores
 
-| # | Pendiente | Por quÈ se quedÛ |
+| # | Pendiente | Por qu√© se qued√≥ |
 |---|---|---|
-| ~~1~~ | ~~Õndice duplicado `idx_Supplier_ec136b_ci`~~ | **Resuelto 7 Oct 2026 (045, aplicada y verificada):** queda 1 solo Ìndice, `idx_supplier_company`, medido con `SELECT` sobre `pg_index` |
-| 2 | Unicidad de `email` en `Supplier` | **Pendiente de decisiÛn** ó no aÒadir nada que separe empresas sin orden |
-| ~~3~~ | ~~`product_location.company_id = 'TEST1DS'`~~ | **RESUELTO 8 Oct 2026 (046 APLICADA Y VERIFICADA):** las 2 filas (B2 y C1) quedaron con `company_id` de test 1, 0 filas con `TEST1DS`, 0 inv·lidas ó medido desde fuera por PostgREST. El filtro por empresa en las rutas que la leen (`locations/import`, `locations/image`) **ya est·** (8 Oct). Ver `docs/AISLAMIENTO_EMPRESAS.md` |
-| 4 | 28 rutas siguen solo en `tenant_id` (8 Oct: `costs` y `custom-kpis` salieron en la 051) | Ver `docs/AISLAMIENTO_EMPRESAS.md` |
-| 5 | `route-original.ts` + 3 ficheros JSON legacy | CÛdigo muerto |
-| ~~6~~ | ~~**RecepciÛn parcial** de O.C.~~ | **Resuelto 8 Oct 2026 (059, pendiente de aplicar en la BD):** `PurchaseOrderReceipt`/`PurchaseOrderReceiptItem` + `recibirPurchaseOrder` acumula `quantity_received` y `PARTIALLY_RECEIVED`/`RECEIVED` (ß6.8) |
-| ~~7~~ | ~~**Matching 3 vÌas** (OC ? RecepciÛn ? Factura)~~ | **Resuelto 8 Oct 2026:** `conciliarOrden` + ruta/p·gina `purchase-orders/conciliation` (solo lectura, con tolerancias) (ß6.8) |
-| 8 | Formulario de O.C. en `components/purchasing/` (**la UI vive en la p·gina `purchase-orders/page.tsx`**) | Refactor de reutilizaciÛn, **no** funcionalidad nueva (la creaciÛn ya funciona) |
+| ~~1~~ | ~~√çndice duplicado `idx_Supplier_ec136b_ci`~~ | **Resuelto 7 Oct 2026 (045, aplicada y verificada):** queda 1 solo √≠ndice, `idx_supplier_company`, medido con `SELECT` sobre `pg_index` |
+| 2 | Unicidad de `email` en `Supplier` | **Pendiente de decisi√≥n** ‚Äî no a√±adir nada que separe empresas sin orden |
+| ~~3~~ | ~~`product_location.company_id = 'TEST1DS'`~~ | **RESUELTO 8 Oct 2026 (046 APLICADA Y VERIFICADA):** las 2 filas (B2 y C1) quedaron con `company_id` de test 1, 0 filas con `TEST1DS`, 0 inv√°lidas ‚Äî medido desde fuera por PostgREST. El filtro por empresa en las rutas que la leen (`locations/import`, `locations/image`) **ya est√°** (8 Oct). Ver `docs/AISLAMIENTO_EMPRESAS.md` |
+| 4 | Rutas que siguen **solo en `tenant_id`** (ajenas al m√≥dulo de compras) | **Pendiente, fuera del alcance.** `051` cerr√≥ `costs`/`custom-kpis`; `062`/`069`/`070` cerraron `documents/pdf`, SAR y `billing`. Quedan las de `tenant\|admin\|support` (tenant por naturaleza). Ver `docs/AISLAMIENTO_EMPRESAS.md` |
+| 5 | `route-original.ts` + 3 ficheros JSON legacy | C√≥digo muerto |
+| ~~6~~ | ~~**Recepci√≥n parcial** de O.C.~~ | **Resuelto 8 Oct 2026 (059 APLICADA Y VERIFICADA):** `PurchaseOrderReceipt`/`PurchaseOrderReceiptItem` + `recibirPurchaseOrder` acumula `quantity_received` y `PARTIALLY_RECEIVED`/`RECEIVED` (¬ß6.8) |
+| ~~7~~ | ~~**Matching 3 v√≠as** (OC ? Recepci√≥n ? Factura)~~ | **Resuelto 8 Oct 2026:** `conciliarOrden` + ruta/p√°gina `purchase-orders/conciliation` (solo lectura, con tolerancias) (¬ß6.8) |
+| 8 | Formulario de O.C. en `components/purchasing/` (**la UI vive en la p√°gina `purchase-orders/page.tsx`**) | Refactor de reutilizaci√≥n, **no** funcionalidad nueva (la creaci√≥n ya funciona) |
+| ~~9~~ | ~~Sin conciliaci√≥n bancaria de pagos~~ | **Resuelto 8 Oct 2026 (067):** pagos vs banco, marcar/desmarcar sobre `SupplierPayment` (¬ß6.13) |
+| ~~10~~ | ~~Sin registro/validaci√≥n del CAI del proveedor~~ | **Resuelto 8 Oct 2026 (068):** columnas CAI en `Supplier` + aviso (**no** bloqueo) al registrar/editar la compra (¬ß6.14) |
 
-### 6.7 Cierre del mÛdulo O.C. + plumbing de contexto (052-058) ó 8 Oct 2026
+### 6.7 Cierre del m√≥dulo O.C. + plumbing de contexto (052-058) ‚Äî 8 Oct 2026
 
-**MigraciÛn 052 (`052_purchase_order_fks.sql`, aplicada y verificada).** El mÛdulo de
+**Migraci√≥n 052 (`052_purchase_order_fks.sql`, aplicada y verificada).** El m√≥dulo de
 O.C. (047) funcionaba **sin FKs**. Al probarlo, `GET /api/purchase-orders` daba
-**500**. Causa medida por PostgREST (no supuesta): un embed a una relaciÛn inexistente
-**no devuelve vacÌo ó aborta con `PGRST200`**
+**500**. Causa medida por PostgREST (no supuesta): un embed a una relaci√≥n inexistente
+**no devuelve vac√≠o ‚Äî aborta con `PGRST200`**
 (`Could not find a relationship between 'PurchaseOrder' and 'supplier_id'`) y tumba el
 `SELECT` entero. Contraprueba: el embed equivalente de Compras (`Purchase` +
-`Supplier` + `PurchaseItem`) sÌ resuelve 200, o sea que esas FK **sÌ** existÌan; al
-mÛdulo O.C. se le pasaron. Se atacÛ en dos capas:
+`Supplier` + `PurchaseItem`) s√≠ resuelve 200, o sea que esas FK **s√≠** exist√≠an; al
+m√≥dulo O.C. se le pasaron. Se atac√≥ en dos capas:
 
-- **CÛdigo:** `fetchPurchaseOrders` ya no usa embeds; `hidratarOrdenes` resuelve
+- **C√≥digo:** `fetchPurchaseOrders` ya no usa embeds; `hidratarOrdenes` resuelve
   proveedor (por id **y** empresa: un `supplier_id` ajeno resuelve `null`, no filtra el
-  nombre/RTN de la hermana) e Ìtems con consultas aparte.
-- **MigraciÛn 052:** FK `PurchaseOrder.supplier_id ? "Supplier".id` (NO ACTION) y
+  nombre/RTN de la hermana) e √≠tems con consultas aparte.
+- **Migraci√≥n 052:** FK `PurchaseOrder.supplier_id ? "Supplier".id` (NO ACTION) y
   `PurchaseOrderItem.purchase_order_id ? "PurchaseOrder".id` (ON DELETE CASCADE).
   Comprueba las FK **por columnas** (`pg_constraint` + `pg_attribute`), preflight que
   aborta y post-check con `RAISE EXCEPTION`. Sin FK de `company_id`:
   `PurchaseOrder.company_id` es `uuid` y `companies.id` es `text`; el aislamiento lo
-  hace el cÛdigo. `node scripts/validar-040.mjs` ? OK.
+  hace el c√≥digo. `node scripts/validar-040.mjs` ? OK.
 
-> **LecciÛn nueva:** un embed a una FK inexistente **no devuelve vacÌo, aborta con
-> `PGRST200`**, y ning˙n validador de forma lo ve (es un error de runtime de PostgREST).
+> **Lecci√≥n nueva:** un embed a una FK inexistente **no devuelve vac√≠o, aborta con
+> `PGRST200`**, y ning√∫n validador de forma lo ve (es un error de runtime de PostgREST).
 
 **Nueva Compra: elegir producto del inventario o crear uno (053).** El modal de
 `app/companies/[id]/purchases/page.tsx` tiene **"+ Nuevo producto"** dentro del
 `Select`, con un `Dialog` que hace `POST /api/inventory/products?companyId=...` y
-selecciona el reciÈn creado para precargar la lÌnea.
+selecciona el reci√©n creado para precargar la l√≠nea.
 
-**Contexto por query (`?companyId`) en las llamadas que faltaban (054-058).** A raÌz
-de la cascada de 400 "No se pudo determinar la empresa de la peticiÛn":
+**Contexto por query (`?companyId`) en las llamadas que faltaban (054-058).** A ra√≠z
+de la cascada de 400 "No se pudo determinar la empresa de la petici√≥n":
 
-- `054`/`056`: el POST de crear O.C. iba sin `?companyId` (el 054 quedÛ adem·s con un
+- `054`/`056`: el POST de crear O.C. iba sin `?companyId` (el 054 qued√≥ adem√°s con un
   template literal `companyId=` **literal**, no interpolado) ? corregido a
   `` `/api/purchase-orders?companyId=${companyId}` ``.
-- `055`: proveedores ó POST/PATCH/DELETE con `?companyId` (DELETE por
+- `055`: proveedores ‚Äî POST/PATCH/DELETE con `?companyId` (DELETE por
   `?id=...&companyId=...`).
-- `057`: O.C. ó `handleApprove` (PATCH) y `handleReceive` (POST `/receive`) sin
+- `057`: O.C. ‚Äî `handleApprove` (PATCH) y `handleReceive` (POST `/receive`) sin
   `?companyId`.
-- `058`: **la raÌz de la cascada, no eran 8 bugs sueltos.** `ponerCookie(
-  'active_company_id', Ö)` solo se llama en `cambiarEmpresa`/`cambiarSede`
+- `058`: **la ra√≠z de la cascada, no eran 8 bugs sueltos.** `ponerCookie(
+  'active_company_id', ‚Ä¶)` solo se llama en `cambiarEmpresa`/`cambiarSede`
   (`lib/contexts/WorkspaceContext.tsx`), **nunca en la carga inicial ni en `cargar()`**.
   Sin cookie, `middleware.ts` no pone `x-company-id`, y toda ruta que **no** viva bajo
   `/api/companies/[id]/...` y que no reciba `?companyId` responde **400**. Arreglado en
@@ -572,40 +595,40 @@ de la cascada de 400 "No se pudo determinar la empresa de la peticiÛn":
   mantienen como defensa en profundidad.
 
 **Verificado (todos los bloques):** `tsc --noEmit` **462** (0 nuevos), compras
-**73/73 PASS** (39 + 34 del mÛdulo O.C.). Detalle completo en `CLAUDE.md`
-(bloques 052-058). **Pendiente de retest en navegador** (sesiÛn sin cookie): compras ?
+**73/73 PASS** (39 + 34 del m√≥dulo O.C.). Detalle completo en `CLAUDE.md`
+(bloques 052-058). **Pendiente de retest en navegador** (sesi√≥n sin cookie): compras ?
 pagos, O.C. aprobar/recibir, calificaciones e historial de precios de proveedor,
 inventario.
 
-### 6.8 RecepciÛn parcial + conciliaciÛn 3 vÌas (059) ó 8 Oct 2026
+### 6.8 Recepci√≥n parcial + conciliaci√≥n 3 v√≠as (059) ‚Äî 8 Oct 2026
 
-Cierra los dos pendientes que quedaban del mÛdulo O.C. (ß6.5 #6 y #7). Hasta aquÌ,
-"Recibir" era todo o nada: `recibirPurchaseOrder` exigÌa `APPROVED`, creaba **una sola**
+Cierra los dos pendientes que quedaban del m√≥dulo O.C. (¬ß6.5 #6 y #7). Hasta aqu√≠,
+"Recibir" era todo o nada: `recibirPurchaseOrder` exig√≠a `APPROVED`, creaba **una sola**
 `Purchase` con la orden completa y marcaba `RECEIVED` de golpe.
 
 **Modelo nuevo: cada entrega es una fila.**
 
-| Pieza | QuÈ es |
+| Pieza | Qu√© es |
 |---|---|
 | `PurchaseOrderReceipt` | Cabecera de **una** entrega: `purchase_order_id`, `company_id`, `tenant_id`, `invoice_number`, `invoice_date`, `cai`, `purchase_id`, `received_at`, `received_by`, `notes` |
-| `PurchaseOrderReceiptItem` | LÌnea de esa entrega: `receipt_id`, `purchase_order_item_id`, `product_id`, `product_name`, `quantity_received`, `unit_price`, `total` |
+| `PurchaseOrderReceiptItem` | L√≠nea de esa entrega: `receipt_id`, `purchase_order_item_id`, `product_id`, `product_name`, `quantity_received`, `unit_price`, `total` |
 
-- **Cada recepciÛn = una `Purchase` propia** (varias facturas por O.C.). El vÌnculo
-  `purchase_id` vive **por recepciÛn**; la orden se queda con la ˙ltima.
+- **Cada recepci√≥n = una `Purchase` propia** (varias facturas por O.C.). El v√≠nculo
+  `purchase_id` vive **por recepci√≥n**; la orden se queda con la √∫ltima.
 - La orden acumula `PurchaseOrderItem.quantity_received` y pasa a
-  **`PARTIALLY_RECEIVED`** mientras falte algo, **`RECEIVED`** cuando cada lÌnea est·
+  **`PARTIALLY_RECEIVED`** mientras falte algo, **`RECEIVED`** cuando cada l√≠nea est√°
   completa.
 - `recibirPurchaseOrder` admite `APPROVED` **y** `PARTIALLY_RECEIVED` (409 en cualquier
-  otro estado); sin `items` en el cuerpo recibe lo **pendiente** de cada lÌnea
-  (compatibilidad con el flujo de 052); lÌnea que no casa con ning˙n artÌculo ? 400; si
+  otro estado); sin `items` en el cuerpo recibe lo **pendiente** de cada l√≠nea
+  (compatibilidad con el flujo de 052); l√≠nea que no casa con ning√∫n art√≠culo ? 400; si
   ya no queda nada ? 409.
-- **La validaciÛn va antes de escribir y NO se reserva estado**: si `createPurchase`
+- **La validaci√≥n va antes de escribir y NO se reserva estado**: si `createPurchase`
   falla, la orden queda intacta y no hay nada que revertir. (Reemplaza el "marca
-  `RECEIVED` antes y revierte a `APPROVED`" de la 052, ß6.6.)
+  `RECEIVED` antes y revierte a `APPROVED`" de la 052, ¬ß6.6.)
 
-**ConciliaciÛn 3 vÌas (`conciliarOrden`, solo lectura).** Compara **ordenado** (O.C.) vs
+**Conciliaci√≥n 3 v√≠as (`conciliarOrden`, solo lectura).** Compara **ordenado** (O.C.) vs
 **recibido** (recepciones) vs **facturado** (las `Purchase` creadas por las recepciones),
-agrupando por producto (`product_id` o nombre). Estado por lÌnea: `OK`, `SIN_RECIBIR`,
+agrupando por producto (`product_id` o nombre). Estado por l√≠nea: `OK`, `SIN_RECIBIR`,
 `PARCIAL`, `EXCESO`, `FALTANTE_FACTURA`, `DIF_PRECIO`, con `tolerancia` (cantidades) y
 `toleranciaPrecio`. **No bloquea**: es un reporte con alertas (`hayDiscrepancias`).
 
@@ -614,36 +637,36 @@ agrupando por producto (`product_id` o nombre). Estado por lÌnea: `OK`, `SIN_REC
   lista de toda la empresa; `?soloConDiscrepancias=1`, `?tolerancia=`, `?toleranciaPrecio=`.
 - `app/companies/[id]/purchase-orders/conciliation/page.tsx` (nueva): detalle por orden +
   lista con diferencias.
-- La p·gina de O.C. aÒade `PARTIALLY_RECEIVED` (badge, filtro, stat "Parciales"),
-  cantidades por artÌculo en el modal Recibir, columna "Recibido" en Ver y un botÛn a
-  ConciliaciÛn.
+- La p√°gina de O.C. a√±ade `PARTIALLY_RECEIVED` (badge, filtro, stat "Parciales"),
+  cantidades por art√≠culo en el modal Recibir, columna "Recibido" en Ver y un bot√≥n a
+  Conciliaci√≥n.
 
-**MigraciÛn 059 (`059_purchase_order_receipts.sql`):** crea las dos tablas con Ìndices,
-RLS + polÌtica `service_role`, `preflight`/`post-check`, y quita cualquier CHECK sobre
-`PurchaseOrder.status` (los estados v·lidos ahora incluyen `PARTIALLY_RECEIVED`).
-`node scripts/validar-040.mjs` ? OK. **Pendiente de aplicar por el usuario en el SQL
-Editor**; hasta entonces el cÛdigo que lee/escribe `PurchaseOrderReceipt*` no corre en
-runtime.
+**Migraci√≥n 059 (`059_purchase_order_receipts.sql`):** crea las dos tablas con √≠ndices,
+RLS + pol√≠tica `service_role`, `preflight`/`post-check`, y quita cualquier CHECK sobre
+`PurchaseOrder.status` (los estados v√°lidos ahora incluyen `PARTIALLY_RECEIVED`).
+`node scripts/validar-040.mjs` ? OK. **APLICADA el 8 Oct 2026** y **verificada desde
+fuera** por PostgREST (`service_role` 200 en `PurchaseOrderReceipt`/`PurchaseOrderReceiptItem`;
+`anon` pas√≥ a 401 tras la 063, ¬ß6.10).
 
 **Verificado:** `tsc --noEmit` **462** (0 nuevos), compras **88/88 PASS** (+15 casos
-nuevos en `tests/purchases/purchase-orders-receipts.test.mjs`: recepciÛn parcial,
-acumulaciÛn, `PARTIALLY_RECEIVED`/`RECEIVED`, 409 sin pendientes, 400 lÌnea inexistente,
-aislamiento de recepciones, y los 6 estados de conciliaciÛn).
-**Pendiente de retest en navegador una vez aplicada la migraciÛn 059.**
+nuevos en `tests/purchases/purchase-orders-receipts.test.mjs`: recepci√≥n parcial,
+acumulaci√≥n, `PARTIALLY_RECEIVED`/`RECEIVED`, 409 sin pendientes, 400 l√≠nea inexistente,
+aislamiento de recepciones, y los 6 estados de conciliaci√≥n).
+**Queda solo el retest manual en navegador** (la migraci√≥n ya est√° aplicada).
 
-### 6.9 Devoluciones a Proveedores (8 Oct 2026, migraciÛn 060)
+### 6.9 Devoluciones a Proveedores (8 Oct 2026, migraci√≥n 060)
 
-Cierra el problema "Sin devoluciones a proveedores". Una devoluciÛn es un **documento
-propio** ligado a la **compra de origen** (`Purchase`), registrable **por lÌneas** y de
-forma **parcial**: cada lÌnea no puede exceder lo disponible de esa lÌnea de compra
+Cierra el problema "Sin devoluciones a proveedores". Una devoluci√≥n es un **documento
+propio** ligado a la **compra de origen** (`Purchase`), registrable **por l√≠neas** y de
+forma **parcial**: cada l√≠nea no puede exceder lo disponible de esa l√≠nea de compra
 (lo comprado menos lo ya devuelto). Efectos, ambos **best-effort** (nunca bloquean el
 registro, igual que `createPurchase`):
 
 - **Baja de stock** del producto (inverso del alta de la compra), por nombre dentro de
-  la empresa. Se repone al **eliminar** la devoluciÛn.
-- **Asiento de reversa / nota de crÈdito**: debita **CxP** (`2101`) si el reembolso es a
+  la empresa. Se repone al **eliminar** la devoluci√≥n.
+- **Asiento de reversa / nota de cr√©dito**: debita **CxP** (`2101`) si el reembolso es a
   cuenta o **Banco** (`1101`) si es en efectivo; acredita **Inventario** (`1105`,
-  mercaderÌa), **Gasto** (`4100`/`4101`) e **ISV crÈdito fiscal** (`1110`).
+  mercader√≠a), **Gasto** (`4100`/`4101`) e **ISV cr√©dito fiscal** (`1110`).
 
 **Aislamiento.** Todo por `company_id` (nunca `tenant_id`); la empresa viene de
 `contextoDeEmpresa`+`exigirEmpresa`. La compra de origen se comprueba contra la empresa
@@ -653,33 +676,386 @@ solo da 404.
 
 **Archivos.**
 - `lib/purchase-returns-db.ts` (nuevo): `createPurchaseReturn` (valida compra por
-  empresa ? 404; sin artÌculos ? 400; lÌnea que no casa ? 400; cantidad > disponible ?
-  400, agrupando lÌneas del cuerpo sobre el mismo artÌculo), `fetchPurchaseReturns`,
+  empresa ? 404; sin art√≠culos ? 400; l√≠nea que no casa ? 400; cantidad > disponible ?
+  400, agrupando l√≠neas del cuerpo sobre el mismo art√≠culo), `fetchPurchaseReturns`,
   `fetchPurchaseReturn`, `deletePurchaseReturn`, `transformReturn` y el helper
-  `createReturnJournalEntry`. Sin embeds (patrÛn `paymentlink`): proveedor e items se
+  `createReturnJournalEntry`. Sin embeds (patr√≥n `paymentlink`): proveedor e items se
   resuelven con consultas aparte, para no depender de FKs ni del schema cache.
 - `app/api/purchases/returns/route.ts` (nueva): GET lista (`?purchaseId`/`?supplierId`/
   `?search`) + POST crear (201).
 - `app/api/purchases/returns/[id]/route.ts` (nueva): GET detalle + DELETE. El `[id]` es
-  el de la devoluciÛn, la empresa sale del contexto.
-- `app/companies/[id]/purchases/returns/page.tsx` (nueva): stats, b˙squeda, tabla,
-  modal "Nueva DevoluciÛn" (elige compra y cantidades por artÌculo) y modal Ver.
-- Entradas de acceso en `app/companies/[id]/purchases/page.tsx` (botÛn "Devoluciones" +
-  item de men˙ "Devoluciones a Proveedores").
+  el de la devoluci√≥n, la empresa sale del contexto.
+- `app/companies/[id]/purchases/returns/page.tsx` (nueva): stats, b√∫squeda, tabla,
+  modal "Nueva Devoluci√≥n" (elige compra y cantidades por art√≠culo) y modal Ver.
+- Entradas de acceso en `app/companies/[id]/purchases/page.tsx` (bot√≥n "Devoluciones" +
+  item de men√∫ "Devoluciones a Proveedores").
 
-**MigraciÛn 060 (`060_purchase_returns.sql`):** crea `PurchaseReturn` (cabecera:
+**Migraci√≥n 060 (`060_purchase_returns.sql`):** crea `PurchaseReturn` (cabecera:
 `purchase_id`, `company_id`, `tenant_id`, `supplier_id`, `invoice_number`,
 `return_number`, `return_date`, `return_type` `credit`/`cash`, `reason`, `notes`,
-`subtotal`/`tax_amount`/`total`, `journal_entry_id`) y `PurchaseReturnItem` (lÌneas con
+`subtotal`/`tax_amount`/`total`, `journal_entry_id`) y `PurchaseReturnItem` (l√≠neas con
 `return_id` FK `ON DELETE CASCADE`, `purchase_item_id`, `product_id`, `product_name`,
-`quantity`, `unit_price`, `tax_rate`, `subtotal`/`tax_amount`/`total`), con Ìndices,
-RLS + polÌtica `service_role` y `preflight`/`post-check`. Sin FK de
-company/supplier/product/purchase: el aislamiento lo hace el cÛdigo. `node scripts/validar-040.mjs` ? OK. **Pendiente de aplicar por el usuario en el SQL Editor**;
-hasta entonces leer/escribir `PurchaseReturn*` no corre en runtime.
+`quantity`, `unit_price`, `tax_rate`, `subtotal`/`tax_amount`/`total`), con √≠ndices,
+RLS + pol√≠tica `service_role` y `preflight`/`post-check`. Sin FK de
+company/supplier/product/purchase: el aislamiento lo hace el c√≥digo. `node scripts/validar-040.mjs` ? OK. **APLICADA el 8 Oct 2026** y verificada desde fuera por PostgREST (`service_role` 200 en `PurchaseReturn`/`PurchaseReturnItem`; `anon` pas√≥ a 401 tras la 063, ¬ß6.10).
 
 **Verificado:** `tsc --noEmit` **462** (0 nuevos), compras **104/104 PASS** (+16 casos
-nuevos en `tests/purchases/purchase-returns.test.mjs`: cabecera/lÌneas/stock/asiento,
-pago a CxP vs banco, 400 por exceso/lÌnea inexistente/compra sin artÌculos/falta
-`purchase_id`, 404 de compra ajena, tope acumulado tras devoluciÛn previa, aislamiento
-de listado y detalle, y borrado con reposiciÛn de stock y asiento).
-MigraciÛn 060 aplicada en Supabase (Success. No rows returned). Retest en navegador confirmado post-aplicaciÛn.**
+nuevos en `tests/purchases/purchase-returns.test.mjs`: cabecera/l√≠neas/stock/asiento,
+pago a CxP vs banco, 400 por exceso/l√≠nea inexistente/compra sin art√≠culos/falta
+`purchase_id`, 404 de compra ajena, tope acumulado tras devoluci√≥n previa, aislamiento
+de listado y detalle, y borrado con reposici√≥n de stock y asiento).
+
+### 6.10 Aprobaci√≥n de compras (061) + exposici√≥n al Data API (062/063) ‚Äî 8 Oct 2026
+
+Cierre de la sesi√≥n: el m√≥dulo de Compras suma **workflow de aprobaci√≥n** y se adoptan
+las **nuevas reglas de exposici√≥n** de Supabase (30 Oct 2026).
+
+**Workflow de aprobaci√≥n de compras (migraci√≥n 061, APLICADA).** La compra **nace
+`PENDING_APPROVAL`** y **no toca inventario ni contabilidad hasta aprobarse**.
+
+- `Purchase.approval_status` = `PENDING_APPROVAL`/`APPROVED`/`REJECTED`
+  (+ `approved_by`, `approved_at`, `rejection_reason`). `transformPurchase` defaultea
+  `APPROVED` para las filas legacy (las 2 compras previas no se degradan).
+- `createPurchase` ya **no** aplica efectos: solo inserta la cabecera y los √≠tems.
+  `aplicarEfectosCompra` (stock por nombre dentro de la empresa + **asiento
+obligatorio, 065**, ambos revertibles)
+  corre al **aprobar**. `aprobarCompra`/`rechazarCompra` mueven el estado; el rechazo
+  **no revierte** nada (no hay nada que revertir).
+- Qui√©n aprueba: **el due√±o de la empresa** (`user_company_access.relationship='owner'`,
+  por `company_id`) **o** un **designado** por la empresa (`PurchaseApprover`, unique
+  `(company_id,user_id)`, candidatos desde `user_company_access`). Aprobar sin permiso ?
+  **403**; estado incorrecto ? **409**. **(Regla cambiada el 8 Oct 2026 ‚Äî la 073 quit√≥ el
+  rol global de Clerk; ver ¬ß6.16.)**
+- Rutas nuevas `app/api/purchases/approval/route.ts` (POST) y
+  `app/api/purchases/approvers/route.ts` (GET lista + `candidatos`; POST/DELETE gestion).
+  UI en `app/companies/[id]/purchases/page.tsx` (badge/columna **Aprobaci√≥n**, card **Por
+  Aprobar**, bot√≥n **Aprobadores**, aprobar/rechazar con motivo).
+- `transformPurchase` defaultea `APPROVED` para las compras legacy (sin `approval_status`).
+
+**Recepci√≥n de O.C. y aprobaci√≥n.** `recibirPurchaseOrder` crea la `Purchase` v√≠a
+`createPurchase`, que ahora la deja `PENDING_APPROVAL`: la recepci√≥n **registra** la
+compra, pero su **stock y asiento no se aplican hasta que un aprobador la apruebe**
+(`aplicarEfectosCompra` corre en `aprobarCompra`). Aplica igual a las compras cargadas a
+mano en la p√°gina de Compras.
+
+**Exposici√≥n al Data API (062 + 063, APLICADAS Y VERIFICADAS).** Supabase deja de
+otorgar acceso al Data API a las tablas NUEVAS de `public` (30 Oct 2026). El proyecto lo
+adopta ya:
+
+- **062** (`062_desexponer_tablas_nuevas_data_api.sql`): `ALTER DEFAULT PRIVILEGES` de
+  `postgres` en `public` con **`REVOKE ALL`** a `anon`/`authenticated` en tablas,
+  secuencias y funciones nuevas (per-schema **y** global) + **`GRANT ALL` a `service_role`**
+  + `REVOKE EXECUTE ... FROM PUBLIC`. Post-check que aborta si queda un rol p√∫blico.
+  **Aplicada** ("Success. No rows returned").
+- **063** (`063_desexponer_tablas_modulo_compras.sql`): cierra aparte las tablas del
+  m√≥dulo creadas **antes** de la 062 ‚Äî `PurchaseOrder`, `PurchaseOrderItem`,
+  `PurchaseOrderReceipt`, `PurchaseOrderReceiptItem`, `PurchaseReturn`,
+  `PurchaseReturnItem`, `PurchaseApprover`. `REVOKE ALL ... FROM anon, authenticated` +
+  `GRANT ALL ... TO service_role`, con guarda `to_regclass` y post-check
+  (`has_table_privilege`). **No toca `Purchase`/`PurchaseItem`** (la pantalla de Compras
+  sube adjuntos con la `anon key`). **Aplicada**.
+- **Verificaci√≥n desde fuera** (PostgREST, no por el "Success"): `anon` ‚Üí **401 `42501`**
+  en las 7 tablas; `service_role` ‚Üí **200**; y las tablas de control **`Purchase`** y
+  **`product`** siguen **200** con `anon` (no se toc√≥ lo existente ni la anon global).
+
+**Lecci√≥n (1er intento de la 062, abortado):** revocar un subconjunto
+(`SELECT, INSERT, UPDATE, DELETE`) deja residuo (TRUNCATE/REFERENCES/TRIGGER en tablas,
+UPDATE en secuencias) y el post-check lo caza ("Quedan 2 default(s)"). Se revoca con
+**`ALL`**; y un default por esquema **se suma** al global, hay que revocar los dos. El
+rollback dej√≥ la BD intacta.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos; baj√≥ de 462 con el refactor de 061),
+compras **126/126 PASS** (+22 casos de `tests/purchases/purchase-approval.test.mjs`).
+Migraciones **061, 062 y 063 APLICADAS** el 8 Oct 2026.
+
+### 6.11 Integraci√≥n contable obligatoria en la aprobaci√≥n de compras (065, 8 Oct 2026)
+
+**Requisito del usuario:** que la compra **no pueda quedar aprobada sin contabilizar**.
+Antes el asiento era **best-effort**: si fallaba, la compra quedaba `APPROVED` igual y
+el doble registro se perd√≠a en silencio. Ahora es **fail-closed**.
+
+- **`lib/purchase-db.ts`**:
+  - **`resolverCuentasDeCompra(empresa, purchase)`**: resuelve las cuentas **antes**
+    de tocar stock. D√©bito: `1105` (si `purchase_type = 'merchandise'`) / `4101` (si
+    `'expense'` y categor√≠a administrativa) / `4100` (resto). Haber: `2101` (cr√©dito)
+    / `1101` (contado). **ISV `1110` obligatoria cuando `tax_amount > 0`**. Si falta
+    una cuenta lanza **`ErrorDeEmpresa(409)`** (mensaje que indica el c√≥digo faltante).
+  - **`crearAsientoCompra`**: arma cabecera + l√≠neas (d√©bito subtotal, ISV si aplica,
+    haber total), **valida que cuadre** (`|debe ‚àí haber| ‚â§ 0.005`) y lanza 409 si no;
+    si el insert de l√≠neas falla, borra la cabecera y lanza 409.
+  - **`aplicarEfectosCompra`** reescrito con una **pila de reversi√≥n**
+    (`revertir: Array<() => Promise<void>>`): guarda el estado previo del producto
+    (lo restaura), el id del producto creado (lo borra) y los ids del historial de
+    precios (los borra con `.in('id', ‚Ä¶)`). **Primero contabiliza**; si algo falla
+    ‚Üí `revertirEfectos(revertir)` + relanza; al enlazar `Purchase.journal_entry_id`
+    si falla ‚Üí borra asiento + revierte. La compra **queda `PENDING_APPROVAL`**.
+  - **`recordSupplierPriceHistory`** ahora devuelve las filas insertadas
+    (`.select('id')`) para poder revertirlas.
+- **Bug latente cerrado de paso:** si `tax_amount > 0` y faltaba la cuenta ISV, el
+  asiento sal√≠a **descuadrado** (subtotal contra total) y el error se ignoraba. Ahora
+  es 409 expl√≠cito.
+- **Ruta** `app/api/purchases/approval/route.ts`: el `ErrorDeEmpresa` (409) lo traduce
+  `respuestaDeErrorDeEmpresa`; el cliente ve **409** y la compra sigue pendiente.
+- **Pruebas** (`tests/purchases/purchase-approval.test.mjs` + `aislamiento-compras.test.mjs`):
+  se sembr√≥ el cat√°logo `Account` de test 1 (`1101`,`1105`,`1110`,`2101`,`4100`,`4101`)
+  y se a√±adieron **5 casos**: asiento cuadrado con sus 3 l√≠neas, bloqueo por cuenta
+  faltante (sin efectos), reversi√≥n si la cabecera del asiento no inserta, reversi√≥n si
+  fallan las l√≠neas, y 409 por la ruta. `supplier-price-history.test.mjs` sigue verde.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **131/131 PASS** (126 + 5).
+No hay migraci√≥n nueva: la 065 es solo c√≥digo.
+
+**Alcance dejado fuera (a prop√≥sito):** el asiento del **pago** (3.2) y el de las
+**devoluciones** (que sigue best-effort, ¬ß6.9). El primero se cerr√≥ en la **066** (¬ß6.12).
+
+### 6.12 Integraci√≥n contable del pago (066) + arreglo del escritor de asientos - 8 Oct 2026
+
+Cierra el pendiente 3.2. Al hacerlo se descubri√≥ que **el asiento de compra de la 065 tampoco
+llegaba a los libros**: `crearAsientoCompra` escrib√≠a `JournalEntry` como cabecera y una tabla
+**inexistente** `JournalEntryLine`. Y el escritor can√≥nico `createJournalTransaction` insertaba
+`companyId` (camel), que en `Transaction`/`JournalEntry` **no existe** (400 `PGRST204`; la
+columna real es `company_id`).
+
+- **`lib/purchase-db.ts`**: `crearAsientoCompra` y el nuevo **`crearAsientoPago`** (debe CxP /
+  haber Banco, voucher `EGRESO`) delegan en `createJournalTransaction` (cabecera `Transaction` +
+  l√≠neas `JournalEntry`). Cuentas resueltas **por prefijo y por `company_id`**: inventario
+  `1105/1140/1301`, gasto `6101/5101/6103/6201/6301/5201`, ISV `1106/2201`, CxP
+  `2101/2103/2110/2120`, banco `1101/1110/1111/1112/1102`. **`eliminarAsiento(txId)`** borra
+  l√≠neas + cabecera; lo usa la reversi√≥n de `aplicarEfectosCompra`.
+- **`lib/services/journal-service.ts`**: escribe **`company_id`** (no `companyId`) + `cleared`;
+  si fallan las l√≠neas, **borra la cabecera** antes de lanzar.
+- **`app/api/purchases/payments/route.ts`**: **POST** fail-closed (si falla el asiento, borra el
+  pago); **PUT** rehace el asiento y borra el viejo; **DELETE** borra el asiento del pago.
+- **Migraci√≥n `064_supplier_payment_journal_entry.sql`** (validada con `validar-040.mjs` -> OK;
+  **APLICADA y verificada 8 Oct 2026** desde fuera con PostgREST): a√±ade
+  `SupplierPayment.journal_entry_id text` (nullable, sin FK; idempotente). Medido: `SELECT
+  id,journal_entry_id` da 200 y la columna sale `null` en una fila real; en el OpenAPI
+  `journal_entry_id` est√° en las columnas, **no** en `required`, tipo `text`.
+- **Pruebas:** nuevo `tests/purchases/payments-journal.test.mjs` (7 casos) en el bloque
+  `purchases`; seeds y aserciones de `purchase-approval`/`aislamiento-compras` migrados a
+  `Transaction`+`JournalEntry` (c√≥digos con `company_id` y `tenantId` camel).
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **138/138 PASS**. La **064**
+**APLICADA y verificada** desde fuera (PostgREST). Queda el retest manual en navegador; el
+mismo defecto sigue en `lib/purchase-returns-db.ts` (060), **fuera de alcance**.
+
+### 6.13 Conciliaci√≥n bancaria de pagos (067, 8 Oct 2026)
+
+Cierra el pendiente "sin conciliaci√≥n bancaria". **Alcance elegido por el usuario: pagos vs
+banco (marcar/desmarcar)**, sobre la tabla viva `bankaccount` (Supabase). No importa extractos
+ni toca la tabla `Reconciliation` (existe en la BD pero **sin `CREATE TABLE` en el repo ni
+modelo Prisma**: drift). A√≠sla por `company_id`, nunca `tenant_id`.
+
+- **Migraci√≥n `065_conciliacion_bancaria_pagos.sql`** (validada con `validar-040.mjs` -> OK;
+  **APLICADA y verificada el 8 Oct 2026** desde fuera con PostgREST): en `SupplierPayment`
+  a√±ade `is_reconciled` (normaliza a NOT NULL
+  default false), `reconciled_at timestamptz`, `bank_account_id text` (sin FK: el aislamiento
+  es de c√≥digo, patr√≥n 059/060/061/064) y `reconciliation_reference text`; √≠ndice
+  `(company_id, is_reconciled)`. Preflight + post-check; termina con `065: listo`.
+  Medido: las 4 columnas en el OpenAPI, `is_reconciled` en `required`, `SELECT` -> 200.
+- **`lib/bank-reconciliation-db.ts`** (nuevo): `fetchPagosParaConciliar` (hidrata
+  `supplier_name`/`invoice_number` en consultas aparte, nada de embeds),
+  `resumenConciliacion`, `fetchCuentasBancarias`, `marcarPagosConciliados` y
+  `desmarcarPagosConciliados`. Cuenta o pago de otra empresa -> **`notFound` (404, no 403)**,
+  mismo contrato que `purchase-returns-db.ts`. Solo marca evidencia: **no crea ni toca
+  asientos** (el asiento del pago ya lo hizo la 064/066).
+- **Ruta `app/api/purchases/payments/reconciliation/route.ts`** (nueva, GET/POST/DELETE) +
+  **p√°gina `app/companies/[id]/purchases/reconciliation/page.tsx`** (nueva) + bot√≥n
+  "Conciliaci√≥n" y entrada de men√∫ en la p√°gina de Compras.
+- **Pruebas:** `tests/purchases/reconciliation.test.mjs` (13 casos) en el bloque `purchases`.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **151/151 PASS** (138 + 13).
+La **065** **APLICADA y verificada**. **Pendiente:** retest en navegador.
+
+### 6.14 CAI del proveedor: aviso al registrar la factura de compra (068, 8 Oct 2026)
+
+Cierra el pendiente "sin validacion del CAI del proveedor". Se registra el **CAI del
+proveedor** (codigo autorizado, fecha limite de emision y rango de facturacion) y se
+**advierte** ‚Äîsin bloquear‚Äî al registrar/editar una compra si la factura cae fuera del
+rango, si el CAI esta vencido o si no coincide con el del proveedor. **Decision del
+usuario: avisar, no impedir el guardado.**
+
+- **Migracion `066_supplier_cai.sql`** (validada con `validar-040.mjs` -> OK;
+  **APLICADA y verificada el 8 Oct 2026** desde fuera con PostgREST): 4 columnas nullable en `"Supplier"` ‚Äî `cai`,
+  `cai_expiration_date date`, `cai_range_from`, `cai_range_to`. Sin tabla aparte ni
+  unicidad (regla de Proveedores): un CAI vigente por proveedor; si cambia, se
+  actualiza la fila. Idempotente, preflight + post-check.
+- **`lib/supplier-cai.ts`** (nuevo): evaluador puro `evaluarCai(proveedor, factura,
+  hoy?)` -> `{ estado, problemas }`. Codigos: `CAI_DISTINTO` (aviso), `CAI_VENCIDO`
+  (error), `CAI_POR_VENCER` (aviso, <= 30 dias) y `FUERA_DE_RANGO` (error). El rango
+  se compara por la ultima corrida de digitos (`correlativoDe`) contra min/max.
+- **API**: `app/api/suppliers/route.ts` (`SUPPLIER_COLUMNS` +4) y
+  `app/api/suppliers/import/route.ts` (`SUPPLIER_FIELDS` +4, alias y `normalizeDate`).
+- **UI**: pestana CAI en la ficha de proveedor
+  (`app/companies/[id]/suppliers/page.tsx`) y `AvisoCai` en los modales de crear
+  y editar compra (`app/companies/[id]/purchases/page.tsx`).
+- **Pruebas:** `tests/purchases/supplier-cai.test.mjs` (19 casos) en el bloque
+  `purchases`.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **170/170 PASS**. La
+**066 APLICADA y verificada** desde fuera (PostgREST); queda el retest en navegador.
+
+### 6.15 Retencion ISR del proveedor + exoneracion de ISV (068, 8 Oct 2026)
+
+Una compra puede llevar **retencion ISR** (1% servicios profesionales o 12.5% otros
+servicios) y **exoneracion de ISV** por linea. La retencion se configura en el
+**proveedor** y la compra la **hereda** (con override manual); reduce lo pagado al
+proveedor y va a "Retenciones por Pagar" en el asiento al aprobar.
+
+- **Migracion `068_compra_retencion_exoneracion.sql`** (validada con
+  `validar-040.mjs` -> OK; **APLICADA y verificada el 8 Oct 2026** desde fuera con
+  PostgREST): `"Supplier".withholding_type text`; `Purchase` `withholding_type text`,
+  `withholding_rate numeric(6,4)`, `withholding_amount numeric(18,2) NOT NULL
+  DEFAULT 0`, `exonerated boolean NOT NULL DEFAULT false`; `PurchaseItem.exonerated
+  boolean NOT NULL DEFAULT false`. Idempotente, preflight + post-check con
+  `RAISE EXCEPTION`.
+- **`lib/supplier-withholding.ts`** (nuevo, PURO, cliente + servidor):
+  `TipoRetencion` (`NONE` / `ISR_1` / `ISR_12_5`), `RETENCIONES` (con `tasa` 0 /
+  0.01 / 0.125 y alias de importacion), `normalizarTipoRetencion` (tolera acentos,
+  mayusculas y alias), `tasaDeRetencion`, `etiquetaRetencion`, `aplicaRetencion` y
+  `calcularRetencion(base, tipo) = Math.round(Math.round(base) * tasa)`. El monto se
+  calcula sobre el **subtotal sin ISV** y redondea a lempiras enteras.
+- **`lib/purchase-db.ts`**: `createPurchase` guarda `withholding_type`/`rate`/`amount`
+  y `exonerated` (cabecera = true si **alguna** linea lo esta; compras mixtas),
+  y ajusta lo pagado: contado `amount_paid = total - retencion`; credito
+  `balance_due = max(total - retencion, 0)`. `recomputePurchase`/`updatePurchase`
+  recalculan. El asiento al aprobar resuelve la cuenta de retencion por prefijo
+  (`CUENTAS_COMPRA.retencion = ['210202','2102']`, `company_id`) y el haber a
+  CxP/Banco es `total - retencion` mas una linea HABER a "Retenciones por Pagar".
+- **API**: `app/api/suppliers/route.ts` (`SUPPLIER_COLUMNS` + `withholding_type`)
+  y `app/api/suppliers/import/route.ts` (`SUPPLIER_FIELDS` + alias; `null` si `NONE`).
+- **UI**: selector "Retencion ISR por defecto" en la ficha de proveedor
+  (`app/companies/[id]/suppliers/page.tsx`) y en los modales de crear/editar compra
+  (`app/companies/[id]/purchases/page.tsx`), checkbox "Articulo exonerado (ISV 0%)"
+  por linea, columna "Exonerada" en la tabla de items y fila "Retencion ISR" +
+  "Neto a pagar" en los totales.
+- **Pruebas:** `tests/purchases/purchase-withholding.test.mjs` (13 casos: 5 del
+  modulo puro + 6 de retencion y 2 de exoneracion contra `createPurchase` REAL) en
+  el bloque `purchases`.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **183/183 PASS**
+(170 + 13). La **068 APLICADA y verificada** desde fuera (PostgREST): las 6 columnas
+en el OpenAPI con su tipo (`text`/`numeric`/`boolean`), `SELECT` de las columnas -> 200,
+y round-trip de una `Purchase` con `withholding_type='ISR_1'`, `rate=0.01`,
+`amount=10`, `exonerated=true` -> **insert 201 / lectura correcta / delete 200** (fila
+de prueba borrada). Queda el retest en navegador (crear compra con retencion y ver el
+neto y el asiento).
+
+### 6.16 Qui√©n aprueba compras: due√±o de la empresa + designados (073) ‚Äî 8 Oct 2026
+
+La 061 (¬ß6.10) gateaba el bot√≥n **Aprobar** y la gesti√≥n de aprobadores con el **rol
+global de Clerk** (`MANAGER`/`ADMIN`/`SUPER_ADMIN`) **o** estar designado en
+`PurchaseApprover`. **Medido por PostgREST:** la empresa **test 2**
+(`971bec43-‚Ä¶`) tiene **un solo miembro** (`azuna22@outlook.com`, `User.role='ACCOUNTANT'`,
+`user_company_access.relationship='accountant'`) y `PurchaseApprover` = **0 filas** ->
+nadie cumple el gate: el bot√≥n no aparece **y nadie puede designar** (punto muerto).
+`Fac-1102` quedaba `PENDING_APPROVAL` sin v√≠a de aprobaci√≥n.
+
+**Decisi√≥n del usuario (opci√≥n 1):** aprueba y designa el **due√±o de la empresa**
+(`user_company_access.relationship = 'owner'`, por `company_id`) **o** un
+`PurchaseApprover` designado. Alinea con la regla de roles **por empresa** (no el rol
+global de Clerk). **Consecuencia aceptada:** una empresa cuyo √∫nico miembro es contador
+segu√≠a sin bot√≥n hasta tener un due√±o/designado.
+
+- **`lib/purchase-db.ts`**: nuevo `esDuenoDeEmpresa(supabase, empresa, userId)` ‚Äî
+  `user_company_access` con `.eq('company_id', ‚Ä¶)`, `.eq('user_id', ‚Ä¶)`,
+  `.eq('relationship','owner')`, `.limit(1)`.
+- **`app/api/purchases/approvers/route.ts`**: se quit√≥ `getUserRoleFromAuth` y
+  `ROLES_QUE_GESTIONAN`. GET `puedeGestionar = esDuenoDeEmpresa(...)`; POST/DELETE
+  guardan con `esDuenoDeEmpresa` (**403** "Solo el due√±o de la empresa puede
+  designar‚Ä¶"). El `userId` se resuelve una vez y se reutiliza.
+- **`app/api/purchases/approval/route.ts`**: se quit√≥ `getUserRoleFromAuth`/
+  `ROLES_QUE_APRUEBAN`; `esGerente` -> `esDueno = await esDuenoDeEmpresa(...)`; el
+  **403** dice "Pide al due√±o de la empresa‚Ä¶". El resto (designado, **404** ante id
+  ajeno, **409** por contabilizaci√≥n obligatoria de la 065) intacto.
+- **UI sin tocar:** `purchases/page.tsx` ya consume `puedeAprobar`/`puedeGestionar`.
+- **`tests/purchases/purchase-approval.test.mjs`**: se siembra `relationship` en
+  `user_company_access` (`u-mgr`=`owner` de test 1; `u-designado`/`u-miembro`=
+  `accountant`; `u-otro`=`accountant` de test 2) y se reemplaza `ponerRol(...)` por
+  `ponerUsuarioAppId(...)`: los tests ya **no** dependen del rol de Clerk.
+
+**Migraci√≥n `069_test2_dueno.sql`** (validada con `validar-040.mjs` -> OK; **APLICADA**
+el 8 Oct 2026 y verificada desde fuera por PostgREST): le da `owner` al √∫nico miembro de
+test 2 (`User.id=17e8550f-‚Ä¶`); la fila `user_company_access` ya exist√≠a y **solo** cambi√≥
+`relationship` (test 2 -> `owner`; azuna22 sigue `accountant` en test 1, que es correcto:
+el rol es por empresa). **Ojo:** ese fichero ten√≠a un comentario `//` (inv√°lido en SQL) en
+la l√≠nea 16 -> el SQL Editor abortaba con `42601 syntax error at or near "//"`. Corregido
+a `--` (se busc√≥ `^\s*//` en todas las `.sql` del repo: 0 restantes).
+
+**Migraci√≥n `070_test2_plan_cuentas.sql`** ‚Äî **el bloqueo de fondo para aprobar `Fac-1102`**
+(la 065 es *fail-closed*: sin asiento, no hay `APPROVED`). Al aprobar, test 2 fallaba con
+`falta la cuenta de "‚Ä¶"`: ten√≠a **0 filas en `Account`**, y no pod√≠a sembrarlas porque
+segu√≠a vivo el **UNIQUE por tenant** `unique_account_code_per_tenant (code, "tenantId")`
+‚Äî test 1 ya tiene `1101`/`4101` con `tenant_id='TEST1DS'`, y test 1/test 2 comparten
+tenant. La **035** deb√≠a reemplazarlo por `(company_id, code)`, pero no estaba aplicada y
+su `DROP ‚Ä¶ IF EXISTS "unique_code_tenant"` usaba un **nombre equivocado** (misma trampa
+de `Account_name_key`/044: un `DROP` por nombre que no coincide no falla, no hace nada, y
+el `INSERT` vuelve a fallar igual). La **070** (**APLICADA** 8 Oct 2026, verificada desde
+fuera): dropea el UNIQUE por tenant **por columnas** (`pg_index` + `indnkeyatts`, patr√≥n
+044), asegura el `(company_id, code)` y siembra **19 cuentas** para test 2 con los c√≥digos
+que el motor resuelve por prefijo (`1101/1102/1103/1105/1106`, `2101/2102/2105/2120`,
+`3101/3201`, `4101/4102`, `5101/5201/6101/6103/6201/6301`). **Medido:** test 2 = **19**
+(con `1101`/`4101`, prueba de que el UNIQUE por tenant ya no existe), **0** duplicados
+`(company_id, code)`; test 1 sigue con sus 2, Empresa 1 con 22, Angelos con 19. La **035**
+tambi√©n se arregl√≥ (bloque 6b dropea por columnas, no por nombre).
+
+**Verificado:** compras **183/183 PASS** (mismos 183; renombrados, no nuevos),
+`tsc --noEmit` **459** (0 nuevos). **Sin migraci√≥n de c√≥digo** en la 073 (solo cambia la
+regla; `user_company_access.relationship` ya exist√≠a). **Pendiente:** retest en navegador
+(con test 2 como due√±o, aprobar `Fac-1102` y ver el bot√≥n + el asiento).
+
+### 6.17 `validar-040.mjs`: un `DO` sin `$$` pasaba en verde (071) ‚Äî 8 Oct 2026
+
+Al re-aplicar la **071** (`071_product_sale_price.sql`, columna `product.sale_price`) el
+SQL Editor abort√≥ con **`42601: syntax error at or near "BEGIN"`**: los bloques estaban
+como `DO` + salto + `BEGIN ‚Ä¶ END ;` **sin dollar-quoting** (lo correcto es
+`DO $$ BEGIN ‚Ä¶ END $$;`). El parser ve `DO` y espera una **cadena**, no plpgsql.
+
+- Fichero corregido a `DO $$ ‚Ä¶ END $$;` (idempotente por `ADD COLUMN IF NOT EXISTS`).
+- **El validador daba verde en falso:** la regla 4 contaba solo `DO $$` y `END $$;`; con
+  un `DO` pelado ambos son **0**, y `0 !== 0` es falso -> sin problema. **Endurecido:**
+  ahora cuenta TODO `\bDO\b` y exige que cada uno vaya seguido de `$$` ("hay N DO pero
+  solo M con `$$`"). Probado en **negativo** reintroduciendo el `DO` sin `$$` (falla
+  se√±alando la l√≠nea) y en **positivo** (071/070/068/040 y el resto de 05x/06x siguen
+  OK). Es la lecci√≥n de forma-vs-runtime de la 030/044: una regla que cuenta tokens debe
+  cubrir "el token falta del todo", no solo "no cuadran".
+- La **071** qued√≥ **APLICADA y verificada desde fuera** (PostgREST + `service_role`):
+  columna `product.sale_price` (`bigint`, default `0`), filas reales la traen y
+  round-trip `0 -> 54321 -> 0` OK. (Esa columna es de **inventario**, fuera del alcance
+  de este reporte; se anota aqu√≠ solo por el arreglo del validador, que es compartido.)
+
+### 6.18 Sin cambios funcionales en el m√≥dulo (9-18 Oct 2026) ‚Äî reconfirmaci√≥n ‚Äî 18 Oct 2026
+
+Entre el 9 y el 18 de octubre el trabajo registrado (entradas 075-082 del diario) fue
+**√≠ntegramente de inventario**: precio de venta (`sale_price`), ganancia por producto,
+c√≥digo de barras (077), c√≥digos de ubicaciones `UB-###` (079), c√≥digos de almacenes
+`ALM-###` (080), reparaci√≥n del 500 al crear almac√©n con la migraci√≥n
+`073_warehouse_code_unique_per_company.sql` (081) e importaci√≥n visible de productos y
+traslados con la ruta nueva `transfers/import` (082). **Ninguna de esas entregas toc√≥
+archivos de Compras/Proveedores.** Detalle completo en
+`docs/INVENTARIO_REPORT.md`, secci√≥n "Actualizacion 18 Oct 2026".
+
+Lo que s√≠ conviene fijar de este periodo, por ser compartido:
+
+- **Reconfirmaci√≥n medida (18 Oct 2026):** `tests/purchases/` **183/183 PASS**
+  (sin regresi√≥n respecto del 8 Oct), `tsc --noEmit` **456** ‚Äî el baseline baj√≥ de
+  **459** a **456** por arreglos de inventario en ficheros compartidos, no por cambios
+  en este m√≥dulo. Las secciones fechadas que citan 459 siguen siendo hist√≥ricas.
+- **N√∫meros de migraci√≥n vs. n√∫meros del diario (dos series distintas):** la
+  **migraci√≥n 073** es `073_warehouse_code_unique_per_company.sql` (de inventario, ya
+  **aplicada**); el "073" que cita la ¬ß6.16 es un n√∫mero de **entrada del diario**
+  (la regla de due√±o/designados), no una migraci√≥n. Lo mismo aplica para la migraci√≥n
+  **068** (CAI y retenci√≥n ISR, de este m√≥dulo) frente a las entradas del diario 068/072.
+- **`prisma/migrations/072_product_barcode.sql` qued√≥ APLICADA** (medida el 18 Oct 2026
+  contra el OpenAPI de PostgREST con `service_role`: `product.barcode` y
+  `barcode_image_url` existen como `string`). Solo afecta a **crear/editar productos
+  desde la pantalla de inventario**, no al m√≥dulo de Compras: `createPurchase` escribe
+  las columnas propias de `product` y no las de c√≥digo de barras.
+- **`validar-040.mjs`** (compartido, endurecido en la 071/¬ß6.17) sigue siendo el gate
+  previo de toda migraci√≥n nueva.
+
+**Verificado (18 Oct 2026):** compras **183/183 PASS**, inventario **29/29 PASS**
+(√°mbito que s√≠ cambi√≥), `tsc --noEmit` **456** (= baseline). **Pendiente:** retest en
+navegador de las compras (ya apuntado en ¬ß6.16: aprobar `Fac-1102` en test 2) y del
+inventario (importaci√≥n visible; la migraci√≥n 072 ya qued√≥ aplicada).
+

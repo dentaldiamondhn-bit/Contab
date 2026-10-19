@@ -311,7 +311,7 @@ sobre `user_company_access`, `User` y `companies` de verdad:
 | `user_3D99UNQz…` (`gcalix12`) | Clinica Dental Diamond | owner |
 | `user_3IbveWjN…` (`gcalix12`) | **Angelos + Empresa 1** | owner |
 | `user_3JRMfTFp…` (`azuna22`) | Empresa TEST185 | owner |
-| `user_3JROv9o…` (`azuna22`) | **test 1 + test 2** | accountant |
+| `user_3JROv9o…` (`azuna22`) | **test 1 + test 2** | accountant (test 1) / owner (test 2, migración 069) |
 
 Las 8 resuelven y **0 identidades de Clerk quedan con 0 membresías**, asi que hoy
 nadie está fuera por esto. Pero la consecuencia es concreta y fácil de olvidar:
@@ -439,22 +439,51 @@ Los importes de `Invoice` (`subtotal`, `tax`, `total`), de `InvoiceItem`
 - Excepciones reales: `lib/reports/*` y `components/sales/SalesDashboard.tsx`
   (este último además está huérfano y roto: usa tablas inexistentes).
 
+### 2b. Asientos contables: un solo escritor (`Transaction` cabecera + `JournalEntry` línea)
+
+Nunca escribas `Transaction`/`JournalEntry` a mano: usa `createJournalTransaction`
+(`lib/services/journal-service.ts`), que arma cabecera + líneas, numera el voucher, aplica
+el candado de periodo por **`company_id`** y audita.
+
+- **`Transaction` es la CABECERA** (una fila por póliza: `company_id`, `tenantId`,
+  `voucherType`, `voucherNumber`, `totalAmount` en **centavos**).
+- **`JournalEntry` es la LÍNEA** (`transactionId`, `accountId`, `amount` con signo —
+  débito `+`, crédito `−` —, `type` `DEBIT`/`CREDIT`).
+- **`JournalEntryLine` NO EXISTE.** Escribirla compila y falla en runtime; el asiento
+  **nunca llega a los libros** (fue el bug de la 065: integración "obligatoria" contra una
+  tabla fantasma).
+- **La columna de empresa es `company_id`, no `companyId`.** `tenantId` (camel) sí existe;
+  `companyId` da `400 PGRST204` (medido 8 Oct 2026, 066).
+- Las cuentas se resuelven **por prefijo de código y por `company_id`** (`cuentaRequerida`
+  en `lib/purchase-db.ts`): un `.eq('code', '1105')` exacto no encuentra `1105-01` en
+  Angelos y **bloquearía** la compra.
+
 ## 3. Correlativo de factura — el servidor es la autoridad
 
 - El cliente **nunca** decide el número. `app/api/billing/invoices/route.ts` ignora
   `invoiceData.invoiceNumber`.
 - Toda preview o reserva pasa por `lib/billing/invoice-number.ts`:
-  - `previewInvoiceNumber(tenantId)` — lo que se muestra.
-  - `reserveInvoiceNumber(tenantId, { suelo })` — lo que se emite.
-- El correlativo sale de la **última factura de esa misma empresa**, no de una
-  constante ni de una búsqueda global. El prefijo (`001-01-01-`) se toma de esa
-  factura: cada empresa tiene su serie.
-- Si hay un CAI vigente, **manda el rango del CAI** sobre la serie de facturas.
-- La reserva con CAI es **condicional** (`.eq('current_number', valorLeido)`) y
-  valida el rango **antes** de escribir, igual que `lib/services/stock-sale.ts`.
-  Si la actualización no afecta filas, otro se llevó el correlativo: reintenta.
-- La unicidad real es `UNIQUE("tenantId", "invoiceNumber")` (migración
-  `022_invoice_number_unique_per_tenant.sql`, aplicada). Por empresa, no global.
+  - `previewInvoiceNumber(companyId)` — lo que se muestra.
+  - `reserveInvoiceNumber(companyId, { suelo })` — lo que se emite.
+- **La serie de factura es por EMPRESA** (decision del usuario, 070): `companyId` es
+  `companies.id`, no el tenant. test 1 y test 2 (ambas de `TEST1DS`) llevan correlativo
+  y CAI separados.
+- El correlativo sale de la **última factura de esa misma empresa** (`Invoice`
+  filtrada por `company_id`), no de una constante ni de una búsqueda global. El prefijo
+  (`001-01-01-`) se toma de esa factura: cada empresa tiene su serie.
+- Si hay un CAI vigente, **manda el rango del CAI** sobre la serie de facturas. El
+  CAI tambien se filtra por `company_id`.
+- La reserva con CAI es **condicional** (`.eq('current_number', valorLeido)` +
+  `.eq('company_id', companyId)` + `.eq('id', id)`) y valida el rango **antes** de
+  escribir, igual que `lib/services/stock-sale.ts`. Si la actualización no afecta
+  filas, otro se llevó el correlativo: reintenta.
+- La unicidad real es `UNIQUE("company_id", "invoiceNumber")` (migración
+  `067_invoice_number_unique_per_company.sql`), que reemplaza
+  `Invoice_tenantId_invoiceNumber_key` de la `022`. **Por empresa, no por tenant ni
+  global.** Ojo: `cai.company_id` **no** es NOT NULL (la 067 no lo toca).
+- El POST de `billing/invoices` **escribe `company_id` explicito** desde el contexto
+  (no lo deja al trigger `oldest_company_of_tenant`, que asignaba la empresa más antigua
+  del tenant: una emisión de test 2 quedaba con el `company_id` de test 1).
 
 ## 4. Esquema real (no asumir)
 
@@ -1471,6 +1500,17 @@ como red de seguridad convierte un error de 0 filas en una fuga de todos los dat
   columnas debe dar igual, cuenta coincidencias con `generate_series` (set, no
   secuencia). Y de paso: `unnest(i.indkey)` es `int2vector`, no un array — no lo
   uses como `anyarray`.
+- **`pg_get_indexdef(oid, n, true)` entrecomilla los identificadores mixtos.** Para
+  `invoiceNumber` devuelve `"invoiceNumber"` (con comillas dobles), **no**
+  `invoiceNumber`. Comparar `= 'invoiceNumber'` no matchea nunca. La 067 (8 Oct 2026)
+  abortó así su primer intento: el preflight no veía el UNIQUE viejo (no lo dropeaba) y
+  el post-check no veía el nuevo (abortaba, dejando los dos). Corregido con
+  `btrim(pg_get_indexdef(..., n, true), '"')` en los 9 predicados. Misma familia que el
+  plegado de `to_regclass` con mayúsculas: **un nombre "raro" (mayúsculas, mixto) sale
+  citado de las funciones que formatean identificadores, y ahí no coincide con el literal
+  sin comillas.** Los índices de columnas todas-munúsculas (`rtn`, `tenant_id`) no lo
+  sufren, y por eso el patrón de la 044/051 parecía seguro. `validar-040.mjs` dio verde:
+  otra vez, forma no es runtime.
 - **Un validador que se engancha con su propia documentación es un validador
   roto.** El de la 040 dio 7 falsos positivos porque la cabecera mencionaba `$f$`
   en prosa, y eso descolocó el emparejamiento de cadenas. Por eso ignora
@@ -1517,24 +1557,62 @@ deduplica por RTN **por empresa** (`app/api/suppliers/import/route.ts:231`), no 
 tenant. `rtn` y `email` **no son únicos** en la base, y `prisma/schema.prisma` ya no
 declara `@unique` sobre ellos (declararlo habría creado índices que la base no tiene).
 
+### Las tablas nuevas de `public` NO se exponen al Data API (regla del 062)
+
+Supabase retira los GRANT automaticos al Data API para las tablas NUEVAS de `public`
+(30 Oct 2026; las existentes conservan los suyos). La **062** adopta ese comportamiento
+ya, y solo para lo nuevo: quita `anon` y `authenticated` de los default privileges de
+`postgres` en `public` (tablas, secuencias y funciones) y **mantiene a `service_role`**
+(el backend usa la clave secreta, no la anon). No toca lo existente.
+
+Consecuencias para escribir codigo:
+
+- **`service_role` sigue teniendo acceso por defecto** (lo re-otorga la 062). Por eso las
+  rutas de servidor (`getSupabaseServer()`, `supabase-db`, `createServiceRoleClient`)
+  funcionan sin GRANT extra. **No quites ese GRANT**: si desaparece, cada tabla nueva da
+  `permission denied for table ...` al backend.
+- **Una tabla nueva NO es alcanzable con la `anon key`.** Si una pantalla CLIENTE
+  ("use client") necesita leerla directo, no basta con crearla: hay que
+  `grant select on public.NOMBRE to anon;` (y `authenticated` si aplica). Como norma,
+  evitalo: pasa por una ruta `/api` con `service_role`.
+- **Funciones nuevas**: `EXECUTE` ya no va a `PUBLIC`; el backend las llama como
+  `service_role`. Una RPC que deba llamar el navegador necesita grant explicito.
+- **`REVOKE ALL`, no una lista de privilegios.** Con `REVOKE SELECT, INSERT, UPDATE,
+  DELETE` el default de Supabase deja residuo (`TRUNCATE`/`REFERENCES`/`TRIGGER` en
+  tablas, `UPDATE` en secuencias) y el rol sigue apareciendo. Se pago en la 062 (el
+  post-check aborto con "Quedan 2 default(s)").
+- **Un default por esquema se SUMA al global y no lo puede quitar.** Si hay un grant
+  a `anon`/`authenticated` en el default global (sin `IN SCHEMA`), el `REVOKE IN
+  SCHEMA public` no hace nada. Hay que revocar **tambien** el global. El post-check
+  de la 062 mira `public` y `defaclnamespace = 0`.
+- La migracion es **idempotente**: si tras el 30 Oct Supabase revocase tambien
+  `service_role`, se vuelve a correr la **062**.
+- **Tablas del modulo de Compras (059/060/061):** se cerraron aparte con la
+  **063** (`PurchaseOrder`, `PurchaseOrderItem`, `PurchaseOrderReceipt`,
+  `PurchaseOrderReceiptItem`, `PurchaseReturn`, `PurchaseReturnItem`,
+  `PurchaseApprover`), porque existian antes de la 062. **`Purchase`/`PurchaseItem`
+  no se tocan** (la pantalla de Compras sube adjuntos con la anon key). Si reactivas
+  `components/purchasing/PurchaseOrdersManager.tsx` (hoy huerfano, lee `PurchaseOrder`
+  con anon), necesita ruta `/api` o un grant puntual.
+
 ## 6. Verificación
 
 ```bash
-# Typecheck. El baseline es 462 errores preexistentes (medido 7 Oct 2026;
-# era 481, y fue bajando al arreglar ficheros: 481 -> 472 -> 464 -> 462).
+# Typecheck. El baseline es 459 errores preexistentes (medido 8 Oct 2026;
+# era 481, y fue bajando al arreglar ficheros: 481 -> 472 -> 464 -> 462 -> 459).
 node node_modules/typescript/bin/tsc --noEmit
-# Solo suma si el total supera 462, o si toca un archivo que editeste.
+# Solo suma si el total supera 459, o si toca un archivo que editeste.
 
 # Antes de aplicar CUALQUIER migracion nueva: valida la forma del SQL.
 node scripts/validar-040.mjs
 
-# Pruebas de compras/proveedores (104 casos).
+# Pruebas de compras/proveedores (131 casos).
 node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --experimental-strip-types \
   --import ./tests/purchases/register.mjs --test tests/purchases/*.test.mjs
 
 # Aislamiento (solo lectura).
 node scripts/verificar-aislamiento.mjs
-node scripts/_auditar-comparticion-tenant.mjs   # 221 superficies: 158/13/50
+node scripts/_auditar-comparticion-tenant.mjs   # 221 superficies: 163/13/50
 ```
 
 > **El umbral de 462 está por debajo del 481 que decían `docs/AGENTS.md` y

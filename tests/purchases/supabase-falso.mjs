@@ -19,7 +19,10 @@ function coincide(fila, filtros) {
       continue;
     }
     if (typeof valor === 'string' && valor.startsWith('__ilike:')) {
-      const pat = new RegExp('^' + valor.slice(8).replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i');
+      // `%` es comodin en ilike (busqueda por prefijo de codigo de cuenta).
+      // Se escapa primero lo que es especial en regex y luego se traduce `%`.
+      const rx = valor.slice(8).replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/%/g, '.*');
+      const pat = new RegExp('^' + rx + '$', 'i');
       if (!pat.test(String(fila[col] ?? ''))) return false;
       continue;
     }
@@ -86,7 +89,7 @@ class Builder {
       const creadas = entradas.map((f) => ({ id: `nuevo-${++st.seq}`, ...f }));
       filas.push(...creadas);
 
-      if (this.cols !== '*') {
+      if (this.cols && this.cols !== '*') {
         const campos = String(this.cols).split(',').map((c) => c.trim());
         const recortadas = creadas.map((c) => {
           const r = {};

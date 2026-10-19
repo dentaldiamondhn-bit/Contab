@@ -8,6 +8,7 @@ export const mockState = {
   transfer: null,
   variations: null,
   locationCounts: new Map(),
+  codigosDuplicados: new Set(),
   calls: {
     listWh: [],
     createWh: [],
@@ -30,6 +31,7 @@ export function resetWarehouseMock() {
   mockState.transfer = null;
   mockState.variations = null;
   mockState.locationCounts = new Map();
+  mockState.codigosDuplicados = new Set();
   mockState.calls = {
     listWh: [],
     createWh: [],
@@ -75,9 +77,20 @@ export async function listWarehouses(companyId, tenantHint, opts) {
 
 export async function createWarehouse(companyId, input, tenantHint) {
   mockState.calls.createWh.push({ companyId, input, tenantHint });
-  if (!input || !input.code || !String(input.code).trim()) throw new Error('code es requerido');
-  if (!input.name || !String(input.name).trim()) throw new Error('name es requerido');
-  return { id: 'wh-new', code: input.code, name: input.name };
+  if (!input || !input.name || !String(input.name).trim()) throw new Error('name es requerido');
+  // Contrato real (17 Oct 2026): `code` es opcional; si no viene, el servidor
+  // genera el siguiente de la serie ALM-### de la empresa. El codigo real
+  // traduce el 23505 (UNIQUE company_id+code) a Error legible; aqui se
+  // replica ese mensaje para poder probar el 409 de la ruta.
+  const code =
+    String(input.code || '').trim().toUpperCase() ||
+    `ALM-${String(mockState.calls.createWh.length).padStart(3, '0')}`;
+  if (mockState.codigosDuplicados?.has(code)) {
+    throw new Error(
+      `El código "${code}" ya existe en esta empresa. Elija otro o deje el campo vacío para autogenerarlo (ALM-###).`,
+    );
+  }
+  return { id: 'wh-new', code, name: input.name };
 }
 
 export async function updateWarehouse(companyId, warehouseId, patch, tenantHint) {

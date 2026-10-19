@@ -173,7 +173,9 @@ export default function LocationsManager({ companyId }: { companyId: string }) {
   };
 
   const TEMPLATE_HEADERS = ['code', 'name', 'aisle', 'shelf', 'description', 'warehouse'];
-  const TEMPLATE_SAMPLE = ['P1', 'Pasillo 1 - Estante A', 'Pasillo 1', 'Estante A', 'Materiales de consumo', 'PRINCIPAL'];
+  // La columna `code` va vacia a proposito: si no viene, la importacion asigna
+  // UB-### por empresa (como en el formulario de creacion).
+  const TEMPLATE_SAMPLE = ['', 'Pasillo 1 - Estante A', 'Pasillo 1', 'Estante A', 'Materiales de consumo', 'PRINCIPAL'];
 
   const openImportModal = () => {
     setImportFile(null);
@@ -326,9 +328,15 @@ export default function LocationsManager({ companyId }: { companyId: string }) {
                 <Input
                   value={formCode}
                   onChange={(e) => setFormCode(e.target.value)}
-                  placeholder="P1"
+                  disabled={!editing}
+                  placeholder={editing ? 'P1' : 'Se generará automáticamente (UB-001, UB-002...)'}
                   className="mt-1"
                 />
+                {!editing && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    El código lo asigna el sistema al guardar.
+                  </p>
+                )}
               </div>
               <div>
                 <Label>Nombre *</Label>

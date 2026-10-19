@@ -13,6 +13,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  createLocation,
   deleteLocation,
   listLocations,
   updateLocation,
@@ -123,4 +124,56 @@ test('updateLocation nunca escribe sin el filtro de empresa', async () => {
 
   const updates = consultasDeUbicaciones().filter((c) => c.verb === 'update');
   assert.equal(updates.length, 0, 'ningun UPDATE se ejecuto contra una fila ajena');
+});
+
+// --- Serie automatica de codigos (UB-###) ---------------------------------
+// El servidor genera el codigo si el caller no manda uno, en la serie de la
+// PROPIA empresa. `l-test1` trae el codigo legacy "P1" y `l-sin-empresa` trae
+// "UB-099" sin empresa: ninguno de los dos cuenta para la serie de test 1.
+
+test('createLocation sin codigo: genera UB-001 y la serie se calcula por empresa', async () => {
+  antes();
+  const r = await createLocation(TEST1, { name: 'Pasillo Nuevo' }, 'TEST1DS');
+
+  assert.equal(r.code, 'UB-001', 'primera ubicacion de la empresa sin serie previa');
+  // La consulta del maximo vino filtrada por la empresa, no solo por el tenant.
+  const seleccion = consultasDeUbicaciones().filter((c) => c.verb === 'select');
+  assert.ok(
+    seleccion.some((c) =>
+      c.filtros.some((f) => f.columna === 'company_id' && f.valor === TEST1)),
+    'la serie se calculo filtrando por company_id',
+  );
+});
+
+test('createLocation dos veces sin codigo: la serie sigue (UB-001, UB-002)', async () => {
+  antes();
+  const a = await createLocation(TEST1, { name: 'A' }, 'TEST1DS');
+  const b = await createLocation(TEST1, { name: 'B' }, 'TEST1DS');
+
+  assert.equal(a.code, 'UB-001');
+  assert.equal(b.code, 'UB-002');
+});
+
+test('la serie es por empresa: test 2 arranca en UB-001 aunque test 1 ya tenga UB-001', async () => {
+  antes();
+  await createLocation(TEST1, { name: 'A' }, 'TEST1DS');
+  const r = await createLocation(TEST2, { name: 'B' }, 'TEST1DS');
+
+  assert.equal(r.code, 'UB-001', 'la hermana del mismo tenant tiene su propia serie');
+});
+
+test('los codigos legacy (P1) y las filas sin empresa (UB-099) no cuentan en la serie', async () => {
+  antes();
+  // l-test1 tiene "P1" (no matchea UB-) y l-sin-empresa tiene "UB-099" pero su
+  // company_id es NULL: ninguno de los dos empuja la serie de test 1.
+  const r = await createLocation(TEST1, { name: 'C' }, 'TEST1DS');
+
+  assert.equal(r.code, 'UB-001');
+});
+
+test('createLocation con codigo explicito lo respeta (no genera serie)', async () => {
+  antes();
+  const r = await createLocation(TEST1, { name: 'D', code: 'P1' }, 'TEST1DS');
+
+  assert.equal(r.code, 'P1', 'un codigo propio traeido por la API/importacion se guarda tal cual');
 });

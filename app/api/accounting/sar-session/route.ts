@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { encryptSARConfig } from '@/lib/services/det-uploader';
 import type { SARUploadConfig } from '@/lib/services/det-uploader';
@@ -16,60 +17,16 @@ import type { SARSessionInfo } from '@/lib/services/sar-session';
 
 const CONFIG_CATEGORY = 'sar';
 
-function uploaderConfigKeys(tenantId: string) {
+// Las claves de `system_settings` se indexan por `companyId` (companies.id), no por
+// tenant: dos empresas del mismo tenant (`TEST1DS`) compartirian la sesion y la
+// conexion al portal SAR. La empresa sale del contexto validado, no del cliente.
+// Ver lib/tenant-resolver.ts y AGENTS.md seccion 1.
+function uploaderConfigKeys(companyId: string) {
   return {
-    det: `sar_config:${tenantId}`,
-    annual: `annual_tax_sar_config:${tenantId}`,
-    diat: `diat_sar_config:${tenantId}`,
+    det: `sar_config:${companyId}`,
+    annual: `annual_tax_sar_config:${companyId}`,
+    diat: `diat_sar_config:${companyId}`,
   };
-}
-
-async function getUserTenantId(userId: string): Promise<string | null> {
-  try {
-    const byAuth = await (db as any).user.findFirst({
-      where: { authId: userId },
-      select: { tenantId: true },
-    });
-    if (byAuth?.tenantId) return byAuth.tenantId;
-  } catch {
-    /* la búsqueda por authId puede fallar si el esquema difiere; se ignora */
-  }
-  try {
-    const byId = await (db as any).user.findFirst({
-      where: { id: userId },
-      select: { tenantId: true },
-    });
-    if (byId?.tenantId) return byId.tenantId;
-  } catch {
-    /* el id de Clerk puede no ser un UUID válido para la columna id */
-  }
-  return null;
-}
-
-async function canAccessTenant(
-  userId: string,
-  requestedTenantId: string,
-  headerTenantId: string | null
-): Promise<boolean> {
-  const trimmed = (requestedTenantId || '').trim();
-  if (!trimmed) return false;
-
-  const headerTenant = (headerTenantId || '').trim();
-  if (headerTenant && headerTenant === trimmed) return true;
-
-  const userTenant = await getUserTenantId(userId);
-  if (userTenant && userTenant === trimmed) return true;
-
-  const ownerTenant = headerTenant || userTenant || '';
-  if (!ownerTenant) return false;
-
-  const { data, error } = await supabaseService
-    .from('companies')
-    .select('id')
-    .eq('id', trimmed)
-    .eq('tenant_id', ownerTenant)
-    .maybeSingle();
-  return !error && !!data;
 }
 
 async function readSetting(key: string): Promise<unknown | null> {
@@ -87,20 +44,20 @@ async function readSetting(key: string): Promise<unknown | null> {
 }
 
 async function writeUploaderConfigs(
-  tenantId: string,
+  companyId: string,
   endpoint: string,
   usuario: string,
   passwordEncrypted: string,
   updatedBy: string
 ): Promise<{ error: any }> {
-  const keys = uploaderConfigKeys(tenantId);
+  const keys = uploaderConfigKeys(companyId);
   const baseConfig: SARUploadConfig = { endpoint, usuario, passwordEncrypted, autoconfig: true };
 
   const detWrite = await writeSARSetting(
     supabaseService,
     keys.det,
     JSON.stringify(baseConfig),
-    `Configuración de carga SAR del formulario 221 (${tenantId})`,
+    `Configuración de carga SAR del formulario 221 (${companyId})`,
     updatedBy,
     CONFIG_CATEGORY
   );
@@ -118,7 +75,7 @@ async function writeUploaderConfigs(
     supabaseService,
     keys.annual,
     JSON.stringify(annualConfig),
-    `Configuración de carga SAR de declaraciones anuales (${tenantId})`,
+    `Configuración de carga SAR de declaraciones anuales (${companyId})`,
     updatedBy,
     CONFIG_CATEGORY
   );
@@ -128,7 +85,7 @@ async function writeUploaderConfigs(
     supabaseService,
     keys.diat,
     JSON.stringify(baseConfig),
-    `Configuración de carga SAR del DIAT (${tenantId})`,
+    `Configuración de carga SAR del DIAT (${companyId})`,
     updatedBy,
     CONFIG_CATEGORY
   );
@@ -146,26 +103,22 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const companyId =
-      new URL(request.url).searchParams.get('companyId') ||
-      new URL(request.url).searchParams.get('tenantId') ||
-      request.headers.get('x-tenant-id');
-    if (!companyId) {
-      return NextResponse.json({ error: 'Empresa requerida' }, { status: 400 });
-    }
+    const { searchParams } = new URL(request.url);
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: searchParams.get('companyId') || searchParams.get('tenantId') || undefined,
+      })
+    );
 
-    const canAccess = await canAccessTenant(userId, companyId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json({ error: 'Empresa no encontrada o sin permiso' }, { status: 404 });
-    }
-
-    const live = await getLiveSARSession(companyId);
+    const live = await getLiveSARSession(empresa.companyId);
     const session = live.session
       ? toPublicSession(live.session)
-      : { companyId, status: 'NO_CONECTADO' as const };
+      : { companyId: empresa.companyId, status: 'NO_CONECTADO' as const };
 
     return NextResponse.json({ status: 'OK', session });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error leyendo la sesión SAR:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
@@ -179,21 +132,12 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const companyId = body?.companyId || body?.tenantId;
-    if (!companyId) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG_INCOMPLETA', message: 'Faltan datos de conexión' },
-        { status: 422 }
-      );
-    }
-
-    const canAccess = await canAccessTenant(userId, companyId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json(
-        { ok: false, error: 'Empresa no encontrada o sin permiso' },
-        { status: 404 }
-      );
-    }
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: body?.companyId || body?.tenantId || undefined,
+      })
+    );
+    const companyId = empresa.companyId;
 
     const endpoint = typeof body?.endpoint === 'string' ? body.endpoint.trim() : '';
     const user = typeof body?.user === 'string' ? body.user.trim() : '';
@@ -319,6 +263,8 @@ export async function POST(request: NextRequest) {
       { status: 502 }
     );
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error verificando la sesión SAR:', error);
     return NextResponse.json(
       { ok: false, errorHint: 'RED', message: 'Error de red, reinténtalo' },
@@ -334,20 +280,17 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const companyId =
-      new URL(request.url).searchParams.get('companyId') ||
-      new URL(request.url).searchParams.get('tenantId') ||
-      request.headers.get('x-tenant-id');
-    if (!companyId) {
-      return NextResponse.json({ error: 'Empresa requerida' }, { status: 400 });
-    }
+    const { searchParams } = new URL(request.url);
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: searchParams.get('companyId') || searchParams.get('tenantId') || undefined,
+      })
+    );
 
-    const canAccess = await canAccessTenant(userId, companyId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json({ error: 'Empresa no encontrada o sin permiso' }, { status: 404 });
-    }
-
-    const { error } = await supabaseService.from('system_settings').delete().eq('key', sarSessionKey(companyId));
+    const { error } = await supabaseService
+      .from('system_settings')
+      .delete()
+      .eq('key', sarSessionKey(empresa.companyId));
     if (error) {
       console.error('Error borrando la sesión SAR:', error);
       return NextResponse.json({ ok: false, error: 'No se pudo cerrar la sesión SAR' }, { status: 500 });
@@ -355,6 +298,8 @@ export async function DELETE(request: NextRequest) {
 
     return NextResponse.json({ ok: true });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error cerrando la sesión SAR:', error);
     return NextResponse.json({ ok: false, error: 'Error interno del servidor' }, { status: 500 });
   }

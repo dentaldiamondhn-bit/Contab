@@ -1,14 +1,20 @@
 import { supabase as supabaseService } from "@/lib/supabase-db";
 
 /**
- * Correlativo de factura: una sola fuente de verdad, por empresa.
+ * Correlativo de factura: una sola fuente de verdad, por EMPRESA (`company_id`).
  *
  * Antes cada pieza calculaba el numero por su cuenta y se desincronizaban:
  *   - el GET de /api/billing/cai usaba max(facturas del tenant) + 1
  *   - el POST de /api/billing/invoices escribia cai.current_number y nadie lo leia
  *   - sin fila en `cai` devolvia currentNumber: 1 fijo, asi que una empresa que
  *     ya tiene facturas (p.ej. 001-01-01-00000008) emitia 00000001 una y otra vez
- *   - la busqueda de "siguiente" era global, no por tenant
+ *   - la busqueda de "siguiente" era global, no por empresa
+ *
+ * Desde la 067 (8 Oct 2026) la frontera es `company_id`, no `tenant_id`: dos
+ * empresas del mismo tenant (test 1 y test 2, ambas de `TEST1DS`) llevan series
+ * separadas, igual que sus CAI. El aislamiento anterior por tenant sumaba/mezclaba
+ * las dos y la unicidad real era `UNIQUE("tenantId","invoiceNumber")`; la 067 la
+ * cambia a `UNIQUE("company_id","invoiceNumber")`.
  *
  * Ahora el numero lo decide el servidor. La tabla `cai` tiene dos esquemas
  * superpuestos (ver CLAUDE.md): se leen los campos Spanish y se usan como
@@ -28,11 +34,11 @@ export function formatInvoiceNumber(correlativo: number, base?: string): string 
 }
 
 /** Ultimo correlativo emitido por la empresa, o 0 si no tiene facturas. */
-async function lastIssued(tenantId: string): Promise<{ correlativo: number; base?: string }> {
+async function lastIssued(companyId: string): Promise<{ correlativo: number; base?: string }> {
   const { data } = await (supabaseService as any)
     .from("Invoice")
     .select("invoiceNumber")
-    .eq("tenantId", tenantId)
+    .eq("company_id", companyId)
     .not("invoiceNumber", "is", null)
     .order("invoiceNumber", { ascending: false })
     .limit(1);
@@ -85,13 +91,13 @@ function vence(row: CaiRow): Date | null {
 }
 
 /** CAI vigente de la empresa: el que cubre el correlativo siguiente, sin caducar. */
-async function pickCai(tenantId: string, siguiente: number): Promise<CaiRow | null> {
+async function pickCai(companyId: string, siguiente: number): Promise<CaiRow | null> {
   const { data } = await (supabaseService as any)
     .from("cai")
     .select(
       "id, rango_inicial, rango_final, start_number, end_number, current_number, current_correlative, fecha_limite_emision, expiration_date, cai, cai_number"
     )
-    .eq("tenant_id", tenantId)
+    .eq("company_id", companyId)
     .eq("status", "active")
     .order("rango_inicial", { ascending: true });
 
@@ -130,11 +136,11 @@ export type NumeroResuelto = {
  * Siguiente numero de la empresa, sin reservarlo. Sirve para que la UI
  * muestre exactamente el numero que se va a emitir.
  */
-export async function previewInvoiceNumber(tenantId: string): Promise<NumeroResuelto> {
-  const last = await lastIssued(tenantId);
+export async function previewInvoiceNumber(companyId: string): Promise<NumeroResuelto> {
+  const last = await lastIssued(companyId);
   const siguiente = last.correlativo + 1;
   const base = last.base;
-  const cai = await pickCai(tenantId, siguiente);
+  const cai = await pickCai(companyId, siguiente);
 
   const correlativo = cai ? Math.max(current(cai), siguiente) : siguiente;
   return {
@@ -155,20 +161,19 @@ export async function previewInvoiceNumber(tenantId: string): Promise<NumeroResu
  * llevo y se reintenta. Mismo patron que `lib/services/stock-sale.ts`.
  *
  * `suelo` sirve para avanzar cuando el numero pedido no se puede usar porque
- * `Invoice_invoiceNumber_key` es UNIQUE **global**: si otra empresa ya tiene el
- * 00000026, la serie propia (que solo mira las facturas de esta empresa) volveria
- * a proponer 26 una y otra vez. Con el suelo se pide 27 y sigue.
+ * `Invoice_company_id_invoiceNumber_key` es UNIQUE **por empresa** (067): si esta
+ * empresa ya tiene el 00000026, la serie propia volveria a proponer 26 una y otra
+ * vez. Con el suelo se pide 27 y sigue.
  */
 export async function reserveInvoiceNumber(
-  tenantId: string,
-  opciones: { suelo?: number } = {}
+  companyId: string,
+  { suelo = 0 }: { suelo?: number } = {}
 ): Promise<NumeroResuelto> {
-  const suelo = opciones.suelo ?? 0;
   for (let intento = 1; intento <= MAX_REINTENTOS; intento++) {
-    const last = await lastIssued(tenantId);
+    const last = await lastIssued(companyId);
     const siguiente = last.correlativo + 1;
     const base = last.base;
-    const cai = await pickCai(tenantId, siguiente);
+    const cai = await pickCai(companyId, siguiente);
 
     if (!cai) {
       // Sin CAI no hay fila que reservar: el control lo da la comprobacion de
@@ -203,7 +208,7 @@ export async function reserveInvoiceNumber(
         current_correlative: correlativo < desde ? correlativo : correlativo + 1,
       })
       .eq("id", cai.id)
-      .eq("tenant_id", tenantId)
+      .eq("company_id", companyId)
       .eq("current_number", current(cai))
       .select("id");
 
@@ -239,16 +244,17 @@ export class ExhaustedCaiError extends Error {
 
 /**
  * El numero ya emitido no puede estar repetido dentro de la misma empresa.
- * La consulta es por tenant: dos empresas pueden tener 001-01-01-00000001.
+ * La consulta es por `company_id`: dos empresas (aunque compartan tenant) pueden
+ * tener 001-01-01-00000001.
  */
 export async function isInvoiceNumberTaken(
-  tenantId: string,
+  companyId: string,
   invoiceNumber: string
 ): Promise<boolean> {
   const { data } = await (supabaseService as any)
     .from("Invoice")
     .select("id")
-    .eq("tenantId", tenantId)
+    .eq("company_id", companyId)
     .eq("invoiceNumber", invoiceNumber)
     .limit(1);
   return !!data && data.length > 0;

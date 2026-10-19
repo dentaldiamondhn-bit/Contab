@@ -29,6 +29,13 @@ export async function resolve(specifier, context, nextResolve) {
       shortCircuit: true,
     };
   }
+  // `lib/services/warehouse-service.ts` importa helpers puros de transfer-calc.
+  if (specifier === '@/lib/services/transfer-calc') {
+    return {
+      url: new URL('../../lib/services/transfer-calc.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
 
   return nextResolve(specifier, context);
 }

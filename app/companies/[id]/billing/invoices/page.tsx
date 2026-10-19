@@ -17,7 +17,7 @@ export default function InvoicesListPage() {
   const loadInvoices = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/billing/invoices?tenantId=${companyId}`);
+      const res = await fetch(`/api/billing/invoices?companyId=${companyId}`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : data.invoices || [];

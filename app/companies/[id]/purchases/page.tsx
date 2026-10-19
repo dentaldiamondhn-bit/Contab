@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,10 +12,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, FileText, Calendar, CreditCard, AlertCircle, ChevronLeft, Trash2, Upload, Printer, Eye, Edit, BarChart3, Wallet, MoreHorizontal, Menu, Package, RotateCcw } from 'lucide-react';
+import { Search, Plus, FileText, Calendar, CreditCard, AlertCircle, ChevronLeft, Trash2, Upload, Printer, Eye, Edit, BarChart3, Wallet, MoreHorizontal, Menu, Package, RotateCcw, ShieldCheck, Check, X, Landmark } from 'lucide-react';
 import PaymentManager from '@/components/purchases/PaymentManager';
 
+import { evaluarCai, type ProblemaCai } from '@/lib/supplier-cai';
 import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
+import { RETENCIONES, normalizarTipoRetencion, calcularRetencion } from '@/lib/supplier-withholding';
 interface Supplier {
   id: string;
   rtn: string;
@@ -23,6 +25,32 @@ interface Supplier {
   commercial_name?: string;
   supplier_type: string;
   payment_terms: number;
+  cai?: string | null;
+  cai_expiration_date?: string | null;
+  cai_range_from?: string | null;
+  cai_range_to?: string | null;
+  withholding_type?: string | null;
+}
+
+/** Aviso no bloqueante del CAI del proveedor al registrar/editar la factura. */
+function AvisoCai({ problemas }: { problemas: ProblemaCai[] }) {
+  if (problemas.length === 0) return null;
+  const hayError = problemas.some((p) => p.severidad === 'error');
+  return (
+    <Alert variant={hayError ? 'destructive' : 'default'} className="py-2">
+      <AlertCircle className="h-4 w-4" />
+      <AlertDescription className="text-xs">
+        <div className="font-medium">
+          {hayError ? 'Revisa la factura del proveedor:' : 'Aviso de CAI del proveedor:'}
+        </div>
+        <ul className="list-disc ml-4 mt-1 space-y-0.5">
+          {problemas.map((p) => (
+            <li key={p.codigo}>{p.mensaje}</li>
+          ))}
+        </ul>
+      </AlertDescription>
+    </Alert>
+  );
 }
 
 interface Product {
@@ -50,6 +78,7 @@ interface PurchaseItem {
   tax_amount: number;
   total: number;
   total_cost?: number;
+  exonerated?: boolean;
 }
 
 interface Purchase {
@@ -63,6 +92,22 @@ interface Purchase {
   is_credit: boolean;
   purchase_type: string;
   created_at: string;
+  approval_status?: 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
+  approved_by?: string | null;
+  approved_at?: string | null;
+  rejected_by?: string | null;
+  rejection_reason?: string | null;
+  withholding_type?: string | null;
+  withholding_rate?: number | null;
+  withholding_amount?: number | null;
+  exonerated?: boolean;
+}
+
+interface Aprobador {
+  id: string;
+  user_id: string;
+  nombre: string;
+  email: string;
 }
 
 export default function PurchasesPage() {
@@ -75,7 +120,19 @@ export default function PurchasesPage() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  
+
+  // Aprobacion de compras
+  const [aprobadores, setAprobadores] = useState<Aprobador[]>([]);
+  const [candidatos, setCandidatos] = useState<{ id: string; nombre: string; email: string }[]>([]);
+  const [puedeGestionarAprobadores, setPuedeGestionarAprobadores] = useState(false);
+  const [puedeAprobarCompras, setPuedeAprobarCompras] = useState(false);
+  const [showApproversModal, setShowApproversModal] = useState(false);
+  const [nuevoAprobadorId, setNuevoAprobadorId] = useState('');
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState('');
+  const [rejectTarget, setRejectTarget] = useState<Purchase | null>(null);
+  const [decidingId, setDecidingId] = useState<string | null>(null);
+
   // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -94,6 +151,7 @@ export default function PurchasesPage() {
   const [expenseCategory, setExpenseCategory] = useState('administrative');
   const [documentUrl, setDocumentUrl] = useState('');
   const [taxRate, setTaxRate] = useState(15);
+  const [withholdingType, setWithholdingType] = useState<string>('NONE');
   const [showCreateProduct, setShowCreateProduct] = useState(false);
   const [newProduct, setNewProduct] = useState({ code: "", name: "", unit_price: 0, stock_quantity: 0, category: "", unit: "Unidad" });
   const [creatingProduct, setCreatingProduct] = useState(false);
@@ -109,6 +167,7 @@ export default function PurchasesPage() {
     discount_percentage: 0,
     tax_rate: 15,
     total_cost: 0,
+    exonerated: false,
   });
 
   const [caiError, setCaiError] = useState('');
@@ -124,11 +183,14 @@ export default function PurchasesPage() {
   }, [items]);
 
   const { subtotal, taxAmount, total } = calculateTotals();
+  const retencionMonto = calcularRetencion(subtotal, withholdingType);
+  const netoAPagar = Math.max(total - retencionMonto, 0);
 
   useEffect(() => {
     loadSuppliers();
     loadProducts();
     loadPurchases();
+    loadApprovalConfig();
   }, [companyId]);
 
   useEffect(() => {
@@ -156,6 +218,7 @@ export default function PurchasesPage() {
       setDueDate((selectedPurchase as any).due_date || '');
       setPurchaseType(selectedPurchase.purchase_type || 'merchandise');
       setExpenseCategory((selectedPurchase as any).expense_category || 'administrative');
+      setWithholdingType(normalizarTipoRetencion((selectedPurchase as any).withholding_type));
       
       // Set items
       if ((selectedPurchase as any).items && (selectedPurchase as any).items.length > 0) {
@@ -220,6 +283,82 @@ export default function PurchasesPage() {
     }
   };
 
+  const loadApprovalConfig = async () => {
+    try {
+      const res = await fetch(`/api/purchases/approvers?companyId=${companyId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAprobadores(data.aprobadores || []);
+        setCandidatos(data.candidatos || []);
+        setPuedeGestionarAprobadores(Boolean(data.puedeGestionar));
+        setPuedeAprobarCompras(Boolean(data.puedeAprobar));
+      }
+    } catch (error) {
+      console.error('Error loading approval config:', error);
+    }
+  };
+
+  const decidirCompra = async (purchase: Purchase, action: 'approve' | 'reject', reason?: string) => {
+    try {
+      setDecidingId(purchase.id);
+      const res = await fetch(`/api/purchases/approval?companyId=${companyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: purchase.id, action, reason }),
+      });
+      if (res.ok) {
+        setShowRejectModal(false);
+        setRejectReason('');
+        setRejectTarget(null);
+        await loadPurchases();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert('Error: ' + (data.error || 'No se pudo procesar la solicitud'));
+      }
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    } finally {
+      setDecidingId(null);
+    }
+  };
+
+  const handleAddAprobador = async () => {
+    if (!nuevoAprobadorId) {
+      alert('Seleccione un usuario');
+      return;
+    }
+    try {
+      const res = await fetch(`/api/purchases/approvers?companyId=${companyId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ userId: nuevoAprobadorId }),
+      });
+      if (res.ok) {
+        setNuevoAprobadorId('');
+        await loadApprovalConfig();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert('Error: ' + (data.error || 'No se pudo designar'));
+      }
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
+  };
+
+  const handleRemoveAprobador = async (id: string) => {
+    try {
+      const res = await fetch(`/api/purchases/approvers?id=${id}&companyId=${companyId}`, { method: 'DELETE' });
+      if (res.ok) {
+        await loadApprovalConfig();
+      } else {
+        const data = await res.json().catch(() => ({}));
+        alert('Error: ' + (data.error || 'No se pudo quitar'));
+      }
+    } catch (error: any) {
+      alert('Error: ' + error.message);
+    }
+  };
+
   // Validate CAI format
   const validateCAI = (caiValue: string): boolean => {
     // CAI format for Honduras: XXXXXX-XXXXXX-XXXXXX-XXXXXX-XXXXXX-X
@@ -237,11 +376,17 @@ export default function PurchasesPage() {
     return parts.join('-');
   };
 
+  const problemasCai = useMemo(
+    () => evaluarCai(selectedSupplier, { cai, invoice_number: invoiceNumber }).problemas,
+    [selectedSupplier, cai, invoiceNumber]
+  );
+
   const calculateItemValues = (item: Partial<PurchaseItem>): PurchaseItem => {
     const quantity = item.quantity || 0;
     const unitPrice = item.unit_price || 0;
     const discountPercentage = item.discount_percentage || 0;
-    const itemTaxRate = item.tax_rate || taxRate;
+    const exonerated = !!item.exonerated;
+    const itemTaxRate = exonerated ? 0 : (item.tax_rate ?? taxRate);
 
     const grossSubtotal = quantity * unitPrice;
     const discountAmount = Math.round(grossSubtotal * (discountPercentage / 100));
@@ -262,6 +407,7 @@ export default function PurchasesPage() {
       tax_rate: itemTaxRate,
       tax_amount: taxAmountValue,
       total: totalValue,
+      exonerated,
     } as PurchaseItem;
   };
 
@@ -285,6 +431,7 @@ export default function PurchasesPage() {
       discount_percentage: 0,
       tax_rate: 15,
       total_cost: 0,
+      exonerated: false,
     });
   };
 
@@ -343,7 +490,6 @@ export default function PurchasesPage() {
       alert('Seleccione un proveedor');
       return;
     }
-
     if (!invoiceNumber) {
       alert('Ingrese el número de factura');
       return;
@@ -382,6 +528,7 @@ export default function PurchasesPage() {
         tax_rate: taxRate,
         tax_amount: Math.round(taxAmount),
         total: Math.round(total),
+        withholding_type: withholdingType,
         purchase_type: purchaseType,
         expense_category: purchaseType === 'expense' ? expenseCategory : null,
         document_url: documentUrl || null,
@@ -424,6 +571,7 @@ export default function PurchasesPage() {
     setExpenseCategory('administrative');
     setDocumentUrl('');
     setTaxRate(15);
+    setWithholdingType('NONE');
     setItems([]);
     setNewItem({
       product_name: '',
@@ -432,6 +580,7 @@ export default function PurchasesPage() {
       unit_price: 0,
       discount_percentage: 0,
       tax_rate: 15,
+      exonerated: false,
     });
     setCaiError('');
   };
@@ -472,6 +621,7 @@ export default function PurchasesPage() {
     setExpenseCategory((purchase as any).expense_category || 'administrative');
     setDocumentUrl((purchase as any).document_url || '');
     setTaxRate((purchase as any).tax_rate || 15);
+    setWithholdingType(normalizarTipoRetencion(purchase.withholding_type));
     setItems((purchase as any).items || []);
     setShowEditModal(true);
   };
@@ -482,6 +632,7 @@ export default function PurchasesPage() {
       return;
     }
 
+    const exonerated = !!newItem.exonerated;
     const item: PurchaseItem = {
       product_name: newItem.product_name!,
       description: newItem.description || '',
@@ -492,10 +643,11 @@ export default function PurchasesPage() {
       discount_percentage: newItem.discount_percentage || 0,
       discount_amount: 0,
       subtotal: (newItem.quantity || 1) * (newItem.unit_price || 0),
-      tax_rate: taxRate,
+      tax_rate: exonerated ? 0 : taxRate,
       tax_amount: 0,
       total: 0,
       total_cost: (newItem as any).total_cost || 0,
+      exonerated,
     };
 
     // Calculate discount amount
@@ -514,6 +666,7 @@ export default function PurchasesPage() {
       unit_price: 0,
       discount_percentage: 0,
       tax_rate: 15,
+      exonerated: false,
     });
   };
 
@@ -561,6 +714,7 @@ export default function PurchasesPage() {
         tax_rate: taxRate,
         tax_amount: Math.round(taxAmount),
         total: Math.round(total),
+        withholding_type: withholdingType,
         purchase_type: purchaseType,
         expense_category: purchaseType === 'expense' ? expenseCategory : null,
         document_url: documentUrl || null,
@@ -613,6 +767,12 @@ export default function PurchasesPage() {
     return <Badge className="bg-red-100 text-red-800">Pendiente</Badge>;
   };
 
+  const getApprovalBadge = (status?: string) => {
+    if (status === 'PENDING_APPROVAL') return <Badge className="bg-amber-100 text-amber-800 border-amber-300">Por aprobar</Badge>;
+    if (status === 'REJECTED') return <Badge className="bg-red-100 text-red-800 border-red-300">Rechazada</Badge>;
+    return <Badge className="bg-green-100 text-green-800 border-green-300">Aprobada</Badge>;
+  };
+
   const formatCurrency = (amount: number) => {
     return `L ${Number(amount).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   };
@@ -649,6 +809,26 @@ export default function PurchasesPage() {
             <RotateCcw className="w-4 h-4 mr-2" />
             Devoluciones
           </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-10 px-3"
+            onClick={() => router.push(`/companies/${companyId}/purchases/reconciliation`)}
+          >
+            <Landmark className="w-4 h-4 mr-2" />
+            Conciliación
+          </Button>
+          {(puedeGestionarAprobadores || puedeAprobarCompras) && (
+            <Button
+              size="sm"
+              variant="outline"
+              className="h-10 px-3"
+              onClick={() => { loadApprovalConfig(); setShowApproversModal(true); }}
+            >
+              <ShieldCheck className="w-4 h-4 mr-2" />
+              Aprobadores
+            </Button>
+          )}
           {/* Single Dropdown Menu - Same level as title */}
           <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -682,6 +862,16 @@ export default function PurchasesPage() {
               <RotateCcw className="w-4 h-4 mr-2" />
               Devoluciones a Proveedores
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/purchases/reconciliation`)}>
+              <Landmark className="w-4 h-4 mr-2" />
+              Conciliación Bancaria
+            </DropdownMenuItem>
+            {(puedeGestionarAprobadores || puedeAprobarCompras) && (
+              <DropdownMenuItem onClick={() => { loadApprovalConfig(); setShowApproversModal(true); }}>
+                <ShieldCheck className="w-4 h-4 mr-2" />
+                Aprobadores de Compras
+              </DropdownMenuItem>
+            )}
             <DropdownMenuItem onClick={() => { resetForm(); setShowCreateModal(true); }} className="bg-cyan-50 text-cyan-700 hover:bg-cyan-100">
               <Plus className="w-4 h-4 mr-2" />
               Nueva Compra
@@ -692,7 +882,7 @@ export default function PurchasesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Compras</CardTitle>
@@ -733,6 +923,16 @@ export default function PurchasesPage() {
             </div>
           </CardContent>
         </Card>
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium text-gray-600">Por Aprobar</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-amber-600">
+              {purchases.filter(p => p.approval_status === 'PENDING_APPROVAL').length}
+            </div>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Search */}
@@ -770,6 +970,7 @@ export default function PurchasesPage() {
                     <th className="text-right py-3 px-4">Total</th>
                     <th className="text-center py-3 px-4">Tipo</th>
                     <th className="text-center py-3 px-4">Estado Pago</th>
+                    <th className="text-center py-3 px-4">Aprobación</th>
                     <th className="text-center py-3 px-4">Acciones</th>
                   </tr>
                 </thead>
@@ -800,6 +1001,9 @@ export default function PurchasesPage() {
                       <td className="py-3 px-4 text-center">
                         {getPaymentStatusBadge(purchase.status, (purchase as any).balance_due, purchase.total)}
                       </td>
+                      <td className="py-3 px-4 text-center">
+                        {getApprovalBadge(purchase.approval_status)}
+                      </td>
                       <td className="py-3 px-4 text-right relative">
                         <div className="flex justify-end">
                           <DropdownMenu>
@@ -813,6 +1017,26 @@ export default function PurchasesPage() {
                                 <Eye className="w-4 h-4 mr-2" />
                                 Ver detalles
                               </DropdownMenuItem>
+                              {purchase.approval_status === 'PENDING_APPROVAL' && puedeAprobarCompras && (
+                                <>
+                                  <DropdownMenuItem
+                                    disabled={decidingId === purchase.id}
+                                    onClick={() => decidirCompra(purchase, 'approve')}
+                                    className="text-green-700"
+                                  >
+                                    <Check className="w-4 h-4 mr-2" />
+                                    Aprobar compra
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    disabled={decidingId === purchase.id}
+                                    onClick={() => { setRejectTarget(purchase); setRejectReason(''); setShowRejectModal(true); }}
+                                    className="text-red-600"
+                                  >
+                                    <X className="w-4 h-4 mr-2" />
+                                    Rechazar compra
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                               <DropdownMenuItem onClick={() => { setSelectedPurchase(purchase); setShowPaymentModal(true); }}>
                                 <Wallet className="w-4 h-4 mr-2" />
                                 Gestionar pagos
@@ -867,6 +1091,7 @@ export default function PurchasesPage() {
                   onValueChange={(value) => {
                     const supplier = suppliers.find(s => s.id === value);
                     setSelectedSupplier(supplier || null);
+                    if (supplier) setWithholdingType(normalizarTipoRetencion(supplier.withholding_type));
                   }}
                 >
                   <SelectTrigger>
@@ -913,6 +1138,8 @@ export default function PurchasesPage() {
                   )}
                 </div>
               </div>
+
+              <AvisoCai problemas={problemasCai} />
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -976,6 +1203,27 @@ export default function PurchasesPage() {
                     <SelectItem value="0">Exento (0%)</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Retención ISR</Label>
+                <Select value={withholdingType} onValueChange={setWithholdingType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETENCIONES.map((opcion) => (
+                      <SelectItem key={opcion.value} value={opcion.value}>
+                        {opcion.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {selectedSupplier?.withholding_type ? (
+                  <p className="text-xs text-gray-500">
+                    Valor por defecto del proveedor: {RETENCIONES.find(r => r.value === normalizarTipoRetencion(selectedSupplier.withholding_type))?.label || 'Sin retención'}
+                  </p>
+                ) : null}
               </div>
 
               <div className="space-y-2">
@@ -1193,6 +1441,15 @@ export default function PurchasesPage() {
                       </Button>
                     </div>
                   </div>
+
+                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={!!newItem.exonerated}
+                      onChange={(e) => setNewItem({ ...newItem, exonerated: e.target.checked })}
+                    />
+                    <span className="text-sm">Artículo exonerado (ISV 0%)</span>
+                  </label>
                 </CardContent>
               </Card>
 
@@ -1208,13 +1465,14 @@ export default function PurchasesPage() {
                       <th className="text-right p-2">Subtotal</th>
                       <th className="text-right p-2">ISV</th>
                       <th className="text-right p-2">Total</th>
+                      <th className="text-center p-2">Exonerada</th>
                       <th className="text-center p-2"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center p-4 text-gray-500">
+                        <td colSpan={9} className="text-center p-4 text-gray-500">
                           No hay artículos agregados
                         </td>
                       </tr>
@@ -1237,6 +1495,7 @@ export default function PurchasesPage() {
                           <td className="p-2 text-right">{formatCurrency(item.subtotal)}</td>
                           <td className="p-2 text-right">{formatCurrency(item.tax_amount)}</td>
                           <td className="p-2 text-right font-medium">{formatCurrency(item.total)}</td>
+                          <td className="p-2 text-center">{item.exonerated ? <Badge variant="outline">Sí</Badge> : '—'}</td>
                           <td className="p-2 text-center">
                             <Button
                               variant="ghost"
@@ -1263,10 +1522,22 @@ export default function PurchasesPage() {
                   <span>ISV ({taxRate}%):</span>
                   <span className="font-medium">{formatCurrency(taxAmount)}</span>
                 </div>
+                {retencionMonto > 0 && (
+                  <div className="flex justify-between text-orange-700">
+                    <span>Retención ISR:</span>
+                    <span className="font-medium">-{formatCurrency(retencionMonto)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold border-t pt-2">
                   <span>TOTAL:</span>
                   <span>{formatCurrency(total)}</span>
                 </div>
+                {retencionMonto > 0 && (
+                  <div className="flex justify-between text-cyan-700 font-bold">
+                    <span>NETO A PAGAR:</span>
+                    <span>{formatCurrency(netoAPagar)}</span>
+                  </div>
+                )}
               </div>
             </TabsContent>
 
@@ -1446,6 +1717,7 @@ export default function PurchasesPage() {
                   onValueChange={(value) => {
                     const supplier = suppliers.find(s => s.id === value);
                     setSelectedSupplier(supplier || null);
+                    if (supplier) setWithholdingType(normalizarTipoRetencion(supplier.withholding_type));
                   }}
                 >
                   <SelectTrigger>
@@ -1483,6 +1755,8 @@ export default function PurchasesPage() {
                 {caiError && <p className="text-sm text-red-500">{caiError}</p>}
               </div>
 
+              <AvisoCai problemas={problemasCai} />
+
               {/* Invoice Date */}
               <div className="space-y-2">
                 <Label>Fecha de Factura *</Label>
@@ -1507,6 +1781,23 @@ export default function PurchasesPage() {
                   </SelectContent>
                 </Select>
               </div>
+
+              {/* Retención ISR */}
+              <div className="space-y-2">
+                <Label>Retención ISR</Label>
+                <Select value={withholdingType} onValueChange={setWithholdingType}>
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {RETENCIONES.map((opcion) => (
+                      <SelectItem key={opcion.value} value={opcion.value}>
+                        {opcion.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </TabsContent>
 
             <TabsContent value="items" className="space-y-4">
@@ -1521,6 +1812,7 @@ export default function PurchasesPage() {
                       <th className="text-right p-2">Precio</th>
                       <th className="text-right p-2">Descuento</th>
                       <th className="text-right p-2">Subtotal</th>
+                      <th className="text-center p-2">Exonerada</th>
                       <th className="text-center p-2">Acciones</th>
                     </tr>
                   </thead>
@@ -1533,6 +1825,7 @@ export default function PurchasesPage() {
                         <td className="p-2 text-right">{formatCurrency(item.unit_price)}</td>
                         <td className="p-2 text-right">{item.discount_percentage}%</td>
                         <td className="p-2 text-right">{formatCurrency(item.total)}</td>
+                        <td className="p-2 text-center">{item.exonerated ? <Badge variant="outline">Sí</Badge> : '—'}</td>
                         <td className="p-2 text-center">
                           <Button
                             variant="outline"
@@ -1591,6 +1884,14 @@ export default function PurchasesPage() {
                     />
                   </div>
                 </div>
+                <label className="flex items-center gap-2 mt-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={!!newItem.exonerated}
+                    onChange={(e) => setNewItem({ ...newItem, exonerated: e.target.checked })}
+                  />
+                  <span className="text-sm">Artículo exonerado (ISV 0%)</span>
+                </label>
                 <div className="mt-4">
                   <Button onClick={handleAddItem}>Agregar Artículo</Button>
                 </div>
@@ -1646,10 +1947,22 @@ export default function PurchasesPage() {
                   <span>Impuesto ({taxRate}%):</span>
                   <span>{formatCurrency(calculateTotals().taxAmount)}</span>
                 </div>
+                {retencionMonto > 0 && (
+                  <div className="flex justify-between text-orange-700">
+                    <span>Retención ISR:</span>
+                    <span>-{formatCurrency(retencionMonto)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between text-lg font-bold">
                   <span>Total:</span>
                   <span>{formatCurrency(calculateTotals().total)}</span>
                 </div>
+                {retencionMonto > 0 && (
+                  <div className="flex justify-between font-bold text-cyan-700 border-t pt-2">
+                    <span>Neto a pagar:</span>
+                    <span>{formatCurrency(netoAPagar)}</span>
+                  </div>
+                )}
               </div>
 
               <Alert className="bg-cyan-50 border-cyan-200">
@@ -1677,6 +1990,114 @@ export default function PurchasesPage() {
               disabled={submitting || items.length === 0 || !selectedSupplier || !invoiceNumber}
             >
               {submitting ? 'Actualizando...' : 'Actualizar Compra'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reject Modal */}
+      <Dialog open={showRejectModal} onOpenChange={setShowRejectModal}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rechazar Compra</DialogTitle>
+            <DialogDescription>
+              Indique el motivo del rechazo de la factura {rejectTarget?.invoice_number}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Motivo del rechazo</Label>
+            <Input
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="Ej. Factura duplicada, datos incorrectos..."
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowRejectModal(false)} disabled={decidingId === rejectTarget?.id}>
+              Cancelar
+            </Button>
+            <Button
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => rejectTarget && decidirCompra(rejectTarget, 'reject', rejectReason)}
+              disabled={!!decidingId}
+            >
+              {decidingId ? 'Procesando...' : 'Rechazar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Approvers Modal */}
+      <Dialog open={showApproversModal} onOpenChange={setShowApproversModal}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Aprobadores de Compras</DialogTitle>
+            <DialogDescription>
+              {puedeGestionarAprobadores
+                ? 'Designa qué usuarios pueden aprobar compras en esta empresa.'
+                : 'Usuarios designados para aprobar compras en esta empresa.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Designados</Label>
+              {aprobadores.length === 0 ? (
+                <div className="text-sm text-gray-500 border rounded-md p-3">
+                  Sin aprobadores designados. Los gerentes y administradores pueden aprobar de todos modos.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {aprobadores.map((a) => (
+                    <div key={a.id} className="flex items-center justify-between border rounded-md p-2">
+                      <div className="text-sm">
+                        <div className="font-medium">{a.nombre || a.user_id}</div>
+                        {a.email ? <div className="text-gray-500">{a.email}</div> : null}
+                      </div>
+                      {puedeGestionarAprobadores && (
+                        <Button variant="outline" size="sm" className="h-8 text-red-600" onClick={() => handleRemoveAprobador(a.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {puedeGestionarAprobadores && (
+              <div className="space-y-2">
+                <Label>Agregar aprobador</Label>
+                <div className="flex gap-2">
+                  <Select value={nuevoAprobadorId} onValueChange={setNuevoAprobadorId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Seleccione un usuario" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {candidatos.length === 0 ? (
+                        <SelectItem value="__none__" disabled>
+                          No hay usuarios disponibles
+                        </SelectItem>
+                      ) : (
+                        candidatos.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.nombre || c.id}{c.email ? ` (${c.email})` : ''}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <Button onClick={handleAddAprobador} disabled={!nuevoAprobadorId}>
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowApproversModal(false)}>
+              Cerrar
             </Button>
           </DialogFooter>
         </DialogContent>

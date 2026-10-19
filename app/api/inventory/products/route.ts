@@ -60,6 +60,7 @@ export async function GET(request: NextRequest) {
     const products = rawProducts?.map((p: any) => ({
       ...p,
       price: p.unit_price,
+      sale_price: p.sale_price ?? p.unit_price,
       current_stock: p.current_stock ?? 0,
       min_stock: p.min_stock ?? 0,
       max_stock: p.max_stock ?? 0,
@@ -90,6 +91,7 @@ export async function PATCH(request: NextRequest) {
       description,
       unitPrice,
       currentCost,
+      salePrice,
       minStock,
       maxStock,
       taxRate,
@@ -98,6 +100,8 @@ export async function PATCH(request: NextRequest) {
       location,
       locationId,
       imageUrl,
+      barcode,
+      barcodeImageUrl,
       isActive,
     } = body;
 
@@ -120,6 +124,7 @@ export async function PATCH(request: NextRequest) {
     if (description !== undefined) updateData.description = description;
     if (unitPrice !== undefined) updateData.unit_price = unitPrice;
     if (currentCost !== undefined) updateData.current_cost = currentCost;
+    if (salePrice !== undefined) updateData.sale_price = salePrice;
     if (minStock !== undefined) updateData.min_stock = minStock;
     if (maxStock !== undefined) updateData.max_stock = maxStock;
     if (taxRate !== undefined) updateData.tax_rate = taxRate;
@@ -128,6 +133,11 @@ export async function PATCH(request: NextRequest) {
     if (location !== undefined) updateData.location = location;
     if (locationId !== undefined) updateData.location_id = locationId || null;
     if (imageUrl !== undefined) updateData.image_url = imageUrl;
+    // Codigo de barras: `barcode` es el valor codificado; `barcode_image_url`
+    // la foto opcional. La subida de la foto pasa por su propia ruta, pero
+    // aqui se puede limpiar el valor o la imagen desde el formulario.
+    if (barcode !== undefined) updateData.barcode = barcode || null;
+    if (barcodeImageUrl !== undefined) updateData.barcode_image_url = barcodeImageUrl || null;
     if (isActive !== undefined) updateData.is_active = isActive;
 
     console.log("PATCH - Update data:", JSON.stringify(updateData, null, 2));
@@ -190,6 +200,7 @@ export async function POST(request: NextRequest) {
       unit,
       unitPrice,
       currentCost,
+      salePrice,
       currentStock = 0,
       minStock = 0,
       maxStock = 0,
@@ -200,6 +211,8 @@ export async function POST(request: NextRequest) {
       location,
       locationId,
       imageUrl,
+      barcode,
+      barcodeImageUrl,
       isService = false,
     } = body;
     // Contexto de empresa con comprobacion de pertenencia. Antes esta ruta
@@ -268,6 +281,7 @@ export async function POST(request: NextRequest) {
         unit: unit || 'Unidad',
         unit_price: unitPrice,
         current_cost: currentCost || unitPrice,
+        sale_price: salePrice ?? 0,
         current_stock: currentStock,
         stock_quantity: currentStock,
         min_stock: minStock,
@@ -279,6 +293,8 @@ export async function POST(request: NextRequest) {
         location: location || null,
         location_id: locationId || null,
         image_url: imageUrl || null,
+        barcode: barcode || null,
+        barcode_image_url: barcodeImageUrl || null,
         is_service: isService,
         is_active: true,
       })

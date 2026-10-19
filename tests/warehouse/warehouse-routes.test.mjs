@@ -46,7 +46,7 @@ test('GET almacenes (200) con tenant del header', async () => {
   ]);
 });
 
-test('POST almacén 201; 400 sin código', async () => {
+test('POST almacén 201 con y sin código; 400 sin nombre', async () => {
   resetWarehouseMock();
 
   const ok = await whPOST(
@@ -55,13 +55,37 @@ test('POST almacén 201; 400 sin código', async () => {
   );
   assert.equal(ok.status, 201);
 
-  const bad = await whPOST(
+  // Sin código el servidor lo autogenera (serie ALM-###): ya no es 400.
+  const sinCodigo = await whPOST(
     withBody('/api/companies/ANGELOH7/inventory/warehouses', { name: 'Sin código' }),
+    { params: Promise.resolve({ id: 'ANGELOH7' }) },
+  );
+  const sinCodigoBody = await sinCodigo.json();
+  assert.equal(sinCodigo.status, 201);
+  assert.match(sinCodigoBody.data.warehouse.code, /^ALM-\d{3}$/);
+
+  const bad = await whPOST(
+    withBody('/api/companies/ANGELOH7/inventory/warehouses', { code: 'X' }),
     { params: Promise.resolve({ id: 'ANGELOH7' }) },
   );
   const badBody = await bad.json();
   assert.equal(bad.status, 400);
-  assert.match(badBody.error, /code/i);
+  assert.match(badBody.error, /name/i);
+});
+
+test('POST almacén 409 si el código ya existe en la empresa (23505 traducido)', async () => {
+  resetWarehouseMock();
+  mockState.codigosDuplicados.add('ALM-001');
+
+  const res = await whPOST(
+    withBody('/api/companies/ANGELOH7/inventory/warehouses', { code: 'ALM-001', name: 'Duplicado' }),
+    { params: Promise.resolve({ id: 'ANGELOH7' }) },
+  );
+  const body = await res.json();
+
+  assert.equal(res.status, 409);
+  assert.match(body.error, /ya existe en esta empresa/i);
+  assert.match(body.error, /ALM-001/);
 });
 
 test('PUT almacén 404 si no existe; 200 si existe', async () => {

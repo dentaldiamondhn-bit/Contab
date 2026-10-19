@@ -111,6 +111,33 @@ export async function listLocations(
   return locations;
 }
 
+// Siguiente numero de la serie de codigos UB-### de la empresa, mirando solo
+// las filas de ESA empresa (no las de la hermana del mismo tenant, ni las
+// company_id NULL). Mismo patron que la serie PROD-### de productos
+// (`app/api/inventory/products/route.ts:231`), pero midiendo el maximo de la
+// serie en vez del ultimo por created_at, que se salta numeros si un codigo
+// mayor se creo antes. `product_location` NO tiene UNIQUE en `code` (017), asi
+// que dos creaciones simultaneas podrian repetir el numero: mismo limite que la
+// serie de productos.
+export async function proximoNumeroCodigoUbicacion(
+  companyId: string,
+  tenantHint?: string | null,
+): Promise<number> {
+  const supabase = getSupabaseServer();
+  const tenantId = await resolveTenant(companyId, tenantHint);
+  const { data } = await supabase
+    .from('product_location')
+    .select('code')
+    .eq('tenant_id', tenantId)
+    .eq('company_id', companyId);
+  let max = 0;
+  for (const row of (data || []) as { code?: string | null }[]) {
+    const match = /^UB-(\d+)$/.exec(String(row.code || ''));
+    if (match) max = Math.max(max, parseInt(match[1], 10));
+  }
+  return max + 1;
+}
+
 export async function createLocation(
   companyId: string,
   input: {
@@ -130,12 +157,19 @@ export async function createLocation(
   const supabase = getSupabaseServer();
   const tenantId = await resolveTenant(companyId, tenantHint);
   const now = new Date().toISOString();
+  // El cliente nunca decide el codigo: si no viene, lo genera el servidor
+  // (UB-001, UB-002...) en la serie de la propia empresa. Un codigo explicito
+  // se respeta (la importacion y la API pueden traer uno propio).
+  const codePropio = (input.code || '').trim();
+  const code =
+    codePropio ||
+    `UB-${String(await proximoNumeroCodigoUbicacion(companyId, tenantId)).padStart(3, '0')}`;
   const { data, error } = await supabase
     .from('product_location')
     .insert({
       tenant_id: tenantId,
       company_id: companyId,
-      code: (input.code || '').trim() || null,
+      code,
       name: input.name.trim(),
       aisle: (input.aisle || '').trim() || null,
       shelf: (input.shelf || '').trim() || null,

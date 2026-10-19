@@ -251,6 +251,21 @@ const nDo = (codigo.match(/DO \$\$/g) || []).length;
 const nEndDo = (codigo.match(/^END \$\$;/gm) || []).length;
 if (nDo !== nEndDo) problemas.push(`bloques DO: ${nDo} abren, ${nEndDo} cierran`);
 
+// Un `DO` SIN dollar-quoting es `42601 syntax error at or near "BEGIN"`: el
+// parser ve `DO` y espera una cadena, no plpgsql. La regla anterior solo contaba
+// `DO $$`, asi que un `DO` pelado daba 0/0 y pasaba en verde (se pago en la 071,
+// re-aplicando sobre una BD donde la columna ya existia). Se cuenta TODO `DO` y
+// se exige que cada uno vaya seguido de `$$` (con o sin espacio); asi un `DO`
+// suelto sale como problema aunque no abra ningun bloque contable.
+const nDoTotal = (codigo.match(/\bDO\b/g) || []).length;
+const nDoConDollar = (codigo.match(/\bDO\s*\$\$/g) || []).length;
+if (nDoTotal !== nDoConDollar) {
+  problemas.push(
+    `hay ${nDoTotal} DO pero solo ${nDoConDollar} con \`$$$$\`: un DO sin dollar-quoting ` +
+      `es 42601 syntax error at or near "BEGIN" (el cuerpo va dentro de DO $$ ... $$;)`
+  );
+}
+
 // --- 5. La variable que recibe el INTO tiene que estar declarada ------------
 for (const [i, l] of codigo.split('\n').entries()) {
   const mm = /\)\s*INTO\s+([A-Za-z_]\w*)\s*;/.exec(l);

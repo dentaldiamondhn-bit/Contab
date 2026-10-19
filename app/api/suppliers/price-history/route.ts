@@ -39,9 +39,15 @@ export async function GET(request: Request) {
     const productId = searchParams.get('productId');
     const search = searchParams.get('search');
 
+    // SIN embed: la base NO declara FK entre `supplier_price_history` y
+    // `"Supplier"` (`supplier_id` es `text` y `"Supplier".id` es `uuid`), asi que
+    // `supplier:Supplier(...)` devuelve `PGRST200` y tumba el GET con 500 (medido
+    // por PostgREST el 13 Oct 2026). El proveedor se resuelve con una consulta
+    // aparte, mismo patron que `hidratarOrdenes` (este modulo y `paymentlink`
+    // tampoco declaran la relacion).
     let query = getSupabaseServer()
       .from('supplier_price_history')
-      .select('*, supplier:Supplier(id, name, rtn)')
+      .select('*')
       .eq('company_id', empresa.companyId);
 
     if (supplierId) {
@@ -59,6 +65,27 @@ export async function GET(request: Request) {
     }
 
     let rows = data || [];
+
+    // Proveedor SIN embed (ver arriba): segunda consulta acotada por empresa.
+    // Un `supplier_id` ajeno no resuelve y queda como `supplier: null`, no cuela
+    // el nombre/RTN de otra empresa.
+    const supplierIds = Array.from(
+      new Set(rows.map((r: any) => r.supplier_id).filter((x): x is string => !!x))
+    );
+    if (supplierIds.length > 0) {
+      const { data: proveedores } = await getSupabaseServer()
+        .from('Supplier')
+        .select('id, name, rtn')
+        .eq('company_id', empresa.companyId)
+        .in('id', supplierIds);
+      const porId = new Map<string, any>();
+      for (const s of proveedores || []) porId.set(String(s.id), s);
+      rows = rows.map((r: any) => ({
+        ...r,
+        supplier: r.supplier_id ? porId.get(String(r.supplier_id)) || null : null,
+      }));
+    }
+
     if (search) {
       const term = search.toLowerCase();
       rows = rows.filter((r: any) => {

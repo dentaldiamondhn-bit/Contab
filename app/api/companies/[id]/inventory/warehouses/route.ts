@@ -59,6 +59,11 @@ export async function POST(
     if (/requerido/i.test(message)) {
       return NextResponse.json({ success: false, error: message }, { status: 400 });
     }
+    // createWarehouse traduce el 23505 (UNIQUE de code) a Error legible; un
+    // codigo duplicado no es un fallo de servidor sino un conflicto.
+    if (/ya existe en esta empresa/i.test(message)) {
+      return NextResponse.json({ success: false, error: message }, { status: 409 });
+    }
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

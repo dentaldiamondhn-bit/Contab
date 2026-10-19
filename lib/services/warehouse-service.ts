@@ -8,8 +8,6 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { resolveTenant } from '@/lib/services/budget-service';
 import {
   ACTION_TARGET,
-  TransferAction,
-  TransferStatus,
   aggregateStock,
   aggregateStockAt,
   canTransition,
@@ -22,7 +20,7 @@ import {
   stockKey,
   validateTransferInput,
 } from '@/lib/services/transfer-calc';
-import type { Shortage } from '@/lib/services/transfer-calc';
+import type { Shortage, TransferAction, TransferStatus } from '@/lib/services/transfer-calc';
 
 export type { Shortage, TransferAction, TransferStatus };
 export { isValidAction, isValidStatus };
@@ -171,26 +169,63 @@ export async function listWarehouses(
   return (data || []) as Warehouse[];
 }
 
+// Siguiente numero de la serie de codigos ALM-### de la empresa, mirando solo
+// las filas de ESA empresa (no las de la hermana del mismo tenant, ni las
+// company_id NULL). Mismo patron que `proximoNumeroCodigoUbicacion` de
+// location-service: mide el maximo de la serie en vez del ultimo por
+// created_at. La unicidad real en BD es UNIQUE(company_id, code)
+// (migracion 073; antes la BD real tenia UNIQUE(tenant_id, code), que
+// rompia la serie entre empresas del mismo tenant — 500 del 17 Oct 2026).
+// Dos creaciones simultaneas en la misma empresa aun podrian repetir el
+// numero: mismo limite que la serie UB-### de ubicaciones. Los codigos
+// legacy que no matcheen ALM-### (p. ej. "PRINCIPAL") no cuentan.
+export async function proximoNumeroCodigoAlmacen(
+  companyId: string,
+  tenantHint?: string | null,
+): Promise<number> {
+  const supabase = getSupabaseServer();
+  const tenantId = await resolveTenant(companyId, tenantHint);
+  const { data, error } = await supabase
+    .from('warehouse')
+    .select('code')
+    .eq('tenant_id', tenantId)
+    .eq('company_id', companyId);
+  if (error) {
+    if (isMigrationMissingError(error)) throw migrationError();
+    throw error;
+  }
+  let max = 0;
+  for (const row of (data || []) as { code?: string | null }[]) {
+    const match = /^ALM-(\d+)$/.exec(String(row.code || ''));
+    if (match) max = Math.max(max, parseInt(match[1], 10));
+  }
+  return max + 1;
+}
+
 export async function createWarehouse(
   companyId: string,
-  input: { code: string; name: string; location?: string; description?: string },
+  input: { code?: string; name: string; location?: string; description?: string },
   tenantHint?: string | null,
 ): Promise<Warehouse> {
-  if (!input || typeof input.code !== 'string' || !input.code.trim()) {
-    throw new Error('code es requerido');
-  }
-  if (typeof input.name !== 'string' || !input.name.trim()) {
+  if (!input || typeof input.name !== 'string' || !input.name.trim()) {
     throw new Error('name es requerido');
   }
   const supabase = getSupabaseServer();
   const tenantId = await resolveTenant(companyId, tenantHint);
   const now = new Date().toISOString();
+  // El cliente nunca decide el codigo: si no viene, lo genera el servidor
+  // (ALM-001, ALM-002...) en la serie de la propia empresa. Un codigo explicito
+  // se respeta (la importacion y la API pueden traer uno propio).
+  const codePropio = (input.code || '').trim().toUpperCase();
+  const code =
+    codePropio ||
+    `ALM-${String(await proximoNumeroCodigoAlmacen(companyId, tenantId)).padStart(3, '0')}`;
   const { data, error } = await supabase
     .from('warehouse')
     .insert({
       tenant_id: tenantId,
       company_id: companyId,
-      code: input.code.trim().toUpperCase(),
+      code,
       name: input.name.trim(),
       location: (input.location || '').trim(),
       description: (input.description || '').trim(),
@@ -202,6 +237,16 @@ export async function createWarehouse(
     .single();
   if (error) {
     if (isMigrationMissingError(error)) throw migrationError();
+    // El objeto de error de PostgREST NO es `instanceof Error`: si se propaga
+    // tal cual, la ruta responde "Error interno" 500 y el console.error
+    // imprime `{}` (fue el 500 del 17 Oct 2026). El 23505 aqui casi siempre
+    // es el UNIQUE (company_id, code) vencido por una carrera o por la
+    // migracion 073 sin aplicar: se traduce a un Error legible.
+    if ((error as { code?: string }).code === '23505') {
+      throw new Error(
+        `El código "${code}" ya existe en esta empresa. Elija otro o deje el campo vacío para autogenerarlo (ALM-###).`,
+      );
+    }
     throw error;
   }
   return data as Warehouse;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { encryptSARConfig } from '@/lib/services/det-uploader';
 import { getDiatReport } from '@/lib/services/diat-generator';
@@ -32,67 +33,23 @@ const HTTP_BY_STATUS: Record<DiatUploadStatus, number> = {
   CONFIG: 500,
 };
 
-function configKey(tenantId: string): string {
-  return `${CONFIG_KEY_PREFIX}:${tenantId}`;
+// Las claves se indexan por companyId (companies.id), no por tenant: dos empresas
+// del mismo tenant (`TEST1DS`) compartirian la configuracion, la sesion y el
+// ultimo envio del DIAT al portal SAR. La empresa sale del contexto validado,
+// nunca del cliente. Ver lib/tenant-resolver.ts y AGENTS.md seccion 1.
+function configKey(companyId: string): string {
+  return `${CONFIG_KEY_PREFIX}:${companyId}`;
 }
 
-function lastUploadKey(tenantId: string): string {
-  return `${LAST_UPLOAD_KEY_PREFIX}:${tenantId}`;
+function lastUploadKey(companyId: string): string {
+  return `${LAST_UPLOAD_KEY_PREFIX}:${companyId}`;
 }
 
-async function getUserTenantId(userId: string): Promise<string | null> {
-  try {
-    const byAuth = await (db as any).user.findFirst({
-      where: { authId: userId },
-      select: { tenantId: true },
-    });
-    if (byAuth?.tenantId) return byAuth.tenantId;
-  } catch {
-    /* la búsqueda por authId puede fallar si el esquema difiere; se ignora */
-  }
-  try {
-    const byId = await (db as any).user.findFirst({
-      where: { id: userId },
-      select: { tenantId: true },
-    });
-    if (byId?.tenantId) return byId.tenantId;
-  } catch {
-    /* el id de Clerk puede no ser un UUID válido para la columna id */
-  }
-  return null;
-}
-
-async function canAccessTenant(
-  userId: string,
-  requestedTenantId: string,
-  headerTenantId: string | null
-): Promise<boolean> {
-  const trimmed = (requestedTenantId || '').trim();
-  if (!trimmed) return false;
-
-  const headerTenant = (headerTenantId || '').trim();
-  if (headerTenant && headerTenant === trimmed) return true;
-
-  const userTenant = await getUserTenantId(userId);
-  if (userTenant && userTenant === trimmed) return true;
-
-  const ownerTenant = headerTenant || userTenant || '';
-  if (!ownerTenant) return false;
-
-  const { data, error } = await supabaseService
-    .from('companies')
-    .select('id')
-    .eq('id', trimmed)
-    .eq('tenant_id', ownerTenant)
-    .maybeSingle();
-  return !error && !!data;
-}
-
-async function readDiatConfig(tenantId: string): Promise<DiatConfig | null> {
+async function readDiatConfig(companyId: string): Promise<DiatConfig | null> {
   const { data, error } = await supabaseService
     .from('system_settings')
     .select('value')
-    .eq('key', configKey(tenantId))
+    .eq('key', configKey(companyId))
     .maybeSingle();
   if (error || !data?.value) return null;
   try {
@@ -107,15 +64,15 @@ async function readDiatConfig(tenantId: string): Promise<DiatConfig | null> {
 }
 
 async function writeDiatConfig(
-  tenantId: string,
+  companyId: string,
   config: DiatConfig,
   updatedBy: string
 ): Promise<{ error: any }> {
   const value = JSON.stringify(config);
   const row = {
-    key: configKey(tenantId),
+    key: configKey(companyId),
     value,
-    description: `Configuración de carga SAR del DIAT (${tenantId})`,
+    description: `Configuración de carga SAR del DIAT (${companyId})`,
     category: CONFIG_CATEGORY,
     updated_at: new Date().toISOString(),
     updated_by: updatedBy,
@@ -123,13 +80,13 @@ async function writeDiatConfig(
   const { data: existing } = await supabaseService
     .from('system_settings')
     .select('key')
-    .eq('key', configKey(tenantId))
+    .eq('key', configKey(companyId))
     .maybeSingle();
   if (existing) {
     const { error } = await supabaseService
       .from('system_settings')
       .update(row)
-      .eq('key', configKey(tenantId));
+      .eq('key', configKey(companyId));
     return { error };
   }
   const { error } = await supabaseService.from('system_settings').insert([row]);
@@ -167,23 +124,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const tenantId =
-      new URL(request.url).searchParams.get('tenantId') || request.headers.get('x-tenant-id');
-    if (!tenantId) {
-      return NextResponse.json({ error: 'Tenant ID requerido' }, { status: 400 });
-    }
+    const { searchParams } = new URL(request.url);
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: searchParams.get('companyId') || searchParams.get('tenantId') || undefined,
+      })
+    );
+    const companyId = empresa.companyId;
 
-    const canAccess = await canAccessTenant(userId, tenantId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json({ error: 'Empresa no encontrada o sin permiso' }, { status: 404 });
-    }
-
-    const config = await readDiatConfig(tenantId);
+    const config = await readDiatConfig(companyId);
 
     const { data: lastData, error: lastError } = await supabaseService
       .from('system_settings')
       .select('value')
-      .eq('key', lastUploadKey(tenantId))
+      .eq('key', lastUploadKey(companyId))
       .maybeSingle();
     let lastUpload: unknown = null;
     if (!lastError && lastData?.value) {
@@ -212,6 +166,8 @@ export async function GET(request: NextRequest) {
       lastUpload,
     });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error leyendo configuración SAR de DIAT:', error);
     return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
@@ -228,26 +184,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenantId } = body || {};
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG', error: 'Tenant ID requerido' },
-        { status: 400 }
-      );
-    }
-
-    const canAccess = await canAccessTenant(userId, tenantId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG', error: 'Empresa no encontrada o sin permiso' },
-        { status: 404 }
-      );
-    }
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: body?.companyId || body?.tenantId || undefined,
+      })
+    );
+    const companyId = empresa.companyId;
 
     const action = body?.action || 'upload';
 
     if (action === 'get-config') {
-      const config = await readDiatConfig(tenantId);
+      const config = await readDiatConfig(companyId);
       if (!config) {
         return NextResponse.json({
           configured: false,
@@ -295,7 +242,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existing = await readDiatConfig(tenantId);
+      const existing = await readDiatConfig(companyId);
       let passwordEncrypted = existing?.passwordEncrypted || '';
       const hasNewPassword = typeof password === 'string' && password.trim() !== '';
       if (hasNewPassword) {
@@ -321,7 +268,7 @@ export async function POST(request: NextRequest) {
         autoconfig: true,
       };
 
-      const { error } = await writeDiatConfig(tenantId, config, userId);
+      const { error } = await writeDiatConfig(companyId, config, userId);
       if (error) {
         console.error('Error guardando configuración SAR de DIAT:', error);
         return NextResponse.json(
@@ -339,7 +286,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'test') {
-      const config = await readDiatConfig(tenantId);
+      const config = await readDiatConfig(companyId);
       if (!config) {
         return NextResponse.json({ ok: false, errorHint: 'CONFIG', error: ERROR_HINTS.CONFIG });
       }
@@ -358,7 +305,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const sessionState = await getLiveSARSession(tenantId);
+    const sessionState = await getLiveSARSession(companyId);
     if (!isSARSessionValid(sessionState.session)) {
       return NextResponse.json({
         ok: false,
@@ -370,7 +317,7 @@ export async function POST(request: NextRequest) {
     }
 
     const period = body?.period || defaultPeriod();
-    const report = await getDiatReport(tenantId, period);
+    const report = await getDiatReport(companyId, period);
     const payload = buildDiatUploadPayload(report);
 
     const completeness = validateDiatCompleteness(payload);
@@ -388,7 +335,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const config = await readDiatConfig(tenantId);
+    const config = await readDiatConfig(companyId);
     if (!config) {
       return NextResponse.json(
         { ok: false, status: 'CONFIG', errorHint: 'CONFIG', error: ERROR_HINTS.CONFIG },
@@ -402,7 +349,7 @@ export async function POST(request: NextRequest) {
 
     if (result.ok) {
       await writeSetting(
-        lastUploadKey(tenantId),
+        lastUploadKey(companyId),
         JSON.stringify({
           period,
           uploadedAt: new Date().toISOString(),
@@ -432,6 +379,8 @@ export async function POST(request: NextRequest) {
       { status: HTTP_BY_STATUS[result.status] }
     );
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error subiendo el DIAT al portal SAR:', error);
     return NextResponse.json(
       { ok: false, status: 'CONFIG', errorHint: 'CONFIG', error: 'Error interno del servidor' },

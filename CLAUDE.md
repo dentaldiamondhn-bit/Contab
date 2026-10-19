@@ -4646,7 +4646,7 @@ creaba **una sola** `Purchase` con la orden entera y marcaba `RECEIVED` de golpe
 
 **Modelo nuevo — cada entrega es una fila.** Migración
 `059_purchase_order_receipts.sql` (escrita y validada con `scripts/validar-040.mjs` →
-OK; **pendiente de aplicar por el usuario en el SQL Editor**):
+OK; **APLICADA y verificada 8 Oct 2026**):
 
 - `PurchaseOrderReceipt` — cabecera de una entrega: `purchase_order_id` (FK a
   `PurchaseOrder`, ON DELETE CASCADE), `company_id` (text), `tenant_id`, `invoice_number`
@@ -4726,7 +4726,7 @@ disponible de la línea de compra (lo comprado menos lo ya devuelto de esa misma
 sumando líneas del cuerpo que apunten al mismo artículo).
 
 **Modelo nuevo.** Migración `060_purchase_returns.sql` (escrita y validada con
-`scripts/validar-040.mjs` → OK; **pendiente de aplicar por el usuario en el SQL Editor**):
+`scripts/validar-040.mjs` → OK; **APLICADA y verificada 8 Oct 2026**):
 
 - `PurchaseReturn` — cabecera: `purchase_id` (**text, sin FK**), `company_id` (**text**),
   `tenant_id`, `supplier_id` (**uuid, sin FK**), `invoice_number`, `return_number`,
@@ -4904,3 +4904,493 @@ de `accounting/*` (SAR) siguen **deferred**.
   `system_settings`), `billing/cai`(+debug) y `companies/[id]/billing/config*` (serie por
   tenant), y las de `tenant|admin|support`.
 
+
+### 063 Workflow de aprobacion de compras (8 Oct 2026)
+
+Cierra el pendiente 'aprobacion previa de compras'. La compra nace `PENDING_APPROVAL` y
+NO toca inventario ni contabilidad hasta que un aprobador la apruebe.
+
+- **Migracion `prisma/migrations/061_purchase_approval.sql`** (**APLICADA 8 Oct 2026**; validada con
+  `validar-040.mjs` -> OK): columnas de
+  aprobacion en `Purchase` (`approval_status` default `PENDING_APPROVAL`,
+  `approved_by`/`approved_at`, `rejected_by`/`rejected_at`, `rejection_reason`) +
+  tabla `PurchaseApprover` (`id uuid PK`, `company_id`/`tenant_id`/`user_id`/
+  `created_by`, unique `(company_id, user_id)`), RLS + politica `service_role`,
+  backfill de las filas legacy a `APPROVED` (con guard `v_tenia_columna` para no
+  re-marcar en un re-run) y post-check que aborta. Sin FK de company/user (patron 059/060).
+- **`lib/purchase-db.ts`**: `createPurchase` inserta con `approval_status:'PENDING_APPROVAL'` y
+  SIN efectos; se extrajo `aplicarEfectosCompra` (stock/historial de precios/asiento +
+  `journal_entry_id`); nuevas `aprobarCompra` (aplica efectos, marca `APPROVED`;
+  `{data,error,notFound}`; 409 si ya decidida), `rechazarCompra` (marca `REJECTED`, no
+  revierte porque nada se aplico), `fetchAprobadores`/`fetchMiembrosEmpresa`/
+  `agregarAprobador` (idempotente)/`eliminarAprobador`/`esAprobadorDeCompras`/
+  `hidratarUsuarios`. `transformPurchase` defaultea `approval_status='APPROVED'` para
+  filas legacy. Tipo `EstadoAprobacion`.
+- **Rutas**: `app/api/purchases/approval/route.ts` (POST `{id, action:'approve'|'reject', reason?}`;
+  permiso = MANAGER/ADMIN/SUPER_ADMIN O designado en `PurchaseApprover`; 403 si no; 404 ajena;
+  409 ya decidida) y `app/api/purchases/approvers/route.ts` (GET lista + `candidatos` + flags;
+  POST/DELETE solo gestores). La empresa sale de `exigirEmpresa(contextoDeEmpresa(request))`.
+- **UI** `app/companies/[id]/purchases/page.tsx`: columna y badge 'Aprobacion', stat 'Por
+  Aprobar', boton/menu 'Aprobadores', menu Aprobar/Rechazar (con `?companyId=`) y dialogos de
+  rechazo y de gestion de aprobadores (`loadApprovalConfig` + `candidatos` de
+  `user_company_access`).
+- **Pruebas nuevas** `tests/purchases/purchase-approval.test.mjs` (22 casos; rutas y lib reales con
+  `auth-server-mock`/`workspace-mock`/`supabase-server-mock`) en el bloque `purchases` de
+  `npm test`; `aislamiento-compras.test.mjs` actualizado a crear->aprobar para el stock.
+
+Verificado: `tsc --noEmit` **459** (0 nuevos), Compras **126/126 PASS**. **Ojo:** hasta aplicar
+la 061, leer/escribir `Purchase.approval_status` y `PurchaseApprover` falla en runtime; retest
+ en navegador despues de aplicarla.
+
+### 064 Tablas nuevas de public desexpuestas al Data API (8 Oct 2026)
+
+Motivo: correo de Supabase (cambio del 30 Oct 2026) � deja de otorgar acceso al
+Data API a las tablas NUEVAS de `public`; las existentes conservan sus permisos.
+Decision del usuario: **adoptarlo solo para lo nuevo** (no tocar las existentes).
+
+- **Inventario previo (por que NO se revoca lo existente):** ~24 componentes
+  cliente importan `@/lib/supabase/client` (anon) y llaman `.rpc('set_tenant')` +
+  `.from(...)` (SalesDashboard, WithholdingManager, BankAccountManager, libros
+  legales, reportes, `generate-invoice`, `RoleGuard`, subida de adjuntos en
+  `purchases/page.tsx`, `lib/hooks/useReports.ts`, etc.). Revocar `anon` en
+  las tablas existentes rompe esas pantallas.
+- **Migracion `prisma/migrations/062_desexponer_tablas_nuevas_data_api.sql`**
+  (**APLICADA 8 Oct 2026**, "Success. No rows returned":
+  `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public` hace **`REVOKE ALL`**
+  a `anon`/`authenticated` en tablas, secuencias y funciones nuevas, y **re-otorga
+  `service_role`** (el backend no se rompe); cierra `EXECUTE` a `PUBLIC` para
+  funciones nuevas. Post-check que aborta si algun rol publico sigue en el default.
+  Solo afecta a objetos FUTUROS; no toca lo existente.
+  - **Leccion (1er intento ABORTADO, 8 Oct 2026):** el post-check salto con
+    "Quedan 2 default(s) con anon/authenticated en public". Causa: se revocaba solo
+    `SELECT, INSERT, UPDATE, DELETE` (tablas) y `USAGE, SELECT` (secuencias), pero el
+    default de Supabase concede **mas** (`TRUNCATE`/`REFERENCES`/`TRIGGER` en tablas,
+    `UPDATE` en secuencias) → quedaba residuo e igual daba 2 filas. Se revoca con
+    **`ALL`**. Y se cubre tambien el default **GLOBAL** (sin `IN SCHEMA`): un default
+    por esquema se **suma** al global y no puede quitar lo que el global concede
+    (doc de Postgres). El post-check ahora mira `public` **y** `defaclnamespace = 0`.
+    **El rollback dejo la BD intacta** (nada se aplico).
+- Regla anadida a `Contab/AGENTS.md` (seccion 5): una tabla nueva no es alcanzable
+  con la anon key; si una pantalla cliente la necesita hay que hacer el `GRANT` a
+  mano; el backend usa `service_role` (auto-otorgado por la 062).
+
+- **Migracion `prisma/migrations/063_desexponer_tablas_modulo_compras.sql`**
+  (**APLICADA y verificada 8 Oct 2026**; validada con `validar-040.mjs` -> OK): complemento de
+  la 062 para las tablas EXISTENTES del modulo de Compras creadas por 059/060/061
+  (`PurchaseOrder`, `PurchaseOrderItem`, `PurchaseOrderReceipt`,
+  `PurchaseOrderReceiptItem`, `PurchaseReturn`, `PurchaseReturnItem`,
+  `PurchaseApprover`). `REVOKE ALL ... FROM anon, authenticated` + `GRANT ALL`
+  a `service_role`, tabla por tabla, con guarda de existencia (si 059/060/061
+  aun no se aplicaron, la tabla se omite con NOTICE en vez de abortar) y post-check
+  (`has_table_privilege`) que aborta si queda un rol publico o si `service_role`
+  pierde acceso. Idempotente. **No toca `Purchase`/`PurchaseItem`** (la pantalla de
+  Compras sube adjuntos con la anon key). Ojo: `components/purchasing/PurchaseOrdersManager.tsx`
+  es un cliente anon de `PurchaseOrder` pero esta **huerfano** (no lo importa nadie).
+
+Verificado **desde fuera** (PostgREST + `service_role`, no por el "Success"):
+`anon` -> **401 `42501`** en las 7 tablas, `service_role` -> **200**, y las tablas
+de control `Purchase`/`product` siguen **200** con `anon`. `node scripts/validar-040.mjs`
+-> OK (062 y 063). **062, 063 (y 059, 060, 061) APLICADAS** el 8 Oct 2026.
+
+## 8 Oct 2026 - 065 Integracion contable OBLIGATORIA al aprobar compras (fail-closed)
+
+Requisito del usuario: que una compra **no pueda quedar aprobada sin contabilizar**. Hasta
+aqui el asiento era **best-effort** (si fallaba, la compra pasaba a `APPROVED` igual y el
+doble registro se perdia en silencio). Decisiones del usuario: el alcance es **solo el
+asiento de la compra al aprobar** (no pago, no devoluciones), y ante fallo **bloquear y
+revertir** (no marcar `APPROVED`, deshacer stock/historial ya aplicados).
+
+Todo el cambio es **codigo** (`lib/purchase-db.ts`), sin migracion.
+
+- **`resolverCuentasDeCompra(empresa, purchase)`**: resuelve las cuentas **antes** de tocar
+  stock. Debito: `1105` (si `purchase_type = 'merchandise'`) / `4101` (si `'expense'` con
+  categoria administrativa) / `4100` (resto). Haber: `2101` (credito) / `1101` (contado).
+  **ISV `1110` obligatoria cuando `tax_amount > 0`**. Si falta una cuenta lanza
+  **`ErrorDeEmpresa(409)`** con el codigo faltante en el mensaje.
+- **`crearAsientoCompra(...)`**: arma cabecera + lineas (debito subtotal, ISV si aplica,
+  haber total), **valida que cuadre** (`|debe - haber| <= 0.005`) y lanza 409 si no; si el
+  insert de lineas falla, borra la cabecera y lanza 409. Reemplaza a `createPurchaseJournalEntry`.
+- **`aplicarEfectosCompra` reescrito** con una **pila de reversion**
+  (`revertir: Array<() => Promise<void>>`): guarda el estado previo del producto (lo
+  restaura), el id del producto creado (lo borra) y los ids del historial de precios (los
+  borra con `.in('id', ...)`). **Primero contabiliza**; si algo falla -> `revertirEfectos`
+  + relanza; si falla el enlace de `Purchase.journal_entry_id` -> borra asiento + revierte.
+  La compra **queda `PENDING_APPROVAL`**.
+- **`recordSupplierPriceHistory`** ahora devuelve las filas insertadas (`.select('id')`)
+  para poder revertirlas. La firma publica no cambia (2o arg = empresa, no tenant).
+
+**Bug latente cerrado de paso:** si `tax_amount > 0` y faltaba la cuenta ISV, el asiento
+salia **descuadrado** (subtotal contra total) y el error se ignoraba. Ahora es 409.
+
+**Ruta:** `app/api/purchases/approval/route.ts` ya traducia `ErrorDeEmpresa` con
+`respuestaDeErrorDeEmpresa`; el cliente ve **409** y la compra sigue pendiente.
+
+**Pruebas:** se sembro el catalogo `Account` de test 1 (`1101`,`1105`,`1110`,`2101`,`4100`,
+`4101`) en `tests/purchases/purchase-approval.test.mjs` y `aislamiento-compras.test.mjs`
+(sin cuentas, los casos existentes daban 409), y se anadieron **5 casos**: asiento cuadrado
+con sus 3 lineas, bloqueo por cuenta faltante (sin efectos), reversion si la cabecera del
+asiento no inserta (`bloquearInsert`), reversion si fallan las lineas, y 409 por la ruta.
+`tests/accounting/supplier-price-history.test.mjs` sigue verde con el nuevo retorno.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **131/131 PASS** (126 + 5),
+accounting sin cambios (los 16 fallos preexistentes siguen). Actualizados
+`docs/COMPRAS_PROVEEDORES_REPORT.md` (§1.2, §2.3, §3 #2, §3.1, §6.11 nuevo) y la memoria
+raiz `CLAUDE.md` (bloque **065**).
+
+**Fuera de alcance a proposito:** el asiento del **pago** (etapa 3.2) y el de las
+**devoluciones** (sigue best-effort, 060).
+
+### 066 Asiento del pago a proveedor + el escritor de asientos escribia una columna que no existe (8 Oct 2026)
+
+Cierra el pendiente 3.2, y al hacerlo se cayo el pendiente de la **065**: **el asiento de
+compra tampoco llegaba a los libros**. El requisito del usuario ya estaba cerrado en codigo
+(compra no se aprueba sin contabilizar) pero el asiento escribia a una tabla que no existe.
+
+**HALLAZGO 1 - el asiento de compra nunca llego a los libros.** `crearAsientoCompra`
+(`lib/purchase-db.ts`) insertaba `JournalEntry` como **cabecera** y una tabla **inexistente**
+`JournalEntryLine`. El esquema real es: `Transaction` = **cabecera** y `JournalEntry` =
+**linea**. `JournalEntryLine` no existe ni en la BD ni en `prisma/schema.prisma`. O sea que el
+trabajo de la 065 (asiento obligatorio) estaba corriendo contra una tabla fantasma: el
+`FAIL`-closed saltaba, pero por el motivo equivocado (el insert de lineas fallaba). El mismo
+defecto sigue en `lib/purchase-returns-db.ts` (060), **no tocado, fuera de alcance**.
+
+**HALLAZGO 2 (medido, no supuesto):** `createJournalTransaction` (`lib/services/journal-service.ts`)
+escribia `companyId` (camel) en `Transaction` y `JournalEntry`. Sonda con `service_role` el 8
+Oct 2026: `POST Transaction` con `companyId` -> **400 `PGRST204`** (`Could not find the
+'companyId' column of 'Transaction'`); con **`company_id`** -> **201**. `tenantId` (camel) SI
+existe; el duplicado de empresa **no**. Corregido a `company_id` (+ `cleared: false` en las
+lineas). **Leccion:** el escritor canonico tenia un bug de runtime que ningun test tocaba
+porque nadie comprobaba la columna; se pago al integrar compras con el.
+
+**Esquema canonico (OpenAPI + sondas):** `Transaction` = cabecera (`company_id`, `tenantId`,
+`voucherType`, `voucherNumber`, `totalAmount` en **centavos**); `JournalEntry` = linea
+(`transactionId`, `accountId`, `amount` con signo, `type` DEBIT/CREDIT). El escritor bueno es
+`createJournalTransaction` (crea cabecera + lineas, numera, candado de periodo por `company_id`,
+auditoria best-effort).
+
+**Cambios:**
+- **`lib/purchase-db.ts`**: `crearAsientoCompra` y el nuevo `crearAsientoPago` delegan en
+  `createJournalTransaction`. Cuentas por **prefijo** y por `company_id`: inventario
+  `1105/1140/1301`; gasto `6101/5101/6103/6201/6301/5201`; ISV `1106/2201`; CxP
+  `2101/2103/2110/2120`; banco `1101/1110/1111/1112/1102`. `crearAsientoPago` = debe CxP /
+  haber Banco, voucher `EGRESO`; sin cuenta -> **409**. `eliminarAsiento(txId)` (lineas +
+  cabecera) lo usa la reversion de `aplicarEfectosCompra`.
+- **`lib/services/journal-service.ts`**: escribe `company_id`/`cleared`; si fallan las lineas,
+  **borra la cabecera** antes de lanzar (no deja asiento huerfano).
+- **`app/api/purchases/payments/route.ts`**: **POST** crea el asiento fail-closed (si falla,
+  borra el pago recien creado) y enlaza `journal_entry_id`; **PUT** crea el asiento nuevo
+  **antes** de tocar la fila y borra el viejo despues; **DELETE** borra el asiento del pago.
+- **Migracion `prisma/migrations/064_supplier_payment_journal_entry.sql`** (validada con
+  `validar-040.mjs` -> OK; **APLICADA y verificada el 8 Oct 2026** desde fuera con PostgREST):
+  `SupplierPayment.journal_entry_id text` nullable, sin FK, idempotente (preflight + post-check).
+  Medido: `SELECT id,journal_entry_id` da 200 y la columna sale `null` en una fila real; en el
+  OpenAPI esta en columnas, **no** en `required`, tipo `text`.
+
+**Pruebas:** nuevo `tests/purchases/payments-journal.test.mjs` (7 casos, añadido al bloque
+`purchases` de `package.json`): POST crea pago + asiento y lo enlaza; fail-closed sin CxP (no
+guarda ni pago ni asiento); 404 de compra de otra empresa; PUT rehace el asiento y borra el
+viejo; PUT fail-closed deja pago y asiento intactos; DELETE borra pago + asiento; DELETE 404 de
+otra empresa. Se actualizaron `purchase-approval.test.mjs` y `aislamiento-compras.test.mjs`
+(codigos con `company_id` **y `tenantId` camel**; aserciones de `JournalEntry` cabecera +
+`JournalEntryLine` -> **`Transaction` cabecera + lineas `JournalEntry`**). Anadido tambien
+`cast` en la ruta de pagos para el `id` del asiento.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **138/138 PASS** (131 + 7). Los **6**
+fallos de `tests/accounting/journal-service.test.mjs` son **preexistentes** (cuentas repetidas,
+`result.error`, fecha futura, un seed que usa `a2` sin sembrarlo) y no dependen de `company_id`
+ni `cleared` (el test no los menciona). Actualizado
+`docs/COMPRAS_PROVEEDORES_REPORT.md` (§1.2, §2.4, §3 #2, §5 Etapa 3.2, §6.12 nuevo).
+
+**Pendiente:** retest en navegador. **Fuera de alcance:** el mismo defecto
+de `lib/purchase-returns-db.ts` (060). La **064** ya esta **aplicada y verificada**.
+
+### 067 Conciliacion bancaria de pagos (8 Oct 2026)
+
+Cierra el pendiente "sin conciliacion bancaria": cuadrar los pagos a proveedor contra
+el estado de cuenta. **Alcance elegido por el usuario: pagos vs banco (marcar/desmarcar)**,
+sobre la tabla viva `bankaccount` (Supabase). No importa extractos ni toca la tabla
+`Reconciliation` (existe en la BD pero **sin `CREATE TABLE` en el repo ni modelo Prisma**:
+drift), y respeta el aislamiento por `company_id`, nunca `tenant_id`.
+
+- **Migracion `prisma/migrations/065_conciliacion_bancaria_pagos.sql`** (validada con
+  `validar-040.mjs` -> OK; **APLICADA y verificada el 8 Oct 2026 desde fuera con PostgREST**):
+  en `SupplierPayment`
+  anade `is_reconciled` (**normaliza** a NOT NULL default false, porque `add column if not
+  exists` no cambia el NOT NULL de una columna que ya existe), `reconciled_at timestamptz`,
+  `bank_account_id text` (id de `bankaccount`, sin FK: el aislamiento es de codigo, patron
+  059/060/061/064) y `reconciliation_reference text`. Indice
+  `idx_supplierpayment_company_reconciled (company_id, is_reconciled)`. Preflight (falta la
+  tabla) + post-check (faltan columnas); termina con `RAISE NOTICE '065: listo'`.
+  **Medido desde fuera** (`service_role`, no el "Success"): las 4 columnas estan en el OpenAPI,
+  `is_reconciled` sale en `required` (tipo boolean), y `SELECT id,is_reconciled,reconciled_at,
+  bank_account_id,reconciliation_reference` -> **200** con filas reales (`is_reconciled:false`,
+  lo demas `null`). 0 filas con `is_reconciled` NULL.
+- **`lib/bank-reconciliation-db.ts`** (nuevo): `fetchPagosParaConciliar` (hidrata
+  `supplier_name`/`invoice_number` en consultas aparte, nada de embeds), `resumenConciliacion`,
+  `fetchCuentasBancarias` (solo `is_active`), `marcarPagosConciliados` y
+  `desmarcarPagosConciliados`. Valida ANTES de escribir: cuenta o pago de otra empresa ->
+  **`notFound` (404, no 403)**, mismo contrato que `purchase-returns-db.ts` (aqui no se usa
+  `ErrorDeEmpresa(404)` porque su union `estado` es `400|401|403|409|500`: lo caza el `tsc`).
+  Solo marca evidencia: **no crea ni toca asientos** (el asiento del pago ya lo hizo la 064/066).
+- **Ruta `app/api/purchases/payments/reconciliation/route.ts`** (nueva): **GET** (pagos +
+  resumen + cuentas; filtra por `?bankAccountId` y `?status`), **POST** (marca un lote),
+  **DELETE** (quita la conciliacion; ids por cuerpo o `?paymentIds=a,b`). `exigirEmpresa(await
+  contextoDeEmpresa(request))` + `respuestaDeErrorDeEmpresa` en cada catch.
+- **Pagina `app/companies/[id]/purchases/reconciliation/page.tsx`** (nueva) + boton
+  "Conciliacion" y entrada de menu en `app/companies/[id]/purchases/page.tsx`.
+- **Pruebas `tests/purchases/reconciliation.test.mjs`** (13 casos, registrados en `package.json`;
+  mapeado `@/lib/bank-reconciliation-db` en `tests/purchases/loader.mjs`): aisla por empresa,
+  resumen, filtros, marcar/desmarcar, 400 (sin cuenta/ids), 404 (cuenta o pago ajenos),
+  fail-closed sin contexto.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **151/151 PASS** (138 + 13).
+La **065** **APLICADA y verificada** desde fuera (PostgREST). **Pendiente:** retest en navegador.
+
+### 068 CAI del proveedor: aviso al registrar la factura de compra (8 Oct 2026)
+
+Registrar el **CAI del proveedor** (codigo autorizado, fecha limite de emision y
+rango de facturacion) y **advertir** —sin bloquear— al registrar/editar una compra
+si la factura cae **fuera del rango autorizado**, si el CAI esta **vencido** o si el
+CAI **no coincide** con el del proveedor. El usuario eligio avisar, no impedir el
+guardado.
+
+- **Migracion `prisma/migrations/066_supplier_cai.sql`** (validada con
+  `validar-040.mjs` -> OK; **APLICADA y verificada el 8 Oct 2026** desde fuera con PostgREST): 4 columnas
+  **nullable** en `"Supplier"` — `cai text`, `cai_expiration_date date`,
+  `cai_range_from text`, `cai_range_to text`. Sin tabla aparte y **sin unicidad**
+  (regla de Proveedores de AGENTS.md): un proveedor tiene un CAI vigente y, si
+  cambia, se actualiza la fila. Idempotente, preflight (`to_regclass`) + post-check
+  de las 4 columnas que aborta (BEGIN/COMMIT).
+- **`lib/supplier-cai.ts`** (nuevo): evaluador **puro** compartido.
+  `evaluarCai(proveedor, factura, hoy?)` -> `{ estado: 'ok'|'aviso'|'error',
+  problemas: ProblemaCai[] }`. `ProblemaCai.codigo` en
+  `CAI_VENCIDO` / `CAI_POR_VENCER` / `FUERA_DE_RANGO` / `CAI_DISTINTO`;
+  `CAI_DISTINTO` (compara con `normalizarCai`: sin guiones/espacios, mayusculas) y
+  vencimiento cercano (<= `DIAS_POR_VENCER` = 30) son **aviso**; vencido y
+  fuera de rango son **error**. El rango se compara con la **ultima corrida de
+  digitos** (`correlativoDe`) contra min/max, de modo que un rango invertido no
+  rompe. `estado` = peor severidad. Falta de datos del proveedor -> `ok` (nada que
+  advertir); sin numero de factura -> no se evalua el rango.
+- **`prisma/schema.prisma`**: modelo `Supplier` + `cai`, `caiExpirationDate`
+  (`@db.Date`), `caiRangeFrom`, `caiRangeTo`.
+- **`app/api/suppliers/route.ts`**: `SUPPLIER_COLUMNS` + las 4 columnas (el GET usa
+  `.select('*')`). **`app/api/suppliers/import/route.ts`**: `SUPPLIER_FIELDS` + 4,
+  alias de cabecera y `normalizeDate` (ISO / DD-MM-YYYY / DD/MM/YYYY -> ISO o null).
+- **UI**: `app/companies/[id]/suppliers/page.tsx` (pestana "Fiscal"/"CAI" en el
+  formulario y bloque en el detalle) y `app/companies/[id]/purchases/page.tsx`
+  (`AvisoCai` en los modales de crear/editar compra, con `useMemo` sobre el proveedor
+  elegido, el CAI de la factura y el numero). El aviso es **blando**: no impide
+  guardar; los dos modales lo muestran.
+- **Pruebas:** `tests/purchases/supplier-cai.test.mjs` (19 casos) contra la funcion
+  real, registrado en el bloque `purchases` de `package.json` (y `@/lib/supplier-cai`
+  mapeado en `tests/purchases/loader.mjs`).
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), compras **170/170 PASS**
+(151 + 19). La **066** **APLICADA y verificada** desde fuera (PostgREST); queda el retest
+en navegador.
+
+### 069 Rutas SAR de `accounting/*` aisladas por empresa (8 Oct 2026)
+
+Cierra las 5 superficies SAR que la 061 dejo *deferred* por el lio del SAR. **Sin
+migracion de datos:** recon medido el 8 Oct 2026 con la `service_role`: `system_settings`
+tiene **3 filas y ninguna es SAR** (ni `sar_config:*`, ni `sar_session:*`, ni
+`annual_tax_sar_config:*`, ni `diat_sar_config:*`, ni `diat_sar_last_upload:*`). Las
+claves SAR se crean **on-demand**, asi que no habia nada que reasignar: solo habia que
+cambiar el indice de tenant a `companies.id`. Eso resuelve la ambiguedad de `TEST1DS`
+(dos empresas del mismo tenant).
+
+- **`app/api/accounting/sar-config/route.ts`**: `configKey(companyId)` ->
+  `sar_config:${companyId}` (antes por tenant). GET/POST con
+  `exigirEmpresa(await contextoDeEmpresa(request))` y `respuestaDeErrorDeEmpresa` en el
+  catch. Se elimina `getUserTenantId`/`canAccessTenant`; se conserva `auth()` de Clerk
+  para el guard 401 y `updatedBy`. Conserva las formas de respuesta originales
+  (`{configured,...}`), `encryptSARConfig` e `isSARConfigComplete`.
+- **`app/api/accounting/sar-session/route.ts`**: **se restauro con `git checkout` un
+  rewrite previo que rompia la semantica de POST** (los `422 CONFIG_INCOMPLETA` y
+  `502 PORTAL_NO_DISPONIBLE` que consume `SARSessionPanel`) y se rehizo con **ediciones
+  minimas**: `uploaderConfigKeys(companyId)` ->
+  `sar_config:`/`annual_tax_sar_config:`/`diat_sar_config:${companyId}`,
+  `sar_session:<companyId>`; GET/POST/DELETE resuelven empresa del contexto
+  (`companyIdDeRuta` = `?companyId`/`?tenantId` en GET/DELETE, o `body.companyId`/
+  `body.tenantId` en POST) y traducen errores. `isSARSessionValid` sigue importado sin
+  uso (pre-existente).
+- **`det-upload` / `diat-upload` / `annual-tax-upload`**: mismo patron. `readSARConfig`/
+  `readDiatConfig`/`readAnnualTaxConfig` keyean por `companyId`;
+  `diat_sar_last_upload:${companyId}`; `getDiatReport(companyId, period)` recibe
+  `companies.id` (mismo contrato que `/api/diat`). Se elimino el `?tenantId` crudo del
+  cliente como autoridad: la empresa sale del contexto validado.
+- **Clientes NO tocados:** `SARForm221.tsx` / `DIATManager.tsx` / `annual-tax/page.tsx`
+  ya POSTean body `{ tenantId: <companies.id> }` (nombre de campo enganoso, valor
+  correcto) y `SARSessionPanel.tsx` manda `?companyId`/`?tenantId` con el `companies.id`.
+- **Pruebas nuevas `tests/sar/`** (11 casos) contra las rutas y `tenant-resolver` REALES:
+  supabase falso nuevo (`fake-supabase.mjs` con `companies` + `system_settings` mutable),
+  shims de `@/lib/supabase-db` y `server-lazy`, doble de `@clerk/nextjs/server`, mock de
+  `@/lib/purchase-db` (`exigirEmpresa`) y dobles de los 5 servicios SAR. Casos: claves por
+  `companyId` y nunca por tenant; test 2 no ve la sesion/config de test 1 (sesion,
+  config 221, config DIAT, config anual); DELETE cierra solo la sesion pedida; 403 de
+  tenant ajeno; 400 sin empresa. Registradas al final del script `test` de `package.json`.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), SAR **11/11 PASS**, compras
+**170/170 PASS**. La cadena de `npm test` muere antes (bloque `accounting`, fallo
+preexistente), asi que el bloque `sar` va al final, como `diat-variations`.
+
+### 070 Serie de factura por empresa + `billing/cai` y `companies/[id]/billing/config*` aislados (8 Oct 2026)
+
+Cierra los dos `deferred` de la 061/069. **Decision del usuario: la serie de factura es por
+EMPRESA**, no por tenant: test 1 y test 2 (ambas de `TEST1DS`) llevan correlativo y CAI
+separados. Sin migracion de datos (las claves/CAI se indexan por `company_id`, que ya existe).
+
+- **`lib/billing/invoice-number.ts`**: `lastIssued`/`pickCai`/`previewInvoiceNumber`/
+  `isInvoiceNumberTaken` y `reserveInvoiceNumber(companyId, { suelo })` filtran `Invoice`/`cai`
+  por `company_id`; la reserva condicional del CAI (`.eq("current_number", ...)`) tambien.
+- **`app/api/billing/invoices/route.ts`**: el POST resuelve la empresa con `contextoDeEmpresa`
+  y escribe **`company_id` explicito** (antes lo ponia el trigger `oldest_company_of_tenant`,
+  asi que una emision de test 2 quedaba con el `company_id` de test 1); GET filtra `company_id`
+  cuando hay empresa y mantiene el fallback `tenantId` para la vista del contador
+  (`?limit=100`, sin contexto de empresa). Los dos `catch` traducen `ErrorDeEmpresa`.
+- **`app/api/billing/cai/route.ts`** y **`billing/cai/debug/route.ts`**: aislados por
+  `company_id` (debug ya sin el `.eq("tenant_id", "1")` fijo ni el dump sin filtro). El POST
+  **ya no apaga los CAI del tenant entero**: apaga solo los de la empresa.
+- **`app/api/companies/[id]/billing/config/route.ts`**, **`.../config/cai/route.ts`** y
+  **`.../config/cai/[caiId]/route.ts`**: aislados por `company_id`; `companies` se actualiza por
+  `id` (antes `.eq('tenant_id')` reescribia TAMBIEN a la empresa hermana). El aviso CAI ya se
+  evaluaba por empresa desde la 068.
+- **Clientes**: `app/companies/[id]/billing/pos/page.tsx` y `.../invoices/page.tsx` pasan
+  `?companyId=${companyId}` (la cascada de 400 de la 054-058 era la raiz; aqui es defensa en
+  profundidad).
+- **Migracion `prisma/migrations/067_invoice_number_unique_per_company.sql`** (**APLICADA y
+  verificada el 8 Oct 2026**; validada con `node scripts/validar-040.mjs` -> OK): reemplaza
+  `Invoice_tenantId_invoiceNumber_key` (022) por `Invoice_company_id_invoiceNumber_key`
+  `UNIQUE("company_id","invoiceNumber")`. Idempotente; preflight (aborta si falta la columna,
+  si hay `company_id` NULL, si hay duplicados por empresa, o si sigue un UNIQUE global de 1
+  columna sobre `invoiceNumber` pidiendo aplicar 022) y post-check que lee **`pg_index`** (no
+  `pg_constraint`, leccion de la 030) y aborta si queda el UNIQUE viejo `(tenantId,
+  invoiceNumber)` o falta el nuevo. **No** pone `NOT NULL` en `cai.company_id` (fuera de
+  alcance).
+- **Primer intento (8 Oct) ABORTADO, sin datos tocados:** el post-check fallo con
+  `067 FALLA: no quedo el UNIQUE (company_id, invoiceNumber)`. Causa medida: el codigo
+  detectaba los indices con `pg_get_indexdef(i.indexrelid, n, true) = 'invoiceNumber'`,
+  pero **`pg_get_indexdef` entrecomilla los identificadores mixtos**: devuelve
+  `"invoiceNumber"` (con comillas), no `invoiceNumber`. El predicado nunca casaba, asi
+  que (a) el preflight no veia el UNIQUE viejo `(tenantId, invoiceNumber)` y **no lo
+  dropeaba**, (b) el paso de crear tampoco veia el nuevo y lo creaba igual, y (c) el
+  post-check no lo encontraba y abortaba. Corregido en los 9 predicados con
+  `btrim(pg_get_indexdef(..., n, true), '"')`. La `validar-040.mjs` dio **verde en las
+  dos versiones** (solo mira forma; es error de runtime, leccion de la 030/044). La
+  migracion es **idempotente** (el paso de crear se salta si el indice ya existe), asi
+  que se reaplica sin tocar datos.
+- **`prisma/schema.prisma`**: `model Invoice` pierde el `@unique` en `invoiceNumber` y gana
+  `@@unique([companyId, invoiceNumber], map: "Invoice_company_id_invoiceNumber_key")` (la 022
+  no toco el schema: esto elimina el drift).
+- **Pruebas `tests/billing/`** (24 casos, registradas al final del script `test` de
+  `package.json`): `invoice-number.test.mjs` (8) + `billing-routes.test.mjs` (16) contra el
+  modulo y las rutas REALES con supabase falso (`companies`/`cai`/`Invoice`/`InvoiceItem`/
+  `Tenant`/`system_config` + `storage`), shims de `@/lib/supabase-db` y `server-lazy`, doble de
+  `@/lib/purchase-db` (`exigirEmpresa`) y dobles de `stock-sale`/`resolve-account`/`@clerk`.
+  Casos: serie por empresa (test 1 -> 6, test 2 -> 1, Angelos -> 8), `isInvoiceNumberTaken`
+  aisla, `reserve` toca SOLO el CAI de su empresa, GET/POST `billing/cai`, GET/POST
+  `billing/invoices` (test 2 no ve la factura de test 1), y `config/cai` con unicidad **por
+  empresa** (el MISMO CAI en dos empresas -> 200 en la segunda; repetido en la misma -> 400).
+- **Hallazgo adyacente (fuera de alcance, no tocado)**: `lib/services/stock-sale.ts`
+  (`checkSaleStock`/`applySaleStock`) filtra stock por `tenant_id`, asi que test 1 y test 2
+  comparten stock. No se toco.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos), billing **24/24 PASS**; el auditor
+`_auditar-comparticion-tenant.mjs` ya no lista las rutas de billing. La **067 se aplico**
+("Success. No rows returned") y se **verifico desde fuera** con PostgREST (`service_role`), no
+por el "Success": mismo `invoiceNumber` en **empresas distintas** (test 1 y test 2, ambas de
+`TEST1DS`) -> **201 y 201**; repetido en la **misma** empresa -> **409 `23505`** citando
+`Invoice_company_id_invoiceNumber_key` (el nuevo UNIQUE existe); y el paso 1 solo puede dar
+201/201 si el UNIQUE viejo `(tenantId, invoiceNumber)` ya **no** esta. 0 filas de prueba
+quedaron. **Pendiente:** retest en navegador.
+
+### 071 Descuento de inventario al emitir: aislamiento por empresa (8 Oct 2026)
+
+Cierra el hallazgo adyacente que la 070 dejo documentado. `lib/services/stock-sale.ts`
+(`checkSaleStock`/`applySaleStock`) filtraba el stock por **`tenant_id`**, asi que test 1
+y test 2 (ambas de `TEST1DS`) podian vender y descontar el producto de la hermana: el
+unico modulo de facturacion que quedaba con la frontera mal.
+
+- **`lib/services/stock-sale.ts`**: `checkSaleStock(companyId, lines)` (antes `tenantId`)
+  compara `p.company_id !== companyId`; `applySaleStock({ companyId, tenantId, ... })`
+  filtra el `UPDATE` del stock por `company_id` (no `tenant_id`), escribe
+  `company_id` en cada fila de `inventory_movement` (ademas del `tenant_id` que ya
+  ponia) y la comprobacion de idempotencia tambien acota a la empresa. `loadProducts`
+  y el `select` del producto traen `company_id`. Las dos reversiones (stock
+  cambiado / fallo del insert del movimiento) filtran por `company_id` para no
+  reponer el stock de una fila ajena.
+- El `tenant_id` se conserva porque `inventory_movement.tenant_id` es **NOT NULL**; la
+  empresa es la que aisla.
+- **Ruta `app/api/billing/invoices/route.ts`**: `checkSaleStock(companyId, saleLines)` y
+  `applySaleStock({ companyId, tenantId, ... })` (la empresa ya estaba resuelta por
+  `contextoDeEmpresa` desde la 070).
+- **`tests/billing/stock-sale.test.mjs`** (10 casos nuevos) contra el servicio REAL:
+  vender el producto de la hermana -> carencia, el stock ajeno queda intacto y no se
+  registra movimiento; el propio se descuenta y deja su movimiento con `company_id`;
+  el `UPDATE` del stock y la idempotencia filtran por `company_id` y **no** por
+  `tenant_id`. Para ello el supabase falso de `tests/billing/fake-supabase.mjs` gano
+  las tablas `product`/`inventory_movement` (test 1, test 2 y Angelos con producto
+  propio; un servicio de test 1). El fichero entra en el bloque `billing` de
+  `package.json`.
+- **Verificado:** `tsc --noEmit` **459** (0 nuevos), billing **34/34 PASS**, compras
+  **170/170 PASS**; el auditor `_auditar-comparticion-tenant.mjs` sigue igual (**221**
+  superficies; `stock-sale` no es una ruta bajo `app/api/companies/[id]`). **Sin
+  migracion:** `product` (15 filas) e `inventory_movement` (5 filas) ya tienen
+  `company_id` al 0 % NULL (medido con `service_role`). **Pendiente:** retest en
+  navegador (emitir una factura con producto).
+- **Hallazgo adyacente (fuera de alcance, no tocado):** `lib/services/warehouse-service.ts`
+  tambien escribe `inventory_movement` con `tenant_id` a secas en los traslados
+  (`lib/services/warehouse-service.ts:624`, y el `UPDATE` de `product` en `:646` sin
+  filtro de empresa). Pre-existente, mismo genero de bug.
+
+### 072 Retencion ISR del proveedor + exoneracion de ISV en compras (8 Oct 2026)
+
+Una compra puede llevar **retencion ISR** (1% servicios profesionales o 12.5% otros
+servicios) y **exoneracion de ISV** por linea. El tipo de retencion se configura en
+el **proveedor** y la compra lo **hereda** (con override en el formulario); el monto
+reduce lo pagado al proveedor y va a una cuenta "Retenciones por Pagar" en el asiento
+al aprobar. La retencion se calcula sobre el **subtotal sin ISV** (base gravable del
+proveedor), redondeado a lempiras enteras.
+
+- **Migracion `prisma/migrations/068_compra_retencion_exoneracion.sql`** (validada con
+  `node scripts/validar-040.mjs` -> OK; **APLICADA y verificada** el 8 Oct 2026 desde
+  fuera con PostgREST): `"Supplier".withholding_type text`; `Purchase` `withholding_type text`,
+  `withholding_rate numeric(6,4)`, `withholding_amount numeric(18,2) NOT NULL DEFAULT 0`,
+  `exonerated boolean NOT NULL DEFAULT false`; `PurchaseItem.exonerated boolean NOT NULL
+  DEFAULT false`. Idempotente, preflight (3 tablas) + post-check (6 columnas) con
+  `RAISE EXCEPTION`. **Ojo con el numero:** el diario/reporte llamaron "068" al CAI del
+  proveedor en un borrador, pero el fichero del CAI es **066**; el 068 real es este.
+- **`lib/supplier-withholding.ts`** (nuevo, PURO, cliente + servidor):
+  `TipoRetencion` (`NONE`/`ISR_1`/`ISR_12_5`), `RETENCIONES` (con `tasa` 0/0.01/0.125 y
+  alias de importacion), `normalizarTipoRetencion` (acentos, mayusculas, alias),
+  `tasaDeRetencion`, `etiquetaRetencion`, `aplicaRetencion` y
+  `calcularRetencion(base, tipo) = Math.round(Math.round(base) * tasa)`.
+  **Bug pagado:** `OpcionRetencion` no declaraba `tasa` y `RETENCIONES` no lo asignaba,
+  asi que `tasaDeRetencion` devolvia siempre 0 (retencion $0 sin avisar). Corregido.
+- **`lib/purchase-db.ts`**: `createPurchase` guarda `withholding_type`/`rate`/`amount` y
+  `exonerated` (cabecera = true si **alguna** linea lo esta; compras mixtas) y ajusta lo
+  pagado: contado `amount_paid = total - retencion`; credito `balance_due =
+  max(total - retencion, 0)`. `recomputePurchase`/`updatePurchase` recalculan. El asiento
+  al aprobar resuelve la cuenta de retencion por **prefijo** (`CUENTAS_COMPRA.retencion =
+  ['210202','2102']`, por `company_id`) y deja HABER a CxP/Banco = `total - retencion`
+  mas una linea HABER a "Retenciones por Pagar". **Bug latente corregido:** en
+  `updatePurchase` una sentencia usaba `purchaseId` (TS2304); la variable es `id`.
+- **API**: `app/api/suppliers/route.ts` (`SUPPLIER_COLUMNS` + `withholding_type`) y
+  `app/api/suppliers/import/route.ts` (`SUPPLIER_FIELDS` + alias; `null` si `NONE`).
+- **UI**: selector "Retencion ISR por defecto" en la ficha de proveedor
+  (`app/companies/[id]/suppliers/page.tsx`) y en los modales de crear/editar compra
+  (`app/companies/[id]/purchases/page.tsx`), checkbox "Articulo exonerado (ISV 0%)" por
+  linea, columna "Exonerada" en la tabla de items y fila "Retencion ISR" + "Neto a pagar"
+  en los totales.
+- **Pruebas nuevas `tests/purchases/purchase-withholding.test.mjs`** (13 casos: 5 del
+  modulo puro + 6 de retencion y 2 de exoneracion contra `createPurchase` REAL) contra el
+  supabase falso; se mapeo `@/lib/supplier-withholding` en `tests/purchases/loader.mjs` y
+  se registro el fichero en el bloque `purchases` de `package.json`.
+
+**Verificado:** `tsc --noEmit` **459** (0 nuevos en ficheros tocados; los 2 errores
+`businessname` de `purchases/page.tsx` son preexistentes, confirmados en `HEAD`), compras
+**183/183 PASS** (170 + 13). La **068 APLICADA y verificada** desde fuera (PostgREST):
+6 columnas en el OpenAPI (`text`/`numeric`/`boolean`), `SELECT` de las columnas -> 200, y
+round-trip de una `Purchase` con `ISR_1`/`rate 0.01`/`amount 10`/`exonerated true`
+-> insert 201 / lectura correcta / delete 200. Queda el retest en navegador (crear compra
+con retencion y ver el neto y el asiento).

@@ -21,7 +21,16 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import { Truck, Plus, Download, ArrowLeft, Trash2, FileText } from 'lucide-react';
+import { Truck, Plus, Download, ArrowLeft, Trash2, FileText, Upload } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import * as XLSX from 'xlsx';
 
 interface Warehouse {
   id: string;
@@ -100,6 +109,15 @@ export default function TransfersManager({ companyId }: { companyId: string }) {
   const [saving, setSaving] = useState(false);
   const [acting, setActing] = useState(false);
   const [receivedBy, setReceivedBy] = useState('');
+
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    success: boolean;
+    message?: string;
+    errors?: { row: number; message: string }[];
+  } | null>(null);
 
   const base = `/api/companies/${companyId}/inventory/transfers`;
 
@@ -269,6 +287,100 @@ export default function TransfersManager({ companyId }: { companyId: string }) {
     window.URL.revokeObjectURL(url);
   };
 
+  // `transfer_number` en el archivo es solo agrupador: filas con el mismo valor
+  // se importan como UN traslado (varios ítems). Vacío = un traslado por fila.
+  // El número real lo asigna `createTransfer` (serie TRF-### por tenant).
+  const TEMPLATE_HEADERS = [
+    'transfer_number',
+    'origin',
+    'destination',
+    'date',
+    'product_code',
+    'quantity',
+    'carrier',
+    'guide_number',
+    'notes',
+  ];
+  const TEMPLATE_SAMPLE = [
+    'TRAS-1',
+    'ALM-001',
+    'ALM-002',
+    '2026-01-15',
+    'PROD-001',
+    '10',
+    'Transporte HN',
+    'G-001',
+    'Ejemplo: dos filas con transfer_number TRAS-1 forman un solo traslado',
+  ];
+
+  const openImportModal = () => {
+    setImportFile(null);
+    setImportResult(null);
+    setShowImportModal(true);
+  };
+
+  const handleDownloadTemplate = (format: 'csv' | 'xlsx') => {
+    const rows = [TEMPLATE_HEADERS, TEMPLATE_SAMPLE];
+    if (format === 'xlsx') {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'Traslados');
+      XLSX.writeFile(wb, 'plantilla_traslados.xlsx');
+      return;
+    }
+    const escapeCsv = (v: string) => {
+      const s = String(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const csv = '\ufeff' + rows.map(row => row.map(escapeCsv).join(',')).join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'plantilla_traslados.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      setImportResult({ success: true, message: 'Seleccione un archivo para continuar' });
+      return;
+    }
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+      const res = await fetch(`${base}/import`, {
+        method: 'POST',
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setImportResult({
+          success: true,
+          message: data.message || 'Importación completada',
+          errors: data.errors || [],
+        });
+        loadAll();
+        setTimeout(() => {
+          setShowImportModal(false);
+          setImportFile(null);
+          setImportResult(null);
+        }, 1200);
+      } else {
+        setImportResult({ success: false, message: data?.error || 'Error al importar el archivo' });
+      }
+    } catch (e) {
+      console.error('Transfers import exception:', e);
+      setImportResult({ success: false, message: 'Error al importar el archivo' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -391,8 +503,17 @@ export default function TransfersManager({ companyId }: { companyId: string }) {
       <div className="flex justify-between items-center">
         <h2 className="text-xl font-bold">Traslados entre almacenes</h2>
         <div className="flex gap-2">
+          <Button variant="outline" onClick={openImportModal}>
+            <Upload className="w-4 h-4 mr-2" /> Subir Archivo
+          </Button>
+          <Button variant="outline" onClick={() => handleDownloadTemplate('xlsx')}>
+            <Download className="w-4 h-4 mr-2" /> Plantilla Excel
+          </Button>
+          <Button variant="outline" onClick={() => handleDownloadTemplate('csv')}>
+            <FileText className="w-4 h-4 mr-2" /> Plantilla CSV
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCSV}>
-            <Download className="w-4 h-4 mr-1" /> CSV
+            <Download className="w-4 h-4 mr-1" /> Exportar CSV
           </Button>
           <Button onClick={() => setShowCreate((v) => !v)} className="flex items-center gap-2">
             <Plus className="w-4 h-4" /> Nuevo Traslado
@@ -579,6 +700,77 @@ export default function TransfersManager({ companyId }: { companyId: string }) {
           )}
         </CardContent>
       </Card>
+
+      {/* Import Modal */}
+      <Dialog open={showImportModal} onOpenChange={setShowImportModal}>
+        <DialogContent className="max-w-xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Importar Traslados desde Archivo</DialogTitle>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <Alert>
+              <AlertDescription className="text-sm">
+                Suba un archivo <strong>CSV</strong> o <strong>Excel (.xlsx / .xls)</strong> con los traslados.
+                Requiere las columnas <code className="font-mono text-xs bg-muted px-1 rounded">origin</code>,{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">destination</code>,{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">product_code</code> y{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">quantity</code>. Los almacenes se
+                identifican por código (ALM-###) o nombre, y los productos por código. Use la columna{' '}
+                <code className="font-mono text-xs bg-muted px-1 rounded">transfer_number</code> para agrupar
+                varias filas en un mismo traslado (vacío = un traslado por fila). Los traslados se crean
+                como <strong>Pendientes</strong>; el stock se valida contra el kardex del almacén origen.
+              </AlertDescription>
+            </Alert>
+
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-sm text-gray-500">Descargue la plantilla para ver el formato:</span>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('xlsx')}>
+                  <Download className="w-4 h-4 mr-2" /> Excel
+                </Button>
+                <Button variant="outline" size="sm" onClick={() => handleDownloadTemplate('csv')}>
+                  <Download className="w-4 h-4 mr-2" /> CSV
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Archivo</Label>
+              <Input
+                type="file"
+                accept=".csv,.xlsx,.xls,.txt"
+                onChange={(e) => {
+                  setImportFile(e.target.files?.[0] || null);
+                  setImportResult(null);
+                }}
+              />
+            </div>
+
+            {importResult && (
+              <Alert variant={importResult.success ? 'default' : 'destructive'}>
+                <AlertDescription>
+                  {importResult.message}
+                  {importResult.errors && importResult.errors.length > 0 && (
+                    <div className="mt-2 space-y-1 max-h-40 overflow-y-auto text-sm">
+                      {importResult.errors.map((err, i) => (
+                        <div key={i} className="text-xs">Fila {err.row > 0 ? err.row : '—'}: {err.message}</div>
+                      ))}
+                    </div>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportModal(false)}>Cerrar</Button>
+            <Button onClick={handleImport} disabled={importing}>
+              {importing ? 'Importando...' : 'Importar'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

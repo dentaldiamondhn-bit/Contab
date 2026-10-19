@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 import { sanitizeBusinessEmail, sanitizeBusinessRTN } from '@/lib/billing/issuer-sanitizer';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
 
 function num(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -123,7 +118,12 @@ export async function GET(
       return NextResponse.json({ success: false, error: 'companyId es requerido' }, { status: 400 });
     }
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    // La empresa sale del contexto validado (el `[id]` de la ruta es companies.id).
+    // Antes `companies` se actualizaba/leia por `tenant_id`, asi que guardar el
+    // emisor desde una empresa reescribia TAMBIEN su hermana del mismo tenant; y
+    // el CAI se leia por tenant, mezclando test 1 y test 2.
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
+    const tenantId = empresa.tenantId;
 
     const [tenantRes, companyRes, caisRes, settingsRes] = await Promise.all([
       supabase
@@ -134,15 +134,14 @@ export async function GET(
       supabase
         .from('companies')
         .select('id, name, rtn, address, email, contact_phone, logo_url')
-        .eq('tenant_id', tenantId)
-        .limit(1)
+        .eq('id', empresa.companyId)
         .maybeSingle(),
       supabase
         .from('cai')
         .select(
           'id, cai, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status, rango_inicial, rango_final, current_correlative, fecha_limite_emision, estado',
         )
-        .eq('tenant_id', tenantId)
+        .eq('company_id', empresa.companyId)
         .order('created_at', { ascending: false }),
       supabase
         .from('system_config')
@@ -246,7 +245,9 @@ export async function GET(
       success: true,
       data: { tenantId, emisor, logoPath, cais, settings },
     });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     console.error('Error in billing config GET:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
@@ -266,7 +267,10 @@ export async function PUT(
     }
     const body = await request.json();
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    // Empresa validada del contexto. `companies` se actualiza solo por `id`
+    // (antes por `tenant_id`, que tocaba tambien a la empresa hermana).
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
+    const tenantId = empresa.tenantId;
 
     const messages: string[] = [];
 
@@ -303,7 +307,7 @@ export async function PUT(
       const { error: companyErr } = await supabase
         .from('companies')
         .update(companyUpdate)
-        .eq('tenant_id', tenantId);
+        .eq('id', empresa.companyId);
       if (companyErr && !/does not exist/.test(companyErr.message)) {
         console.warn('[billing/config] Error actualizando companies:', companyErr.message);
       }
@@ -351,7 +355,9 @@ export async function PUT(
     }
 
     return NextResponse.json({ success: true, messages });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     console.error('Error in billing config PUT:', error);
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });

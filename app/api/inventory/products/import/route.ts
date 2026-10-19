@@ -16,6 +16,8 @@ const FIELD_ALIASES: Record<string, string[]> = {
   description: ['description', 'descripcion', 'detalle'],
   unit: ['unit', 'unidad', 'uom'],
   unit_price: ['unit_price', 'unitprice', 'price', 'precio', 'precio_venta', 'precio_venta_unitario'],
+    sale_price: ['sale_price', 'saleprice', 'precio_de_venta', 'precio_de_venta_unitario', 'pvp'],
+    barcode: ['barcode', 'codigo_de_barras', 'codigo barras', 'ean', 'ean13'],
   current_cost: ['current_cost', 'currentcost', 'cost', 'costo', 'costo_unitario', 'costo_promedio'],
   current_stock: ['current_stock', 'currentstock', 'stock', 'stock_inicial', 'stock_actual', 'existencia', 'cantidad'],
   min_stock: ['min_stock', 'minstock', 'stock_minimo', 'stock_min', 'minimo'],
@@ -231,6 +233,7 @@ export async function POST(req: NextRequest) {
 
       const unitPrice = Math.round(parseNum(r.unit_price, 0));
       const currentCost = r.current_cost !== '' ? parseNum(r.current_cost, unitPrice) : unitPrice;
+      const salePrice = r.sale_price !== '' && r.sale_price != null ? Math.round(parseNum(r.sale_price, 0)) : 0;
       const currentStock = Math.round(parseNum(r.current_stock, 0));
       const productType = normalizeProductType(r.product_type) || 'product';
 
@@ -243,6 +246,8 @@ export async function POST(req: NextRequest) {
         unit: r.unit || 'Unidad',
         unit_price: unitPrice,
         current_cost: currentCost,
+        sale_price: salePrice,
+        barcode: r.barcode != null && String(r.barcode).trim() !== '' ? String(r.barcode).trim() : null,
         current_stock: currentStock,
         stock_quantity: currentStock,
         min_stock: parseNum(r.min_stock, 0),

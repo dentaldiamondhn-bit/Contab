@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
-import { isLocationMigrationMissingError } from '@/lib/services/location-service';
+import { isLocationMigrationMissingError, proximoNumeroCodigoUbicacion } from '@/lib/services/location-service';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -178,6 +178,10 @@ export async function POST(
     const seenInFile = new Set<string>();
     let skippedDuplicates = 0;
 
+    // Serie de codigos UB-### de la EMPRESA: si el archivo no trae `code`, el
+    // servidor lo asigna (mismo criterio que `createLocation` en el modal).
+    let proximoCodigo = await proximoNumeroCodigoUbicacion(empresa.companyId, tenantId);
+
     parsed.records.forEach((r, idx) => {
       const rowNum = idx + 2;
       const name = String(r.name || '').trim();
@@ -205,7 +209,7 @@ export async function POST(
       rowsToInsert.push({
         tenant_id: tenantId,
         company_id: empresa.companyId,
-        code: String(r.code || '').trim() || null,
+        code: String(r.code || '').trim() || `UB-${String(proximoCodigo++).padStart(3, '0')}`,
         name,
         aisle: String(r.aisle || '').trim() || null,
         shelf: String(r.shelf || '').trim() || null,

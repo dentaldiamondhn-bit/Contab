@@ -189,10 +189,14 @@ export async function createJournalTransaction(
   const nowIso = now.toISOString();
 
   const txCompanyId = input.companyId || null;
+  // OJO: la columna real es `company_id`, no `companyId`. Medido con PostgREST
+  // el 8 Oct 2026: un INSERT con `companyId` (camel) revienta con
+  // `400 PGRST204 "Could not find the 'companyId' column of 'Transaction'"`.
+  // `tenantId` (camel) SI existe; el duplicado de empresa no.
   const txInsert = (client.from('Transaction').insert({
     id: crypto.randomUUID(),
     tenantId,
-    companyId: txCompanyId,
+    company_id: txCompanyId,
     date: dateIso,
     description: input.description.trim(),
     voucherType,
@@ -225,13 +229,14 @@ export async function createJournalTransaction(
       transactionId: txId,
       accountId: l.accountId,
       tenantId,
-      companyId: input.companyId || null,
+      company_id: input.companyId || null,
       amount: signedCents,
       originalAmount: absCents,
       type: l.debit > 0 ? 'DEBIT' : 'CREDIT',
       currency,
       exchangeRate,
       description: l.description,
+      cleared: false,
     };
   });
   const jeInsert = (client.from('JournalEntry').insert(rows) as unknown as {
@@ -239,6 +244,18 @@ export async function createJournalTransaction(
   }).select();
   const { data: entries, error: jeError } = await jeInsert;
   if (jeError) {
+    // No dejar la cabecera huerfana: si las lineas fallan, se borra la
+    // transaccion recien creada. Best-effort (no enmascara el error original).
+    try {
+      await (client as unknown as {
+        from(t: string): { delete(): { eq(c: string, v: unknown): Promise<unknown> } };
+      })
+        .from('Transaction')
+        .delete()
+        .eq('id', txId);
+    } catch {
+      // sin limpieza: el error de abajo es el que importa
+    }
     throw new Error(
       `Transacción creada (${txId}) pero fallaron las líneas: ${(jeError as { message?: string })?.message || 'error desconocido'}`,
     );

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { exigirEmpresa } from '@/lib/purchase-db';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { normalizarTipoRetencion } from '@/lib/supplier-withholding';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -29,6 +30,11 @@ const SUPPLIER_FIELDS = [
   'account_type',
   'is_active',
   'is_preferred',
+  'cai',
+  'cai_expiration_date',
+  'cai_range_from',
+  'cai_range_to',
+  'withholding_type',
 ];
 
 const FIELD_ALIASES: Record<string, string[]> = {
@@ -59,6 +65,11 @@ const FIELD_ALIASES: Record<string, string[]> = {
   account_type: ['account_type', 'tipo_cuenta'],
   is_active: ['is_active', 'activo', 'estado'],
   is_preferred: ['is_preferred', 'preferido', 'proveedor_preferido'],
+  cai: ['cai', 'cai_proveedor', 'codigo_cai', 'codigo_de_cai'],
+  cai_expiration_date: ['cai_expiration_date', 'fecha_limite_emision', 'vencimiento_cai', 'fecha_vencimiento_cai', 'limite_emision'],
+  cai_range_from: ['cai_range_from', 'rango_inicial', 'rango_desde', 'cai_desde'],
+  cai_range_to: ['cai_range_to', 'rango_final', 'rango_hasta', 'cai_hasta'],
+  withholding_type: ['withholding_type', 'retencion', 'tipo_retencion', 'retencion_isr'],
 };
 
 function normalizeHeader(h: string): string {
@@ -107,6 +118,26 @@ function normalizePaymentMethod(v: string): string {
   if (['tarjeta', 'card', 'tarjeta_credito', 'tarjeta_debito'].includes(s)) return 'card';
   if (VALID_METHODS.includes(s)) return s;
   return '';
+}
+
+/**
+ * Fecha de vencimiento del CAI a `YYYY-MM-DD`. Acepta ISO y formas `DD/MM/YYYY`
+ * o `DD-MM-YYYY` (como se escribe a mano en Honduras). Cualquier otra cosa se
+ * descarta a `null` en vez de mandar basura a una columna `date` (que abortaria
+ * con 22007 y perderia la fila entera).
+ */
+function normalizeDate(v: unknown): string | null {
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const dmy = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+  if (dmy) {
+    const dia = dmy[1].padStart(2, '0');
+    const mes = dmy[2].padStart(2, '0');
+    return `${dmy[3]}-${mes}-${dia}`;
+  }
+  return null;
 }
 
 function buildObjectRecord(records: any[], canonicalColumns: string[]): Record<string, string>[] {
@@ -291,6 +322,14 @@ export async function POST(req: NextRequest) {
         account_type: r.account_type || 'checking',
         is_active: parseBool(r.is_active),
         is_preferred: parseBool(r.is_preferred),
+        cai: r.cai || null,
+        cai_expiration_date: normalizeDate(r.cai_expiration_date),
+        cai_range_from: r.cai_range_from || null,
+        cai_range_to: r.cai_range_to || null,
+        withholding_type: (() => {
+          const tipo = normalizarTipoRetencion(r.withholding_type);
+          return tipo === 'NONE' ? null : tipo;
+        })(),
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       });

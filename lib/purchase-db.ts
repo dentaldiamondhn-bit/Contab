@@ -1,5 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ErrorDeEmpresa } from '@/lib/tenant-resolver';
+import {
+  createJournalTransaction,
+  type SupaClient,
+  type JournalEntryInput,
+} from '@/lib/services/journal-service';
+import {
+  normalizarTipoRetencion,
+  tasaDeRetencion,
+  calcularRetencion,
+} from '@/lib/supplier-withholding';
 
 /**
  * La empresa, YA VALIDADA por `contextoDeEmpresa`. Es la MISMA forma que devuelve
@@ -136,7 +146,14 @@ export function transformPurchase(p: any): any {
 
   const total = Number(p.total) || 0;
   const amountPaid = p.amount_paid === null || p.amount_paid === undefined ? 0 : Number(p.amount_paid);
-  const balanceDue = p.balance_due === null || p.balance_due === undefined ? total - amountPaid : Number(p.balance_due);
+  const withholdingAmount =
+    p.withholding_amount === null || p.withholding_amount === undefined ? 0 : Number(p.withholding_amount);
+  // La retencion reduce lo que se le debe al proveedor: sin `balance_due`
+  // guardado, el saldo es `total - retencion - pagado`.
+  const balanceDue =
+    p.balance_due === null || p.balance_due === undefined
+      ? Math.max(total - withholdingAmount - amountPaid, 0)
+      : Number(p.balance_due);
 
   let status = p.status || '';
   if (status === 'completed' || status === 'paid') status = 'PAID';
@@ -149,11 +166,24 @@ export function transformPurchase(p: any): any {
 
   const { Supplier, PurchaseItem, ...rest } = p;
 
+  // Compras anteriores al workflow de aprobacion (migracion 061) no traen
+  // `approval_status`: se tratan como ya aprobadas, que es lo que eran.
+  const approvalStatus =
+    typeof p.approval_status === 'string' && p.approval_status.length > 0
+      ? p.approval_status
+      : 'APPROVED';
+
   return {
     ...rest,
     status,
+    approval_status: approvalStatus,
     amount_paid: amountPaid,
     balance_due: balanceDue,
+    withholding_type: normalizarTipoRetencion(p.withholding_type),
+    withholding_rate:
+      p.withholding_rate === null || p.withholding_rate === undefined ? 0 : Number(p.withholding_rate),
+    withholding_amount: withholdingAmount,
+    exonerated: !!p.exonerated,
     supplier,
     supplier_id: supplier?.id || p.supplier_id,
     supplier_name: supplier?.name || p.supplier_name || '',
@@ -161,6 +191,9 @@ export function transformPurchase(p: any): any {
     companyId: p.company_id,
   };
 }
+
+/** Estados posibles de aprobacion de una compra. */
+export type EstadoAprobacion = 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED';
 
 export async function fetchPurchases(supabase: SupabaseClient, empresa: EmpresaCompra, filters: PurchaseFilters) {
   let query = supabase
@@ -198,6 +231,16 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
   const total = Math.round(Number(body.total) || 0);
 
   const items = Array.isArray(body.items) ? body.items : [];
+
+  // Retencion ISR: se calcula sobre el SUBTOTAL (sin ISV) y reduce lo pagado al
+  // proveedor. El tipo lo hereda del proveedor (con override del formulario).
+  const withholdingType = normalizarTipoRetencion(body.withholding_type);
+  const withholdingAmount = calcularRetencion(Math.round(Number(body.subtotal) || 0), withholdingType);
+  const withholdingRate = withholdingAmount > 0 ? tasaDeRetencion(withholdingType) : 0;
+  // La cabecera queda exonerada si alguna linea lo esta (permite compras mixtas).
+  const exonerated = !!body.exonerated || items.some((i: any) => !!i.exonerated);
+  // El proveedor solo recibe `total - retencion`; el resto se retiene.
+  const netAPagar = Math.max(total - withholdingAmount, 0);
 
   // El proveedor del cuerpo y el de cada linea tienen que ser de ESTA empresa.
   // Ver `exigirPertenencia`: sin esto la compra se guardaba apuntando al
@@ -238,8 +281,21 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
       is_credit: isCredit,
       due_date: isCredit ? body.due_date || null : null,
       status: isCredit ? 'PENDING' : 'PAID',
-      amount_paid: isCredit ? 0 : total,
-      balance_due: isCredit ? total : 0,
+      amount_paid: isCredit ? 0 : netAPagar,
+      balance_due: isCredit ? netAPagar : 0,
+      // Retencion ISR + exoneracion (ver `lib/supplier-withholding.ts`).
+      withholding_type: withholdingType === 'NONE' ? null : withholdingType,
+      withholding_rate: withholdingRate,
+      withholding_amount: withholdingAmount,
+      exonerated,
+      // Toda compra nace PENDIENTE DE APROBACION: no toca inventario ni
+      // contabilidad hasta que un aprobador la apruebe (ver `aprobarCompra`).
+      approval_status: 'PENDING_APPROVAL',
+      approved_by: null,
+      approved_at: null,
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
       tenant_id: tenantId,
       company_id: companyId,
       created_at: new Date().toISOString(),
@@ -265,6 +321,7 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
       tax_rate: item.tax_rate ?? body.tax_rate ?? 15.0,
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
+      exonerated: !!item.exonerated,
       tenant_id: tenantId,
       company_id: companyId,
       created_at: new Date().toISOString(),
@@ -275,6 +332,44 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
       console.error('Error creating purchase items:', itemsError);
     }
   }
+
+  // NO se aplican efectos (inventario, historial de precios, asiento) aqui: la
+  // compra queda PENDIENTE DE APROBACION y los efectos corren en `aprobarCompra`.
+  return { data: transformPurchase({ ...purchase, items }), error: null };
+}
+
+/**
+ * Efectos reales de una compra aprobada: sube stock del producto (o lo crea),
+ * registra el historial de precios del proveedor y crea el asiento contable.
+ *
+ * **El asiento contable es obligatorio.** El precio sigue siendo best-effort,
+ * pero contabilizar no: si falta una cuenta en el catalogo de la empresa, si el
+ * asiento no cuadra o si falla el INSERT, se **revierte** el stock y el historial
+ * ya aplicados y se propaga `ErrorDeEmpresa(409)`. `aprobarCompra` no llega a
+ * marcar la compra APPROVED: nunca queda una compra aprobada sin contabilizar.
+ *
+ * Recibe la fila `Purchase` ya guardada y sus `PurchaseItem`; usa los campos de
+ * la compra (no del cuerpo del cliente) para que aprobar sea determinista.
+ */
+export async function aplicarEfectosCompra(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  purchase: any,
+  items: any[]
+) {
+  const tenantId = empresa.tenantId;
+  const companyId = empresa.companyId;
+
+  // EL ASIENTO CONTABLE ES OBLIGATORIO. Se resuelven las cuentas ANTES de tocar
+  // inventario o historial: una configuracion contable incompleta (falta una
+  // cuenta en el catalogo) aborta la aprobacion sin haber aplicado nada. Si el
+  // asiento falla despues de aplicar stock/historial, se revierte todo (ver
+  // `revertirEfectos`) y la compra se queda PENDIENTE. Fail-closed: nunca queda
+  // una compra aprobada sin contabilizar.
+  const cuentas = await resolverCuentasDeCompra(supabase, empresa, purchase);
+
+  // Cada efecto aplicado registra como deshacerlo, por si el asiento falla.
+  const revertir: Array<() => Promise<void>> = [];
 
   // Create/update products in Supabase product table
   if (items.length > 0) {
@@ -287,13 +382,19 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
 
       const { data: existing } = await supabase
         .from('product')
-        .select('id, current_stock')
+        .select('id, current_stock, stock_quantity, unit_price, current_cost')
         .eq('company_id', companyId)
         .ilike('name', productName)
         .limit(1);
 
       if (existing && existing.length > 0) {
         const row = existing[0];
+        const antes = {
+          current_stock: row.current_stock,
+          stock_quantity: row.stock_quantity,
+          unit_price: row.unit_price,
+          current_cost: row.current_cost,
+        };
         const newStock = (Number(row.current_stock) || 0) + quantity;
         await supabase
           .from('product')
@@ -305,9 +406,16 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
           })
           .eq('id', row.id)
           .eq('company_id', companyId);
+        revertir.push(async () => {
+          await supabase
+            .from('product')
+            .update(antes)
+            .eq('id', row.id)
+            .eq('company_id', companyId);
+        });
       } else {
         const productCode = 'PRD-' + Date.now().toString(36).toUpperCase().slice(-4);
-        await supabase
+        const { data: creado } = await supabase
           .from('product')
           .insert({
             tenant_id: tenantId,
@@ -315,7 +423,7 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
             code: productCode,
             name: productName,
             description: item.description || '',
-            category: body.purchase_type === 'expense' ? 'Servicios' : 'Insumos',
+            category: purchase.purchase_type === 'expense' ? 'Servicios' : 'Insumos',
             unit: item.unit || 'Unidad',
             unit_price: unitPrice,
             current_cost: unitPrice,
@@ -325,26 +433,334 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
             max_stock: 0,
             tax_rate: 15,
             is_active: true,
-            is_service: body.purchase_type === 'expense',
-            product_type: body.purchase_type === 'expense' ? 'service' : 'product',
+            is_service: purchase.purchase_type === 'expense',
+            product_type: purchase.purchase_type === 'expense' ? 'service' : 'product',
             valuation_method: 'weighted_average',
+          })
+          .select('id')
+          .single();
+        const nuevoId = creado?.id;
+        if (nuevoId) {
+          revertir.push(async () => {
+            await supabase
+              .from('product')
+              .delete()
+              .eq('id', nuevoId)
+              .eq('company_id', companyId);
           });
+        }
       }
     }
   }
 
-  // Track supplier price history (best-effort, never blocks the purchase)
+  // Historial de precios del proveedor (se revierte junto con el resto si el
+  // asiento falla).
   if (purchase.supplier_id && items.length > 0) {
-    await recordSupplierPriceHistory(supabase, empresa, purchase.supplier_id, items, purchase.invoice_date);
+    const historial = await recordSupplierPriceHistory(
+      supabase,
+      empresa,
+      purchase.supplier_id,
+      items,
+      purchase.invoice_date
+    );
+    const idsHistorial = (historial || [])
+      .map((fila: any) => fila?.id)
+      .filter((id: any): id is string => Boolean(id));
+    if (idsHistorial.length > 0) {
+      revertir.push(async () => {
+        await supabase.from('supplier_price_history').delete().in('id', idsHistorial);
+      });
+    }
   }
 
-  // Journal entry (best-effort, never blocks the purchase)
-  const journalEntryResult = await createPurchaseJournalEntry(supabase, empresa, purchase, items);
-  if (journalEntryResult) {
-    await supabase.from('Purchase').update({ journal_entry_id: journalEntryResult.id }).eq('id', purchase.id);
+  // Asiento contable OBLIGATORIO. Si falla, se revierte lo aplicado y se
+  // propaga el error: `aprobarCompra` no llega a marcar la compra APPROVED.
+  let asiento: any;
+  try {
+    asiento = await crearAsientoCompra(supabase, empresa, purchase, cuentas);
+  } catch (error) {
+    await revertirEfectos(revertir);
+    throw error;
   }
 
-  return { data: transformPurchase({ ...purchase, items, journal_entry_id: journalEntryResult?.id }), error: null };
+  // Enlazar el asiento con la compra. Si el enlace falla no se puede dejar el
+  // asiento suelto: se borra, se revierte y se aborta.
+  const { error: linkError } = await supabase
+    .from('Purchase')
+    .update({ journal_entry_id: asiento.id })
+    .eq('id', purchase.id)
+    .eq('company_id', companyId);
+
+  if (linkError) {
+    await eliminarAsiento(supabase, asiento.id);
+    await revertirEfectos(revertir);
+    throw new ErrorDeEmpresa(
+      409,
+      `No se pudo enlazar el asiento contable con la compra: ${linkError.message}. La compra sigue pendiente de aprobación.`
+    );
+  }
+
+  return asiento;
+}
+
+/**
+ * Deshace, en orden inverso, los efectos registrados por `aplicarEfectosCompra`.
+ * Cada deshacer es best-effort: si uno falla se registra y se sigue, para no
+ * dejar la compra sin aprobar por un fallo al revés.
+ */
+async function revertirEfectos(revertir: Array<() => Promise<void>>) {
+  for (const deshacer of revertir.reverse()) {
+    try {
+      await deshacer();
+    } catch (error) {
+      console.error('Error revirtiendo un efecto de la compra:', error);
+    }
+  }
+}
+
+/**
+ * Aprueba una compra PENDIENTE: aplica los efectos (stock, historial, asiento) y
+ * marca `approved_by`/`approved_at`. El aislamiento y el permiso los valida quien
+ * llama (la ruta); aqui solo se comprueba la empresa e id.
+ */
+export async function aprobarCompra(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  id: string,
+  actor: { userId?: string | null } = {}
+) {
+  const { data: purchase, error: readError } = await supabase
+    .from('Purchase')
+    .select('*')
+    .eq('id', id)
+    .eq('company_id', empresa.companyId)
+    .single();
+
+  if (readError || !purchase) return { data: null, error: readError || null, notFound: !purchase };
+
+  if (purchase.approval_status && purchase.approval_status !== 'PENDING_APPROVAL') {
+    throw new ErrorDeEmpresa(409, 'La compra ya fue aprobada o rechazada.');
+  }
+
+  const { data: items } = await supabase
+    .from('PurchaseItem')
+    .select('*')
+    .eq('purchase_id', purchase.id)
+    .eq('company_id', empresa.companyId);
+
+  await aplicarEfectosCompra(supabase, empresa, purchase, items || []);
+
+  await supabase
+    .from('Purchase')
+    .update({
+      approval_status: 'APPROVED',
+      approved_by: actor?.userId || null,
+      approved_at: new Date().toISOString(),
+      rejected_by: null,
+      rejected_at: null,
+      rejection_reason: null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', purchase.id)
+    .eq('company_id', empresa.companyId);
+
+  return { data: transformPurchase({ ...purchase, approval_status: 'APPROVED' }), error: null };
+}
+
+/** Rechaza una compra pendiente. NO aplica efectos (nada que revertir). */
+export async function rechazarCompra(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  id: string,
+  actor: { userId?: string | null },
+  reason?: string | null
+) {
+  const { data: purchase, error: readError } = await supabase
+    .from('Purchase')
+    .select('*')
+    .eq('id', id)
+    .eq('company_id', empresa.companyId)
+    .single();
+
+  if (readError || !purchase) return { data: null, error: readError || null, notFound: !purchase };
+
+  if (purchase.approval_status && purchase.approval_status !== 'PENDING_APPROVAL') {
+    throw new ErrorDeEmpresa(409, 'La compra ya fue aprobada o rechazada.');
+  }
+
+  await supabase
+    .from('Purchase')
+    .update({
+      approval_status: 'REJECTED',
+      rejected_by: actor?.userId || null,
+      rejected_at: new Date().toISOString(),
+      rejection_reason: reason || null,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', purchase.id)
+    .eq('company_id', empresa.companyId);
+
+  return {
+    data: transformPurchase({ ...purchase, approval_status: 'REJECTED', rejection_reason: reason || null }),
+    error: null,
+  };
+}
+
+/** Hidrata ids de usuario (string) con nombre/email desde `"User"`. */
+async function hidratarUsuarios(supabase: SupabaseClient, ids: string[]) {
+  const mapa = new Map<string, { id: string; nombre: string; email: string }>();
+  const unicos = Array.from(new Set(ids.filter(Boolean)));
+  if (unicos.length === 0) return mapa;
+
+  const { data } = await supabase
+    .from('User')
+    .select('id, firstname, lastname, email')
+    .in('id', unicos);
+
+  for (const u of data || []) {
+    const nombre = [u.firstname, u.lastname].filter(Boolean).join(' ').trim();
+    mapa.set(String(u.id), { id: String(u.id), nombre: nombre || u.email || String(u.id), email: u.email || '' });
+  }
+  return mapa;
+}
+
+/** Lista de aprobadores de la empresa, con nombre y email para la UI. */
+export async function fetchAprobadores(supabase: SupabaseClient, empresa: EmpresaCompra) {
+  const { data, error } = await supabase
+    .from('PurchaseApprover')
+    .select('*')
+    .eq('company_id', empresa.companyId)
+    .order('created_at', { ascending: true });
+
+  if (error) return { data: null, error };
+
+  const filas = data || [];
+  const usuarios = await hidratarUsuarios(supabase, filas.map((f: any) => String(f.user_id)));
+
+  return {
+    data: filas.map((f: any) => ({
+      ...f,
+      nombre: usuarios.get(String(f.user_id))?.nombre || String(f.user_id),
+      email: usuarios.get(String(f.user_id))?.email || '',
+    })),
+    error: null,
+  };
+}
+
+/** Miembros de la empresa (candidatos a aprobador), con nombre y email. */
+export async function fetchMiembrosEmpresa(supabase: SupabaseClient, empresa: EmpresaCompra) {
+  const { data: accesos, error } = await supabase
+    .from('user_company_access')
+    .select('user_id')
+    .eq('company_id', empresa.companyId);
+
+  if (error) return { data: null, error };
+
+  const ids = (accesos || []).map((a: any) => String(a.user_id)).filter(Boolean);
+  const usuarios = await hidratarUsuarios(supabase, ids);
+
+  return {
+    data: ids.map((id) => usuarios.get(id) || { id, nombre: id, email: '' }),
+    error: null,
+  };
+}
+
+/**
+ * Designa a un usuario como aprobador de la empresa. Idempotente: si ya estaba,
+ * no duplica (unique `(company_id, user_id)`).
+ */
+export async function agregarAprobador(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  userId: string,
+  actor?: { userId?: string | null }
+) {
+  if (!userId || typeof userId !== 'string') {
+    throw new ErrorDeEmpresa(400, 'Falta el usuario a designar como aprobador.');
+  }
+
+  const { data: existentes } = await supabase
+    .from('PurchaseApprover')
+    .select('id')
+    .eq('company_id', empresa.companyId)
+    .eq('user_id', userId)
+    .limit(1);
+
+  if (existentes && existentes.length > 0) {
+    return { data: existentes[0], error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('PurchaseApprover')
+    .insert({
+      company_id: empresa.companyId,
+      tenant_id: empresa.tenantId,
+      user_id: userId,
+      created_by: actor?.userId || null,
+    })
+    .select()
+    .single();
+
+  return { data, error };
+}
+
+/** Quita a un aprobador por id de fila, siempre dentro de la empresa. */
+export async function eliminarAprobador(supabase: SupabaseClient, empresa: EmpresaCompra, id: string) {
+  const { data: fila } = await supabase
+    .from('PurchaseApprover')
+    .select('id')
+    .eq('id', id)
+    .eq('company_id', empresa.companyId)
+    .maybeSingle();
+
+  if (!fila) return { notFound: true, error: null };
+
+  const { error } = await supabase
+    .from('PurchaseApprover')
+    .delete()
+    .eq('id', id)
+    .eq('company_id', empresa.companyId);
+
+  return { notFound: false, error };
+}
+
+/** true si el usuario esta designado como aprobador de esta empresa. */
+export async function esAprobadorDeCompras(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+  const { data } = await supabase
+    .from('PurchaseApprover')
+    .select('id')
+    .eq('company_id', empresa.companyId)
+    .eq('user_id', userId)
+    .limit(1);
+  return !!(data && data.length > 0);
+}
+
+/**
+ * true si el usuario es DUENO de esta empresa (`user_company_access.relationship
+ * = 'owner'`). Es el rol POR EMPRESA (AGENTS.md 1b), no el rol global de Clerk:
+ * en este proyecto el rol se deriva de la membresia, y un contador de una empresa
+ * no es gerente de ella. El dueno manda en la aprobacion de compras; los demas
+ * solo si estan designados en `PurchaseApprover`.
+ */
+export async function esDuenoDeEmpresa(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  userId: string | null
+): Promise<boolean> {
+  if (!userId) return false;
+  const { data } = await supabase
+    .from('user_company_access')
+    .select('id')
+    .eq('company_id', empresa.companyId)
+    .eq('user_id', userId)
+    .eq('relationship', 'owner')
+    .limit(1);
+  return !!(data && data.length > 0);
 }
 
 export async function recordSupplierPriceHistory(
@@ -377,12 +793,21 @@ export async function recordSupplierPriceHistory(
       updated_at: new Date().toISOString(),
     }));
 
-  if (rows.length === 0) return;
+  if (rows.length === 0) return [];
 
-  const { error } = await supabase.from('supplier_price_history').insert(rows);
+  // Devuelve las filas insertadas (con `id`) para que `aplicarEfectosCompra`
+  // pueda deshacerlas si el asiento contable obligatorio falla. Antes era
+  // `void`: se perdía la pista de qué se había escrito y no había forma de
+  // revertirlo.
+  const { data, error } = await supabase
+    .from('supplier_price_history')
+    .insert(rows)
+    .select('id');
   if (error) {
     console.error('Error recording supplier price history:', error);
+    return [];
   }
+  return data || [];
 }
 
 export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaCompra, id: string, body: any) {
@@ -439,6 +864,21 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
   if (updates.is_credit !== undefined) updates.is_credit = isCredit;
   if (isCredit && !updates.due_date) updates.due_date = null;
 
+  // Retencion ISR y exoneracion: el formulario manda el tipo (heredado del
+  // proveedor o sobrescrito) y las lineas; el monto se recalcula sobre el subtotal.
+  if (body.withholding_type !== undefined) {
+    const tipo = normalizarTipoRetencion(body.withholding_type);
+    const baseSubtotal =
+      updates.subtotal !== undefined ? Number(updates.subtotal) : Math.round(Number(body.subtotal) || 0);
+    const monto = calcularRetencion(baseSubtotal, tipo);
+    updates.withholding_type = tipo === 'NONE' ? null : tipo;
+    updates.withholding_rate = monto > 0 ? tasaDeRetencion(tipo) : 0;
+    updates.withholding_amount = monto;
+  }
+  if (Array.isArray(body.items) || body.exonerated !== undefined) {
+    updates.exonerated = !!body.exonerated || itemsNuevos.some((i: any) => !!i.exonerated);
+  }
+
   // Preserve company/tenant
   updates.updated_at = new Date().toISOString();
 
@@ -471,6 +911,7 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
       tax_rate: item.tax_rate ?? updates.tax_rate ?? 15.0,
       tax_amount: Math.round(Number(item.tax_amount) || 0),
       total: Math.round(Number(item.total) || 0),
+      exonerated: !!item.exonerated,
       tenant_id: empresa.tenantId,
       company_id: empresa.companyId,
       created_at: new Date().toISOString(),
@@ -486,7 +927,7 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
 
   const { data, error } = await supabase
     .from('Purchase')
-    .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
+    .select('total, is_credit, amount_paid, withholding_amount')
     .eq('id', id)
     .eq('company_id', empresa.companyId)
     .single();
@@ -543,7 +984,7 @@ export async function recomputePurchase(
   const hasPayments = paymentsRows.length > 0;
   const { data: purchase } = await supabase
     .from('Purchase')
-    .select('total, is_credit, amount_paid')
+    .select('total, is_credit, amount_paid, withholding_amount')
     .eq('id', purchaseId)
     .eq('company_id', empresa.companyId)
     .single();
@@ -555,7 +996,8 @@ export async function recomputePurchase(
 
   const total = overrides?.total ?? (Number(purchase.total) || 0);
   const isCredit = overrides?.isCredit ?? !!purchase.is_credit;
-  const balance = Math.max(total - paid, 0);
+  const withholding = Number(purchase.withholding_amount) || 0;
+  const balance = Math.max(total - withholding - paid, 0);
 
   let status: string;
   if (balance <= 0) {
@@ -589,113 +1031,258 @@ export async function recomputePurchase(
   return updated ? transformPurchase(updated) : null;
 }
 
-async function createPurchaseJournalEntry(
+type CuentasCompra = { debito: string; isv: string | null; haber: string; retencion: string | null };
+
+/**
+ * Prefijos de codigo de cuenta por rol, en orden de preferencia. Se resuelve por
+ * PREFIJO (no por codigo exacto) porque los catalogos varian por empresa:
+ * Angelos tiene `1106-01`/`1105-01`, Empresa 1 tiene `1105`/`1140`. Un
+ * `.eq('code','1105')` no encuentra ninguna en Angelos y **bloquearia** la
+ * compra; con `ilike '1105%'` entra tanto `1105` como `1105-01`.
+ */
+const CUENTAS_COMPRA = {
+  inventario: ['1105', '1140', '1301'],
+  gasto: ['6101', '5101', '6103', '6201', '6301', '5201'],
+  isvCredito: ['1106', '2201'],
+  porPagar: ['2101', '2103', '2110', '2120'],
+  banco: ['1101', '1110', '1111', '1112', '1102'],
+  // "Retenciones ISR por Pagar" (210202 cuelga de 2102 Retenciones por Pagar).
+  retencion: ['210202', '2102'],
+};
+
+/**
+ * Primer id de cuenta cuyo codigo empieza por alguno de los prefijos, dentro de
+ * la empresa. `.order('code')` + `.limit(1)` para ser determinista cuando hay
+ * varias ("1101" gana a "1101-01"); `.limit(1)` (no `.single()`) porque test 1 y
+ * test 2 comparten `TEST1DS` y `.single()` reventaria con `PGRST116` y dejaria
+ * el asiento sin crear en silencio.
+ */
+async function cuentaPorPrefijo(
+  supabase: SupabaseClient,
+  companyId: string,
+  prefijos: string[]
+): Promise<string | null> {
+  for (const prefijo of prefijos) {
+    const { data } = await supabase
+      .from('Account')
+      .select('id')
+      .eq('company_id', companyId)
+      .ilike('code', `${prefijo}%`)
+      .order('code', { ascending: true })
+      .limit(1);
+    const id = data?.[0]?.id;
+    if (id) return id as string;
+  }
+  return null;
+}
+
+async function cuentaRequerida(
+  supabase: SupabaseClient,
+  companyId: string,
+  prefijos: string[],
+  etiqueta: string
+): Promise<string> {
+  const id = await cuentaPorPrefijo(supabase, companyId, prefijos);
+  if (!id) {
+    throw new ErrorDeEmpresa(
+      409,
+      `No se puede contabilizar: falta la cuenta de "${etiqueta}" en el catálogo contable de la empresa. Configúrala antes de continuar.`
+    );
+  }
+  return id;
+}
+
+/**
+ * Resuelve las cuentas del asiento de una compra por **empresa** (`company_id`,
+ * no `tenant_id`): test 1 y test 2 comparten `TEST1DS`, asi que filtrar por
+ * tenant puede devolver la cuenta de la hermana. Una cuenta ausente es un error
+ * de negocio (409): el asiento es obligatorio, y una configuracion contable
+ * incompleta **bloquea** la aprobacion en vez de aprobar sin contabilizar.
+ */
+async function resolverCuentasDeCompra(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  purchase: any
+): Promise<CuentasCompra> {
+  const companyId = empresa.companyId;
+  const esMercaderia = purchase.purchase_type === 'merchandise';
+
+  const debito = await cuentaRequerida(
+    supabase,
+    companyId,
+    esMercaderia ? CUENTAS_COMPRA.inventario : CUENTAS_COMPRA.gasto,
+    esMercaderia ? 'Inventario (mercadería)' : 'Gasto / costo de compra'
+  );
+
+  const haber = await cuentaRequerida(
+    supabase,
+    companyId,
+    purchase.is_credit ? CUENTAS_COMPRA.porPagar : CUENTAS_COMPRA.banco,
+    purchase.is_credit ? 'Cuentas por Pagar' : 'Banco / Caja'
+  );
+
+  const impuesto = Number(purchase.tax_amount) || 0;
+  const isv = impuesto > 0
+    ? await cuentaRequerida(supabase, companyId, CUENTAS_COMPRA.isvCredito, 'ISV Crédito Fiscal')
+    : null;
+
+  // La retencion ISR solo existe si la compra tiene monto retenido.
+  const retencion =
+    (Number(purchase.withholding_amount) || 0) > 0
+      ? await cuentaRequerida(supabase, companyId, CUENTAS_COMPRA.retencion, 'Retenciones ISR por Pagar')
+      : null;
+
+  return { debito, isv, haber, retencion };
+}
+
+/**
+ * Crea el asiento contable de la compra reusando el escritor canonico
+ * (`Transaction` + lineas `JournalEntry` de `lib/services/journal-service`):
+ * numeracion, candado de periodo y auditoria salen de ahi.
+ *
+ * Antes esta funcion escribia `JournalEntry` como si fuera una **cabecera**
+ * (`date/reference/is_posted/total_debit/total_credit`) y metia las lineas en una
+ * tabla inexistente `JournalEntryLine`: en Supabase real fallaba y el asiento de
+ * compras nunca llegaba a los libros (`JournalEntry` es la tabla de LINEAS, no de
+ * cabeceras; la cabecera es `Transaction`). Obligatorio: cualquier fallo se
+ * convierte en `ErrorDeEmpresa(409)` para que `aprobarCompra` revierta.
+ */
+async function crearAsientoCompra(
   supabase: SupabaseClient,
   empresa: EmpresaCompra,
   purchase: any,
-  items: any[]
+  cuentas: CuentasCompra
 ) {
+  const subtotal = Number(purchase.subtotal) || 0;
+  const impuesto = Number(purchase.tax_amount) || 0;
+  const total = Number(purchase.total) || 0;
+  const retencionMonto = Number(purchase.withholding_amount) || 0;
+  const esMercaderia = purchase.purchase_type === 'merchandise';
+
+  const entries: JournalEntryInput[] = [
+    {
+      accountId: cuentas.debito,
+      amount: subtotal,
+      isDebit: true,
+      description: esMercaderia ? 'Compra de mercadería' : 'Gasto / costo de compra',
+    },
+  ];
+  if (cuentas.isv && impuesto > 0) {
+    entries.push({
+      accountId: cuentas.isv,
+      amount: impuesto,
+      isDebit: true,
+      description: 'ISV Crédito Fiscal',
+    });
+  }
+  // El proveedor recibe `total - retencion`; la retencion queda por pagar.
+  entries.push({
+    accountId: cuentas.haber,
+    amount: total - retencionMonto,
+    isDebit: false,
+    description: purchase.is_credit ? 'Cuentas por Pagar' : 'Banco / Caja',
+  });
+  if (cuentas.retencion && retencionMonto > 0) {
+    entries.push({
+      accountId: cuentas.retencion,
+      amount: retencionMonto,
+      isDebit: false,
+      description: 'Retención ISR por Pagar',
+    });
+  }
+
   try {
-    let debitAccountId: string | undefined;
-    const tenantId = empresa.tenantId;
-    const companyId = empresa.companyId;
-
-    // `Account` se resuelve por `company_id`, no por `tenant_id`: test 1 y test 2
-    // comparten `TEST1DS`, así que `.eq('code','1101').eq('tenant_id','TEST1DS')`
-    // puede devolver dos cuentas y el asiento de una empresa acabaría contra la
-    // de la hermana. Además se pedía `.single()`, que con dos filas revienta
-    // (PGRST116) y dejaba la compra sin contabilizar.
-    const cuenta = async (code: string): Promise<string | undefined> => {
-      const { data } = await supabase
-        .from('Account')
-        .select('id')
-        .eq('code', code)
-        .eq('company_id', companyId)
-        .limit(1);
-      return data?.[0]?.id;
-    };
-
-    if (purchase.purchase_type === 'merchandise') {
-      debitAccountId = await cuenta('1105');
-    } else if (purchase.expense_category === 'administrative') {
-      debitAccountId = await cuenta('4101');
-    } else {
-      debitAccountId = await cuenta('4100');
-    }
-
-    const isvAccountId = await cuenta('1110');
-
-    let creditAccountId: string | undefined;
-    if (purchase.is_credit) {
-      creditAccountId = await cuenta('2101');
-    } else {
-      creditAccountId = await cuenta('1101');
-    }
-
-    if (!debitAccountId || !creditAccountId) {
-      console.error('Missing accounts for journal entry');
-      return null;
-    }
-
-    const { data: journalEntry, error: jeError } = await supabase
-      .from('JournalEntry')
-      .insert({
-        date: purchase.invoice_date,
-        reference: `COMP-${purchase.invoice_number}`,
+    const { transaction } = await createJournalTransaction(
+      supabase as unknown as SupaClient,
+      empresa.tenantId,
+      {
         description: `Compra ${purchase.is_credit ? 'a crédito' : 'al contado'} - Factura ${purchase.invoice_number}`,
-        is_posted: true,
-        total_debit: purchase.total,
-        total_credit: purchase.total,
-        tenant_id: tenantId,
-        company_id: companyId,
-        created_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
-
-    if (jeError) {
-      console.error('Error creating journal entry:', jeError);
-      return null;
-    }
-
-    const lines: any[] = [];
-    lines.push({
-      journal_entry_id: journalEntry.id,
-      account_id: debitAccountId,
-      description: `Compra ${purchase.purchase_type === 'merchandise' ? 'de mercadería' : 'de gasto'}`,
-      debit_amount: purchase.subtotal,
-      credit_amount: 0,
-      tenant_id: tenantId,
-    });
-
-    if (Number(purchase.tax_amount) > 0 && isvAccountId) {
-      lines.push({
-        journal_entry_id: journalEntry.id,
-        account_id: isvAccountId,
-        description: 'ISV Crédito Fiscal',
-        debit_amount: purchase.tax_amount,
-        credit_amount: 0,
-        tenant_id: tenantId,
-      });
-    }
-
-    lines.push({
-      journal_entry_id: journalEntry.id,
-      account_id: creditAccountId,
-      description: purchase.is_credit ? 'Cuentas por Pagar' : 'Banco',
-      debit_amount: 0,
-      credit_amount: purchase.total,
-      tenant_id: tenantId,
-    });
-
-    const { error: linesError } = await supabase.from('JournalEntryLine').insert(lines);
-    if (linesError) {
-      console.error('Error creating journal entry lines:', linesError);
-    }
-
-    return journalEntry;
+        date: purchase.invoice_date || new Date().toISOString().split('T')[0],
+        voucherType: purchase.is_credit ? 'DIARIO' : 'EGRESO',
+        reference: `COMP-${purchase.invoice_number}`,
+        currency: 'HNL',
+        companyId: empresa.companyId,
+        entries,
+      }
+    );
+    return transaction;
   } catch (error) {
-    console.error('Error in createPurchaseJournalEntry:', error);
-    return null;
+    throw new ErrorDeEmpresa(
+      409,
+      `No se pudo registrar el asiento contable de la compra: ${
+        (error as { message?: string })?.message || 'error desconocido'
+      }. La compra sigue pendiente de aprobación.`
+    );
+  }
+}
+
+/**
+ * Borra el asiento contable de una transaccion (lineas `JournalEntry` + cabecera
+ * `Transaction`). Se usa para revertir el asiento de una compra/pago cuando algo
+ * falla despues de crearlo. Acepta la convencion camel (`transactionId`) y la
+ * snake como respaldo.
+ */
+export async function eliminarAsiento(supabase: SupabaseClient, txId: string | null | undefined) {
+  if (!txId) return;
+  await supabase.from('JournalEntry').delete().eq('transactionId', txId);
+  await supabase.from('JournalEntry').delete().eq('transaction_id', txId);
+  await supabase.from('Transaction').delete().eq('id', txId);
+}
+
+/**
+ * Crea el asiento del PAGO a proveedor: **debe Cuentas por Pagar**, **haber
+ * Banco/Caja**. Obligatorio igual que el de la compra: si falta la cuenta, el
+ * pago no se registra (`ErrorDeEmpresa(409)`). Devuelve la `Transaction` creada
+ * para que la ruta guarde su id en `SupplierPayment.journal_entry_id`.
+ */
+export async function crearAsientoPago(
+  supabase: SupabaseClient,
+  empresa: EmpresaCompra,
+  payment: any,
+  purchase: any
+) {
+  const monto = Number(payment.amount) || 0;
+  if (!(monto > 0)) {
+    throw new ErrorDeEmpresa(409, 'No se puede contabilizar un pago de monto cero.');
+  }
+
+  const porPagar = await cuentaRequerida(
+    supabase,
+    empresa.companyId,
+    CUENTAS_COMPRA.porPagar,
+    'Cuentas por Pagar'
+  );
+  const banco = await cuentaRequerida(
+    supabase,
+    empresa.companyId,
+    CUENTAS_COMPRA.banco,
+    'Banco / Caja'
+  );
+
+  try {
+    const { transaction } = await createJournalTransaction(
+      supabase as unknown as SupaClient,
+      empresa.tenantId,
+      {
+        description: `Pago a proveedor - Factura ${purchase?.invoice_number || payment.purchase_id}`,
+        date: payment.payment_date || new Date().toISOString().split('T')[0],
+        voucherType: 'EGRESO',
+        reference: payment.reference_number || `PAGO-${payment.id}`,
+        currency: 'HNL',
+        companyId: empresa.companyId,
+        entries: [
+          { accountId: porPagar, amount: monto, isDebit: true, description: 'Cuentas por Pagar' },
+          { accountId: banco, amount: monto, isDebit: false, description: 'Banco / Caja' },
+        ],
+      }
+    );
+    return transaction;
+  } catch (error) {
+    throw new ErrorDeEmpresa(
+      409,
+      `No se pudo registrar el asiento contable del pago: ${
+        (error as { message?: string })?.message || 'error desconocido'
+      }.`
+    );
   }
 }

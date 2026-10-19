@@ -19,10 +19,14 @@ export const COMPANIES = [
 
 // Estantes: dos de test 1 y test 2 (mismo tenant, empresa distinta), uno sin
 // empresa (la convencion valida de `location-service`) y uno de otro tenant.
+// `l-test1` lleva el codigo legacy "P1" (ajeno a la serie UB-) y
+// `l-sin-empresa` lleva "UB-099" SIN empresa: los dos existen para probar que
+// la serie automatica solo cuenta las filas de la propia empresa y solo el
+// patron UB-###.
 const PRODUCT_LOCATION_INICIAL = [
-  { id: 'l-test1', tenant_id: 'TEST1DS', company_id: 'c-test1', name: 'Estante A', is_active: true },
+  { id: 'l-test1', tenant_id: 'TEST1DS', company_id: 'c-test1', code: 'P1', name: 'Estante A', is_active: true },
   { id: 'l-test2', tenant_id: 'TEST1DS', company_id: 'c-test2', name: 'Estante B', is_active: true },
-  { id: 'l-sin-empresa', tenant_id: 'TEST1DS', company_id: null, name: 'Estante C', is_active: true },
+  { id: 'l-sin-empresa', tenant_id: 'TEST1DS', company_id: null, code: 'UB-099', name: 'Estante C', is_active: true },
   { id: 'l-angelos', tenant_id: 'ANGELOH7', company_id: 'c-angelos', name: 'Estante D', is_active: true },
 ];
 
@@ -33,7 +37,27 @@ export function reiniciarProductLocation() {
   PRODUCT_LOCATION.push(...PRODUCT_LOCATION_INICIAL.map((f) => ({ ...f })));
 }
 
-const TABLAS = { companies: COMPANIES, product_location: PRODUCT_LOCATION };
+// Almacenes: test 1 con la serie ALM-001/ALM-002 real (como la BD), test 2 con
+// un codigo legacy sin serie, uno sin empresa con ALM-099, uno legacy "PRINCIPAL"
+// de test 1 y uno de otro tenant. Los legacy y los sin empresa existen para
+// probar que la serie ALM-### solo cuenta las filas de la propia empresa.
+const WAREHOUSE_INICIAL = [
+  { id: 'w-test1', tenant_id: 'TEST1DS', company_id: 'c-test1', code: 'ALM-001', name: 'Bodega Uno', is_active: true },
+  { id: 'w-test1b', tenant_id: 'TEST1DS', company_id: 'c-test1', code: 'ALM-002', name: 'Bodega Dos', is_active: true },
+  { id: 'w-test1-legacy', tenant_id: 'TEST1DS', company_id: 'c-test1', code: 'PRINCIPAL', name: 'Legacy', is_active: true },
+  { id: 'w-test2', tenant_id: 'TEST1DS', company_id: 'c-test2', code: 'SEC', name: 'Bodega Hermana', is_active: true },
+  { id: 'w-sin-empresa', tenant_id: 'TEST1DS', company_id: null, code: 'ALM-099', name: 'Bodega Heredada', is_active: true },
+  { id: 'w-angelos', tenant_id: 'ANGELOH7', company_id: 'c-angelos', code: 'BOD-1', name: 'Bodega Angelos', is_active: true },
+];
+
+export const WAREHOUSE = WAREHOUSE_INICIAL.map((f) => ({ ...f }));
+
+export function reiniciarWarehouse() {
+  WAREHOUSE.length = 0;
+  WAREHOUSE.push(...WAREHOUSE_INICIAL.map((f) => ({ ...f })));
+}
+
+const TABLAS = { companies: COMPANIES, product_location: PRODUCT_LOCATION, warehouse: WAREHOUSE };
 
 /** Consultas registradas, para comprobar que se filtraron por la columna correcta. */
 export const consultas = [];
@@ -70,9 +94,11 @@ function construir(tabla) {
   let ordenarPorCreada = false;
   let verb = 'select';
   let patch = null;
+  let insertado = null;
 
   const q = {
     select() { return q; },
+    insert(p) { verb = 'insert'; insertado = p; return q; },
     update(p) { verb = 'update'; patch = p; return q; },
     delete() { verb = 'delete'; return q; },
     eq(columna, valor) { filtros.push({ columna, valor }); return q; },
@@ -99,6 +125,19 @@ function construir(tabla) {
     if (!filas) return { data: null, error: { message: `tabla desconocida: ${tabla}` } };
 
     const encontradas = filas.filter((f) => coincide(f, filtros, orConds));
+
+    // `insert(...)` empuja la fila (o filas) al final de la tabla. El id real
+    // lo pondria el default de la BD; aqui basta una clave unica para que
+    // `reiniciarProductLocation()` pueda restaurar el estado inicial.
+    if (verb === 'insert') {
+      const nuevas = (Array.isArray(insertado) ? insertado : [insertado]).map((f, i) => {
+        const fila = { id: `nuevo-${TABLAS[tabla].length + 1}-${i}`, ...f };
+        TABLAS[tabla].push(fila);
+        return fila;
+      });
+      if (modo === 'multi') return { data: nuevas, error: null };
+      return { data: nuevas[0] ?? null, error: null };
+    }
 
     if (verb === 'update') {
       if (encontradas.length === 0) {

@@ -19,9 +19,12 @@
 --      pelea: el GET filtra por company_id y el upsert chocaba por tenant_id.
 --      Pasa a ser unica por empresa.
 --
---   3. `unique_code_tenant` es `UNIQUE (code, tenant_id)`: por tenant, no por
---      empresa. Como TEST1DS tiene dos empresas, no pueden tener las dos una
---      `1101`. La invariante correcta es `(code, company_id)`.
+--   3. El unique POR TENANT de `Account` (real: `unique_account_code_per_tenant`,
+--      `(code, "tenantId")`; el nombre `unique_code_tenant` que figura en esta
+--      cabecera no es el objeto vivo) es por tenant, no por empresa. Como
+--      TEST1DS tiene dos empresas, no pueden tener las dos una `1101`. La
+--      invariante correcta es `(code, company_id)`. El DROP del bloque 6b va
+--      POR COLUMNAS justamente porque el nombre no coincide.
 --
 -- Tipos (regla dura): `company_id` es `text` porque apunta a `companies.id`.
 --   Backfill: se usa el tenant SOLO cuando ese tenant tiene UNA sola empresa
@@ -274,9 +277,47 @@ BEGIN
   END IF;
 END $$;
 
--- 6b. Quitar el unico por tenant.
-ALTER TABLE public."Account" DROP CONSTRAINT IF EXISTS "unique_code_tenant";
-DROP INDEX IF EXISTS public."unique_code_tenant";
+-- 6b. Quitar el unico por tenant, POR COLUMNAS (no por nombre).
+--     Correccion (8 Oct 2026): el DROP anterior buscaba el nombre
+--     `unique_code_tenant`, pero el objeto real de la BD se llama
+--     `unique_account_code_per_tenant` (y el de FULL_SETUP es un indice, no un
+--     constraint). Un DROP por nombre equivocado NO falla: no hace nada, y el
+--     INSERT de la cuenta que choca vuelve a fallar con el MISMO error y sin
+--     pista de que el DROP no ocurrio (misma trampa que `Account_name_key` y la
+--     044; la 070 lo encontro por esto). Se recorre `pg_index` y se dropea por
+--     columnas, sin importar el nombre.
+DO $$
+DECLARE
+  r record;
+  n int := 0;
+BEGIN
+  FOR r IN
+    SELECT ic.relname AS idxname,
+           k.conname  AS constraint_name,
+           btrim(pg_get_indexdef(i.indexrelid, 1, true), '"') AS c1,
+           btrim(pg_get_indexdef(i.indexrelid, 2, true), '"') AS c2
+    FROM pg_index i
+    JOIN pg_class ic ON ic.oid = i.indexrelid
+    JOIN pg_class tc ON tc.oid = i.indrelid
+    JOIN pg_namespace ns ON ns.oid = tc.relnamespace
+    LEFT JOIN pg_constraint k ON k.conindid = i.indexrelid AND k.contype = 'u'
+    WHERE ns.nspname = 'public' AND tc.relname = 'Account'
+      AND i.indisunique AND NOT i.indisprimary AND i.indnkeyatts = 2
+  LOOP
+    IF (r.c1, r.c2) IN (('code','tenantId'),('tenantId','code'),('code','tenant_id'),('tenant_id','code')) THEN
+      IF r.constraint_name IS NOT NULL THEN
+        EXECUTE format('ALTER TABLE public."Account" DROP CONSTRAINT %I', r.constraint_name);
+      ELSE
+        EXECUTE format('DROP INDEX public.%I', r.idxname);
+      END IF;
+      RAISE NOTICE '035: "Account" - dropeado UNIQUE por tenant % (%)', r.idxname, r.c1 || ',' || r.c2;
+      n := n + 1;
+    END IF;
+  END LOOP;
+  IF n = 0 THEN
+    RAISE NOTICE '035: "Account" - no quedaba UNIQUE (code, tenant)';
+  END IF;
+END $$;
 
 -- 6c. Crear el unico por empresa (los NULL cuentan como distintos, asi que las
 --     8 cuentas legacy sin company_id no colisionan).

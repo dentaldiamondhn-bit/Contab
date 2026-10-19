@@ -1,12 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-import { resolveTenant } from '@/lib/services/budget-service';
-
-function tenantHint(request: NextRequest): string | null {
-  return (
-    request.headers.get('x-tenant-id') || new URL(request.url).searchParams.get('tenantId')
-  );
-}
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 
 function num(value: unknown): number {
   if (typeof value === 'number') return value;
@@ -30,17 +25,19 @@ export async function PUT(
     }
     const body = await request.json();
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    // El CAI se busca por `id` + empresa: antes solo por tenant, asi que una
+    // empresa podia editar el CAI de su hermana.
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
 
     const { data: existing } = await supabase
       .from('cai')
       .select('id, cai, cai_number, issue_date, start_number, end_number, current_number, expiration_date, status')
       .eq('id', caiId)
-      .eq('tenant_id', tenantId)
+      .eq('company_id', empresa.companyId)
       .maybeSingle();
     if (!existing?.id) {
       return NextResponse.json(
-        { success: false, error: 'CAI no encontrado o no pertenece a este tenant' },
+        { success: false, error: 'CAI no encontrado o no pertenece a esta empresa' },
         { status: 404 },
       );
     }
@@ -105,7 +102,7 @@ export async function PUT(
         updated_at: now,
       })
       .eq('id', caiId)
-      .eq('tenant_id', tenantId)
+      .eq('company_id', empresa.companyId)
       .select()
       .single();
 
@@ -128,7 +125,9 @@ export async function PUT(
       },
       message: 'CAI actualizado correctamente',
     });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
@@ -145,17 +144,17 @@ export async function DELETE(
       return NextResponse.json({ success: false, error: 'Parámetros incompletos' }, { status: 400 });
     }
     const supabase = getSupabaseServer();
-    const tenantId = await resolveTenant(companyId, tenantHint(request));
+    const empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyId }));
 
     const { data: existing } = await supabase
       .from('cai')
       .select('id, cai, cai_number')
       .eq('id', caiId)
-      .eq('tenant_id', tenantId)
+      .eq('company_id', empresa.companyId)
       .maybeSingle();
     if (!existing?.id) {
       return NextResponse.json(
-        { success: false, error: 'CAI no encontrado o no pertenece a este tenant' },
+        { success: false, error: 'CAI no encontrado o no pertenece a esta empresa' },
         { status: 404 },
       );
     }
@@ -173,7 +172,7 @@ export async function DELETE(
         .from('Invoice')
         .select('id', { count: 'exact', head: true })
         .eq('cai', code)
-        .eq('tenantId', tenantId);
+        .eq('company_id', empresa.companyId);
       usedCount += count || 0;
     }
     if (usedCount > 0) {
@@ -183,13 +182,19 @@ export async function DELETE(
       );
     }
 
-    const { error } = await supabase.from('cai').delete().eq('id', caiId).eq('tenant_id', tenantId);
+    const { error } = await supabase
+      .from('cai')
+      .delete()
+      .eq('id', caiId)
+      .eq('company_id', empresa.companyId);
     if (error) {
       return NextResponse.json({ success: false, error: error.message }, { status: 500 });
     }
 
     return NextResponse.json({ success: true, message: 'CAI eliminado correctamente' });
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     const message = error instanceof Error ? error.message : 'Error interno';
     return NextResponse.json({ success: false, error: message }, { status: 500 });
   }

@@ -110,7 +110,7 @@ export default function POSPage() {
 
   const loadCAIInfo = async () => {
     try {
-      const response = await fetch(`/api/billing/cai?tenantId=${companyId}`);
+      const response = await fetch(`/api/billing/cai?companyId=${companyId}`);
       if (response.ok) {
         const data = await response.json();
         setCaiInfo(data);
@@ -370,7 +370,7 @@ export default function POSPage() {
         date: new Date().toISOString()
       };
 
-      const response = await fetch('/api/billing/invoices', {
+      const response = await fetch(`/api/billing/invoices?companyId=${companyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(invoiceData)

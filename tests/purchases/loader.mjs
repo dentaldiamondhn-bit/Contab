@@ -51,5 +51,63 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
+  if (specifier === '@/lib/bank-reconciliation-db') {
+    return {
+      url: new URL('../../lib/bank-reconciliation-db.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/supplier-cai') {
+    return {
+      url: new URL('../../lib/supplier-cai.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/supplier-withholding') {
+    return {
+      url: new URL('../../lib/supplier-withholding.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  // Escritor contable canonico (Transaction + JournalEntry). Se carga REAL para
+  // que el asiento de compra/pago se pruebe contra el codigo que corre.
+  if (specifier === '@/lib/services/journal-service') {
+    return {
+      url: new URL('../../lib/services/journal-service.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/services/period-lock') {
+    return {
+      url: new URL('../../lib/services/period-lock.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/services/account-audit') {
+    return {
+      url: new URL('../../lib/services/account-audit.ts', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/auth-server') {
+    return {
+      url: new URL('./auth-server-mock.mjs', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
+  if (specifier === '@/lib/workspace') {
+    return {
+      url: new URL('./workspace-mock.mjs', import.meta.url).href,
+      shortCircuit: true,
+    };
+  }
+
   return nextResolve(specifier, context);
 }

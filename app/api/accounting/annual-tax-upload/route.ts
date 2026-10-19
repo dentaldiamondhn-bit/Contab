@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { encryptSARConfig } from '@/lib/services/det-uploader';
 import { submitAnnualTaxToSARR, validateAnnualTaxCompleteness } from '@/lib/services/annual-tax-uploader';
@@ -22,63 +23,19 @@ const ERROR_HINTS: Record<string, string> = {
 
 const DECLARATION_TYPES: AnnualTaxDeclarationType[] = ['ISV', 'ISR', 'RETENCIONES'];
 
-function configKey(tenantId: string): string {
-  return `${CONFIG_KEY_PREFIX}:${tenantId}`;
+// La clave se indexa por companyId (companies.id), no por tenant: dos empresas
+// del mismo tenant (`TEST1DS`) compartirian la configuracion y la sesion del
+// portal SAR. La empresa sale del contexto validado, nunca del cliente.
+// Ver lib/tenant-resolver.ts y AGENTS.md seccion 1.
+function configKey(companyId: string): string {
+  return `${CONFIG_KEY_PREFIX}:${companyId}`;
 }
 
-async function getUserTenantId(userId: string): Promise<string | null> {
-  try {
-    const byAuth = await (db as any).user.findFirst({
-      where: { authId: userId },
-      select: { tenantId: true },
-    });
-    if (byAuth?.tenantId) return byAuth.tenantId;
-  } catch {
-    /* la búsqueda por authId puede fallar si el esquema difiere; se ignora */
-  }
-  try {
-    const byId = await (db as any).user.findFirst({
-      where: { id: userId },
-      select: { tenantId: true },
-    });
-    if (byId?.tenantId) return byId.tenantId;
-  } catch {
-    /* el id de Clerk puede no ser un UUID válido para la columna id */
-  }
-  return null;
-}
-
-async function canAccessTenant(
-  userId: string,
-  requestedTenantId: string,
-  headerTenantId: string | null
-): Promise<boolean> {
-  const trimmed = (requestedTenantId || '').trim();
-  if (!trimmed) return false;
-
-  const headerTenant = (headerTenantId || '').trim();
-  if (headerTenant && headerTenant === trimmed) return true;
-
-  const userTenant = await getUserTenantId(userId);
-  if (userTenant && userTenant === trimmed) return true;
-
-  const ownerTenant = headerTenant || userTenant || '';
-  if (!ownerTenant) return false;
-
-  const { data, error } = await supabaseService
-    .from('companies')
-    .select('id')
-    .eq('id', trimmed)
-    .eq('tenant_id', ownerTenant)
-    .maybeSingle();
-  return !error && !!data;
-}
-
-async function readAnnualTaxConfig(tenantId: string): Promise<AnnualSARUploadConfig | null> {
+async function readAnnualTaxConfig(companyId: string): Promise<AnnualSARUploadConfig | null> {
   const { data, error } = await supabaseService
     .from('system_settings')
     .select('value')
-    .eq('key', configKey(tenantId))
+    .eq('key', configKey(companyId))
     .maybeSingle();
   if (error || !data?.value) return null;
   try {
@@ -93,15 +50,15 @@ async function readAnnualTaxConfig(tenantId: string): Promise<AnnualSARUploadCon
 }
 
 async function writeAnnualTaxConfig(
-  tenantId: string,
+  companyId: string,
   config: AnnualSARUploadConfig,
   updatedBy: string
 ): Promise<{ error: any }> {
   const value = JSON.stringify(config);
   const row = {
-    key: configKey(tenantId),
+    key: configKey(companyId),
     value,
-    description: `Configuración de carga SAR de declaraciones anuales (${tenantId})`,
+    description: `Configuración de carga SAR de declaraciones anuales (${companyId})`,
     category: CONFIG_CATEGORY,
     updated_at: new Date().toISOString(),
     updated_by: updatedBy,
@@ -109,13 +66,13 @@ async function writeAnnualTaxConfig(
   const { data: existing } = await supabaseService
     .from('system_settings')
     .select('key')
-    .eq('key', configKey(tenantId))
+    .eq('key', configKey(companyId))
     .maybeSingle();
   if (existing) {
     const { error } = await supabaseService
       .from('system_settings')
       .update(row)
-      .eq('key', configKey(tenantId));
+      .eq('key', configKey(companyId));
     return { error };
   }
   const { error } = await supabaseService.from('system_settings').insert([row]);
@@ -150,26 +107,17 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenantId } = body || {};
-    if (!tenantId) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG', error: 'Tenant ID requerido' },
-        { status: 400 }
-      );
-    }
-
-    const canAccess = await canAccessTenant(userId, tenantId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG', error: 'Empresa no encontrada o sin permiso' },
-        { status: 404 }
-      );
-    }
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: body?.companyId || body?.tenantId || undefined,
+      })
+    );
+    const companyId = empresa.companyId;
 
     const action = body?.action || 'upload';
 
     if (action === 'get-config') {
-      const config = await readAnnualTaxConfig(tenantId);
+      const config = await readAnnualTaxConfig(companyId);
       if (!config) {
         return NextResponse.json({
           configured: false,
@@ -223,7 +171,7 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const existing = await readAnnualTaxConfig(tenantId);
+      const existing = await readAnnualTaxConfig(companyId);
       let passwordEncrypted = existing?.passwordEncrypted || '';
       const hasNewPassword = typeof password === 'string' && password.trim() !== '';
       if (hasNewPassword) {
@@ -254,7 +202,7 @@ export async function POST(request: NextRequest) {
           : undefined,
       };
 
-      const { error } = await writeAnnualTaxConfig(tenantId, config, userId);
+      const { error } = await writeAnnualTaxConfig(companyId, config, userId);
       if (error) {
         console.error('Error guardando configuración SAR de declaraciones anuales:', error);
         return NextResponse.json(
@@ -275,7 +223,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (action === 'test') {
-      const config = await readAnnualTaxConfig(tenantId);
+      const config = await readAnnualTaxConfig(companyId);
       if (!config) {
         return NextResponse.json({ ok: false, errorHint: 'CONFIG', error: ERROR_HINTS.CONFIG });
       }
@@ -289,7 +237,7 @@ export async function POST(request: NextRequest) {
     const { summary, company, tipo } = body || {};
     const companyInfo = { rtn: company?.rtn, nombre: company?.nombre };
 
-    const sessionState = await getLiveSARSession(tenantId);
+    const sessionState = await getLiveSARSession(companyId);
     if (!isSARSessionValid(sessionState.session)) {
       return NextResponse.json({
         ok: false,
@@ -312,7 +260,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const config = await readAnnualTaxConfig(tenantId);
+    const config = await readAnnualTaxConfig(companyId);
     if (!config) {
       return NextResponse.json({ ok: false, errorHint: 'CONFIG', error: ERROR_HINTS.CONFIG });
     }
@@ -334,6 +282,8 @@ export async function POST(request: NextRequest) {
       error: !result.ok && result.errorHint ? ERROR_HINTS[result.errorHint] : undefined,
     });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error subiendo declaraciones anuales al portal SAR:', error);
     return NextResponse.json(
       { ok: false, errorHint: 'CONFIG', error: 'Error interno del servidor' },

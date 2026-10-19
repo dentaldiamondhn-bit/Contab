@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
-import { db } from '@/lib/db';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirEmpresa } from '@/lib/purchase-db';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 import { submitDETToSARR } from '@/lib/services/det-uploader';
 import { getLiveSARSession, isSARSessionValid } from '@/lib/services/sar-session';
@@ -13,59 +14,15 @@ const ERROR_HINTS: Record<string, string> = {
   PORTAL: 'El portal SAR respondió con un error interno.',
 };
 
-async function getUserTenantId(userId: string): Promise<string | null> {
-  try {
-    const byAuth = await (db as any).user.findFirst({
-      where: { authId: userId },
-      select: { tenantId: true },
-    });
-    if (byAuth?.tenantId) return byAuth.tenantId;
-  } catch {
-    /* la búsqueda por authId puede fallar si el esquema difiere; se ignora */
-  }
-  try {
-    const byId = await (db as any).user.findFirst({
-      where: { id: userId },
-      select: { tenantId: true },
-    });
-    if (byId?.tenantId) return byId.tenantId;
-  } catch {
-    /* el id de Clerk puede no ser un UUID válido para la columna id */
-  }
-  return null;
-}
-
-async function canAccessTenant(
-  userId: string,
-  requestedTenantId: string,
-  headerTenantId: string | null
-): Promise<boolean> {
-  const trimmed = (requestedTenantId || '').trim();
-  if (!trimmed) return false;
-
-  const headerTenant = (headerTenantId || '').trim();
-  if (headerTenant && headerTenant === trimmed) return true;
-
-  const userTenant = await getUserTenantId(userId);
-  if (userTenant && userTenant === trimmed) return true;
-
-  const ownerTenant = headerTenant || userTenant || '';
-  if (!ownerTenant) return false;
-
-  const { data, error } = await supabaseService
-    .from('companies')
-    .select('id')
-    .eq('id', trimmed)
-    .eq('tenant_id', ownerTenant)
-    .maybeSingle();
-  return !error && !!data;
-}
-
-async function readSARConfig(tenantId: string): Promise<SARUploadConfig | null> {
+// La configuracion SAR vive en `system_settings` con la clave
+// `sar_config:<companyId>` (companies.id), no por tenant: dos empresas del mismo
+// tenant (`TEST1DS`) compartirian la conexion al portal SAR. La empresa sale del
+// contexto validado. Ver lib/tenant-resolver.ts y AGENTS.md seccion 1.
+async function readSARConfig(companyId: string): Promise<SARUploadConfig | null> {
   const { data, error } = await supabaseService
     .from('system_settings')
     .select('value')
-    .eq('key', `sar_config:${tenantId}`)
+    .eq('key', `sar_config:${companyId}`)
     .maybeSingle();
   if (error || !data?.value) return null;
   try {
@@ -87,20 +44,15 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tenantId, detText, periodo, cai, correlativo } = body || {};
-    if (!tenantId) {
-      return NextResponse.json({ ok: false, errorHint: 'CONFIG', error: 'Tenant ID requerido' }, { status: 400 });
-    }
+    const { detText, periodo, cai, correlativo } = body || {};
+    const empresa = exigirEmpresa(
+      await contextoDeEmpresa(request, {
+        companyIdDeRuta: body?.tenantId || body?.companyId || undefined,
+      })
+    );
+    const companyId = empresa.companyId;
 
-    const canAccess = await canAccessTenant(userId, tenantId, request.headers.get('x-tenant-id'));
-    if (!canAccess) {
-      return NextResponse.json(
-        { ok: false, errorHint: 'CONFIG', error: 'Empresa no encontrada o sin permiso' },
-        { status: 404 }
-      );
-    }
-
-    const sessionState = await getLiveSARSession(tenantId);
+    const sessionState = await getLiveSARSession(companyId);
     if (!isSARSessionValid(sessionState.session)) {
       return NextResponse.json({
         ok: false,
@@ -111,7 +63,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const config = await readSARConfig(tenantId);
+    const config = await readSARConfig(companyId);
     if (!config) {
       return NextResponse.json(
         { ok: false, errorHint: 'CONFIG', error: ERROR_HINTS.CONFIG },
@@ -130,6 +82,8 @@ export async function POST(request: NextRequest) {
       error: !result.ok && result.errorHint ? ERROR_HINTS[result.errorHint] : undefined,
     });
   } catch (error) {
+    const r = respuestaDeErrorDeEmpresa(error);
+    if (r) return r;
     console.error('Error subiendo DET al portal SAR:', error);
     return NextResponse.json(
       { ok: false, errorHint: 'CONFIG', error: 'Error interno del servidor' },

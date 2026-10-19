@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   fetchPurchases,
   createPurchase,
+  aprobarCompra,
   updatePurchase,
   deletePurchase,
 } from '@/lib/purchase-db';
@@ -47,8 +48,18 @@ function sembrar() {
     ],
     supplier_price_history: [],
     SupplierPayment: [],
-    Account: [],
+    // Catalogo de test 1. El asiento de compra es obligatorio (ver
+    // `resolverCuentasDeCompra`, que resuelve por prefijo y por empresa): sin
+    // banco (1101), gasto (6101) e ISV (1106) la aprobacion falla. `tenantId`
+    // (camel) es el que usa `createJournalTransaction` para validar la cuenta.
+    Account: [
+      { id: 'acc-1101-t1', code: '1101', company_id: T1, tenantId: TEN, tenant_id: TEN, name: 'Banco' },
+      { id: 'acc-1106-t1', code: '1106', company_id: T1, tenantId: TEN, tenant_id: TEN, name: 'ISV Credito Fiscal' },
+      { id: 'acc-6101-t1', code: '6101', company_id: T1, tenantId: TEN, tenant_id: TEN, name: 'Compras' },
+    ],
+    Transaction: [],
     JournalEntry: [],
+    JournalEntryLine: [],
   };
   sb = crearSupabaseFalso({ bd, seq: 0 });
 }
@@ -138,14 +149,18 @@ describe('createPurchase', () => {
     assert.equal(bd.PurchaseItem.at(-1).product_id, 'prod-t1');
   });
 
-  test('el stock se descuenta del producto de la empresa, no del homonimo ajeno', async () => {
+  test('crear no toca el stock; es aprobar el que lo sube al producto de la empresa', async () => {
     // Las dos empresas tienen un producto llamado "Cafe". Con el tenant como
     // filtro (el bug original: `.eq('tenant_id', companyId)`) no encontraba
     // ninguno y creaba una copia nueva en cada compra.
     const antesT1 = bd.product.find((p) => p.id === 'prod-t1').current_stock;
     const antesE1 = bd.product.find((p) => p.id === 'prod-e1').current_stock;
 
-    await createPurchase(sb, em(T1), cuerpo());
+    const { data } = await createPurchase(sb, em(T1), cuerpo());
+    // La compra nace PENDIENTE: no aplica efectos.
+    assert.equal(bd.product.find((p) => p.id === 'prod-t1').current_stock, antesT1);
+
+    await aprobarCompra(sb, em(T1), data.id);
 
     assert.equal(bd.product.find((p) => p.id === 'prod-t1').current_stock, antesT1 + 2);
     assert.equal(bd.product.find((p) => p.id === 'prod-e1').current_stock, antesE1);
@@ -153,7 +168,8 @@ describe('createPurchase', () => {
 
   test('no crea un producto duplicado si el de la empresa ya existe', async () => {
     const n = bd.product.length;
-    await createPurchase(sb, em(T1), cuerpo());
+    const { data } = await createPurchase(sb, em(T1), cuerpo());
+    await aprobarCompra(sb, em(T1), data.id);
     assert.equal(bd.product.length, n);
   });
 });

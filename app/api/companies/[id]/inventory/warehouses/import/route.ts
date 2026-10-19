@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
-import { isMigrationMissingError } from '@/lib/services/warehouse-service';
+import { isMigrationMissingError, proximoNumeroCodigoAlmacen } from '@/lib/services/warehouse-service';
 import Papa from 'papaparse';
 import * as XLSX from 'xlsx';
 
@@ -115,12 +115,11 @@ export async function POST(
     const parsed = isExcel ? parseExcelToRecords(buffer) : parseCsvToRecords(decodeCsvBuffer(buffer));
     if (parsed.error) return NextResponse.json({ success: false, error: parsed.error }, { status: 400 });
 
-    const hasCode = parsed.records.some((r) => String(r.code || '').trim());
     const hasName = parsed.records.some((r) => String(r.name || '').trim());
-    if (!hasCode || !hasName) {
+    if (!hasName) {
       return NextResponse.json({
         success: false,
-        error: 'El archivo debe incluir las columnas "Código" y "Nombre" (code, name)',
+        error: 'El archivo debe incluir la columna "Nombre" (name)',
       }, { status: 400 });
     }
 
@@ -148,19 +147,24 @@ export async function POST(
     const seenInFile = new Set<string>();
     let skippedDuplicates = 0;
 
+    // Serie de codigos ALM-### de la EMPRESA: si el archivo no trae `code`, el
+    // servidor lo asigna (mismo criterio que `createWarehouse` en el modal).
+    let proximoCodigo = await proximoNumeroCodigoAlmacen(empresa.companyId, tenantId);
+
     parsed.records.forEach((r, idx) => {
       const rowNum = idx + 2;
-      const code = String(r.code || '').trim().toUpperCase();
       const name = String(r.name || '').trim();
-      if (!code || !name) {
-        errors.push({ row: rowNum, message: `Faltan código y/o nombre (code="${r.code}", name="${r.name}")` });
+      if (!name) {
+        errors.push({ row: rowNum, message: `Falta el nombre (name="${r.name}")` });
         return;
       }
-      if (existingCodes.has(code) || seenInFile.has(code)) {
+      const codePropio = String(r.code || '').trim().toUpperCase();
+      if (codePropio && (existingCodes.has(codePropio) || seenInFile.has(codePropio))) {
         skippedDuplicates++;
         return;
       }
-      seenInFile.add(code);
+      if (codePropio) seenInFile.add(codePropio);
+      const code = codePropio || `ALM-${String(proximoCodigo++).padStart(3, '0')}`;
       rowsToInsert.push({
         tenant_id: tenantId,
         company_id: empresa.companyId,

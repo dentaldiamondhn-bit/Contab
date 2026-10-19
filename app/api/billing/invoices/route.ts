@@ -7,6 +7,7 @@ import {
   isInvoiceNumberTaken,
   ExhaustedCaiError,
 } from "@/lib/billing/invoice-number";
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
 import { checkSaleStock, applySaleStock } from "@/lib/services/stock-sale";
 
 // Intentos de emision cuando el numero pedido choca con uno existente. Sin CAI
@@ -122,11 +123,18 @@ export async function POST(request: NextRequest) {
   try {
     const invoiceData = await request.json();
 
-    let tenantId: string | null = invoiceData.tenantId || null;
+    // La frontera es la empresa: dos empresas del mismo tenant (test 1 y test 2)
+    // llevan series de factura y CAI separados (067). `contextoDeEmpresa` valida
+    // pertenencia; sin empresa no se emite (antes se caia al tenant y la factura
+    // quedaba con el `company_id` del trigger, que es la empresa mas antigua del
+    // tenant: la serie de test 2 se mezclaba con la de test 1).
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: invoiceData.companyId });
+    let tenantId: string | null = empresa.tenantId || invoiceData.tenantId || null;
     if (!tenantId) tenantId = await getAuthTenantId();
-    if (!tenantId) {
+    const companyId = empresa.companyId;
+    if (!tenantId || !companyId) {
       return NextResponse.json(
-        { error: "tenantId requerido", details: "No se pudo determinar el tenant de la factura" },
+        { error: "No se pudo determinar la empresa de la factura" },
         { status: 400 }
       );
     }
@@ -155,7 +163,7 @@ export async function POST(request: NextRequest) {
       quantity: Number(item.quantity || 0),
       unitPrice: Number(item.unitPrice || 0),
     }));
-    const shortages = await checkSaleStock(tenantId, saleLines);
+    const shortages = await checkSaleStock(companyId, saleLines);
     if (shortages.length > 0) {
       return NextResponse.json(
         {
@@ -177,10 +185,10 @@ export async function POST(request: NextRequest) {
     // 00000006..00000008 emitia 00000001 una y otra vez. La busqueda tambien
     // era global, no por empresa. Ver lib/billing/invoice-number.ts.
     //
-    // `Invoice_invoiceNumber_key` es UNIQUE **global** (no por empresa), asi que
-    // el numero tambien puede estar ocupado por otra companyia. Por eso el
-    // insert va en reintentos: si la BD lo rechaza con 23505 se pide el
-    // siguiente correlativo en vez de fallar la emision.
+    // `Invoice_company_id_invoiceNumber_key` es UNIQUE **por empresa** (migracion
+    // 067). Dos empresas del mismo tenant ya pueden tener el 00000001 cada una.
+    // El insert sigue en reintentos por si dos cajas de la MISMA empresa emiten a
+    // la vez: si la BD lo rechaza con 23505 se pide el siguiente correlativo.
     const now = new Date();
     const issueDate = (invoiceData.date ? new Date(invoiceData.date) : now).toISOString().slice(0, 10);
     const subtotal = Number(invoiceData.totals?.subtotal || 0);
@@ -190,13 +198,14 @@ export async function POST(request: NextRequest) {
     let invoice: any = null;
     let invoiceNumber = "";
     let reservado: Awaited<ReturnType<typeof reserveInvoiceNumber>> | null = null;
-    // Suelo del correlativo: si el numero choca con el UNIQUE global lo sube
-    // para no volver a proponer el mismo. Ver reserveInvoiceNumber.
+    // Suelo del correlativo: solo actua si el numero choca con el UNIQUE de la
+    // MISMA empresa (dos emisiones simultaneas), para no volver a proponerlo.
+    // Ver reserveInvoiceNumber.
     let suelo = 0;
 
     for (let intento = 1; intento <= MAX_INTENTOS_NUMERO; intento++) {
       try {
-        reservado = await reserveInvoiceNumber(tenantId, { suelo });
+        reservado = await reserveInvoiceNumber(companyId, { suelo });
       } catch (error: any) {
         if (error instanceof ExhaustedCaiError) {
           return NextResponse.json({ error: error.message, code: "CAI_AGOTADO" }, { status: 400 });
@@ -214,7 +223,7 @@ export async function POST(request: NextRequest) {
       // Si esta empresa ya tiene ese numero no es un conflicto de la serie: el
       // numero lo elige el servidor, asi que solo puede ser otra emision que
       // se llevo este correlativo a la vez. Se reintenta con el siguiente.
-      if (await isInvoiceNumberTaken(tenantId, invoiceNumber)) {
+      if (await isInvoiceNumberTaken(companyId, invoiceNumber)) {
         console.warn(
           `[billing/invoices] ${invoiceNumber} ya fue emitido por esta empresa; se reintenta con el siguiente (intento ${intento}).`
         );
@@ -228,6 +237,7 @@ export async function POST(request: NextRequest) {
         .insert({
           id: randomUUID(),
           tenantId,
+          company_id: companyId,
           invoiceNumber,
           invoiceType: "CUSTOMER",
           status: "PAID",
@@ -263,11 +273,8 @@ export async function POST(request: NextRequest) {
         break;
       }
 
-      // 23505 = el numero ya existe (otra empresa o emision simultanea). Se pide
-      // el siguiente; cualquier otro error es real y se propaga. El `suelo` es
-      // imprescindible cuando el choque es con OTRA empresa: la serie propia
-      // (que solo mira las facturas de este tenant) volveria a proponer el
-      // mismo numero indefinidamente.
+      // 23505 = el numero ya existe para esta empresa (emision simultanea de dos
+      // cajas). Se pide el siguiente; cualquier otro error es real y se propaga.
       if (error.code === "23505") {
         console.warn(
           `[billing/invoices] ${invoiceNumber} ya existe; se reintenta con el siguiente correlativo (intento ${intento}).`
@@ -347,6 +354,7 @@ export async function POST(request: NextRequest) {
     // applySaleStock) y se borra la factura, para no dejar stock descontado
     // sin venta.
     const stockResult = await applySaleStock({
+      companyId,
       tenantId,
       invoiceId: invoice.id,
       invoiceNumber,
@@ -391,6 +399,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, invoice, message: "Factura emitida exitosamente" });
   } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     console.error("=== ERROR IN INVOICE POST ===", error?.message);
     return NextResponse.json(
       { error: "Internal server error", details: error?.message },
@@ -408,14 +418,19 @@ export async function GET(request: NextRequest) {
     const typeParam = searchParams.get("type");
     const limitParam = searchParams.get("limit");
 
-    const tenantId = searchParams.get("tenantId") || (await getAuthTenantId());
-    if (!tenantId) return NextResponse.json([]);
+    // Aislamiento por empresa: si la peticion trae empresa (o la activa de la
+    // cookie) se filtra por `company_id`; si no, se mantiene el filtro por tenant
+    // (vista amplia del contador, `?limit=100` sin contexto de empresa).
+    const empresa = await contextoDeEmpresa(request);
+    const companyId = empresa.companyId;
+    const tenantId = empresa.tenantId || searchParams.get("tenantId") || (await getAuthTenantId());
+    if (!tenantId && !companyId) return NextResponse.json([]);
 
     let query = (supabaseService as any)
       .from("Invoice")
       .select("*")
-      .eq("tenantId", tenantId)
       .order("issueDate", { ascending: false });
+    query = companyId ? query.eq("company_id", companyId) : query.eq("tenantId", tenantId);
 
     if (typeParam) query = query.eq("invoiceType", typeParam);
     if (startDate) query = query.gte("issueDate", startDate);
@@ -474,7 +489,9 @@ export async function GET(request: NextRequest) {
     });
 
     return NextResponse.json(formatted);
-  } catch (error) {
+  } catch (error: any) {
+    const deEmpresa = respuestaDeErrorDeEmpresa(error);
+    if (deEmpresa) return deEmpresa;
     console.error("Error in invoice GET route:", error);
     return NextResponse.json([]);
   }
