@@ -33,14 +33,20 @@ function sembrar() {
       { id: 'p-t1', company_id: T1, tenant_id: TEN, supplier_id: 's-t1', invoice_number: 'FAC-1', purchase_type: 'merchandise', expense_category: null, subtotal: 500, tax_amount: 75, total: 575 },
       { id: 'p-t2', company_id: T2, tenant_id: TEN, supplier_id: 's-t2', invoice_number: 'FAC-2', purchase_type: 'merchandise', expense_category: null, subtotal: 300, tax_amount: 45, total: 345 },
       { id: 'p-vacia', company_id: T1, tenant_id: TEN, supplier_id: 's-t1', invoice_number: 'FAC-3', purchase_type: 'merchandise', expense_category: null, subtotal: 0, tax_amount: 0, total: 0 },
+      { id: 'p-caja', company_id: T1, tenant_id: TEN, supplier_id: 's-t1', invoice_number: 'FAC-CAJA', purchase_type: 'merchandise', expense_category: null, subtotal: 200, tax_amount: 30, total: 230 },
     ],
     PurchaseItem: [
       { id: 'pi-1', purchase_id: 'p-t1', company_id: T1, tenant_id: TEN, product_id: 'prod-1', product_name: 'Cafe', quantity: 5, unit_price: 100, tax_rate: 15, subtotal: 500, tax_amount: 75, total: 575 },
       { id: 'pi-2', purchase_id: 'p-t2', company_id: T2, tenant_id: TEN, product_id: 'prod-2', product_name: 'Te', quantity: 3, unit_price: 100, tax_rate: 15, subtotal: 300, tax_amount: 45, total: 345 },
+      // Compra medida: 2 Cajas de 50 unidades. `pi-1` y `pi-2` no traen ni `unit`
+      // ni `unit_factor` (el caso pre-074: degradacion a factor 1).
+      { id: 'pi-caja', purchase_id: 'p-caja', company_id: T1, tenant_id: TEN, product_id: 'prod-caja', product_name: 'Cafe Grano', quantity: 2, unit: 'Caja', unit_factor: 50, unit_price: 100, tax_rate: 15, subtotal: 200, tax_amount: 30, total: 230 },
     ],
     product: [
       { id: 'prod-1', company_id: T1, tenant_id: TEN, name: 'Cafe', current_stock: 50, stock_quantity: 50 },
       { id: 'prod-2', company_id: T2, tenant_id: TEN, name: 'Te', current_stock: 20, stock_quantity: 20 },
+      // Stock en UNIDAD BASE: 2 Cajas x 50 = 100 unidades.
+      { id: 'prod-caja', company_id: T1, tenant_id: TEN, name: 'Cafe Grano', current_stock: 100, stock_quantity: 100 },
     ],
     Supplier: [
       { id: 's-t1', company_id: T1, tenant_id: TEN, name: 'Proveedor T1', rtn: '0801-2' },
@@ -300,5 +306,114 @@ describe('deletePurchaseReturn', () => {
     const res = await deletePurchaseReturn(sb, em(T2), id);
     assert.equal(res.notFound, true);
     assert.equal(bd.PurchaseReturn.length, 1);
+  });
+});
+
+describe('devoluciones en la medida de la linea (T9)', () => {
+  test('devolver 1 Caja (factor 50) baja 50 unidades de stock, no 1', async () => {
+    const res = await createPurchaseReturn(sb, em(T1), {
+      purchase_id: 'p-caja',
+      items: [{ purchase_item_id: 'pi-caja', quantity: 1 }],
+    });
+
+    assert.equal(bd.PurchaseReturnItem.length, 1);
+    const linea = bd.PurchaseReturnItem[0];
+    assert.equal(linea.unit, 'Caja');
+    assert.equal(linea.unit_factor, 50);
+    assert.equal(linea.quantity, 1);
+
+    const prod = bd.product.find((p) => p.id === 'prod-caja');
+    assert.equal(prod.current_stock, 50); // 100 - 1 Caja x 50
+    assert.equal(prod.stock_quantity, 50);
+
+    // La medida sale tambien en la respuesta (transformReturn pasa items tal cual).
+    assert.equal(res.data.items[0].unit, 'Caja');
+    assert.equal(res.data.items[0].unit_factor, 50);
+  });
+
+  test('borrar la devolucion medida repone 50 (simetrico), no 1', async () => {
+    await createPurchaseReturn(sb, em(T1), {
+      purchase_id: 'p-caja',
+      items: [{ purchase_item_id: 'pi-caja', quantity: 1 }],
+    });
+    assert.equal(bd.product.find((p) => p.id === 'prod-caja').current_stock, 50);
+    const id = bd.PurchaseReturn[0].id;
+
+    const res = await deletePurchaseReturn(sb, em(T1), id);
+    assert.equal(res.error, null);
+    assert.equal(bd.PurchaseReturn.length, 0);
+    assert.equal(bd.PurchaseReturnItem.length, 0);
+    const prod = bd.product.find((p) => p.id === 'prod-caja');
+    assert.equal(prod.current_stock, 100); // 50 + 50
+    assert.equal(prod.stock_quantity, 100);
+  });
+
+  test('400 al devolver mas de lo disponible EN LA MEDIDA (3 de 2 Cajas) y no escribe nada', async () => {
+    await assert.rejects(
+      () => createPurchaseReturn(sb, em(T1), {
+        purchase_id: 'p-caja',
+        items: [{ purchase_item_id: 'pi-caja', quantity: 3 }],
+      }),
+      (e) => e instanceof ErrorDeEmpresa && e.estado === 400 && /mas de lo disponible/.test(e.message)
+    );
+    assert.equal(bd.PurchaseReturn.length, 0);
+    assert.equal(bd.PurchaseReturnItem.length, 0);
+    assert.equal(bd.product.find((p) => p.id === 'prod-caja').current_stock, 100);
+    assert.equal(bd.JournalEntry.length, 0);
+  });
+
+  test('compra sin medida (sin unit_factor) se comporta igual que siempre', async () => {
+    await createPurchaseReturn(sb, em(T1), {
+      purchase_id: 'p-t1',
+      items: [{ purchase_item_id: 'pi-1', quantity: 2 }],
+    });
+    const linea = bd.PurchaseReturnItem[0];
+    assert.equal(linea.unit, null);
+    assert.equal(linea.unit_factor, 1);
+    assert.equal(linea.quantity, 2);
+    assert.equal(bd.product.find((p) => p.id === 'prod-1').current_stock, 48); // 50 - 2x1
+
+    const id = bd.PurchaseReturn[0].id;
+    const res = await deletePurchaseReturn(sb, em(T1), id);
+    assert.equal(res.error, null);
+    assert.equal(bd.product.find((p) => p.id === 'prod-1').current_stock, 50);
+  });
+
+  test('cantidad que no da base entera lanza y NO queda ni cabecera ni linea', async () => {
+    // 1.01 Caja x 50 = 50.5 unidades: base no entera (1.3 x 50 si da 65 exacto).
+    await assert.rejects(
+      () => createPurchaseReturn(sb, em(T1), {
+        purchase_id: 'p-caja',
+        items: [{ purchase_item_id: 'pi-caja', quantity: 1.01 }],
+      }),
+      (e) => e instanceof Error && /cantidad base invalida/.test(e.message)
+    );
+    assert.equal(bd.PurchaseReturn.length, 0);
+    assert.equal(bd.PurchaseReturnItem.length, 0);
+    assert.equal(bd.product.find((p) => p.id === 'prod-caja').current_stock, 100);
+    assert.equal(bd.JournalEntry.length, 0);
+    assert.equal(bd.JournalEntryLine.length, 0);
+  });
+
+  test('una devolucion vieja (unit_factor NULL) repone su quantity, no lanza', async () => {
+    // Fila pre-074: `unit_factor` no existia. `factorValido` la lee como 1.
+    bd.PurchaseReturn.push({
+      id: 'ret-vieja', company_id: T1, tenant_id: TEN, purchase_id: 'p-t1',
+      supplier_id: 's-t1', invoice_number: 'FAC-1', return_number: 'DEV-V',
+      journal_entry_id: null, subtotal: 200, tax_amount: 30, total: 230,
+    });
+    bd.PurchaseReturnItem.push({
+      id: 'pri-vieja', return_id: 'ret-vieja', company_id: T1, tenant_id: TEN,
+      purchase_item_id: 'pi-1', product_id: 'prod-1', product_name: 'Cafe',
+      quantity: 2, unit: null, unit_factor: null, unit_price: 100,
+      tax_rate: 15, subtotal: 200, tax_amount: 30, total: 230,
+    });
+    bd.product.find((p) => p.id === 'prod-1').current_stock = 48; // la devolucion ya la habia bajado
+
+    const res = await deletePurchaseReturn(sb, em(T1), 'ret-vieja');
+    assert.equal(res.error, null);
+    assert.equal(bd.product.find((p) => p.id === 'prod-1').current_stock, 50); // 48 + 2x1
+    assert.equal(bd.PurchaseReturn.length, 0);
+    assert.equal(bd.PurchaseReturnItem.length, 0);
   });
 });

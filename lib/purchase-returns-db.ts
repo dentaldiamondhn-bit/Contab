@@ -1,5 +1,6 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ErrorDeEmpresa } from '@/lib/tenant-resolver';
+import { exigirFactor, factorValido, unidadesBase } from '@/lib/services/measure-calc';
 import type { EmpresaCompra } from '@/lib/purchase-db';
 
 /**
@@ -37,6 +38,8 @@ interface LineaCompra {
   quantity?: number | string | null;
   unit_price?: number | string | null;
   tax_rate?: number | string | null;
+  unit?: string | null;
+  unit_factor?: number | string | null;
 }
 
 const numero = (v: unknown): number => {
@@ -260,16 +263,24 @@ export async function createPurchaseReturn(supabase: SupabaseClient, empresa: Em
     detalle.push({ compra: lineaCompra, cantidad });
   }
 
+  // Dos pasadas: aqui (ANTES del insert de cabecera) se normaliza la medida y se
+  // calcula la base de stock, para que una cantidad que no da base entera lance
+  // sin haber escrito ni la cabecera ni las lineas.
   const lineas = detalle.map(({ compra, cantidad }) => {
     const unitPrice = Math.round(numero(compra.unit_price));
     const taxRate = numero(compra.tax_rate) || 15;
     const subtotal = Math.round(cantidad * unitPrice);
     const taxAmount = Math.round(subtotal * (taxRate / 100));
+    const factor = exigirFactor(compra.unit_factor ?? 1);
+    const cantidadBase = unidadesBase(cantidad, factor);
     return {
       purchase_item_id: compra.id ? String(compra.id) : null,
       product_id: compra.product_id || null,
       product_name: compra.product_name || compra.description || '',
       quantity: cantidad,
+      unit: compra.unit || null,
+      unit_factor: factor,
+      cantidadBase,
       unit_price: unitPrice,
       tax_rate: taxRate,
       subtotal,
@@ -318,6 +329,8 @@ export async function createPurchaseReturn(supabase: SupabaseClient, empresa: Em
     product_id: l.product_id,
     product_name: l.product_name,
     quantity: l.quantity,
+    unit: l.unit,
+    unit_factor: l.unit_factor,
     unit_price: l.unit_price,
     tax_rate: l.tax_rate,
     subtotal: l.subtotal,
@@ -340,7 +353,7 @@ export async function createPurchaseReturn(supabase: SupabaseClient, empresa: Em
       .limit(1);
     if (existente && existente.length > 0) {
       const row = existente[0];
-      const nuevoStock = (numero(row.current_stock) || 0) - l.quantity;
+      const nuevoStock = (numero(row.current_stock) || 0) - l.cantidadBase;
       await supabase
         .from('product')
         .update({ current_stock: nuevoStock, stock_quantity: nuevoStock })
@@ -476,11 +489,13 @@ export async function deletePurchaseReturn(supabase: SupabaseClient, empresa: Em
 
   const { data: items } = await supabase
     .from('PurchaseReturnItem')
-    .select('product_name, quantity')
+    .select('product_name, quantity, unit_factor')
     .eq('return_id', id)
     .eq('company_id', empresa.companyId);
 
   // Reponer el stock que la devolucion habia bajado (best-effort, inverso).
+  // `factorValido` (no `exigirFactor`): una devolucion vieja (pre-074) tiene
+  // `unit_factor` NULL y debe reponer su `quantity` con factor 1, no lanzar.
   for (const l of items || []) {
     if (!l.product_name) continue;
     const { data: existente } = await supabase
@@ -491,7 +506,7 @@ export async function deletePurchaseReturn(supabase: SupabaseClient, empresa: Em
       .limit(1);
     if (existente && existente.length > 0) {
       const row = existente[0];
-      const nuevoStock = (numero(row.current_stock) || 0) + numero(l.quantity);
+      const nuevoStock = (numero(row.current_stock) || 0) + unidadesBase(numero(l.quantity), factorValido(l.unit_factor));
       await supabase
         .from('product')
         .update({ current_stock: nuevoStock, stock_quantity: nuevoStock })
