@@ -202,11 +202,14 @@ describe('createPurchase', () => {
   });
 
   test('un unit_factor invalido (0) lanza y no guarda la linea', async () => {
-    const antes = bd.PurchaseItem.length;
+    const filasAntes = bd.PurchaseItem.length;
+    const comprasAntes = bd.Purchase.length;
     await assert.rejects(() => createPurchase(sb, em(T1), cuerpo({
       items: [{ product_id: 'prod-t1', quantity: 2, unit_factor: 0, unit_price: 50, total: 100 }],
     })));
-    assert.equal(bd.PurchaseItem.length, antes);
+    assert.equal(bd.PurchaseItem.length, filasAntes);
+    // Ni siquiera la cabecera: el factor se exige antes de insertarla.
+    assert.equal(bd.Purchase.length, comprasAntes);
   });
 
   test("un unit_factor no numerico ('abc') lanza", async () => {
@@ -271,10 +274,28 @@ describe('updatePurchase', () => {
     assert.equal(item.unit, null);
   });
 
-  test('al reescribir con unit_factor invalido (-3) lanza', async () => {
-    await assert.rejects(() => updatePurchase(sb, em(T1), 'p-t1', {
+  test('al reescribir con unit_factor invalido (-3) lanza sin tocar las lineas viejas', async () => {
+    // La compra se crea aqui (el fixture arranca sin lineas) para tener lineas
+    // reales que no se deben perder si el factor nuevo es invalido.
+    await createPurchase(sb, em(T1), {
+      invoice_number: 'F-MEDIDA-INVALIDA',
+      supplier_id: 's-t1',
+      subtotal: 200,
+      tax_amount: 30,
+      total: 230,
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity: 2, unit: 'Caja', unit_factor: 3, unit_price: 100, total: 200 }],
+    });
+    const compra = bd.Purchase.at(-1);
+    const lineas = () => bd.PurchaseItem.filter((i) => i.purchase_id === compra.id);
+    assert.equal(lineas().length, 1, 'la compra nueva debe tener su linea');
+
+    await assert.rejects(() => updatePurchase(sb, em(T1), compra.id, {
       items: [{ product_id: 'prod-t1', quantity: 3, unit_factor: -3, unit_price: 100, total: 300 }],
     }));
+
+    // El `delete` de lineas va DESPUES de la validacion: sigue la linea vieja.
+    assert.equal(lineas().length, 1);
+    assert.equal(lineas()[0].unit_factor, 3);
   });
 });
 

@@ -109,8 +109,8 @@ export async function resolve(specifier, context, nextResolve) {
     };
   }
 
-  // Aritmetica pura de medidas: fichero real. `purchase-db.ts` aun NO la importa;
-  // el mapeo queda puesto para cuando la Tarea 7 (compras) lo haga.
+  // Aritmetica pura de medidas: fichero real. `purchase-db.ts` la importa desde la
+  // Tarea 7 (`exigirFactor` al persistir `unit`/`unit_factor`).
   if (specifier === '@/lib/services/measure-calc') {
     return {
       url: new URL('../../lib/services/measure-calc.ts', import.meta.url).href,

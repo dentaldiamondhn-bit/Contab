@@ -233,6 +233,11 @@ export async function createPurchase(supabase: SupabaseClient, empresa: EmpresaC
 
   const items = Array.isArray(body.items) ? body.items : [];
 
+  // La medida de cada linea se exige ANTES de escribir nada: `exigirFactor` es
+  // estricto y un factor invalido a mitad del alta lanzaria despues de insertar
+  // la cabecera, dejando la compra creada y sin lineas.
+  items.forEach((item: any) => exigirFactor(item.unit_factor ?? 1));
+
   // Retencion ISR: se calcula sobre el SUBTOTAL (sin ISV) y reduce lo pagado al
   // proveedor. El tipo lo hereda del proveedor (con override del formulario).
   const withholdingType = normalizarTipoRetencion(body.withholding_type);
@@ -830,6 +835,10 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
   if (!actual) return { data: null, error: null, notFound: true as const };
 
   const itemsNuevos = Array.isArray(body.items) ? body.items : [];
+
+  // Misma razon que la pertenencia de abajo: el factor se exige ANTES del
+  // `delete` de lineas. Si lanzara despues, la compra quedaria sin ninguna.
+  itemsNuevos.forEach((item: any) => exigirFactor(item.unit_factor ?? 1));
 
   // Misma comprobacion que en `createPurchase`, y por el mismo motivo: un
   // `supplier_id` o `product_id` de otra empresa en el cuerpo convertia esta
