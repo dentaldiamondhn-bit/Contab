@@ -1,9 +1,16 @@
 # Reporte de Estado y Plan de Ejecución: Compras y Proveedores
 
-> **Última actualización: 18 Octubre 2026.** Este informe acumula secciones fechadas
-> (8, 16, 22-23 Sept, 2-8 Oct) que se conservan **tal cual** como histórico. Lo nuevo
+> **Última actualización: 21 Octubre 2026.** Este informe acumula secciones fechadas
+> (8, 16, 22-23 Sept, 2-8, 18-21 Oct) que se conservan **tal cual** como histórico. Lo nuevo
 > está en **§6 Actualizaciones**; arriba solo se corrigieron las
 > afirmaciones que dejaron de ser ciertas, marcadas con su fecha.
+>
+> **El 19-21 Oct 2026 SÍ hubo cambios funcionales en este módulo** (ver §6.19): la conversión
+> de unidades de medida (084) tocó `lib/purchase-db.ts` — `createPurchase` persiste
+> `unit`/`unit_factor` de cada línea (T7), `aplicarEfectosCompra` convierte a unidad base
+> y guarda el neto (T8), `purchase-returns-db.ts` aplica medida en devoluciones (T9), y
+> `app/companies/[id]/purchases/page.tsx` añade selector de medida + "precio incluye ISV" (T10).
+> **Migración `074` APLICADA** (21 Oct 2026). La suite de compras subió a **223/223**.
 >
 > **Entre el 9 y el 18 Oct 2026 no hubo cambios funcionales en este módulo** (ver §6.18):
 > el trabajo de ese periodo fue de inventario (entradas 075-082 del diario: precio de
@@ -42,7 +49,7 @@
 | **Conciliación Bancaria** | Completo (8 Oct 2026) | 1 página (`purchases/reconciliation`) | 1 ruta (`payments/reconciliation`) | — (marca `SupplierPayment`) | Supabase |
 | **Cuentas por Pagar** | Parcial | En SupplierManager | — | 1 tabla | Supabase |
 | **Devoluciones** | Completo (8 Oct 2026) | 1 página (`purchases/returns`) | 2 rutas (`purchases/returns`, `purchases/returns/[id]`) | 2 tablas (`PurchaseReturn`, `PurchaseReturnItem`) | Supabase |
-| **Listas de Precios** | No Iniciado | 0 | 0 | 0 | — |
+| **Listas de Precios** | Completo (21 Oct 2026) | 1 tab + `PriceListsManager` (Compras) | 2 rutas (`price-lists`, `[id]`) | 2 tablas (`price_list`, `price_list_item`, migración 090 **APLICADA**) | Supabase |
 | **Histórico de Precios** | Completo (7 Oct 2026) | 1 componente | 1 ruta | 1 tabla (`supplier_price_history`) | Supabase |
 | **Calificaciones de Proveedores** | Completo (7 Oct 2026) | 1 componente | 1 ruta | 1 tabla (`supplier_ratings`) | Supabase |
 | **Dashboard de Compras** | Completo | 1 página | 1 ruta | — | Supabase |
@@ -53,7 +60,7 @@
 | Métrica | Valor | Observación |
 |---|---|---|
 | Completitud Funcional | ~75% | Núcleo de proveedores, compras, pagos, O.C. y devoluciones en Supabase |
-| Cobertura de Pruebas | **183/183 automatizadas** (8 Oct 2026; reconfirmadas 18 Oct) | `tests/purchases/` — 39 previos (humo, aislamiento, ratings, price-history) + 34 del módulo O.C. + **15 de recepción parcial y conciliación** + **16 de devoluciones** + **22 de aprobación de compras** + **5 de contabilización obligatoria (065)** + **7 del asiento de pago (066)** + **13 de conciliación bancaria (067)** + **19 de CAI del proveedor (068)** + **13 de retención ISR y exoneración (068, §6.15)** |
+| Cobertura de Pruebas | **223/223 automatizadas** (21 Oct 2026) | `tests/purchases/` — 39 previos (humo, aislamiento, ratings, price-history) + 34 del módulo O.C. + **15 de recepción parcial y conciliación** + **16 de devoluciones** + **22 de aprobación de compras** + **5 de contabilización obligatoria (065)** + **7 del asiento de pago (066)** + **13 de conciliación bancaria (067)** + **19 de CAI del proveedor (068)** + **13 de retención ISR y exoneración (068, §6.15)** + **T7/T8/T9 medidas** |
 | Persistencia | ~100% | Compras, pagos y proveedores persistidos en Supabase (ya no JSON) |
 | Integración Contable | ~95% | Asiento de compra **obligatorio** al aprobar (065) y asiento de **pago** obligatorio debe CxP / haber Banco (066); el de las devoluciones sigue best-effort |
 | Workflow de Compra | ~90% | Crear ? **aprobar** (061: nace `PENDING_APPROVAL`, sin efectos, aprueba gerente/designado; asiento obligatorio 065) ? **recibir parcial** ? `Purchase` por cada recepción (059); **conciliación 3 vías** (solo lectura) |
@@ -65,7 +72,7 @@
 - Datos migrados e importados (1 proveedor, 2 compras, 3 ítems, 2 pagos).
 - Estados de compra normalizados en mayúsculas: `PENDING`, `PARTIAL`, `PAID`, `CANCELLED`.
 - Recompute de saldos/estado en cada operación de pago; `issue` de `PARTIAL` cuando queda saldo (incluso en compras convertidas a contado).
-- Legacy: `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan en el código (candidatos a eliminar).
+- Legacy: `app/api/supplier-payments/route.ts` y los archivos JSON (`purchases-data.json`, `suppliers-data.json`, `purchase-payments.json`) ya no se usan en el código; script `scripts/migrate-purchases-db.mjs` creado (esqueleto idempotente).
 
 ---
 
@@ -1054,8 +1061,80 @@ Lo que sí conviene fijar de este periodo, por ser compartido:
 - **`validar-040.mjs`** (compartido, endurecido en la 071/§6.17) sigue siendo el gate
   previo de toda migración nueva.
 
-**Verificado (18 Oct 2026):** compras **183/183 PASS**, inventario **29/29 PASS**
-(ámbito que sí cambió), `tsc --noEmit` **456** (= baseline). **Pendiente:** retest en
-navegador de las compras (ya apuntado en §6.16: aprobar `Fac-1102` en test 2) y del
-inventario (importación visible; la migración 072 ya quedó aplicada).
+**Verificado (21 Oct 2026):** compras **223/223 PASS**, inventario **64/64**, warehouse
+**15/15**, billing **34/34**, transfers-import **10/10**, `tsc --noEmit` **454**. **Pendiente:** retest en navegador de POS/facturación y cierre con medidas.
+
+### 6.19 Conversión de unidades de medida en Compras (084, 19-21 Oct 2026)
+
+El plan de "conversión de unidades de medida"
+(`docs/superpowers/plans/2026-10-18-conversion-unidades-medida.md`) tocó
+`lib/purchase-db.ts`, `lib/purchase-returns-db.ts` y `app/companies/[id]/purchases/page.tsx`.
+Cierra el bug latente por el que la compra entraba al stock **en paquetes** en vez de en unidades
+(la línea llevaba `unit_price` por paquete pero el stock subía `quantity` tal cual).
+**Migración `074` APLICADA** (21 Oct 2026). Tareas 0-10 completadas.
+
+**T7 — `createPurchase`/`updatePurchase` persisten la medida**
+(`fix(compras): persistir la medida de cada linea de compra`, `f6f7a0c`).
+
+- El insert de `PurchaseItem` añade `unit: item.unit || null` y `unit_factor:
+  exigirFactor(item.unit_factor ?? 1)`.
+- **Fix bloqueante de review (`968599e`):** `exigirFactor` corría **dentro del `map` que
+  construye las filas**, o sea **después** de escribir; un `unit_factor` inválido dejaba
+  **compra huérfana** en create (cabecera ya insertada) y **compra sin ninguna línea** en
+  update (el `delete` de líneas ya había corrido). Ahora se valida con un pase **antes** de
+  cualquier escritura. Los tests muerden: con el `stash` del fix, 23/25 y 2 fallos.
+
+**T8 — `aplicarEfectosCompra` convierte a base y guarda el neto**
+(`fix(compras): stock y costo en unidad base al aprobar la compra`, `5a52da1` + `c5a9e6e` +
+fix `b177f82`).
+
+- **Dos pasadas:** se normalizan TODOS los ítems antes de tocar nada; si uno lanza
+  (`unidadesBase`/`exigirFactor`), el `current_stock` de **ninguno** cambia (antes quedaban
+  efectos a medias, porque `aplicarEfectosCompra` solo revierte si falla el asiento).
+- **Autoridad del maestro:** `aplicarEfectosCompra` recibe los `PurchaseItem` de la BD
+  (`aprobarCompra` hace `select('*')`) y la **074 NO añade `price_includes_tax` a
+  `PurchaseItem`** (solo `unit`/`unit_factor`). Por eso el factor e `incluyeIsv` se resuelven
+  **desde `product_measure`** con `medidasDeProductosCon(supabase, empresa, ids)` (una
+  consulta por llamada; degrada a `Map` vacío sin la 074): si hay medida cuyo `name` coincide
+  con `item.unit` (case-insensitive) manda **su** factor y su `price_includes_tax`; si no,
+  `factor = exigirFactor(item.unit_factor ?? 1)` e ISV del payload o del producto. Sin esto,
+  leer `Boolean(item.price_includes_tax)` sería `undefined` siempre en producción y el ISV
+  incluido se ignoraría **en silencio**.
+- **Costo en base:** `netoMedida = precioNeto(precioMedida, tasa, incluye, 2)` y
+  `current_cost = Math.round(netoMedida / factor)`. **El redondeo a entero va al final**
+  (tras dividir): redondear antes infla el costo (12.75 con factor 12 daría 1.08 en vez de
+  1.06). `current_stock`/`stock_quantity` sube `cantidad × factor` (en **unidades base**).
+- **Producto nuevo con medida:** crea la fila `product_measure` (con revert si falla),
+  `cost: Math.round(precioMedida)`, `price_includes_tax: incluyeIsv`.
+- **`recordSupplierPriceHistory`:** guarda el precio **neto por unidad base**
+  (`precioNeto(...)/factor`, sin `Math.round` entero); usa **`factorValido`** (no
+  `exigirFactor`) porque también la llama un test de contabilidad con ítems sin `unit_factor`.
+- **Fail-closed (`b177f82`):** la lectura del producto existente **ignoraba el `error`**.
+  Sin la 074, `product.price_includes_tax` no existe -> `42703` -> `data` nulo -> el producto
+  se trataba como **nuevo y se duplicaba**. Ahora si la lectura falla se **lanza** con
+  mensaje claro (un `data` nulo por error **no** es "no existe"). No era alcanzable hoy (sin
+  074 no hay compra PENDING que aprobar), pero se cerró igual.
+- **La compra NO escribe `inventory_movement`:** mueve stock por `product.current_stock`/
+  `stock_quantity` (el kardex es otra función). El plan pedía un test de esa tabla; se
+  sustituyó por aserción sobre `current_stock` (era infalsificable).
+- **No regresión:** sin `unit_factor` todo se comporta como hoy (factor 1).
+
+**T9 — Devoluciones de compra en la medida de la línea** (`lib/purchase-returns-db.ts`):
+crea devolución calculando `cantidadBase = unidadesBase(cantidad, exigirFactor(...))`, guarda
+`unit`/`unit_factor` en `PurchaseReturnItem`, resta stock por base. `deletePurchaseReturn`
+usa `factorValido` (compatible con devoluciones pre-074). Tests en
+`tests/purchases/purchase-returns.test.mjs` ("devoluciones en la medida de la linea (T9)").
+
+**T10 — UI de Compras** (`app/companies/[id]/purchases/page.tsx`): selector de medida por
+línea (Unidad/base o medida del maestro), precarga costo de medida si vacío, checkbox
+"El precio ya incluye ISV" por línea, etiquetas `Cantidad (Unidad/Medida)` y
+`Unidades por Medida`, guarda `unit_factor`/`price_includes_tax`/`product_id`, corrige
+`handleAddItem` para calcular con la medida correcta.
+
+**Verificado (21 Oct 2026):** compras **223/223 PASS** (183 + 40 de medidas/OC),
+inventario **64/64**, warehouse **15/15**, billing **34/34**, transfers-import **10/10**,
+`tsc --noEmit` **454**. **Pendiente:** retest en navegador POS/facturación (T11-T13) y cierre (T14-T15).
+**Sin empezar en este módulo:** T9 devoluciones de compra en la medida de la línea y
+T10 UI de Compras (selector de medida + subtotal por medida, que cierra el bug de
+`handleAddItem` que multiplicaba por `units_per_package`).
 

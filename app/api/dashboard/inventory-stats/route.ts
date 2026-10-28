@@ -1,28 +1,23 @@
 import { NextResponse } from 'next/server';
+import { contextoDeEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresaOCompany } from '@/lib/company-scope';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
-
 
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
-    const tenantId = searchParams.get('tenantId');
     const companyId = searchParams.get('companyId');
-    const period = searchParams.get('period') || 'month';
 
-    if (!tenantId) {
-      return NextResponse.json({ error: 'tenantId is required' }, { status: 400 });
-    }
+    // Validate enterprise context - requires company_id for proper isolation
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId ?? undefined });
 
-    // Get products from Supabase (lowercase table)
+    // Get products from Supabase with enterprise isolation
     let query = getSupabaseServer()
       .from('product')
       .select('*')
-      .eq('tenant_id', tenantId);
-
-    if (companyId) {
-      query = query.eq('company_id', companyId);
-    }
+      .eq('tenant_id', empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa));
 
     const { data: products, error } = await query;
 
@@ -117,8 +112,8 @@ export async function GET(request: Request) {
       return d.getMonth() === lastMonth && d.getFullYear() === lastMonthYear;
     }).length || 0;
 
-    const growth = lastMonthProducts > 0 
-      ? ((currentMonthProducts - lastMonthProducts) / lastMonthProducts) * 100 
+    const growth = lastMonthProducts > 0
+      ? ((currentMonthProducts - lastMonthProducts) / lastMonthProducts) * 100
       : 0;
 
     return NextResponse.json({

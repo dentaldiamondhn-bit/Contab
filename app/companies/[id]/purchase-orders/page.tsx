@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { useUser } from '@clerk/nextjs';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,9 +12,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Search, Plus, FileText, CheckCircle, Clock, AlertCircle, ChevronLeft, Trash2, Edit, Eye, Send, Package, CheckSquare } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Search, Plus, FileText, CheckCircle, Clock, AlertCircle, ChevronLeft, Trash2, Edit, Eye, Send, Package, CheckSquare, XCircle } from 'lucide-react';
 
 import { formatDateForDisplay, formatDateRange, isDateExpired, formatDateForInput } from '@/lib/date-utils';
+// Aritmetica pura (0 imports): segura en pagina 'use client', igual que
+// `validarMedidas` en inventario. NO importar aqui `product-measures`.
+import { desglosarImpuesto } from '@/lib/services/measure-calc';
 interface Supplier {
   id: string;
   name: string;
@@ -25,6 +30,7 @@ interface Product {
   code: string;
   name: string;
   unit_price: number;
+  price_includes_tax?: boolean;
 }
 
 interface PurchaseOrderItem {
@@ -36,6 +42,7 @@ interface PurchaseOrderItem {
   quantity_received?: number;
   unit_price: number;
   total: number;
+  price_includes_tax?: boolean;
   notes?: string;
 }
 
@@ -56,7 +63,12 @@ interface PurchaseOrder {
   received_by?: string;
   received_at?: string;
   purchase_id?: string;
+  cancellation_reason?: string;
+  cancelled_by?: string;
+  created_at?: string;
+  updated_at?: string;
   items?: PurchaseOrderItem[];
+  edits?: { id?: string; edited_by?: string | null; edited_at: string }[];
 }
 
 interface ReceiptLine {
@@ -74,6 +86,12 @@ export default function PurchaseOrdersPage() {
   const router = useRouter();
   const companyId = params.id as string;
 
+  const { user } = useUser();
+  // Nombre del usuario de la sesión, en el mismo formato que
+  // `nombreDeUsuarioActual()` del servidor (nombre + apellido; email si no hay).
+  const nombreActual = [user?.firstName, user?.lastName].filter(Boolean).join(' ')
+    || user?.primaryEmailAddress?.emailAddress || '';
+
   const [orders, setOrders] = useState<PurchaseOrder[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -84,9 +102,12 @@ export default function PurchaseOrdersPage() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [activeTab, setActiveTab] = useState('general');
+  const [orderNumberAuto, setOrderNumberAuto] = useState('');
   const [showApproveModal, setShowApproveModal] = useState(false);
   const [showReceiveModal, setShowReceiveModal] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<PurchaseOrder | null>(null);
+  const [editingOrder, setEditingOrder] = useState<PurchaseOrder | null>(null);
 
   // Form states
   const [selectedSupplier, setSelectedSupplier] = useState<Supplier | null>(null);
@@ -94,11 +115,13 @@ export default function PurchaseOrdersPage() {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [expectedDate, setExpectedDate] = useState('');
   const [notes, setNotes] = useState('');
+  const [requestedBy, setRequestedBy] = useState('');
   const [items, setItems] = useState<PurchaseOrderItem[]>([]);
   const [newItem, setNewItem] = useState<Partial<PurchaseOrderItem>>({
     product_name: '',
     quantity_requested: 1,
     unit_price: 0,
+    price_includes_tax: false,
   });
 
   const [submitting, setSubmitting] = useState(false);
@@ -182,6 +205,23 @@ export default function PurchaseOrdersPage() {
     return `${prefix}-${date}-${random}`;
   };
 
+  // Totales de la orden desglosados LINEA por LINEA: si el articulo trae el
+  // precio con ISV adentro (`price_includes_tax`), el importe tecleado manda y
+  // el 15% se extrae de adentro; si no, se suma encima. Lo usan el cuerpo del
+  // POST/PATCH y el pie del modal, para que siempre cuadren igual.
+  const TASA_ISV = 15;
+  const desgloseDeItems = (lista: PurchaseOrderItem[]) =>
+    lista.reduce(
+      (acc, it) => {
+        const d = desglosarImpuesto(it.total || 0, TASA_ISV, !!it.price_includes_tax, 2);
+        acc.base += d.base;
+        acc.impuesto += d.impuesto;
+        acc.total += d.total;
+        return acc;
+      },
+      { base: 0, impuesto: 0, total: 0 }
+    );
+
   const handleCreate = async () => {
     if (!selectedSupplier || items.length === 0) {
       alert('Seleccione un proveedor y agregue al menos un artículo');
@@ -191,43 +231,55 @@ export default function PurchaseOrdersPage() {
     setSubmitting(true);
 
     try {
-      const orderNum = orderNumber || generateOrderNumber();
-      const subtotal = items.reduce((sum, item) => sum + item.total, 0);
-      const taxAmount = Math.round(subtotal * 0.15);
-      const total = subtotal + taxAmount;
+      const orderNum = orderNumber || orderNumberAuto || generateOrderNumber();
+      const desglose = desgloseDeItems(items);
+      const subtotal = Math.round(desglose.base);
+      const taxAmount = Math.round(desglose.impuesto);
+      const total = Math.round(desglose.total);
 
-      const res = await fetch(`/api/purchase-orders?companyId=${companyId}`, {
-        method: 'POST',
+      const isEditing = !!editingOrder;
+      const url = isEditing
+        ? `/api/purchase-orders?companyId=${companyId}`
+        : `/api/purchase-orders?companyId=${companyId}`;
+      const method = isEditing ? 'PATCH' : 'POST';
+
+      const body = {
+        ...(isEditing ? { id: editingOrder.id } : {}),
+        order_number: orderNum,
+        supplier_id: selectedSupplier.id,
+        order_date: orderDate,
+        expected_date: expectedDate || null,
+        subtotal,
+        tax_amount: taxAmount,
+        total,
+        notes: notes || null,
+        requested_by: requestedBy || null,
+        items: items.map(item => ({
+          ...item,
+          unit_price: Math.round(item.unit_price),
+          total: Math.round(item.total),
+        })),
+        companyId,
+      };
+
+      const res = await fetch(url, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          order_number: orderNum,
-          supplier_id: selectedSupplier.id,
-          order_date: orderDate,
-          expected_date: expectedDate || null,
-          subtotal,
-          tax_amount: taxAmount,
-          total,
-          notes: notes || null,
-          items: items.map(item => ({
-            ...item,
-            unit_price: Math.round(item.unit_price),
-            total: Math.round(item.total),
-          })),
-          companyId,
-        }),
+        body: JSON.stringify(body),
       });
 
       if (res.ok) {
-        alert('Orden de compra creada exitosamente');
+        alert(isEditing ? 'Orden de compra actualizada exitosamente' : 'Orden de compra creada exitosamente');
         setShowCreateModal(false);
+        setEditingOrder(null);
         resetForm();
-        loadOrders();
+        await loadOrders();
       } else {
         const error = await res.json();
-        alert('Error: ' + (error.error || 'No se pudo crear la orden'));
+        alert('Error: ' + (error.error || (isEditing ? 'No se pudo actualizar la orden' : 'No se pudo crear la orden')));
       }
     } catch (error) {
-      alert('Error al crear orden de compra');
+      alert(editingOrder ? 'Error al actualizar orden de compra' : 'Error al crear orden de compra');
     } finally {
       setSubmitting(false);
     }
@@ -252,13 +304,47 @@ export default function PurchaseOrdersPage() {
         alert('Orden aprobada');
         setShowApproveModal(false);
         setSelectedOrder(null);
-        loadOrders();
+        await loadOrders();
       } else {
         const error = await res.json().catch(() => ({}));
         alert('Error: ' + (error.error || 'No se pudo aprobar la orden'));
       }
     } catch (error) {
       alert('Error al aprobar orden');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleCancelOrder = async (order: PurchaseOrder) => {
+    const reason = window.prompt('Ingrese el motivo de cancelación (obligatorio):');
+    if (!reason || reason.trim() === '') {
+      alert('El motivo de cancelación es obligatorio');
+      return;
+    }
+    if (!window.confirm(`¿Está seguro de cancelar la orden ${order.order_number}?`)) return;
+
+    setSubmitting(true);
+    try {
+      const res = await fetch(`/api/purchase-orders?companyId=${companyId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: order.id,
+          status: 'CANCELLED',
+          cancellation_reason: reason.trim(),
+        }),
+      });
+
+      if (res.ok) {
+        alert('Orden cancelada exitosamente');
+        await loadOrders();
+      } else {
+        const error = await res.json().catch(() => ({}));
+        alert('Error: ' + (error.error || 'No se pudo cancelar la orden'));
+      }
+    } catch (error) {
+      alert('Error al cancelar orden');
     } finally {
       setSubmitting(false);
     }
@@ -325,7 +411,7 @@ export default function PurchaseOrdersPage() {
         );
         setShowReceiveModal(false);
         setSelectedOrder(null);
-        loadOrders();
+        await loadOrders();
       } else {
         const error = await res.json();
         alert('Error: ' + (error.error || 'No se pudo recibir la orden'));
@@ -344,17 +430,31 @@ export default function PurchaseOrdersPage() {
     }
 
     const total = (newItem.quantity_requested || 0) * (newItem.unit_price || 0);
-    setItems([...items, { ...newItem, total } as PurchaseOrderItem]);
+    setItems([...items, { ...newItem, total, price_includes_tax: !!newItem.price_includes_tax } as PurchaseOrderItem]);
     
     setNewItem({
       product_name: '',
       quantity_requested: 1,
       unit_price: 0,
+      price_includes_tax: false,
     });
   };
 
   const removeItem = (index: number) => {
     setItems(items.filter((_, i) => i !== index));
+  };
+
+  // Editar una linea ya agregada: cantidad, precio o el flag de ISV. El total
+  // de la fila se recalcula siempre desde cantidad x precio.
+  const updateItem = (index: number, patch: Partial<PurchaseOrderItem>) => {
+    setItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== index) return it;
+        const next = { ...it, ...patch };
+        next.total = (next.quantity_requested || 0) * (next.unit_price || 0);
+        return next;
+      })
+    );
   };
 
   const selectProduct = (productId: string) => {
@@ -366,6 +466,7 @@ export default function PurchaseOrdersPage() {
         product_name: product.name,
         quantity_requested: 1,
         unit_price: product.unit_price || 0,
+        price_includes_tax: !!product.price_includes_tax,
       });
     }
   };
@@ -403,6 +504,7 @@ export default function PurchaseOrdersPage() {
           quantity_requested: 1,
           unit_price: unitPrice,
           total: Math.round(unitPrice),
+          price_includes_tax: !!product.price_includes_tax,
         });
       }
       return nuevos;
@@ -438,11 +540,13 @@ export default function PurchaseOrdersPage() {
     setOrderDate(new Date().toISOString().split('T')[0]);
     setExpectedDate('');
     setNotes('');
+    setRequestedBy(nombreActual);
     setItems([]);
     setNewItem({
       product_name: '',
       quantity_requested: 1,
       unit_price: 0,
+      price_includes_tax: false,
     });
     setInvoiceNumber('');
     setInvoiceDate(new Date().toISOString().split('T')[0]);
@@ -482,6 +586,30 @@ export default function PurchaseOrdersPage() {
   };
   const canCancel = (order: PurchaseOrder) =>
     !['COMPLETED', 'CANCELLED', 'RECEIVED', 'PARTIALLY_RECEIVED'].includes(order.status);
+
+  const canEdit = (order: PurchaseOrder) => order.status === 'DRAFT';
+
+  const openEditModal = (order: PurchaseOrder) => {
+    setEditingOrder(order);
+    setSelectedOrder(order);
+    setShowCreateModal(true);
+    setActiveTab('general');
+    setSelectedSupplier(order.supplier);
+    setOrderNumber(order.order_number || '');
+    setOrderDate(order.order_date);
+    setExpectedDate(order.expected_date || '');
+    setNotes(order.notes || '');
+    setRequestedBy(order.requested_by || nombreActual);
+    setItems(order.items ? order.items.map((item: any) => ({
+      product_id: item.product_id || '',
+      product_code: item.product_code || '',
+      product_name: item.product_name,
+      quantity_requested: item.quantity_requested || 1,
+      unit_price: item.unit_price || 0,
+      total: item.total || 0,
+      price_includes_tax: !!item.price_includes_tax,
+    })) : []);
+  };
 
   const formatCurrency = (amount: number) => {
     return `L ${(amount / 100).toLocaleString('es-HN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -524,7 +652,7 @@ export default function PurchaseOrdersPage() {
           >
             Conciliación
           </Button>
-          <Button onClick={() => { resetForm(); setShowCreateModal(true); }}>
+          <Button onClick={() => { resetForm(); setEditingOrder(null); setShowCreateModal(true); }}>
             <Plus className="w-4 h-4 mr-2" />
             Nueva OC
           </Button>
@@ -644,11 +772,12 @@ export default function PurchaseOrdersPage() {
                     <th className="text-left py-3 px-4">Fecha</th>
                     <th className="text-left py-3 px-4">Entrega Est.</th>
                     <th className="text-right py-3 px-4">Total</th>
+                    <th className="text-left py-3 px-4">Solicitado por</th>
                     <th className="text-center py-3 px-4">Acciones</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredOrders.map((order) => (
+{filteredOrders.map((order) => (
                     <tr key={order.id} className="border-b hover:bg-gray-50">
                       <td className="py-3 px-4">
                         {getStatusBadge(order.status)}
@@ -667,8 +796,10 @@ export default function PurchaseOrdersPage() {
                       <td className="py-3 px-4 text-right font-medium">
                         {formatCurrency(order.total * 100)}
                       </td>
-                      <td className="py-3 px-4 text-center">
-                        <div className="flex gap-1 justify-center">
+                      <td className="py-3 px-4">
+                        {order.requested_by || 'N/A'}
+                      </td>
+<td className="py-3 px-4 text-center">
                           <Button
                             variant="outline"
                             size="sm"
@@ -676,6 +807,15 @@ export default function PurchaseOrdersPage() {
                           >
                             <Eye className="w-4 h-4" />
                           </Button>
+                          {canEdit(order) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openEditModal(order)}
+                            >
+                              <Edit className="w-4 h-4 text-blue-600" />
+                            </Button>
+                          )}
                           {canApprove(order) && (
                             <Button
                               variant="outline"
@@ -694,9 +834,18 @@ export default function PurchaseOrdersPage() {
                               <Package className="w-4 h-4 text-cyan-600" />
                             </Button>
                           )}
-                        </div>
-                      </td>
-                    </tr>
+                          {canCancel(order) && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => handleCancelOrder(order)}
+                              disabled={submitting}
+                            >
+                              <XCircle className="w-4 h-4 text-red-600" />
+                            </Button>
+                          )}
+                        </td>
+                      </tr>
                   ))}
                 </tbody>
               </table>
@@ -706,13 +855,21 @@ export default function PurchaseOrdersPage() {
       </Card>
 
       {/* Create Modal */}
-      <Dialog open={showCreateModal} onOpenChange={setShowCreateModal}>
+      <Dialog open={showCreateModal} onOpenChange={(open) => {
+      if (open) {
+        setOrderNumberAuto(generateOrderNumber());
+        setOrderNumber(generateOrderNumber());
+      } else {
+        setEditingOrder(null);
+      }
+      setShowCreateModal(open);
+    }}>
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Nueva Orden de Compra</DialogTitle>
+            <DialogTitle>{editingOrder ? `Modificar Orden ${editingOrder.order_number}` : 'Nueva Orden de Compra'}</DialogTitle>
           </DialogHeader>
 
-          <Tabs defaultValue="general" className="w-full">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="items">Artículos</TabsTrigger>
@@ -741,11 +898,11 @@ export default function PurchaseOrdersPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Número de Orden</Label>
-                  <Input
-                    value={orderNumber}
-                    onChange={(e) => setOrderNumber(e.target.value)}
-                    placeholder={generateOrderNumber()}
-                  />
+<Input
+                  value={orderNumber || orderNumberAuto}
+                  onChange={(e) => setOrderNumber(e.target.value)}
+                  placeholder={generateOrderNumber()}
+                />
                 </div>
                 <div className="space-y-2">
                   <Label>Fecha de Orden</Label>
@@ -767,12 +924,27 @@ export default function PurchaseOrdersPage() {
               </div>
 
               <div className="space-y-2">
+                <Label>Solicitado por</Label>
+                <Input
+                  value={requestedBy}
+                  onChange={(e) => setRequestedBy(e.target.value)}
+                  placeholder="Nombre de quien solicita..."
+                />
+              </div>
+
+              <div className="space-y-2">
                 <Label>Notas</Label>
                 <Input
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="Instrucciones especiales..."
                 />
+              </div>
+
+              <div className="mt-4">
+                <Button onClick={() => setActiveTab('items')} disabled={activeTab === 'items'}>
+                  Siguiente
+                </Button>
               </div>
             </TabsContent>
 
@@ -837,6 +1009,14 @@ export default function PurchaseOrdersPage() {
                       </Button>
                     </div>
                   </div>
+
+                  <label className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                    <Checkbox
+                      checked={!!newItem.price_includes_tax}
+                      onCheckedChange={(checked) => setNewItem({ ...newItem, price_includes_tax: checked })}
+                    />
+                    El precio ya incluye ISV
+                  </label>
                 </CardContent>
               </Card>
 
@@ -845,8 +1025,9 @@ export default function PurchaseOrdersPage() {
                   <thead className="bg-gray-100">
                     <tr>
                       <th className="text-left p-2">Descripción</th>
-                      <th className="text-center p-2">Cant.</th>
-                      <th className="text-right p-2">P.Unit</th>
+                      <th className="text-center p-2 w-24">Cant.</th>
+                      <th className="text-right p-2 w-32">P.Unit</th>
+                      <th className="text-center p-2 w-16">ISV</th>
                       <th className="text-right p-2">Total</th>
                       <th className="text-center p-2"></th>
                     </tr>
@@ -854,7 +1035,7 @@ export default function PurchaseOrdersPage() {
                   <tbody>
                     {items.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center p-4 text-gray-500">
+                        <td colSpan={6} className="text-center p-4 text-gray-500">
                           No hay artículos agregados
                         </td>
                       </tr>
@@ -862,8 +1043,31 @@ export default function PurchaseOrdersPage() {
                       items.map((item, index) => (
                         <tr key={index} className="border-t">
                           <td className="p-2">{item.product_name}</td>
-                          <td className="p-2 text-center">{item.quantity_requested}</td>
-                          <td className="p-2 text-right">{formatCurrency(item.unit_price * 100)}</td>
+                          <td className="p-1">
+                            <Input
+                              type="number"
+                              min="1"
+                              value={item.quantity_requested}
+                              onChange={(e) => updateItem(index, { quantity_requested: parseInt(e.target.value) || 0 })}
+                              className="h-8 text-center"
+                            />
+                          </td>
+                          <td className="p-1">
+                            <Input
+                              type="number"
+                              min="0"
+                              step="0.01"
+                              value={item.unit_price}
+                              onChange={(e) => updateItem(index, { unit_price: parseFloat(e.target.value) || 0 })}
+                              className="h-8 text-right"
+                            />
+                          </td>
+                          <td className="p-1 text-center">
+                            <Checkbox
+                              checked={!!item.price_includes_tax}
+                              onCheckedChange={(checked) => updateItem(index, { price_includes_tax: checked })}
+                            />
+                          </td>
                           <td className="p-2 text-right font-medium">{formatCurrency(item.total * 100)}</td>
                           <td className="p-2 text-center">
                             <Button
@@ -881,30 +1085,37 @@ export default function PurchaseOrdersPage() {
                 </table>
               </div>
 
-              <div className="bg-gray-50 p-4 rounded-lg space-y-2">
-                <div className="flex justify-between">
-                  <span>Subtotal:</span>
-                  <span className="font-medium">{formatCurrency(items.reduce((sum, i) => sum + i.total, 0) * 100)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>ISV (15%):</span>
-                  <span className="font-medium">{formatCurrency(items.reduce((sum, i) => sum + i.total, 0) * 15)}</span>
-                </div>
-                <div className="flex justify-between text-lg font-bold border-t pt-2">
-                  <span>TOTAL:</span>
-                  <span>{formatCurrency(items.reduce((sum, i) => sum + i.total, 0) * 115)}</span>
-                </div>
-              </div>
+              {(() => {
+                const desglose = desgloseDeItems(items);
+                return (
+                  <div className="bg-gray-50 p-4 rounded-lg space-y-2">
+                    <div className="flex justify-between">
+                      <span>Subtotal (neto):</span>
+                      <span className="font-medium">{formatCurrency(Math.round(desglose.base) * 100)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>ISV (15%):</span>
+                      <span className="font-medium">{formatCurrency(Math.round(desglose.impuesto) * 100)}</span>
+                    </div>
+                    <div className="flex justify-between text-lg font-bold border-t pt-2">
+                      <span>TOTAL:</span>
+                      <span>{formatCurrency(Math.round(desglose.total) * 100)}</span>
+                    </div>
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateModal(false)} disabled={submitting}>
+            <Button variant="outline" onClick={() => { setShowCreateModal(false); setEditingOrder(null); }} disabled={submitting}>
               Cancelar
             </Button>
-            <Button onClick={handleCreate} disabled={submitting || items.length === 0 || !selectedSupplier}>
-              {submitting ? 'Guardando...' : 'Crear Orden'}
-            </Button>
+            {activeTab === 'items' && (
+              <Button onClick={handleCreate} disabled={submitting || items.length === 0 || !selectedSupplier}>
+                {submitting ? 'Guardando...' : (editingOrder ? 'Guardar Cambios' : 'Crear Orden')}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -965,7 +1176,14 @@ export default function PurchaseOrdersPage() {
                   <tbody>
                     {selectedOrder.items?.map((item, idx) => (
                       <tr key={idx} className="border-t">
-                        <td className="p-2">{item.product_name}</td>
+                        <td className="p-2">
+                          {item.product_name}
+                          {item.price_includes_tax && (
+                            <span className="ml-2 text-[10px] uppercase text-cyan-700 bg-cyan-50 px-1.5 py-0.5 rounded">
+                              ISV inc.
+                            </span>
+                          )}
+                        </td>
                         <td className="p-2 text-center">{item.quantity_requested}</td>
                         <td className="p-2 text-center">{item.quantity_received || 0}</td>
                         <td className="p-2 text-right">{formatCurrency(item.total * 100)}</td>
@@ -975,10 +1193,137 @@ export default function PurchaseOrdersPage() {
                 </table>
               </div>
 
+              <div className="border-t pt-4">
+                <h4 className="font-medium mb-3">Workflow</h4>
+                <div className="space-y-0">
+                  <WorkflowStep
+                    icon={<FileText className="w-4 h-4" />}
+                    title="Creada"
+                    done={true}
+                    detail={
+                      <>
+                        {new Date(selectedOrder.created_at || selectedOrder.order_date).toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' })}
+                        {selectedOrder.requested_by && <span className="text-gray-500"> — Solicitada por {selectedOrder.requested_by}</span>}
+                      </>
+                    }
+                  />
+                  {(selectedOrder.edits || []).map((ed, i) => (
+                    <WorkflowStep
+                      key={ed.id || i}
+                      icon={<Edit className="w-4 h-4" />}
+                      title="Modificada"
+                      done={true}
+                      detail={
+                        <>
+                          {ed.edited_at && new Date(ed.edited_at).toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' })}
+                          {ed.edited_by && <span className="text-gray-500"> — Modificada por {ed.edited_by}</span>}
+                        </>
+                      }
+                    />
+                  ))}
+                  <WorkflowStep
+                    icon={<CheckCircle className="w-4 h-4" />}
+                    title="Aprobada"
+                    done={!!selectedOrder.approved_at}
+                    detail={selectedOrder.approved_at
+                      ? <>
+                          {new Date(selectedOrder.approved_at).toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' })}
+                          {selectedOrder.approved_by && <span className="text-gray-500"> — Aprobada por {selectedOrder.approved_by}</span>}
+                        </>
+                      : <span className="text-gray-400">Pendiente de aprobación</span>
+                    }
+                  />
+                  <WorkflowStep
+                    icon={<Package className="w-4 h-4" />}
+                    title="Recibida"
+                    done={selectedOrder.status === 'RECEIVED' || selectedOrder.status === 'COMPLETED'}
+                    partial={selectedOrder.status === 'PARTIALLY_RECEIVED'}
+                    detail={
+                      selectedOrder.status === 'PARTIALLY_RECEIVED'
+                        ? <span className="text-amber-600">Recepción parcial — aún pendiente</span>
+                        : selectedOrder.received_at
+                          ? <>
+                              {new Date(selectedOrder.received_at).toLocaleString('es-HN', { dateStyle: 'medium', timeStyle: 'short' })}
+                              {selectedOrder.received_by && <span className="text-gray-500"> — Recibida por {selectedOrder.received_by}</span>}
+                            </>
+                          : <span className="text-gray-400">Pendiente de recepción</span>
+                    }
+                  />
+                  {(selectedOrder.status === 'CANCELLED' || selectedOrder.cancellation_reason) && (
+                    <WorkflowStep
+                      icon={<XCircle className="w-4 h-4" />}
+                      title="Cancelada"
+                      done={true}
+                      danger={true}
+                      detail={
+                        <span className="text-red-600">
+                          {selectedOrder.cancelled_by ? `Cancelada por ${selectedOrder.cancelled_by} — ` : ''}
+                          {selectedOrder.cancellation_reason
+                            ? `Motivo: ${selectedOrder.cancellation_reason}`
+                            : 'Sin motivo registrado'}
+                        </span>
+                      }
+                    />
+                  )}
+                </div>
+              </div>
+
               <div className="border-t pt-4 flex justify-between text-lg font-bold">
                 <span>Total:</span>
                 <span>{formatCurrency(selectedOrder.total * 100)}</span>
               </div>
+
+              {canCancel(selectedOrder) && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={async () => {
+                      const reason = window.prompt('Ingrese el motivo de cancelación (obligatorio):');
+                      if (!reason || reason.trim() === '') {
+                        alert('El motivo de cancelación es obligatorio');
+                        return;
+                      }
+                      if (window.confirm('¿Está seguro de cancelar esta orden de compra?')) {
+                        const res = await fetch(`/api/purchase-orders?companyId=${companyId}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({
+                            id: selectedOrder.id,
+                            status: 'CANCELLED',
+                            cancellation_reason: reason.trim(),
+                          }),
+                        });
+                        if (res.ok) {
+                          alert('Orden cancelada exitosamente');
+                          setShowViewModal(false);
+                          await loadOrders();
+                        } else {
+                          const error = await res.json();
+                          alert('Error: ' + (error.error || 'No se pudo cancelar la orden'));
+                        }
+                      }
+                    }}
+                  >
+                    Cancelar Orden
+                  </Button>
+                </div>
+              )}
+
+              {canEdit(selectedOrder) && (
+                <div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setShowViewModal(false);
+                      openEditModal(selectedOrder);
+                    }}
+                  >
+                    Modificar Orden
+                  </Button>
+                </div>
+              )}
 
               {selectedOrder.purchase_id && (
                 <div className="border-t pt-4 space-y-2">
@@ -1186,6 +1531,38 @@ export default function PurchaseOrdersPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function WorkflowStep({ icon, title, done, partial, danger, detail }: {
+  icon: ReactNode;
+  title: string;
+  done: boolean;
+  partial?: boolean;
+  danger?: boolean;
+  detail: ReactNode;
+}) {
+  return (
+    <div className="flex gap-3">
+      <div className="flex flex-col items-center">
+        <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${
+          danger
+            ? 'bg-red-100 border-red-500 text-red-600'
+            : done
+              ? partial
+                ? 'bg-amber-100 border-amber-500 text-amber-600'
+                : 'bg-green-100 border-green-500 text-green-600'
+              : 'bg-gray-100 border-gray-300 text-gray-400'
+        }`}>
+          {icon}
+        </div>
+        <div className="w-0.5 h-6 bg-gray-200 last:hidden" />
+      </div>
+      <div className="pb-2">
+        <div className="font-medium text-sm">{title}</div>
+        <div className="text-xs text-gray-600">{detail}</div>
+      </div>
     </div>
   );
 }

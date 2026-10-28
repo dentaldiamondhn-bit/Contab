@@ -1,5 +1,16 @@
 ﻿# Reporte de Estado y Plan de Ejecución: Inventario
 
+> **Última actualización: 21 Octubre 2026.** Lo nuevo está en la sección
+> "Actualización 19-21 Oct 2026 — Conversión de unidades de medida (tareas 0-10)" al final;
+> las secciones fechadas (8, 16-17, 18 Oct) se conservan como histórico.
+>
+> **Conversión de unidades de medida (084, 19-21 Oct 2026):** un producto ya puede tener
+> **medidas** (unidad, docena, caja) con costo y precio de venta propios por medida, con
+> el **stock siempre en unidad base** y el flag **"Incluye ISV"** por medida y por
+> producto. **Migración `074` APLICADA** (21 Oct 2026, SQL Editor). Tareas **0-10 completadas** (de un plan de 15): módulo puro `measure-calc.ts`, servicio `product-measures.ts`, API de
+> productos con `measures`, modal "Medidas y precios", conversión a base en Compras
+> (`createPurchase`/`aplicarEfectosCompra`), devoluciones en medida (T9) y UI de Compras con selector de medida + "precio incluye ISV" (T10). **Pendientes 11-15:** POS/facturación y cierre.
+
 ## 1. Estado Actual del Código
 
 ### 1.1 Resumen Ejecutivo
@@ -7,6 +18,7 @@
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
 | **Gestión de Productos** | Completo | 1 página (1537+ líneas) | 1 ruta | 1 tabla (`product`) | Supabase |
+| **Medidas por producto** | Parcial (tareas 0-10 de 15 del plan, 21 Oct 2026) | Modal "Medidas y precios" + UI Compras selector de medida | En `products` (GET/POST/PATCH) | 1 tabla nueva (`product_measure`, migración 074 **APLICADA**) | Supabase |
 | **Control de Stock** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Movimientos de Inventario** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Alertas de Stock** | Parcial | En página | 1 ruta | — | Cálculos en código |
@@ -17,6 +29,7 @@
 | **Importación Masiva** | Completo | En página (Productos, Ubicaciones, Almacenes, Traslados) | 4 rutas (`products/import`, `locations/import`, `warehouses/import`, `transfers/import`) | — | Excel/CSV |
 | **Almacenes** | Completo (Etapa 2) | 1 tab + componente | 3 rutas (`warehouses`, `[warehouseId]`, `warehouses/import`) | 1 tabla (`warehouse`) | Supabase |
 | **Traslados/Logística** | Completo (Etapa 2) | 1 tab + componente | 3 rutas (`transfers`, `[transferId]`, `transfers/import`) | 2 tablas (`inventory_transfer` + `_item`) | Supabase |
+| **Listas de Precios** | Completo (21 Oct 2026) | 1 tab + `PriceListsManager` | 2 rutas (`price-lists`, `[id]`) | 2 tablas (`price_list`, `price_list_item`, migración 090 **APLICADA**) | Supabase |
 | **Tracking por Lote** | No Iniciado | 0 | 0 | 0 | — |
 | **Inventario Físico** | No Iniciado | 0 | 0 | 0 | — |
 | **Valoración FIFO/Promedio** | No Iniciado | 0 | 0 | — | Columna existe sin lógica |
@@ -26,7 +39,7 @@
 | Métrica | Valor | Observación |
 |---|---|---|
 | Completitud Funcional | ~70% | Etapa 2 (multi-almacén + traslados) completa; sin lotes, FIFO, inventario físico |
-| Cobertura de Pruebas | Parcial | 54 tests node:test (18 Oct 2026): inventario **29/29** (rutas + stock-sale) + warehouse **15/15** (cálculo, rutas, códigos ALM) + transfers-import **10/10** |
+| Cobertura de Pruebas | Parcial | 103 tests node:test (21 Oct 2026): inventario **64/64** (rutas + stock-sale + `measure-calc` + `product-measures`) + warehouse **15/15** (cálculo, rutas, códigos ALM) + transfers-import **10/10** + compras **223/223** (incluye T7/T8/T9 de medidas) + billing **34/34** |
 | Persistencia | ~60% | Esquema único canónico (`product`/`inventory_movement`); consolidado el 16 Sept 2026 |
 | Integración Contable | ~50% | Integración con asientos contables existe pero parcial |
 | Importación | ~80% | CSV y Excel funcionales |
@@ -45,12 +58,15 @@
 |---|---|
 | `app/inventory/page.tsx` | Página completa (1537+ líneas): CRUD de productos, movimientos, categorías, paquetes, promociones, importación CSV/Excel, gestión de descuentos, vinculación con proveedores, multi-vista (tarjetas/tabla/lista), validación, filtro de stock |
 | `components/inventory/InventoryManager.tsx` | Gestor: CRUD productos, movimientos (IN/OUT), estado de stock, valoración, integración contable |
-| `app/api/inventory/products/route.ts` | API CRUD de productos |
-| `lib/purchase-db.ts` | Upsert best-effort de producto (stock/costo) desde Compras |
+| `app/api/inventory/products/route.ts` | API CRUD de productos (GET adjunta `measures`; POST/PATCH aceptan `measures` + `price_includes_tax`) |
+| `lib/purchase-db.ts` | Upsert best-effort de producto (stock/costo) desde Compras; convierte a unidad base con `unit_factor` |
+| `lib/services/measure-calc.ts` | Módulo puro (0 imports): factor, unidades base, desglose de ISV y `validarMedidas` |
+| `lib/services/product-measures.ts` | Servicio CRUD de `product_measure` (patrón `warehouse-service.ts`) |
 
 #### Tablas de Base de Datos
 
-- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, location, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id
+- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, location, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id, **sale_price** (071), **price_includes_tax** (074)
+- `product_measure` (migración 074, **APLICADA**) — id, tenant_id, company_id, product_id, name, factor, cost, sale_price, price_includes_tax, is_active, created_at, updated_at. El **stock siempre se lleva en unidad base**; `factor` es cuántas unidades base contiene la medida
 
 > Las tablas legacy `Product` (PascalCase) y `products` (plural) y la **vista** `Products` fueron eliminadas en la migración 008 (16 Sept 2026). Backups: `_backup_product_008`, `_backup_products_008`.
 
@@ -60,7 +76,7 @@
 
 - ~~Multi-almacén NO funcional~~ ✅ Resuelto: stock por almacén (kardex) y transferencias con flujo logístico (Etapa 2, 17 Sept 2026); inventario físico pendiente (Etapa 4)
 - ~~Sin imágenes de producto~~ ✅ Resuelto: fotos en bucket `product-photos` + columna `product.image_url` (28 Sept 2026; ver "Fotos de Producto")
-- Sin conversión de unidades de medida
+- ~~Sin conversión de unidades de medida~~ ✅ **Parcial (084, 19-21 Oct 2026)**: un producto puede tener medidas (Docena, Caja…) con costo y precio propios, stock en unidad base e "Incluye ISV" por medida. **074 APLICADA**. Tareas 0-10 de 15: falta POS/facturación y cierre (ver sección 19-21 Oct 2026)
 - ~~Sin códigos de barras~~ ✅ Resuelto: EAN-13 + QR + foto del código impreso, editable y con columna en el import (077, 17 Oct 2026; ver "Codigo de barras en productos")
 
 ---
@@ -555,3 +571,76 @@ regresion), `tsc --noEmit` **456** (= baseline). **072 APLICADA** (medida el 18 
 contra el OpenAPI de PostgREST: `barcode`/`barcode_image_url` en `product`).
 **Pendiente:** retest en navegador (botones Subir Archivo en Productos y Traslados;
 Nuevo Almacen sin codigo -> `ALM-001`; crear `ALM-001` repetido -> 409).
+
+## Actualización 19-21 Oct 2026 — Conversión de unidades de medida (084, tareas 0-10 de 15)
+
+Plan `docs/superpowers/plans/2026-10-18-conversion-unidades-medida.md`. Objetivo: que un
+producto pueda venderse/comprarse en varias medidas (unidad, docena, caja) con **costo y
+precio de venta propios por medida**, con el **stock siempre en unidad base**, y con la
+conversión correcta en Compras y Facturación (incluido si el precio **incluye ISV** o hay
+que sumarlo). Rama `feat/medidas-producto`. **Estado real: tareas 0-10 completadas; 11-15
+pendientes.** **Migración `074` APLICADA** (21 Oct 2026).
+
+### Migración 074 — `prisma/migrations/074_product_measures.sql` (**APLICADA**)
+
+- Tabla **`product_measure`** (12 columnas): `product_id uuid` FK a `product(id)` ON DELETE
+  CASCADE, `name`, `factor integer` (>= 1, CHECK **en la base**), `cost numeric`,
+  `sale_price bigint`, `price_includes_tax boolean`, `is_active`, timestamps. UNIQUE
+  `(company_id, product_id, lower(name))` (la misma medida en dos empresas es legítima;
+  dentro de una empresa no) + índice `(company_id, product_id)`.
+- `product.price_includes_tax boolean DEFAULT false`.
+- `unit text` + `unit_factor integer DEFAULT 1` en `PurchaseItem`, `InvoiceItem` y
+  `PurchaseReturnItem` (6 columnas; snapshot de en qué medida se compró/vendió).
+- Sin GRANT (regla 062). Idempotente con preflight/post-check; el único se localiza por
+  **columnas** (`pg_get_indexdef(...,n,true)` + `btrim(...,'"')`). `validar-040.mjs` -> OK.
+- **Aplicada** en SQL Editor (21 Oct 2026), verificada por OpenAPI.
+
+### Módulo puro `lib/services/measure-calc.ts` (0 imports)
+
+`redondear`, `factorValido` (laxo: vacío/0 -> 1), `exigirFactor` (throw si no es entero >= 1),
+`unidadesBase` (throw si la base no da entero > 0), `desglosarImpuesto` (si `incluye`, saca el
+ISV: `base = precio/(1+tasa)`; si no, lo suma) y `precioNeto`. **Regla:** `base = factor ×
+cantidad`. `validarMedidas` vive aquí (no en el servicio) por seguridad: la página de
+inventario es `'use client'` e importar el módulo servidor metería la
+`SUPABASE_SERVICE_ROLE_KEY` en el bundle del navegador.
+
+### Servicio `lib/services/product-measures.ts`
+
+CRUD de `product_measure` por producto (patrón `warehouse-service.ts`: `getSupabaseServer()`
++ `resolveTenant`), con variantes `...Con(supabase, empresa, ...)`. `medidasDeProductos`
+**degrada a `Map` vacío** si falta la 074 (el producto se sigue vendiendo en unidad base);
+la escritura lanza error claro de "migración pendiente". Aísla por `.eq('company_id')`.
+
+### API de productos (`app/api/inventory/products/route.ts`)
+
+GET adjunta `measures` en un solo viaje; POST/PATCH aceptan `measures` + `price_includes_tax`
+(PATCH reemplaza medidas solo si vienen); POST borra el producto si falla el alta de medidas.
+Validación de medida inválida -> **400**; GET sin empresa -> `measures: []` con cero consultas.
+
+### UI — modal "Medidas y precios" (`app/companies/[id]/inventory/page.tsx`)
+
+Tabla Medida / Unidades por medida / Costo / Precio de venta / **Incluye ISV** (checkbox por
+fila), con el equivalente por unidad bajo cada precio (`= L 9.00 por Unidad`). Columna
+**"Incluye ISV"** en la tabla de productos y descomposición del stock con las medidas
+(`104 Unidad (2 Caja + 4)`). El atajo Docena/Caja es **solo sugerencia**: no se persiste si
+el usuario no lo toca.
+
+### Compras — stock y costo en unidad base (`lib/purchase-db.ts`)
+
+- **T7** `createPurchase`/`updatePurchase` persisten `unit`/`unit_factor` y validan el
+  factor **antes** de escribir (un factor inválido ya no deja compra huérfana/sin líneas).
+- **T8** `aplicarEfectosCompra` (con la compra **aprobada**): **dos pasadas** (normaliza
+  todos los ítems antes de escribir; si uno lanza, el stock de ninguno cambia). El factor e
+  `incluyeIsv` salen del **maestro** (`medidasDeProductosCon`), no de la línea (la 074 no
+  añade `price_includes_tax` a `PurchaseItem`). `current_stock` sube `cantidad × factor` y
+  `current_cost = round(precioNeto(...)/factor)` (neto con 2 decimales, entero al final).
+  La compra **no** escribe `inventory_movement` (mueve stock por `current_stock`).
+  **Fail-closed** (`b177f82`): si falla la lectura del producto existente se lanza, en vez
+  de crear un duplicado en silencio (caso de la 074 sin aplicar, `42703`).
+- **T9** `purchase-returns-db.ts`: devoluciones restan/repone stock en **unidad base** (`cantidadBase = unidadesBase(cantidad, exigirFactor(...))`), guardan `unit`/`unit_factor` en `PurchaseReturnItem`, `deletePurchaseReturn` usa `factorValido` para devoluciones pre-074.
+- **T10** UI de Compras (`app/companies/[id]/purchases/page.tsx`): selector de medida por línea (Unidad/base o medida del maestro), precarga `cost` si vacío, checkbox **"El precio ya incluye ISV"**, etiqueta `Cantidad (Unidad/Medida)` y `Unidades por Medida`, guarda `unit_factor`/`price_includes_tax`/`product_id`. `handleAddItem` calcula subtotal con la medida correcta.
+
+**Verificado (21 Oct 2026):** `tsc --noEmit` **454**; inventario **64/64**,
+warehouse **15/15**, compras **223/223**, billing **34/34**, transfers-import **10/10**
+(todas 0 fail); `validar-040.mjs 074` **OK**.
+**Pendiente:** retests en navegador (POS/facturación T11-T13, cierre T14-T15). T9 y T10 completados.

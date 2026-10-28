@@ -46,3 +46,52 @@ export async function getUserRoleFromAuth(): Promise<UserRole> {
   
   return "VIEWER";
 }
+
+/**
+ * Nombre legible del usuario autenticado, resuelto EN SERVIDOR.
+ *
+ * Es el "quien lo hizo" del workflow de Ordenes de Compra (creada / aprobada /
+ * recibida / cancelada): la ruta lo calcula y lo pasa a las funciones de
+ * `lib/purchase-orders-db.ts`. **El actor nunca sale del cuerpo de la peticion**
+ * (`body.approved_by` se ignora a proposito), porque quien aprueba o cancela lo
+ * decide la sesion, no el cliente.
+ *
+ * Orden: claims de la sesion (gratis) -> usuario de Clerk (la fuente que tiene
+ * el nombre real) -> email -> `null`. Devuelve `null` en vez de lanzar: si no se
+ * puede resolver el nombre, la accion queda registrada sin actor y no se bloquea.
+ */
+export async function nombreDeUsuarioActual(): Promise<string | null> {
+  try {
+    const { userId, sessionClaims } = await auth();
+    if (!userId) return null;
+
+    const claims = (sessionClaims || {}) as Record<string, unknown>;
+
+    const desdeClaims = nombreLegible(claims.firstName, claims.lastName);
+    if (desdeClaims) return desdeClaims;
+
+    try {
+      const client = await clerkClient();
+      const user = await client.users.getUser(userId);
+      const desdeUsuario = nombreLegible(user.firstName, user.lastName);
+      if (desdeUsuario) return desdeUsuario;
+      const emailDelUsuario = user.emailAddresses[0]?.emailAddress;
+      if (emailDelUsuario) return emailDelUsuario;
+    } catch (error) {
+      console.error("Error fetching user name from Clerk:", error);
+    }
+
+    return typeof claims.email === "string" && claims.email ? claims.email : null;
+  } catch (error) {
+    console.error("Error resolving current user name:", error);
+    return null;
+  }
+}
+
+function nombreLegible(primero: unknown, ultimo: unknown): string | null {
+  const nombre = [primero, ultimo]
+    .map((v) => (typeof v === "string" ? v.trim() : ""))
+    .filter(Boolean)
+    .join(" ");
+  return nombre || null;
+}

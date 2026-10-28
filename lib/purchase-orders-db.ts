@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { ErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { idsDeEstaEmpresa, idValidoDe, createPurchase, type EmpresaCompra } from '@/lib/purchase-db';
+import { desglosarImpuesto } from '@/lib/services/measure-calc';
 
 /**
  * Órdenes de Compra: aislamiento real y flujo O.C. → Compra (8 Oct 2026).
@@ -97,11 +98,31 @@ async function hidratarOrdenes(
     }
   }
 
+  // Historial de modificaciones (087). Mismo patron que items: consulta aparte,
+  // sin embeds, doble filtro (ids de la empresa + company_id) y orden cronologico.
+  // Si la 078 falta, la consulta falla y se degrada a `edits: []` (el GET no
+  // debe tumbarse mientras la migracion este pendiente).
+  const editsPorOrden = new Map<string, any[]>();
+  if (orderIds.length > 0) {
+    const { data } = await supabase
+      .from('PurchaseOrderEdit')
+      .select('*')
+      .eq('company_id', empresa.companyId)
+      .in('purchase_order_id', orderIds)
+      .order('edited_at', { ascending: true });
+    for (const ed of data || []) {
+      const k = String(ed.purchase_order_id);
+      if (!editsPorOrden.has(k)) editsPorOrden.set(k, []);
+      editsPorOrden.get(k)!.push(ed);
+    }
+  }
+
   return ordenes.map((o) =>
     transformOrder({
       ...o,
       Supplier: proveedores.get(String(o.supplier_id)) || null,
       items: itemsPorOrden.get(String(o.id)) || [],
+      edits: editsPorOrden.get(String(o.id)) || [],
     })
   );
 }
@@ -155,7 +176,7 @@ export async function fetchPurchaseOrders(
   return { data: filas, error: null };
 }
 
-export async function createPurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, body: any) {
+export async function createPurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, body: any, actor?: string | null) {
   const supplierId = body.supplier_id;
   await exigirProveedorDeLaEmpresa(supabase, empresa, supplierId);
 
@@ -189,7 +210,7 @@ export async function createPurchaseOrder(supabase: SupabaseClient, empresa: Emp
       total: Math.round(Number(body.total) || 0),
       status: 'DRAFT',
       notes: body.notes || null,
-      requested_by: body.requested_by || null,
+      requested_by: textoDe(body.requested_by) || actor || null,
       tenant_id: empresa.tenantId,
       company_id: empresa.companyId,
       created_at: now,
@@ -210,6 +231,7 @@ export async function createPurchaseOrder(supabase: SupabaseClient, empresa: Emp
       quantity_received: Number(item.quantity_received) || 0,
       unit_price: Number(item.unit_price) || 0,
       total: Math.round(Number(item.total) || 0),
+      price_includes_tax: !!item.price_includes_tax,
       notes: item.notes || null,
       tenant_id: empresa.tenantId,
       company_id: empresa.companyId,
@@ -236,23 +258,82 @@ const ESTADOS_SUBIDA: Record<string, string[]> = {
   PENDING: ['APPROVED'],
 };
 
+/**
+ * Texto normalizado de un campo opcional del cuerpo: `null` si no viene, no es
+ * string o queda en blanco. Sirve para que un input vacio no deje `''` en BD.
+ */
+function textoDe(valor: unknown): string | null {
+  if (typeof valor !== 'string') return null;
+  const t = valor.trim();
+  return t || null;
+}
+
+/**
+ * Campos que el cliente SIEMPRE puede escribir.
+ *
+ * `approved_by`/`approved_at`/`cancelled_by`/`received_by` NO estan aqui a
+ * proposito: los rellena el servidor con el actor de la sesion (ver
+ * `nombreDeUsuarioActual()` en `lib/auth-server.ts`). Un PATCH no puede decidir
+ * quien aprobo o quien cancelo.
+ */
 const CAMPOS_EDITABLES = [
   'order_number', 'supplier_id', 'order_date', 'expected_date', 'subtotal',
   'tax_amount', 'total', 'status', 'notes', 'requested_by',
-  'approved_by', 'approved_at',
+  'cancellation_reason',
 ];
 
-export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, id: string, body: any) {
+/**
+ * Verifica si una orden ya está aprobada o cancelada y si el usuario intenta
+ * modificarla, lanza error a menos que sea un cambio de estado a CANCELADO con razón.
+ */
+function verificarOrdenAprobada(actual: any, body: any, empresa: EmpresaCompra) {
+  // Las órdenes canceladas quedan bloqueadas: no se pueden modificar
+  if (actual.status === 'CANCELLED') {
+    throw new ErrorDeEmpresa(
+      409,
+      'No se pueden modificar órdenes de compra canceladas.'
+    );
+  }
+
+  if (actual.status === 'APPROVED') {
+    // Si la orden ya está aprobada, solo se permite cambiar a CANCELADO con razón
+    if (body.status === 'CANCELLED') {
+      // Verificar que se proporcione una razón de cancelación
+      if (!body.cancellation_reason || String(body.cancellation_reason).trim() === '') {
+        throw new ErrorDeEmpresa(
+          400,
+          'Se requiere una razón de cancelación para anular una orden de compra.'
+        );
+      }
+      // La cancelacion de una orden aprobada exige motivo (arriba) y se
+      // registra con `cancelled_by` en `updatePurchaseOrder`. Antes habia aqui
+      // un control "solo el dueño" comparando contra `empresa.userId`, que no
+      // existe en `EmpresaCompra`: el `!== undefined` solo disparaba un 403 si
+      // el cliente mandaba `approved_by`, cosa que ninguna ruta hace. No se
+      // sustituye por un permiso nuevo sin decision del usuario.
+    } else {
+      throw new ErrorDeEmpresa(
+        409,
+        'No se pueden modificar órdenes de compra aprobadas. Use el estado CANCELADO con una razón si necesita anularla.'
+      );
+    }
+  }
+}
+
+export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, id: string, body: any, actor?: string | null) {
   // IDOR: sin este `company_id` un id ajeno de otra empresa se editaba.
   const { data: actual, error: actualError } = await supabase
     .from('PurchaseOrder')
-    .select('id, status')
+    .select('id, status, approved_by, approved_at')
     .eq('id', id)
     .eq('company_id', empresa.companyId)
     .maybeSingle();
 
   if (actualError) return { data: null, error: actualError };
   if (!actual) return { data: null, error: null, notFound: true as const };
+
+  // Verificar si la orden ya está aprobada y bloquear modificaciones
+  verificarOrdenAprobada(actual, body, empresa);
 
   if (body.supplier_id !== undefined) {
     await exigirProveedorDeLaEmpresa(supabase, empresa, body.supplier_id);
@@ -274,6 +355,17 @@ export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: Emp
       if (!permitido) {
         throw new ErrorDeEmpresa(409, `Transición de estado no permitida: ${origen} -> ${destino}`);
       }
+      // Quien realizo la accion lo decide el servidor (parametro `actor`), no
+      // el cuerpo: `body.approved_by` solo se acepta como respaldo para pruebas
+      // sin sesion.
+      if (destino === 'APPROVED') {
+        updates.approved_by = actor ?? textoDe(body.approved_by);
+        updates.approved_at = new Date().toISOString();
+      }
+      if (destino === 'CANCELLED') {
+        // Columna nueva en la migracion 076: sin aplicarla este UPDATE falla.
+        updates.cancelled_by = actor ?? null;
+      }
       updates.status = destino;
     }
   }
@@ -288,6 +380,36 @@ export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: Emp
 
   updates.updated_at = new Date().toISOString();
 
+  // Historial de modificaciones (workflow, 087): solo los cambios de DATOS
+  // cuentan como "Modificada" — aprobar/cancelar ya tiene su propio paso en el
+  // timeline con su autor. El insert va ANTES del update para que, si falta la
+  // migracion 078, falle sin escribir nada (fail-closed como `cancelled_by` de
+  // la 076); si luego el update falla, se deshace la fila para no dejar un
+  // registro fantasma.
+  const CAMPOS_DE_ESTADO = new Set([
+    'status', 'updated_at', 'approved_by', 'approved_at',
+    'cancelled_by', 'cancellation_reason',
+  ]);
+  const esCambioDeDatos =
+    Object.keys(updates).some((c) => !CAMPOS_DE_ESTADO.has(c)) ||
+    Array.isArray(body.items);
+  let editId: string | null = null;
+  if (esCambioDeDatos) {
+    const { data: edit, error: editError } = await supabase
+      .from('PurchaseOrderEdit')
+      .insert({
+        purchase_order_id: id,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
+        edited_by: actor ?? null,
+        edited_at: new Date().toISOString(),
+      })
+      .select()
+      .single();
+    if (editError) return { data: null, error: editError };
+    editId = edit ? String(edit.id) : null;
+  }
+
   const { data, error } = await supabase
     .from('PurchaseOrder')
     .update(updates)
@@ -296,7 +418,69 @@ export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: Emp
     .select()
     .single();
 
-  if (error) return { data: null, error };
+  if (error) {
+    if (editId) {
+      await supabase
+        .from('PurchaseOrderEdit')
+        .delete()
+        .eq('id', editId)
+        .eq('company_id', empresa.companyId);
+    }
+    return { data: null, error };
+  }
+
+  // Actualizar items si se proporcionan (borrar los viejos y crear los nuevos)
+  if (Array.isArray(body.items)) {
+    // Solo permitir cambios de items si la orden está en DRAFT
+    if (actual.status !== 'DRAFT') {
+      throw new ErrorDeEmpresa(
+        409,
+        'Solo se pueden modificar los artículos de órdenes en estado BORRADOR.'
+      );
+    }
+
+    const { error: deleteError } = await supabase
+      .from('PurchaseOrderItem')
+      .delete()
+      .eq('purchase_order_id', id)
+      .eq('company_id', empresa.companyId);
+
+    if (deleteError) {
+      console.error('Error deleting old purchase order items:', deleteError);
+      return { data: null, error: deleteError };
+    }
+
+    const articulos = body.items;
+    const productosValidos = await idsDeEstaEmpresa(
+      supabase, empresa, 'product',
+      articulos.map((i: any) => i.product_id)
+    );
+
+    if (articulos.length > 0) {
+      const now = new Date().toISOString();
+      const filas = articulos.map((item: any) => ({
+        purchase_order_id: id,
+        product_id: idValidoDe(productosValidos, item.product_id),
+        product_code: item.product_code || null,
+        product_name: item.product_name || item.description || '',
+        quantity_requested: Number(item.quantity_requested) || 0,
+        quantity_received: Number(item.quantity_received) || 0,
+        unit_price: Number(item.unit_price) || 0,
+        total: Math.round(Number(item.total) || 0),
+        price_includes_tax: !!item.price_includes_tax,
+        notes: item.notes || null,
+        tenant_id: empresa.tenantId,
+        company_id: empresa.companyId,
+        created_at: now,
+      }));
+
+      const { error: itemsError } = await supabase.from('PurchaseOrderItem').insert(filas);
+      if (itemsError) {
+        console.error('Error updating purchase order items:', itemsError);
+        return { data: null, error: itemsError };
+      }
+    }
+  }
 
   return { data, error: null };
 }
@@ -304,12 +488,20 @@ export async function updatePurchaseOrder(supabase: SupabaseClient, empresa: Emp
 export async function deletePurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, id: string) {
   const { data: actual } = await supabase
     .from('PurchaseOrder')
-    .select('id')
+    .select('id, status')
     .eq('id', id)
     .eq('company_id', empresa.companyId)
     .maybeSingle();
 
   if (!actual) return { error: null, notFound: true as const };
+
+  // Bloquear eliminación de órdenes aprobadas o canceladas
+  if (actual.status === 'APPROVED') {
+    throw new ErrorDeEmpresa(409, 'No se pueden eliminar órdenes de compra aprobadas.');
+  }
+  if (actual.status === 'CANCELLED') {
+    throw new ErrorDeEmpresa(409, 'No se pueden eliminar órdenes de compra canceladas.');
+  }
 
   await supabase
     .from('PurchaseOrderItem')
@@ -343,7 +535,7 @@ export async function deletePurchaseOrder(supabase: SupabaseClient, empresa: Emp
  * NO se reserva el estado: si algo no cuadra, no se escribe nada; si
  * `createPurchase` falla, la orden queda intacta (no hay nada que revertir).
  */
-export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, body: any) {
+export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: EmpresaCompra, body: any, actor?: string | null) {
   const id = String(body?.id || '');
   if (!id) throw new ErrorDeEmpresa(400, 'Order ID is required');
 
@@ -444,8 +636,11 @@ export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: Em
   } else {
     purchaseItems = aRecibir.map(({ item, cantidad }) => {
       const precio = Number(item.unit_price) || 0;
-      const subtotalLinea = Math.round(cantidad * precio);
-      const ivaLinea = Math.round((subtotalLinea * tasa) / 100);
+      // Cada linea puede traer el ISV adentro del precio (`price_includes_tax`,
+      // migracion 077). El precio tecleado manda: si incluye, el impuesto se
+      // extrae de adentro; si no, se suma encima. `decimales: 0` porque los
+      // importes de PurchaseItem son lempiras enteros.
+      const desglose = desglosarImpuesto(cantidad * precio, tasa, !!item.price_includes_tax, 0);
       return {
         product_id: idValidoDe(productosValidos, item.product_id),
         product_code: item.product_code || null,
@@ -454,10 +649,10 @@ export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: Em
         unit_price: precio,
         discount_percentage: 0,
         discount_amount: 0,
-        subtotal: subtotalLinea,
+        subtotal: desglose.base,
         tax_rate: tasa,
-        tax_amount: ivaLinea,
-        total: subtotalLinea + ivaLinea,
+        tax_amount: desglose.impuesto,
+        total: desglose.total,
         invoice_number: invoiceNumber,
       };
     });
@@ -506,7 +701,7 @@ export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: Em
       cai: body.cai || null,
       purchase_id: r.data?.id || null,
       received_at: now,
-      received_by: body.received_by || null,
+      received_by: actor ?? textoDe(body.received_by),
       notes: body.notes || null,
       created_at: now,
     })
@@ -563,7 +758,7 @@ export async function recibirPurchaseOrder(supabase: SupabaseClient, empresa: Em
     .update({
       status: items.length === 0 || completo ? 'RECEIVED' : 'PARTIALLY_RECEIVED',
       received_at: now,
-      received_by: body.received_by || null,
+      received_by: actor ?? textoDe(body.received_by),
       purchase_id: r.data?.id || order.purchase_id || null,
       updated_at: now,
     })

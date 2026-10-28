@@ -1,5 +1,8 @@
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { NextResponse } from 'next/server';
+import { contextoDeEmpresa } from '@/lib/tenant-resolver';
+import { filtroEmpresaOCompany } from '@/lib/company-scope';
+
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
@@ -7,13 +10,15 @@ const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 
 export async function GET(request: Request) {
   try {
+    // Validate enterprise context - requires company_id for proper isolation
+    const empresa = await contextoDeEmpresa(request);
+
     const { searchParams } = new URL(request.url);
     const companyId = searchParams.get('companyId');
     const month = searchParams.get('month');
     const year = searchParams.get('year');
-    const tenantId = '1';
 
-    // Build the query
+    // Build the query with enterprise isolation
     let query = getSupabaseServer()
       .from('Purchase')
       .select(`
@@ -28,13 +33,15 @@ export async function GET(request: Request) {
         expense_category,
         Supplier:supplier_id(id, name, rtn)
       `)
-      .eq('tenant_id', tenantId)
-      .neq('status', 'CANCELLED')
-      .order('invoice_date', { ascending: true });
+      .eq('tenant_id', empresa.tenantId)
+      .match(filtroEmpresaOCompany(empresa));
 
     if (companyId) {
       query = query.eq('company_id', companyId);
     }
+
+    // Filter by status - not CANCELLED
+    query = query.neq('status', 'CANCELLED');
 
     // Filter by month and year if provided
     if (month && year) {
@@ -43,6 +50,8 @@ export async function GET(request: Request) {
       query = query.gte('invoice_date', startDate).lte('invoice_date', endDate);
     }
 
+    query = query.order('invoice_date', { ascending: true });
+
     const { data, error } = await query;
 
     if (error) {
@@ -50,24 +59,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Failed to fetch purchase book' }, { status: 500 });
     }
 
-    // Transform data to match the expected format
-    const entries = (data || []).map((purchase: any) => ({
-      id: purchase.id,
-      invoice_date: purchase.invoice_date,
-      invoice_number: purchase.invoice_number,
-      supplier_rtn: purchase.Supplier?.rtn || '',
-      supplier_name: purchase.Supplier?.name || 'Desconocido',
-      cai: purchase.cai || '',
-      net_value: purchase.subtotal || 0,
-      tax_value: purchase.tax_amount || 0,
-      total_value: purchase.total || 0,
-      purchase_type: purchase.purchase_type || 'expense',
-      expense_category: purchase.expense_category || '',
-    }));
-
-    return NextResponse.json(entries);
+    return NextResponse.json({ data });
   } catch (error) {
     console.error('Error fetching purchase book:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Failed to fetch purchase book' },
+      { status: 500 }
+    );
   }
 }

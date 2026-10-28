@@ -49,6 +49,7 @@ function sembrar(extra = {}) {
     ],
     Purchase: [],
     PurchaseItem: [],
+    PurchaseOrderEdit: [],
     supplier_price_history: [],
     SupplierPayment: [],
     Account: [],
@@ -128,6 +129,16 @@ describe('createPurchaseOrder', () => {
       (e) => e instanceof ErrorDeEmpresa && e.estado === 400
     );
   });
+
+  test('persiste price_includes_tax por linea (y en false si no viene)', async () => {
+    await createPurchaseOrder(sb, em(T1), cuerpo({
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity_requested: 1, unit_price: 115, total: 115, price_includes_tax: true }],
+    }));
+    assert.equal(bd.PurchaseOrderItem.at(-1).price_includes_tax, true);
+
+    await createPurchaseOrder(sb, em(T1), cuerpo({ order_number: 'OC-2' }));
+    assert.equal(bd.PurchaseOrderItem.at(-1).price_includes_tax, false);
+  });
 });
 
 describe('updatePurchaseOrder', () => {
@@ -161,6 +172,14 @@ describe('updatePurchaseOrder', () => {
       (e) => e.estado === 409
     );
   });
+
+  test('al reemplazar los articulos persiste price_includes_tax por linea', async () => {
+    const res = await updatePurchaseOrder(sb, em(T1), 'o-t1b', {
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity_requested: 1, unit_price: 115, total: 115, price_includes_tax: true }],
+    });
+    assert.notEqual(res.notFound, true);
+    assert.equal(bd.PurchaseOrderItem.find((i) => i.purchase_order_id === 'o-t1b').price_includes_tax, true);
+  });
 });
 
 describe('deletePurchaseOrder', () => {
@@ -171,10 +190,10 @@ describe('deletePurchaseOrder', () => {
   });
 
   test('borra la suya y sus items', async () => {
-    const res = await deletePurchaseOrder(sb, em(T1), 'o-t1');
+    const res = await deletePurchaseOrder(sb, em(T1), 'o-t1b');
     assert.notEqual(res.notFound, true);
-    assert.equal(bd.PurchaseOrder.find((o) => o.id === 'o-t1'), undefined);
-    assert.equal(bd.PurchaseOrderItem.find((i) => i.purchase_order_id === 'o-t1'), undefined);
+    assert.equal(bd.PurchaseOrder.find((o) => o.id === 'o-t1b'), undefined);
+    assert.equal(bd.PurchaseOrderItem.find((i) => i.purchase_order_id === 'o-t1b'), undefined);
   });
 });
 
@@ -242,6 +261,56 @@ describe('recibirPurchaseOrder', () => {
     assert.equal(compra.due_date, '2026-11-08');
   });
 
+  // Linea marcada con price_includes_tax: el precio tecleado (2 x 115 = 230) ya
+  // trae el ISV adentro, asi que la compra recibe neto 200 + ISV 30.
+  test('si la linea incluye ISV, el precio total manda y el impuesto se extrae de adentro', async () => {
+    await createPurchaseOrder(sb, em(T1), {
+      order_number: 'OC-ISV',
+      supplier_id: 's-t1',
+      order_date: '2026-10-21',
+      subtotal: 200,
+      tax_amount: 30,
+      total: 230,
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity_requested: 2, unit_price: 115, total: 230, price_includes_tax: true }],
+    });
+    await updatePurchaseOrder(sb, em(T1), bd.PurchaseOrder.at(-1).id, { status: 'APPROVED' });
+
+    await recibirPurchaseOrder(sb, em(T1), { id: bd.PurchaseOrder.at(-1).id, invoice_number: 'F-ISV' });
+
+    const compra = bd.Purchase.at(-1);
+    assert.equal(compra.subtotal, 200);
+    assert.equal(compra.tax_amount, 30);
+    assert.equal(compra.total, 230);
+
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.unit_price, 115);
+    assert.equal(item.subtotal, 200);
+    assert.equal(item.tax_amount, 30);
+    assert.equal(item.total, 230);
+  });
+
+  // Redondeo: 100 / 1.15 = 86.96... -> neto 87, ISV 13; base + ISV === total.
+  test('el desglose por linea cierra sin residuo de centavo (87 + 13 = 100)', async () => {
+    await createPurchaseOrder(sb, em(T1), {
+      order_number: 'OC-ISV-2',
+      supplier_id: 's-t1',
+      order_date: '2026-10-21',
+      subtotal: 87,
+      tax_amount: 13,
+      total: 100,
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity_requested: 1, unit_price: 100, total: 100, price_includes_tax: true }],
+    });
+    await updatePurchaseOrder(sb, em(T1), bd.PurchaseOrder.at(-1).id, { status: 'APPROVED' });
+
+    await recibirPurchaseOrder(sb, em(T1), { id: bd.PurchaseOrder.at(-1).id, invoice_number: 'F-ISV-2' });
+
+    const item = bd.PurchaseItem.at(-1);
+    assert.equal(item.subtotal, 87);
+    assert.equal(item.tax_amount, 13);
+    assert.equal(item.total, 100);
+    assert.equal(item.subtotal + item.tax_amount, item.total);
+  });
+
   test('no permite recibir dos veces la misma orden', async () => {
     await recibirPurchaseOrder(sb, em(T1), { id: 'o-t1', invoice_number: 'F-1' });
     await assert.rejects(
@@ -261,5 +330,63 @@ describe('recibirPurchaseOrder', () => {
     assert.equal(orden.received_at, null);
     assert.equal(bd.Purchase.length, 0);
     assert.equal((bd.PurchaseOrderReceipt || []).length, 0);
+  });
+});
+
+describe('historial de modificaciones (workflow)', () => {
+  test('un PATCH de datos en DRAFT registra fila con autor, empresa y fecha', async () => {
+    const res = await updatePurchaseOrder(
+      sb, em(T1), 'o-t1b',
+      { subtotal: 86, tax_amount: 13, total: 99 },
+      'Maria Lopez'
+    );
+    assert.notEqual(res.notFound, true);
+    assert.equal(bd.PurchaseOrderEdit.length, 1);
+    const fila = bd.PurchaseOrderEdit[0];
+    assert.equal(fila.purchase_order_id, 'o-t1b');
+    assert.equal(fila.company_id, T1);
+    assert.equal(fila.tenant_id, TEN);
+    assert.equal(fila.edited_by, 'Maria Lopez');
+    assert.ok(fila.edited_at);
+  });
+
+  test('reemplazar los articulos tambien cuenta como modificacion', async () => {
+    await updatePurchaseOrder(sb, em(T1), 'o-t1b', {
+      items: [{ product_id: 'prod-t1', product_name: 'Cafe', quantity_requested: 2, unit_price: 50, total: 100 }],
+    }, 'Juan Perez');
+    assert.equal(bd.PurchaseOrderEdit.length, 1);
+    assert.equal(bd.PurchaseOrderEdit[0].edited_by, 'Juan Perez');
+  });
+
+  test('aprobar (solo cambio de estado) NO registra modificacion', async () => {
+    await updatePurchaseOrder(sb, em(T1), 'o-t1b', { status: 'APPROVED' }, 'Ana');
+    assert.equal(bd.PurchaseOrder.find((o) => o.id === 'o-t1b').status, 'APPROVED');
+    assert.equal(bd.PurchaseOrderEdit.length, 0);
+  });
+
+  test('cancelar NO registra modificacion', async () => {
+    await updatePurchaseOrder(sb, em(T1), 'o-t1b', { status: 'CANCELLED', cancellation_reason: 'duplicada' }, 'Ana');
+    assert.equal(bd.PurchaseOrder.find((o) => o.id === 'o-t1b').status, 'CANCELLED');
+    assert.equal(bd.PurchaseOrderEdit.length, 0);
+  });
+
+  test('sin sesion el edited_by queda en null (el servidor no inventa autor)', async () => {
+    await updatePurchaseOrder(sb, em(T1), 'o-t1b', { notes: 'cambio sin sesion' });
+    assert.equal(bd.PurchaseOrderEdit.length, 1);
+    assert.equal(bd.PurchaseOrderEdit[0].edited_by, null);
+  });
+
+  test('el GET devuelve las modificaciones de cada orden, cronologicas y solo las propias', async () => {
+    bd.PurchaseOrderEdit = [
+      { id: 'e-2', purchase_order_id: 'o-t1b', company_id: T1, tenant_id: TEN, edited_by: 'Juan', edited_at: '2026-10-21T12:00:00' },
+      { id: 'e-1', purchase_order_id: 'o-t1b', company_id: T1, tenant_id: TEN, edited_by: 'Maria', edited_at: '2026-10-21T10:00:00' },
+      { id: 'e-ajena', purchase_order_id: 'o-t2', company_id: T2, tenant_id: TEN, edited_by: 'Intruso', edited_at: '2026-10-21T11:00:00' },
+    ];
+
+    const { data } = await fetchPurchaseOrders(sb, em(T1), {});
+    const propia = data.find((o) => o.id === 'o-t1b');
+    assert.deepEqual((propia.edits || []).map((e) => e.edited_by), ['Maria', 'Juan']);
+    const sinEdits = data.find((o) => o.id === 'o-t1');
+    assert.deepEqual(sinEdits.edits, []);
   });
 });

@@ -5,6 +5,7 @@ import { GET, POST, PATCH, DELETE } from '../../app/api/purchase-orders/route.ts
 import { POST as RECIBIR } from '../../app/api/purchase-orders/receive/route.ts';
 import { crearSupabaseFalso } from './supabase-falso.mjs';
 import { ponerSupabase } from './supabase-server-mock.mjs';
+import { ponerNombreDeUsuario } from './auth-server-mock.mjs';
 
 /**
  * Prueba las RUTAS reales de `/api/purchase-orders` con un supabase falso y el
@@ -40,6 +41,7 @@ function sembrar() {
     JournalEntryLine: [],
   };
   ponerSupabase(crearSupabaseFalso({ bd }));
+  ponerNombreDeUsuario(null);
 }
 
 beforeEach(sembrar);
@@ -138,5 +140,76 @@ describe('RECIBIR (flujo O.C. -> Compra)', () => {
   test('404 si la orden es de otra empresa', async () => {
     const res = await RECIBIR(req({ id: 'o-t2', invoice_number: 'F-9' }, sesion));
     assert.equal(res.status, 404);
+  });
+});
+
+describe('QUIEN REALIZO CADA ACCION (actor de la sesion, resuelto en servidor)', () => {
+  test('POST registra quien creo la orden cuando no viene requested_by', async () => {
+    ponerNombreDeUsuario('Ana Prueba');
+    const res = await POST(req({ order_number: 'OC-N', supplier_id: 's-t1', subtotal: 10, tax_amount: 2, total: 12 }, sesion));
+    assert.equal(res.status, 201);
+    const body = await res.json();
+    assert.equal(body.requested_by, 'Ana Prueba');
+    assert.equal(bd.PurchaseOrder.at(-1).requested_by, 'Ana Prueba');
+  });
+
+  test('POST respeta el requested_by tecleado por el usuario', async () => {
+    ponerNombreDeUsuario('Ana Prueba');
+    const res = await POST(req({ order_number: 'OC-N', supplier_id: 's-t1', requested_by: 'Otro Nombre', subtotal: 10, tax_amount: 2, total: 12 }, sesion));
+    assert.equal(res.status, 201);
+    assert.equal((await res.json()).requested_by, 'Otro Nombre');
+  });
+
+  test('POST sin sesion ni requested_by deja el autor en null, no en cadena vacia', async () => {
+    const res = await POST(req({ order_number: 'OC-N', supplier_id: 's-t1', subtotal: 10, tax_amount: 2, total: 12 }, sesion));
+    assert.equal(res.status, 201);
+    assert.equal((await res.json()).requested_by, null);
+  });
+
+  test('PATCH aprueba y registra al aprobador de la sesion', async () => {
+    ponerNombreDeUsuario('Maria Aprobadora');
+    const res = await PATCH(req({ id: 'o-t1', status: 'APPROVED' }, sesion));
+    assert.equal(res.status, 200);
+    const o = bd.PurchaseOrder.find((x) => x.id === 'o-t1');
+    assert.equal(o.approved_by, 'Maria Aprobadora');
+    assert.ok(o.approved_at, 'approved_at debe quedar puesto');
+  });
+
+  test('PATCH ignora approved_by del cuerpo: manda la sesion', async () => {
+    ponerNombreDeUsuario('Maria Aprobadora');
+    const res = await PATCH(req({ id: 'o-t1', status: 'APPROVED', approved_by: 'Hacker Falso' }, sesion));
+    assert.equal(res.status, 200);
+    assert.equal(bd.PurchaseOrder.find((x) => x.id === 'o-t1').approved_by, 'Maria Aprobadora');
+  });
+
+  test('PATCH al aprobar sin sesion usa el approved_by del cuerpo como respaldo', async () => {
+    const res = await PATCH(req({ id: 'o-t1', status: 'APPROVED', approved_by: 'Nombre Viejo' }, sesion));
+    assert.equal(res.status, 200);
+    assert.equal(bd.PurchaseOrder.find((x) => x.id === 'o-t1').approved_by, 'Nombre Viejo');
+  });
+
+  test('PATCH cancela una orden aprobada con motivo y registra al autor', async () => {
+    ponerNombreDeUsuario('Carlos Cancelador');
+    const res = await PATCH(req({ id: 'o-t2', status: 'CANCELLED', cancellation_reason: 'Precio fuera de presupuesto' }, { companyId: T2, tenantId: TEN }));
+    assert.equal(res.status, 200);
+    const o = bd.PurchaseOrder.find((x) => x.id === 'o-t2');
+    assert.equal(o.status, 'CANCELLED');
+    assert.equal(o.cancellation_reason, 'Precio fuera de presupuesto');
+    assert.equal(o.cancelled_by, 'Carlos Cancelador');
+  });
+
+  test('PATCH cancelar aprobada sigue exigiendo motivo', async () => {
+    const res = await PATCH(req({ id: 'o-t2', status: 'CANCELLED' }, { companyId: T2, tenantId: TEN }));
+    assert.equal(res.status, 400);
+    assert.equal(bd.PurchaseOrder.find((x) => x.id === 'o-t2').status, 'APPROVED');
+  });
+
+  test('RECIBIR registra al que recibio la entrega', async () => {
+    ponerNombreDeUsuario('Luis Receptor');
+    const res = await RECIBIR(req({ id: 'o-t2', invoice_number: 'F-9' }, { companyId: T2, tenantId: TEN }));
+    assert.equal(res.status, 201);
+    const o = bd.PurchaseOrder.find((x) => x.id === 'o-t2');
+    assert.equal(o.received_by, 'Luis Receptor');
+    assert.equal(bd.PurchaseOrderReceipt.find((r) => r.purchase_order_id === 'o-t2').received_by, 'Luis Receptor');
   });
 });

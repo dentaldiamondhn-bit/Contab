@@ -5507,3 +5507,151 @@ modal `[]`, atajo intacto `[]`, Docena con precio -> `[Docena]`, Caja con factor
 medida, ver la descomposicion bajo el stock, la columna ISV y que un producto
 nuevo sin tocar el modal NO quede con Docena/Caja). Sin migracion para esto
 (074 ya cubre el esquema).
+
+### 084 Conversion de unidades de medida: tareas 0-8 completadas (19 Oct 2026)
+
+Plan `docs/superpowers/plans/2026-10-18-conversion-unidades-medida.md` (15 tareas,
+SDD con subagentes + revisor independiente; ledger en
+`.superpowers/sdd/2026-10-18-conversion-unidades-medida/progress.md`). Rama
+`feat/medidas-producto` (desde `d13f15c`). **Avance real: tareas 0-8 completadas;
+9-15 sin empezar.** Las entradas §074 (migracion) y §083 (UI del modal) de arriba son
+la T1 y la T6; esta entrada cierra el bloque y registra T2, T3, T4, T5, T7 y T8.
+
+Objetivo del plan: un producto puede venderse/comprarse en varias medidas (unidad,
+docena, caja) con **costo y precio propios por medida**, el **stock siempre en unidad
+base**, y la conversion correcta en Compras/Facturacion (incluido si el precio
+**incluye ISV** o hay que sumarlo). El bug latente que cierra: `purchases/page.tsx`
+capturaba `units_per_package` pero `lib/purchase-db.ts` lo descartaba (stock entraba
+en paquetes) y el subtotal de compra multiplicaba cantidad-en-paquetes por
+costo-por-unidad-base.
+
+**Baseline (T0, 18 Oct 2026, antes de tocar nada):** `tsc --noEmit` **456** (contado
+como `error TS`, no como lineas de salida); inventario **29/29**, warehouse **15/15**,
+purchases **183/183**, billing **34/34**, transfers-import **10/10**. Tope duro: tsc
+no puede pasar de 456; ninguna suite puede bajar.
+
+- **T2 — `lib/services/measure-calc.ts` (nuevo, 0 imports).** Modulo puro con la
+  aritmetica del proyecto: `redondear(valor, 0|2)`, `factorValido` (laxo: vacio/0 ->
+  1), `exigirFactor` (throw si no es entero >= 1), `unidadesBase` (throw si la base no
+  da entero > 0, porque `inventory_movement.quantity` es `integer`), `desglosarImpuesto`
+  (si `incluye`, saca el ISV del precio: base = precio/(1+tasa); si no, lo suma) y
+  `precioNeto`. Tests `tests/inventory/measure-calc.test.mjs`.
+- **T3 — Fake de inventario** (`tests/inventory/fake-companies.mjs`, fix
+  `630fb27`): tablas `PRODUCT`/`PRODUCT_MEASURE` + filtros nuevos `ilike`/`gt`/`in` y
+  `match`, con guards de NULL y comodines `%`/`_` anclados. **Leccion medida:** dos
+  subagentes de correccion reportaron exito **sin escribir nada** (HEAD seguia igual);
+  el controlador aplico los 4 arreglos y los verifico con sonda propia. Los loaders de
+  inventario/compras/billing mapean los servicios nuevos al fichero **real** (sin el
+  mapeo el error es `ERR_MODULE_NOT_FOUND: @/lib/...`, no un fallo del codigo).
+- **T4 — `lib/services/product-measures.ts` (nuevo).** CRUD de `product_measure` por
+  producto con el patron de `warehouse-service.ts` (`getSupabaseServer()` +
+  `resolveTenant`), con **variantes `...Con(supabase, empresa, ...)`** para que el fake
+  inyectado de Compras vea las escrituras. `medidasDeProductos` **degrada a `Map` vacio**
+  si falta la 074 (nunca lanza): el producto se puede seguir vendiendo en unidad base;
+  la escritura lanza error claro de "migracion pendiente". Fix `16284de`: `factor: ''`
+  lanzaba (ahora `factorPorDefecto`), `cost: ' '` guardaba 0 (ahora `null`), y
+  `MIGRATION_HINT` citaba el fichero sin la `s` final. **Deuda aceptada:**
+  `reemplazarMedidasCon` borra+inserta sin transaccion real (si falla el insert, el
+  producto pierde sus medidas); cerrarlo necesita un RPC en BD.
+- **T5 — API de productos** (`app/api/inventory/products/route.ts`, fix `f3a07a3`):
+  GET adjunta `measures` en un solo viaje (`medidasDeProductosCon`); POST/PATCH aceptan
+  `measures` + `price_includes_tax`; PATCH reemplaza las medidas **solo si vienen**;
+  POST borra el producto si falla el alta de medidas (no deja producto a medias).
+  **Fixes de review medidos con sonda:** (a) PATCH con medida invalida respondia **500**
+  (el `throw` de `validarMedidas` caia al catch generico) cuando en POST es 400 -> ahora
+  `try/catch` propio que clasifica `PRODUCT_MEASURE_MISSING`/`instanceof Error`/resto;
+  (b) GET sin header de empresa llamaba `.eq('company_id', null)`, que el fake lee como
+  `IS NULL` pero **PostgREST real no** (serian 0 medidas sin avisar) -> guard que
+  devuelve `measures: []` con **cero consultas**. Tests
+  `tests/inventory/products-measures-route.test.mjs`.
+- **T7 — `createPurchase` persiste la medida** (`lib/purchase-db.ts`, fix `968599e`):
+  el insert de `PurchaseItem` añade `unit: item.unit || null` y `unit_factor:
+  exigirFactor(item.unit_factor ?? 1)`. **Fix bloqueante:** `exigirFactor` corria
+  **dentro del `map` que construye las filas**, o sea **despues** de escribir: en
+  `createPurchase` la cabecera ya estaba insertada (un factor invalido dejaba **compra
+  huerfana** y 500), y en `updatePurchase` el `delete` de lineas ya habia corrido
+  (compra **sin ninguna linea**). Sonda del revisor: `Purchase 1->2 | PurchaseItem 1->1`
+  en create y `PurchaseItem 1->0` en update. Ahora un pase de validacion **antes** de
+  cualquier escritura en las dos funciones. **Los tests muerden:** con el `stash` del
+  fix, 23/25 y 2 fallos; con el fix, 191/191.
+- **T8 — `aplicarEfectosCompra` convierte a base y guarda el neto** (`lib/purchase-db.ts`,
+  `5a52da1` + fix `b177f82`). **Dos rulings antes de implementar, porque el brief del
+  plan era inaplicable en produccion:**
+  - **(1) El flag de ISV no existe en la linea de compra.** El brief pedia
+    `Boolean(item.price_includes_tax)`, pero `aplicarEfectosCompra` recibe los
+    `PurchaseItem` **de la BD** (`aprobarCompra` `select('*')`) y la **074 no añade
+    `price_includes_tax` a `PurchaseItem`** (solo `unit`/`unit_factor`): en produccion
+    seria `undefined` siempre, el ISV-incluido se ignoraria en silencio y **el test
+    (item en memoria) pasaria verde igual**. Ruling: factor e `incluyeIsv` se resuelven
+    **desde el maestro** con `medidasDeProductosCon(supabase, empresa, ids)` (una
+    consulta por llamada, degrada a `Map` vacio sin 074): si hay medida de ese
+    `product_id` con `name` = `item.unit` (case-insensitive) -> factor e ISV **de la BD**
+    (ademas cumple la autoridad del factor, §4.6); si no, `factor = exigirFactor(
+    item.unit_factor ?? 1)` e ISV del payload/producto.
+  - **(2) El test de `inventory_movement` es infalsificable:** la compra **no escribe esa
+    tabla** (mueve stock por `product.current_stock`/`stock_quantity`; el kardex es otra
+    funcion). Se sustituyo por asercion sobre `current_stock`.
+  - **(3) Dos pasadas**: normalizar TODOS los items antes de escribir nada. `unidadesBase`
+    y `exigirFactor` lanzan; si el item 2 lanza en la iteracion 1 ya habia stock escrito
+    y `aplicarEfectosCompra` **no** llama a `revertirEfectos`, dejando efectos a medias.
+  - **(4) `recordSupplierPriceHistory` con `factorValido`, no `exigirFactor`:** la llama
+    tambien `tests/accounting/supplier-price-history.test.mjs` con items sin
+    `unit_factor`; con `exigirFactor` lanzaria y romperia esa suite.
+  - **Redondeo:** `netoMedida = precioNeto(precioMedida, tasa, incluye, 2)` y
+    `costoBase = Math.round(netoMedida / factor)`. **El redondeo a entero va AL FINAL**
+    (despues de dividir): redondear el neto antes de dividir infla el costo (12.75 con
+    factor 12 daria 1.08 en vez de 1.06).
+  - **Producto nuevo con medida:** crea la fila `product_measure` con revert si falla,
+    `cost: Math.round(precioMedida)` y `price_includes_tax: incluyeIsv`.
+  - **Fix de review fail-closed (`b177f82`):** la lectura del producto existente
+    **ignoraba el `error`**. Antes de la 074, `product.price_includes_tax` no existe ->
+    PostgREST `42703` -> `data` nulo -> `existing = null` -> la compra trataria el
+    producto como **nuevo y crearia un DUPLICADO** en silencio. No era alcanzable hoy
+    (con la 074 sin aplicar, `createPurchase` no persiste lineas, asi que no hay compra
+    PENDING que aprobar), pero es justo la clase de fallo que no se ve. Ahora si la
+    lectura falla **lanza** con mensaje claro: un `data` nulo por error **no** es "no
+    existe". Se añadio `esSeleccionable`/`bloquearSelect` al fake de compras
+    (`tests/purchases/supabase-falso.mjs`) y un test que muerde exactamente en el guard
+    (con el `stash`: 197/1; con el fix: 198/198). **Coste aceptado:** sin la 074, aprobar
+    una compra falla con mensaje claro en lugar de duplicar el catalogo.
+  - **No-regresion:** sin `unit_factor` todo se comporta como hoy (factor 1). El `for`
+    del stock y el historial usan `cantidadBase`/`costoBase`.
+- **T8 — el import de `measure-calc`/`product-measures` en `purchase-db.ts` dejo sin
+  correr `tests/accounting/supplier-price-history.test.mjs`** (`ERR_MODULE_NOT_FOUND:
+  @/lib`). No era regresion (medido contra `d13f15c` sin nuestros cambios: identico
+  52/33/19), pero dejaba **sin correr los 10 casos que guardan
+  `recordSupplierPriceHistory`**, justo la funcion que T8 toco. Commit `c5a9e6e`:
+  se añaden a `tests/accounting/loader.mjs` los mapeos que faltaban
+  (`supplier-withholding`, `measure-calc`, `product-measures`, `budget-service`,
+  `budget-calc`, `warehouse-service`, `transfer-calc`), los mismos que ya usa
+  `tests/purchases/loader.mjs` -> **61 / 43 pass / 18 fail** (+10 pass, -1 fail) y
+  `supplier-price-history` **10/10**. El baseline de `tests/accounting` sube de 17 a 18
+  fallos preexistentes (17 + el fichero que no cargaba); siguen siendo ajenos.
+
+**Verificado (medido el 19 Oct 2026, re-ejecutado en esta sesion, no reportado):**
+`tsc --noEmit` -> **455**; inventario **64/64**, warehouse **15/15**, purchases
+**197/197**, billing **34/34**, transfers-import **10/10** (todas 0 fail);
+`node scripts/validar-040.mjs prisma/migrations/074_product_measures.sql` -> **OK**
+(4 bloques DO, paridad de comillas global OK). **La verificacion son las 5 suites + tsc,
+NUNCA `npm test`:** el grupo `tests/accounting/` da ~18 fallos **ajenos**
+(`require('node:assert/strict').property` es `undefined` en Node v24.19.0 y un mock
+desfasado de `variations-service`); ningun fichero de accounting importa
+`product-measures`/`measure-calc`/`fake-companies`/`loader` (barrido, 0 aciertos). Los
+tests **muerden** (con `git stash` de `purchase-db.ts` -> 5 fallos de T8; el revisor de
+T8 paso **39 sondas** propias, todas PASS).
+
+**Pendiente / sin empezar:**
+- **(1) El usuario debe aplicar la 074 en el SQL Editor.** Es **prerequisito de todo el
+  modulo de Compras**: T7 ya inserta `unit`/`unit_factor` en `PurchaseItem` y T8 lee
+  `product.price_includes_tax`; sin la 074, crear compra no persiste lineas y aprobar
+  una compra falla fail-closed (a proposito, para no duplicar productos).
+- **(2) Verificar desde fuera por OpenAPI** (PostgREST + `service_role`) que las 19
+  columnas nuevas aparecen (patron de la sesion del 18 Oct; borrar el `_tmp-*.mjs`).
+- **(3) Retests en navegador:** crear/editar medida y ver la descomposicion del stock +
+  columna ISV (T6); aprobar una compra de `Caja` y ver el stock entrar en unidades y el
+  costo en base (T7/T8).
+- **Sin empezar (tareas 9-15 del plan):** T9 devoluciones de compra en la medida de la
+  linea; T10 UI de Compras (selector de medida + subtotal por medida: cierra el bug
+  latente de `handleAddItem`); T11-T13 POS (`stock-sale.ts` a base, `InvoiceItem`
+  persiste la medida, UI del POS con ISV incluido); T14 documentacion y este diario;
+  T15 verificacion final.

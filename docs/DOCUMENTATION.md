@@ -40,9 +40,9 @@ Contab es un sistema contable completo con soporte multi-tenant que permite a lo
 - **Indicadores de liquidez** y actividad
 
 ### 🏢 Gestión Multi-Tenant
-- **Aislamiento completo** de datos por empresa
+- **Aislamiento completo** de datos por tenant y por empresa
 - **Row Level Security (RLS)** en Supabase
-- **Contexto de tenant** automático
+- **Contexto de tenant/empresa** automático
 - **Switch dinámico** entre empresas
 
 ### 📋 Contabilidad Completa
@@ -260,7 +260,7 @@ El dashboard master permite:
 ## Seguridad
 
 ### Row Level Security (RLS)
-- **Aislamiento por tenant** automático
+- **Aislamiento por tenant y por empresa** automático
 - **Perfiles de usuario** específicos
 - **Acceso granular** a datos sensibles
 
@@ -603,7 +603,7 @@ PERIOD_LOCKS.sql
 |---|---|
 | `AGENTS.md` (raiz) | **Reglas invariantes**: tenant, lempiras, correlativo, esquema real, migraciones, verificacion. Leelo antes de tocar codigo. |
 | `CLAUDE.md` | **Diario de cambios**: que se arreglo, cuando y con que prueba. |
-| `docs/*_REPORT.md` | Reporte de estado por modulo (facturacion, inventario, contabilidad, RRHH, etc.). |
+| `docs/*_REPORT.md` | Reporte de estado por modulo (facturacion, inventario, contabilidad, RRHH, etc.). Compras/Proveedores migrados a Supabase con script `scripts/migrate-purchases-db.mjs`. Listas de Precios añadidas en Inventario y Compras/Proveedores (migración 090). |
 | `docs/AGENTS.md` | Referencia rapida de las mejoras "Enterprise" y comandos de despliegue. |
 
 ### Estado del typecheck

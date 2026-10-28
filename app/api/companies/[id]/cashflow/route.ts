@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { supabase as supabaseService } from '@/lib/supabase-db';
 
 // Meses de flujo a mostrar (últimos 6 meses reales)
@@ -8,13 +9,20 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id: companyId } = await params;
   try {
-    // Obtener companyId de query param para filtrado adicional
-    const { searchParams } = new URL(request.url);
-    const companyIdQuery = searchParams.get('companyId');
+    const { id: companyId } = await params;
+    // Contexto de empresa validada: el `[id]` de la ruta es companies.id.
+    // Antes esta ruta usaba `?companyId` del cliente o `tenantId` directo,
+    // lo que dejaba la aislacion en falso para empresas del mismo tenant
+    // (test 1 y test 2 comparten TEST1DS).
+    const empresa = await contextoDeEmpresa(request, { companyIdDeRuta: companyId });
+    if (!empresa.tenantId) {
+      return NextResponse.json({ error: 'No se pudo determinar la empresa' }, { status: 400 });
+    }
+    const tenantId = empresa.tenantId;
+    const company = empresa.companyId;
 
-    // Obtener transacciones reales del tenant para los últimos meses
+    // Obtener transacciones reales de la empresa para los últimos meses
     const now = new Date();
     const startDate = new Date(now.getFullYear(), now.getMonth() - (MONTHS_TO_SHOW - 1), 1);
 
@@ -22,19 +30,22 @@ export async function GET(
     let query = supabaseService
       .from('Transaction')
       .select('id, voucherType, voucher_type, totalAmount, total_amount, date');
-    if (companyIdQuery) {
-      query = query.eq('company_id', companyIdQuery);
+    // Aislamiento por company_id (empresa) en lugar de tenant_id solo.
+    // Si la empresa no tiene company_id (pre-074), caemos back a tenant_id.
+    if (company) {
+      query = query.eq('company_id', company);
     } else {
-      query = query.eq('tenant_id', companyId);
+      query = query.eq('tenant_id', tenantId);
     }
     let { data, error } = await query
       .gte('date', startDate.toISOString().split('T')[0]);
 
     if (error || !data || data.length === 0) {
+      // Fallback: intentar también por tenant_id si company_id no trae resultados
       const alt = await supabaseService
         .from('Transaction')
         .select('id, voucherType, voucher_type, totalAmount, total_amount, date')
-        .eq('tenantId', companyId)
+        .eq('tenant_id', tenantId)
         .gte('date', startDate.toISOString().split('T')[0]);
       if (!alt.error && alt.data) {
         data = alt.data;

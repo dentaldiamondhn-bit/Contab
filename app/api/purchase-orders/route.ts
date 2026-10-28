@@ -8,6 +8,7 @@ import {
 } from '@/lib/purchase-orders-db';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { exigirEmpresa } from '@/lib/purchase-db';
+import { nombreDeUsuarioActual } from '@/lib/auth-server';
 
 /**
  * Antes esta ruta iba clavada en `tenantId = '1'`: las O.C. se creaban siempre
@@ -46,7 +47,9 @@ export async function POST(request: Request) {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
 
-    const { data, error } = await createPurchaseOrder(getSupabaseServer(), empresa, body);
+    // Quien crea la orden: resuelto en servidor, no del cuerpo.
+    const actor = await nombreDeUsuarioActual();
+    const { data, error } = await createPurchaseOrder(getSupabaseServer(), empresa, body, actor);
 
     if (error) {
       console.error('Supabase error creating purchase order:', error);
@@ -71,7 +74,10 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Order ID is required' }, { status: 400 });
     }
 
-    const { data, error, notFound } = await updatePurchaseOrder(getSupabaseServer(), empresa, body.id, body);
+    // Aprobacion/cancelacion: el servidor registra quien lo hizo (`approved_by`,
+    // `cancelled_by`), ignorando lo que el cuerpo mande.
+    const actor = await nombreDeUsuarioActual();
+    const { data, error, notFound } = await updatePurchaseOrder(getSupabaseServer(), empresa, body.id, body, actor);
 
     if (error) {
       console.error('Supabase error updating purchase order:', error);

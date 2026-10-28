@@ -3,6 +3,7 @@ import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 import { recibirPurchaseOrder } from '@/lib/purchase-orders-db';
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resolver';
 import { exigirEmpresa } from '@/lib/purchase-db';
+import { nombreDeUsuarioActual } from '@/lib/auth-server';
 
 /**
  * Flujo O.C. → Compra (8 Oct 2026). Antes "Recibir" solo ponía
@@ -16,7 +17,9 @@ export async function POST(request: Request) {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
 
-    const { data, error, notFound } = await recibirPurchaseOrder(getSupabaseServer(), empresa, body);
+    // `received_by` lo decide el servidor: es quien registra la entrega.
+    const actor = await nombreDeUsuarioActual();
+    const { data, error, notFound } = await recibirPurchaseOrder(getSupabaseServer(), empresa, body, actor);
 
     if (error) {
       console.error('Supabase error receiving purchase order:', error);

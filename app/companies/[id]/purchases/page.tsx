@@ -53,12 +53,24 @@ function AvisoCai({ problemas }: { problemas: ProblemaCai[] }) {
   );
 }
 
+interface ProductMeasure {
+  id?: string;
+  name: string;
+  factor: number;
+  cost?: number | null;
+  sale_price?: number | null;
+  price_includes_tax?: boolean;
+  is_active?: boolean;
+}
+
 interface Product {
   id: string;
   code: string;
   name: string;
   unit_price: number;
   stock_quantity: number;
+  price_includes_tax?: boolean;
+  measures?: ProductMeasure[];
 }
 
 interface PurchaseItem {
@@ -69,6 +81,7 @@ interface PurchaseItem {
   description: string;
   quantity: number;
   unit?: string;
+  unit_factor?: number;
   units_per_package?: number;
   unit_price: number;
   discount_percentage: number;
@@ -79,6 +92,7 @@ interface PurchaseItem {
   total: number;
   total_cost?: number;
   exonerated?: boolean;
+  price_includes_tax?: boolean;
 }
 
 interface Purchase {
@@ -157,17 +171,19 @@ export default function PurchasesPage() {
   const [creatingProduct, setCreatingProduct] = useState(false);
 
   const [items, setItems] = useState<PurchaseItem[]>([]);
-  const [newItem, setNewItem] = useState<Partial<PurchaseItem>>({
+  const [newItem, setNewItem] = useState<Partial<PurchaseItem> & { productMeasures?: ProductMeasure[] }>({
     product_name: '',
     description: '',
     quantity: 1,
     unit: 'Unidad',
-    units_per_package: 1,
+    unit_factor: 1,
     unit_price: 0,
     discount_percentage: 0,
     tax_rate: 15,
     total_cost: 0,
     exonerated: false,
+    price_includes_tax: false,
+    productMeasures: [],
   });
 
   const [caiError, setCaiError] = useState('');
@@ -426,7 +442,7 @@ export default function PurchasesPage() {
       description: '',
       quantity: 1,
       unit: 'Unidad',
-      units_per_package: 1,
+      unit_factor: 1,
       unit_price: 0,
       discount_percentage: 0,
       tax_rate: 15,
@@ -442,6 +458,7 @@ export default function PurchasesPage() {
   const selectProduct = (productId: string) => {
     const product = products.find(p => p.id === productId);
     if (product) {
+      const measures = (product.measures || []).filter((m: ProductMeasure) => m.is_active !== false);
       setNewItem({
         ...newItem,
         product_id: product.id,
@@ -450,7 +467,11 @@ export default function PurchasesPage() {
         unit_price: product.unit_price || 0,
         quantity: 1,
         tax_rate: taxRate,
-      });
+        unit: 'Unidad',
+        unit_factor: 1,
+        price_includes_tax: product.price_includes_tax || false,
+        productMeasures: measures,
+      } as any);
     }
   };
 
@@ -577,11 +598,15 @@ export default function PurchasesPage() {
       product_name: '',
       description: '',
       quantity: 1,
+      unit: 'Unidad',
+      unit_factor: 1,
       unit_price: 0,
       discount_percentage: 0,
       tax_rate: 15,
       exonerated: false,
-    });
+      price_includes_tax: false,
+      productMeasures: [],
+    } as any);
     setCaiError('');
   };
 
@@ -633,41 +658,57 @@ export default function PurchasesPage() {
     }
 
     const exonerated = !!newItem.exonerated;
+    const itemTaxRate = exonerated ? 0 : (newItem.tax_rate ?? taxRate);
+    
+    // Calculate subtotal: quantity × unit_price (using the measure's unit_price)
+    // If price_includes_tax is true, the unit_price already includes ISV, so we need to net it
+    let baseUnitPrice = newItem.unit_price || 0;
+    if (newItem.price_includes_tax) {
+      // Neto = precio / (1 + taxRate/100)
+      baseUnitPrice = baseUnitPrice / (1 + (itemTaxRate / 100));
+    }
+    
+    const subtotalValue = Math.round(newItem.quantity * baseUnitPrice);
+    const discountAmount = Math.round(subtotalValue * (newItem.discount_percentage || 0) / 100);
+    const subtotalAfterDiscount = subtotalValue - discountAmount;
+    const taxAmountValue = Math.round(subtotalAfterDiscount * (itemTaxRate / 100));
+    const totalValue = subtotalAfterDiscount + taxAmountValue;
+
     const item: PurchaseItem = {
+      product_id: newItem.product_id,
+      product_code: newItem.product_code,
       product_name: newItem.product_name!,
       description: newItem.description || '',
       quantity: newItem.quantity || 1,
       unit: newItem.unit || 'Unidad',
-      units_per_package: newItem.units_per_package || 1,
+      unit_factor: newItem.unit_factor || 1,
+      units_per_package: newItem.unit_factor || 1,
       unit_price: newItem.unit_price || 0,
       discount_percentage: newItem.discount_percentage || 0,
-      discount_amount: 0,
-      subtotal: (newItem.quantity || 1) * (newItem.unit_price || 0),
-      tax_rate: exonerated ? 0 : taxRate,
-      tax_amount: 0,
-      total: 0,
+      discount_amount: discountAmount,
+      subtotal: subtotalAfterDiscount,
+      tax_rate: itemTaxRate,
+      tax_amount: taxAmountValue,
+      total: totalValue,
       total_cost: (newItem as any).total_cost || 0,
       exonerated,
+      price_includes_tax: !!newItem.price_includes_tax,
     };
-
-    // Calculate discount amount
-    item.discount_amount = item.subtotal * (item.discount_percentage / 100);
-    item.subtotal = item.subtotal - item.discount_amount;
-    
-    // Calculate tax and total
-    item.tax_amount = item.subtotal * (item.tax_rate / 100);
-    item.total = item.subtotal + item.tax_amount;
 
     setItems([...items, item]);
     setNewItem({
       product_name: '',
       description: '',
       quantity: 1,
+      unit: 'Unidad',
+      unit_factor: 1,
       unit_price: 0,
       discount_percentage: 0,
       tax_rate: 15,
       exonerated: false,
-    });
+      price_includes_tax: false,
+      productMeasures: [],
+    } as any);
   };
 
   const handleUpdatePurchase = async () => {
@@ -1316,39 +1357,71 @@ export default function PurchasesPage() {
 
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
-                      <Label>Unidad</Label>
-                      <select
-                        value={newItem.unit || 'Unidad'}
-                        onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
-                      >
-                        <option value="Unidad">Unidad</option>
-                        <option value="Unidades">Unidades</option>
-                        <option value="Caja">Caja</option>
-                        <option value="Cajas">Cajas</option>
-                        <option value="Paquete">Paquete</option>
-                        <option value="Paquetes">Paquetes</option>
-                        <option value="Galón">Galón</option>
-                        <option value="Galones">Galones</option>
-                        <option value="Litro">Litro</option>
-                        <option value="Litros">Litros</option>
-                        <option value="Kilogramo">Kilogramo</option>
-                        <option value="Kilogramos">Kilogramos</option>
-                        <option value="Par">Par</option>
-                        <option value="Pares">Pares</option>
-                        <option value="Docena">Docena</option>
-                        <option value="Docenas">Docenas</option>
-                        <option value="Rollo">Rollo</option>
-                        <option value="Rollos">Rollos</option>
-                        <option value="Servicio">Servicio</option>
-                      </select>
+                      <Label>Medida / Unidad</Label>
+                      {((newItem as any).productMeasures && (newItem as any).productMeasures.length > 0) ? (
+                        <select
+                          value={newItem.unit || 'Unidad'}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === 'base' || val === 'Unidad') {
+                              setNewItem({ ...newItem, unit: 'Unidad', unit_factor: 1 });
+                              return;
+                            }
+                            const measures = (newItem as any).productMeasures || [];
+                            const m = measures.find((x: ProductMeasure) => x.name === val);
+                            if (m) {
+                              setNewItem({
+                                ...newItem,
+                                unit: m.name,
+                                unit_factor: Number(m.factor) || 1,
+                                unit_price: (newItem.unit_price && newItem.unit_price > 0) ? newItem.unit_price : (Number(m.cost) || 0),
+                                price_includes_tax: !!m.price_includes_tax,
+                              });
+                            } else {
+                              setNewItem({ ...newItem, unit: val });
+                            }
+                          }}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value="Unidad">Unidad (base)</option>
+                          {((newItem as any).productMeasures || []).map((m: ProductMeasure) => (
+                            <option key={m.id || m.name} value={m.name}>{m.name} (x{m.factor})</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <select
+                          value={newItem.unit || 'Unidad'}
+                          onChange={(e) => setNewItem({ ...newItem, unit: e.target.value })}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-500"
+                        >
+                          <option value="Unidad">Unidad</option>
+                          <option value="Unidades">Unidades</option>
+                          <option value="Caja">Caja</option>
+                          <option value="Cajas">Cajas</option>
+                          <option value="Paquete">Paquete</option>
+                          <option value="Paquetes">Paquetes</option>
+                          <option value="Galón">Galón</option>
+                          <option value="Galones">Galones</option>
+                          <option value="Litro">Litro</option>
+                          <option value="Litros">Litros</option>
+                          <option value="Kilogramo">Kilogramo</option>
+                          <option value="Kilogramos">Kilogramos</option>
+                          <option value="Par">Par</option>
+                          <option value="Pares">Pares</option>
+                          <option value="Docena">Docena</option>
+                          <option value="Docenas">Docenas</option>
+                          <option value="Rollo">Rollo</option>
+                          <option value="Rollos">Rollos</option>
+                          <option value="Servicio">Servicio</option>
+                        </select>
+                      )}
                     </div>
                     <div className="space-y-2">
-                      <Label>Unidades por Paquete</Label>
+                      <Label>Unidades por Medida</Label>
                       <Input
                         type="number"
                         min="1"
-                        value={newItem.units_per_package || 1}
+                        value={newItem.unit_factor || 1}
                         onChange={(e) => {
                           const upp = parseInt(e.target.value) || 1;
                           const qty = newItem.quantity || 0;
@@ -1357,7 +1430,7 @@ export default function PurchasesPage() {
                           const unitPrice = totalUnits > 0 && total > 0 ? total / totalUnits : newItem.unit_price || 0;
                           setNewItem({
                             ...newItem,
-                            units_per_package: upp,
+                            unit_factor: upp,
                             unit_price: Math.round(unitPrice * 100) / 100,
                           });
                         }}
@@ -1368,7 +1441,7 @@ export default function PurchasesPage() {
 
                   <div className="grid grid-cols-4 gap-3">
                     <div className="space-y-2">
-                      <Label>Cantidad (Paquetes)</Label>
+                      <Label>Cantidad ({newItem.unit || 'Unidad'})</Label>
                       <Input
                         type="number"
                         min="0.01"
@@ -1376,7 +1449,7 @@ export default function PurchasesPage() {
                         value={newItem.quantity}
                         onChange={(e) => {
                           const qty = parseFloat(e.target.value) || 0;
-                          const upp = newItem.units_per_package || 1;
+                          const upp = newItem.unit_factor || 1;
                           const total = (newItem as any).total_cost || 0;
                           const totalUnits = qty * upp;
                           const unitPrice = totalUnits > 0 && total > 0 ? total / totalUnits : newItem.unit_price || 0;
@@ -1388,7 +1461,7 @@ export default function PurchasesPage() {
                         }}
                       />
                       <p className="text-xs text-gray-500">
-                        Total: {(newItem.quantity || 0) * (newItem.units_per_package || 1)} unidades
+                        Total: {(newItem.quantity || 0) * (newItem.unit_factor || 1)} unidades
                       </p>
                     </div>
                     <div className="space-y-2">
@@ -1401,7 +1474,7 @@ export default function PurchasesPage() {
                         onChange={(e) => {
                           const total = parseFloat(e.target.value) || 0;
                           const qty = newItem.quantity || 0;
-                          const upp = newItem.units_per_package || 1;
+                          const upp = newItem.unit_factor || 1;
                           const totalUnits = qty * upp;
                           const unitPrice = totalUnits > 0 ? total / totalUnits : 0;
                           setNewItem({
@@ -1442,14 +1515,24 @@ export default function PurchasesPage() {
                     </div>
                   </div>
 
-                  <label className="flex items-center gap-2 pt-1 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={!!newItem.exonerated}
-                      onChange={(e) => setNewItem({ ...newItem, exonerated: e.target.checked })}
-                    />
-                    <span className="text-sm">Artículo exonerado (ISV 0%)</span>
-                  </label>
+                  <div className="flex flex-wrap items-center gap-4 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!newItem.exonerated}
+                        onChange={(e) => setNewItem({ ...newItem, exonerated: e.target.checked })}
+                      />
+                      <span className="text-sm">Artículo exonerado (ISV 0%)</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={!!newItem.price_includes_tax}
+                        onChange={(e) => setNewItem({ ...newItem, price_includes_tax: e.target.checked })}
+                      />
+                      <span className="text-sm">El precio ya incluye ISV</span>
+                    </label>
+                  </div>
                 </CardContent>
               </Card>
 
@@ -1481,10 +1564,10 @@ export default function PurchasesPage() {
                         <tr key={index} className="border-t">
                           <td className="p-2">
                             {item.product_name}
-                            {(item.unit || item.units_per_package) && (
+                            {(item.unit || item.unit_factor) && (
                               <p className="text-xs text-gray-500">
-                                {item.units_per_package && item.units_per_package > 1
-                                  ? `${item.quantity} × ${item.units_per_package} ${item.unit || 'unidades'} = ${item.quantity * item.units_per_package} unidades`
+                                {item.unit_factor && item.unit_factor > 1
+                                  ? `${item.quantity} × ${item.unit_factor} ${item.unit || 'unidades'} = ${item.quantity * item.unit_factor} unidades`
                                   : item.unit || ''}
                               </p>
                             )}

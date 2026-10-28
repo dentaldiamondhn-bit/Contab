@@ -83,6 +83,7 @@ export default function PurchaseOrdersManager({ tenantId }: PurchaseOrdersManage
                     <th className="border border-gray-200 px-4 py-3 text-left">Numero</th>
                     <th className="border border-gray-200 px-4 py-3 text-left">Estado</th>
                     <th className="border border-gray-200 px-4 py-3 text-right">Total</th>
+                    <th className="border border-gray-200 px-4 py-3 text-left">Solicitado por</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -94,6 +95,9 @@ export default function PurchaseOrdersManager({ tenantId }: PurchaseOrdersManage
                       </td>
                       <td className="border border-gray-200 px-4 py-3 text-right">
                         L. {(order.totalAmount / 100).toFixed(2)}
+                      </td>
+                      <td className="border border-gray-200 px-4 py-3">
+                        {order.requested_by || 'N/A'}
                       </td>
                     </tr>
                   ))}

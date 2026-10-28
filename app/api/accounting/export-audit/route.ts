@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { exportAuditLogsToPDF, exportAuditLogsToExcel } from "@/lib/services/audit-export-service";
 import { getSupabaseServer } from "@/lib/supabase/server-lazy";
 import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from "@/lib/tenant-resolver";
+import { filtroEmpresaOCompany } from "@/lib/company-scope";
 
 /**
  * GET /api/accounting/export-audit?period=YYYY-MM&type=pdf|excel
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
       .from('audit_log')
       .select('*')
       .eq('tenant_id', tenantId)
+      .match(filtroEmpresaOCompany(empresa))
       .gte('created_at', `${period}-01`)
       .lte('created_at', `${period}-31 23:59:59`)
       .order('created_at', { ascending: false });
