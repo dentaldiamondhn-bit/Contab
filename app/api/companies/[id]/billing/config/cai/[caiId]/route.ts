@@ -34,7 +34,7 @@ export async function PUT(
 
     const { data: existing } = await supabase
       .from('cai')
-      .select('id, cai, cai_number, issue_date, start_number, end_number, current_number, expiration_date, status')
+      .select('id, cai_number, issue_date, start_number, end_number, current_number, expiration_date, status')
       .eq('id', caiId)
       .eq('tenant_id', tenantId)
       .maybeSingle();
@@ -45,7 +45,7 @@ export async function PUT(
       );
     }
 
-    const cai = body.cai !== undefined ? String(body.cai).trim() : existing.cai;
+    const cai = body.cai !== undefined ? String(body.cai).trim() : existing.cai_number;
     const rangeStart = body.rangeStart !== undefined ? num(body.rangeStart) : num(existing.start_number);
     const rangeEnd = body.rangeEnd !== undefined ? num(body.rangeEnd) : num(existing.end_number);
     const currentNumber =
@@ -82,26 +82,18 @@ export async function PUT(
     }
 
     const now = new Date().toISOString();
-    // Se actualizan los dos esquemas de la tabla `cai` (ver notas en el POST).
+    // Solo columnas reales de `cai`; las claves del esquema en espanol
+    // (rango_inicial, fecha_limite_emision, estado, ...) no existen.
     const { data, error } = await supabase
       .from('cai')
       .update({
-        cai: String(cai),
         cai_number: String(cai),
         start_number: rangeStart,
         end_number: rangeEnd,
         current_number: currentNumber,
-        rango_inicial: rangeStart,
-        rango_final: rangeEnd,
-        current_correlative: currentNumber,
-        cantidad_recibos: rangeEnd - rangeStart + 1,
-        recibos_utilizados: currentNumber - rangeStart,
-        recibos_disponibles: rangeEnd - currentNumber + 1,
         issue_date: (existing as any).issue_date || now.slice(0, 10),
         expiration_date: expiryDate,
-        fecha_limite_emision: expiryDate,
         status: isActive ? 'active' : 'inactive',
-        estado: isActive ? 'activo' : 'inactivo',
         updated_at: now,
       })
       .eq('id', caiId)
@@ -118,13 +110,13 @@ export async function PUT(
       success: true,
       data: {
         id: row.id,
-        cai: row.cai || row.cai_number,
-        rangeStart: num(row.start_number) || num(row.rango_inicial),
-        rangeEnd: num(row.end_number) || num(row.rango_final),
-        currentNumber: num(row.current_number) || num(row.current_correlative),
+        cai: row.cai_number,
+        rangeStart: num(row.start_number),
+        rangeEnd: num(row.end_number),
+        currentNumber: num(row.current_number),
         issueDate: row.issue_date || null,
-        expiryDate: row.expiration_date || row.fecha_limite_emision || null,
-        isActive: row.status === 'active' || row.estado === 'activo',
+        expiryDate: row.expiration_date || null,
+        isActive: row.status === 'active',
       },
       message: 'CAI actualizado correctamente',
     });
@@ -149,7 +141,7 @@ export async function DELETE(
 
     const { data: existing } = await supabase
       .from('cai')
-      .select('id, cai, cai_number')
+      .select('id, cai_number')
       .eq('id', caiId)
       .eq('tenant_id', tenantId)
       .maybeSingle();
@@ -160,15 +152,10 @@ export async function DELETE(
       );
     }
 
-    // El codigo puede vivir en `cai` (legacy) o en `cai_number` (esquema espanol).
-    const existingRow = existing as any;
-    const codes = [existingRow.cai, existingRow.cai_number]
-      .map((value) => (value ? String(value).trim() : ''))
-      .filter(Boolean);
-    const uniqueCodes = [...new Set(codes)];
+    const code = existing.cai_number ? String(existing.cai_number).trim() : '';
 
     let usedCount = 0;
-    for (const code of uniqueCodes) {
+    if (code) {
       const { count } = await supabase
         .from('Invoice')
         .select('id', { count: 'exact', head: true })

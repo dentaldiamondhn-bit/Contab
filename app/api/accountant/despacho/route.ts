@@ -117,7 +117,7 @@ export async function GET(request: NextRequest) {
       leer("los CAI", () =>
         supabase
           .from("cai")
-          .select("id, cai_number, company_id, fecha_limite_emision, expiration_date, estado")
+          .select("id, cai_number, company_id, expiration_date, status")
           .in("company_id", ids)
       ),
       leer("los talonarios", () =>
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
     const candidatos: Record<string, Candidato[]> = {};
 
     for (const c of (cai.filas ?? []) as any[]) {
-      const fecha = fechasDe(c.fecha_limite_emision, c.expiration_date);
+      const fecha = fechasDe(c.expiration_date, null);
       if (!fecha) continue;
       (candidatos[c.company_id] ??= []).push({
         fecha,

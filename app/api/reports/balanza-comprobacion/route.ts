@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
     .select("*")
     .eq("tenant_id", empresa.tenantId)
     .match(filtroEmpresaOCompany(empresa))
-    .order("code");
+    // `order("code")` devolvia 500: la vista `balanza_comprobacion` no tiene
+    // columna `code` (solo id, name, type, tenant_id, total_debitos,
+    // total_creditos, saldo y company_id). Se ordena por nombre, que si existe.
+    .order("name", { ascending: true });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ data });

@@ -165,25 +165,30 @@ export default function TenantSettingsPage() {
         isActive: currentTenant.isActive ?? true,
       });
     } else if (!tenantLoading) {
-      fetch('/api/tenants-api')
-        .then(res => res.json())
-        .then(data => {
-          const tenants = Array.isArray(data) ? data : (data.tenants || []);
-          const t = tenants.length > 0 ? tenants[0] : null;
-          if (t) {
-            setTenantInfo({
-              businessName: t.businessName || '',
-              businessEmail: t.businessEmail || '',
-              businessRTN: t.businessRTN || '',
-              businessAddress: t.businessAddress || '',
-              phoneNumber: t.phoneNumber || '',
-              industry: t.industry || '',
-              tenantCode: t.tenantCode || '',
-              maxUsers: t.maxUsers || 0,
-              maxStorage: t.maxStorage || 0,
-              isActive: t.isActive ?? true,
-            });
-          }
+      // Antes se pedia /api/tenants-api y se tomaba `tenants[0]`, que era el
+      // primer tenant global ("Contab Default") y no el del usuario. La fuente
+      // correcta es /api/tenant/my-tenant: resuelve user_company_access ->
+      // Company -> tenants, igual que el resto de la app.
+      fetch('/api/tenant/my-tenant', { cache: 'no-store' })
+        .then(async (res) => {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then((payload) => {
+          const t = payload?.tenant;
+          if (!t) return;
+          setTenantInfo({
+            businessName: t.businessName || '',
+            businessEmail: t.businessEmail || '',
+            businessRTN: t.businessRTN || '',
+            businessAddress: t.businessAddress || '',
+            phoneNumber: t.phoneNumber || '',
+            industry: t.industry || '',
+            tenantCode: t.tenantCode || '',
+            maxUsers: t.maxUsers || 0,
+            maxStorage: t.maxStorage || 0,
+            isActive: t.isActive ?? true,
+          });
         })
         .catch(err => console.error('Error loading tenant:', err));
     }

@@ -1,66 +1,73 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { db } from '@/lib/db-server';
+import { auth } from '@clerk/nextjs/server';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
+/**
+ * GET /api/billing/cai/tenant/[tenantId]
+ *
+ * Usaba Prisma (`db.cAI`) con columnas inexistentes y `params` sincronico (en
+ * Next 16 es una Promise). Ahora lee la tabla `cai` real con Supabase.
+ */
 export async function GET(
   request: NextRequest,
-  { params }: { params: { tenantId: string } }
+  { params }: { params: Promise<{ tenantId: string }> }
 ) {
   try {
-    const session = await auth();
-    if (!session || !session.user) {
+    const { userId } = await auth();
+    if (!userId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { tenantId } = params;
+    const { tenantId } = await params;
 
-    // Solo administradores pueden ver CAI de otros tenants
-    if (session.user.tenantId !== tenantId && session.user.role !== 'admin') {
+    const tenantDeSesion = request.headers.get('x-tenant-id');
+    if (tenantDeSesion && tenantDeSesion !== tenantId) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 403 });
     }
 
-    // Obtener CAI activo del tenant
-    const activeCai = await (db as any).cAI.findFirst({
-      where: { 
-        tenantId: tenantId,
-        isActive: true 
-      },
-      orderBy: { 
-        createdAt: 'desc' 
-      }
-    });
+    const { data: activeCai, error } = await (getSupabaseServer() as any)
+      .from('cai')
+      .select('id, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status')
+      .eq('tenant_id', tenantId)
+      .eq('status', 'active')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
-    if (!activeCai) {
-      return NextResponse.json({
-        success: false,
-        message: 'El tenant no tiene CAI activo configurado'
-      }, { status: 404 });
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Formatear respuesta
-    const caiInfo = {
-      id: activeCai.id,
-      cai: activeCai.cai,
-      rangeStart: Number(activeCai.rangeStart),
-      rangeEnd: Number(activeCai.rangeEnd),
-      currentNumber: Number(activeCai.currentNumber),
-      expiryDate: activeCai.expiryDate.toISOString().split('T')[0],
-      isActive: activeCai.isActive,
-      // Valores por defecto, podrían venir de configuración adicional
-      establishmentCode: '001',
-      pointOfSaleCode: '001',
-      economicActivity: 'Servicios de software',
-    };
+    if (!activeCai) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: 'El tenant no tiene CAI activo configurado',
+        },
+        { status: 404 }
+      );
+    }
 
     return NextResponse.json({
       success: true,
-      cai: caiInfo
+      cai: {
+        id: activeCai.id,
+        cai: activeCai.cai_number,
+        rangeStart: Number(activeCai.start_number),
+        rangeEnd: Number(activeCai.end_number),
+        currentNumber: Number(activeCai.current_number),
+        expiryDate: activeCai.expiration_date
+          ? String(activeCai.expiration_date).split('T')[0]
+          : '',
+        issueDate: activeCai.issue_date ? String(activeCai.issue_date).split('T')[0] : '',
+        isActive: activeCai.status === 'active',
+        establishmentCode: '001',
+        pointOfSaleCode: '001',
+        economicActivity: 'Servicios de software',
+      },
     });
-
   } catch (error) {
     console.error('Error obteniendo CAI del tenant:', error);
-    return NextResponse.json({ 
-      error: 'Error interno del servidor' 
-    }, { status: 500 });
+    return NextResponse.json({ error: 'Error interno del servidor' }, { status: 500 });
   }
 }

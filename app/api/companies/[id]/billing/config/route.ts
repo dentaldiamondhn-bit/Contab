@@ -27,12 +27,13 @@ interface Emisor {
   logoUrl: string | null;
 }
 
-// La tabla `cai` mezcla dos esquemas: el legacy en ingles (lo usa la emision de
-// facturas) y el en espanol (`cai_number`, `rango_*`, `estado`, ...). Todos los
-// campos son opcionales porque cada registro puede tener ambos o solo uno.
+// Columnas reales de `cai` (verificadas contra Supabase):
+//   id, tenant_id, company_id, cai_number, start_number, end_number,
+//   current_number, issue_date, expiration_date, status, created_at, updated_at
+// El esquema en espanol (cai, rango_inicial, fecha_limite_emision, estado) no
+// existe en la tabla; las consultas que lo incluian devolvian error.
 interface CaiRow {
   id: string;
-  cai?: string | null;
   cai_number?: string | null;
   start_number?: number | string | null;
   end_number?: number | string | null;
@@ -40,12 +41,6 @@ interface CaiRow {
   issue_date?: string | null;
   expiration_date?: string | null;
   status?: string | null;
-  rango_inicial?: number | string | null;
-  rango_final?: number | string | null;
-  current_correlative?: number | string | null;
-  fecha_asignacion?: string | null;
-  fecha_limite_emision?: string | null;
-  estado?: string | null;
 }
 
 interface PrintSettings {
@@ -126,21 +121,20 @@ export async function GET(
     const tenantId = await resolveTenant(companyId, tenantHint(request));
 
     const [tenantRes, companyRes, caisRes, settingsRes] = await Promise.all([
+      // La tabla real es `tenants` (snake_case) y el tenant puede venir como id
+      // UUID o como `tenant_code` legacy (TEST1DS, TST20HM...).
       supabase
-        .from('Tenant')
-        .select('id, businessname, businessrtn, businessemail, businessaddress, phonenumber, logourl')
-        .eq('id', tenantId)
-        .maybeSingle(),
-      supabase
-        .from('companies')
-        .select('id, name, rtn, address, email, contact_phone, logo_url')
-        .eq('tenant_id', tenantId)
+        .from('tenants')
+        .select('id, business_name, business_rtn, business_email, phone_number')
+        .or(`id.eq.${tenantId},tenant_code.eq.${tenantId}`)
         .limit(1)
         .maybeSingle(),
+      // `companies` no existe; la tabla es `Company`.
+      supabase.from('Company').select('id, name, tenantId').eq('id', companyId).maybeSingle(),
       supabase
         .from('cai')
         .select(
-          'id, cai, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status, rango_inicial, rango_final, current_correlative, fecha_limite_emision, estado',
+          'id, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status',
         )
         .eq('tenant_id', tenantId)
         .order('created_at', { ascending: false }),
@@ -155,73 +149,46 @@ export async function GET(
     const tenant = tenantRes.data as
       | {
           id: string;
-          businessname?: string;
-          businessrtn?: string;
-          businessemail?: string;
-          businessaddress?: string;
-          phonenumber?: string;
-          logourl?: string | null;
+          business_name?: string;
+          business_rtn?: string;
+          business_email?: string;
+          phone_number?: string;
         }
       | undefined;
     const company = companyRes.data as
       | {
           id?: string;
           name?: string;
-          rtn?: string;
-          address?: string;
-          email?: string;
-          contact_phone?: string;
-          logo_url?: string | null;
         }
       | undefined;
 
-    const logoPath = tenant?.logourl || company?.logo_url || null;
-    let logoUrl: string | null = null;
-    if (logoPath) {
-      try {
-        const { data } = await supabase.storage
-          .from('company-logos')
-          .createSignedUrl(String(logoPath), 3600);
-        logoUrl = data?.signedUrl || null;
-      } catch {
-        logoUrl = null;
-      }
-    }
+    // El logo se sirve por /api/billing/logo-get (Storage `company-logos`); no
+    // hay columna de logo en `tenants` ni en `Company`.
+    const logoPath: string | null = null;
+    const logoUrl: string | null = null;
 
     // Se sanean email/RTN: algunos tenants tienen sufijos `+CODE` y timestamps
     // que nunca deben aparecer en una factura.
     const emisor: Emisor = {
-      businessName: tenant?.businessname || company?.name || '',
-      businessRTN: sanitizeBusinessRTN(tenant?.businessrtn || company?.rtn || ''),
-      businessEmail: sanitizeBusinessEmail(tenant?.businessemail || company?.email || ''),
-      businessAddress: tenant?.businessaddress || company?.address || '',
-      phoneNumber: tenant?.phonenumber || company?.contact_phone || '',
+      businessName: tenant?.business_name || company?.name || '',
+      businessRTN: sanitizeBusinessRTN(tenant?.business_rtn || ''),
+      businessEmail: sanitizeBusinessEmail(tenant?.business_email || ''),
+      businessAddress: '',
+      phoneNumber: tenant?.phone_number || '',
       logoUrl,
     };
 
-    const firstNonEmpty = (...values: unknown[]): string => {
-      for (const value of values) {
-        if (value !== null && value !== undefined && String(value).trim() !== '') {
-          return String(value).trim();
-        }
-      }
-      return '';
-    };
-
     const cais = ((caisRes.data || []) as CaiRow[]).map((c) => {
-      const rangeStart = num(c.start_number) || num(c.rango_inicial);
-      const rangeEnd = num(c.end_number) || num(c.rango_final);
-      const currentNumber = num(c.current_number) || num(c.current_correlative) || rangeStart;
-      const statusValue = firstNonEmpty(c.status, c.estado);
+      const rangeStart = num(c.start_number);
       return {
         id: c.id,
-        cai: firstNonEmpty(c.cai, c.cai_number),
+        cai: String(c.cai_number ?? ''),
         rangeStart,
-        rangeEnd,
-        currentNumber,
-        issueDate: firstNonEmpty(c.issue_date, c.fecha_asignacion) || null,
-        expiryDate: firstNonEmpty(c.expiration_date, c.fecha_limite_emision) || null,
-        isActive: statusValue ? statusValue === 'active' || statusValue === 'activo' : false,
+        rangeEnd: num(c.end_number),
+        currentNumber: num(c.current_number) || rangeStart,
+        issueDate: c.issue_date ? String(c.issue_date).slice(0, 10) : null,
+        expiryDate: c.expiration_date ? String(c.expiration_date).slice(0, 10) : null,
+        isActive: String(c.status || '').toLowerCase() === 'active',
       };
     });
 
@@ -270,42 +237,37 @@ export async function PUT(
 
     const messages: string[] = [];
 
-    // ---- 1. Datos del emisor (Tenant + companies) ----
+    // ---- 1. Datos del emisor (tenants + Company) ----
     if (body.emisor && typeof body.emisor === 'object') {
       const e = body.emisor as Emisor;
       const tenantUpdate: Record<string, unknown> = {
-        businessname: String(e.businessName || '').trim(),
-        businessrtn: String(e.businessRTN || '').trim(),
-        businessemail: String(e.businessEmail || '').trim(),
-        businessaddress: String(e.businessAddress || '').trim(),
-        phonenumber: String(e.phoneNumber || '').trim(),
+        business_name: String(e.businessName || '').trim(),
+        business_rtn: String(e.businessRTN || '').trim(),
+        business_email: String(e.businessEmail || '').trim(),
+        phone_number: String(e.phoneNumber || '').trim(),
       };
-      if (body.logoPath) tenantUpdate.logourl = String(body.logoPath);
 
-      const { error: tenantErr } = await supabase
-        .from('Tenant')
+      // La tabla real es `tenants`; `Tenant` no existe. Puede venir por id UUID
+      // o por tenant_code legacy.
+      const { data: tenantUpdated, error: tenantErr } = await supabase
+        .from('tenants')
         .update(tenantUpdate)
-        .eq('id', tenantId);
-      if (tenantErr && tenantErr.message && !/does not exist/.test(tenantErr.message)) {
-        return NextResponse.json({ success: false, error: tenantErr.message }, { status: 500 });
+        .or(`id.eq.${tenantId},tenant_code.eq.${tenantId}`)
+        .select('id');
+
+      if (tenantErr) {
+        console.warn('[billing/config] Error actualizando tenants:', tenantErr.message);
+      } else if ((tenantUpdated || []).length > 0) {
+        messages.push('Emisor guardado');
       }
-      if (!tenantErr) messages.push('Emisor guardado');
 
-      const companyUpdate: Record<string, unknown> = {
-        name: String(e.businessName || '').trim(),
-        rtn: String(e.businessRTN || '').trim(),
-        email: String(e.businessEmail || '').trim(),
-        address: String(e.businessAddress || '').trim(),
-        contact_phone: String(e.phoneNumber || '').trim(),
-      };
-      if (body.logoPath) companyUpdate.logo_url = String(body.logoPath);
-
+      // La tabla real es `Company`; solo tiene name/description/isActive.
       const { error: companyErr } = await supabase
-        .from('companies')
-        .update(companyUpdate)
-        .eq('tenant_id', tenantId);
-      if (companyErr && !/does not exist/.test(companyErr.message)) {
-        console.warn('[billing/config] Error actualizando companies:', companyErr.message);
+        .from('Company')
+        .update({ name: String(e.businessName || '').trim() })
+        .eq('id', companyId);
+      if (companyErr) {
+        console.warn('[billing/config] Error actualizando Company:', companyErr.message);
       }
     }
 
@@ -334,20 +296,31 @@ export async function PUT(
         value: JSON.stringify(merged),
         updated_at: new Date().toISOString(),
       };
+      let settingsError: { message: string } | null = null;
       if (existing.data?.id) {
-        await supabase.from('system_config').update(payload).eq('id', existing.data.id);
+        const res = await supabase.from('system_config').update(payload).eq('id', existing.data.id);
+        settingsError = res.error;
       } else {
-        await supabase.from('system_config').insert({
+        const res = await supabase.from('system_config').insert({
           key: 'invoice_settings',
           value: JSON.stringify(merged),
-          description: 'Configuración de la factura (impresión e impuestos)',
+          description: 'Configuraci\u00f3n de la factura (impresi\u00f3n e impuestos)',
           is_active: true,
           tenant_id: tenantId,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
+        settingsError = res.error;
       }
-      messages.push('Ajustes guardados');
+
+      if (settingsError) {
+        // `system_config` no existe en el esquema real. Se avisa en vez de
+        // afirmar que se guardo algo que no se persistio.
+        console.warn('[billing/config] No se pudieron guardar los ajustes:', settingsError.message);
+        messages.push('No se pudieron guardar los ajustes de impresion/impuestos');
+      } else {
+        messages.push('Ajustes guardados');
+      }
     }
 
     return NextResponse.json({ success: true, messages });

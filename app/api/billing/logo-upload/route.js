@@ -2,7 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@clerk/nextjs/server';
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
+/** Mismo criterio que /api/billing/logo-get: el tenant viaja en x-tenant-id. */
+async function tenantDeSesion(request) {
+  const deHeader = request.headers.get('x-tenant-id');
+  if (deHeader) return deHeader;
 
+  const { sessionClaims } = await auth();
+  const metadata = (sessionClaims && sessionClaims.metadata) || {};
+  return sessionClaims?.tenantId || metadata.tenantId || null;
+}
 
 export async function POST(request) {
   try {
@@ -11,8 +19,7 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No autorizado' }, { status: 401 });
     }
 
-    const { sessionClaims } = await auth();
-    const tenantId = sessionClaims?.tenantId;
+    const tenantId = await tenantDeSesion(request);
     
     if (!tenantId) {
       return NextResponse.json({ error: 'Usuario no asociado a un tenant' }, { status: 404 });

@@ -50,38 +50,40 @@ async function lastIssued(tenantId: string): Promise<{ correlativo: number; base
 
 type CaiRow = {
   id: string;
-  rango_inicial: number | null;
-  rango_final: number | null;
+  cai_number: string | null;
   start_number: number | null;
   end_number: number | null;
   current_number: number | null;
-  current_correlative: number | null;
-  fecha_limite_emision: string | null;
+  issue_date: string | null;
   expiration_date: string | null;
-  cai: string | null;
-  cai_number: string | null;
+  status: string | null;
 };
 
+/*
+ * Columnas reales de la tabla `cai` en Supabase (verificadas):
+ *   id, tenant_id, company_id, cai_number, start_number, end_number,
+ *   current_number, issue_date, expiration_date, status, created_at, updated_at
+ *
+ * Este modulo leia `cai`, `rango_inicial`, `rango_final`, `current_correlative`
+ * y `fecha_limite_emision`, que no existen: la consulta fallaba y el sistema se
+ * quedaba sin CAI (emitia facturas sin rango ni vencimiento).
+ */
 function rango(row: CaiRow): { desde: number; hasta: number } {
-  // rango_inicial/rango_final son NOT NULL; los legacy pueden venir en 0.
-  const desde = Number(row.rango_inicial ?? row.start_number ?? 1) || 1;
-  const hasta = Number(row.rango_final ?? row.end_number ?? 0);
+  const desde = Number(row.start_number ?? 1) || 1;
+  const hasta = Number(row.end_number ?? 0);
   return { desde, hasta: Number.isFinite(hasta) && hasta > 0 ? hasta : Infinity };
 }
 
 function current(row: CaiRow): number {
-  const value = Number(row.current_number ?? row.current_correlative ?? 0);
+  const value = Number(row.current_number ?? 0);
   if (Number.isFinite(value) && value > 0) return value;
   return rango(row).desde;
 }
 
 function vence(row: CaiRow): Date | null {
-  for (const value of [row.fecha_limite_emision, row.expiration_date]) {
-    if (!value) continue;
-    const d = new Date(value);
-    if (!Number.isNaN(d.getTime())) return d;
-  }
-  return null;
+  if (!row.expiration_date) return null;
+  const d = new Date(row.expiration_date);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /** CAI vigente de la empresa: el que cubre el correlativo siguiente, sin caducar. */
@@ -89,11 +91,11 @@ async function pickCai(tenantId: string, siguiente: number): Promise<CaiRow | nu
   const { data } = await (supabaseService as any)
     .from("cai")
     .select(
-      "id, rango_inicial, rango_final, start_number, end_number, current_number, current_correlative, fecha_limite_emision, expiration_date, cai, cai_number"
+      "id, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status"
     )
     .eq("tenant_id", tenantId)
     .eq("status", "active")
-    .order("rango_inicial", { ascending: true });
+    .order("start_number", { ascending: true });
 
   const hoy = new Date();
   const vigentes = (data || []).filter((r: CaiRow) => {
@@ -142,7 +144,7 @@ export async function previewInvoiceNumber(tenantId: string): Promise<NumeroResu
     correlativo,
     base: base || `${ESTABLECIMIENTO}-${PUNTO_VENTA}-${TIPO_FACTURA}`,
     caiId: cai?.id ?? null,
-    caiCode: cai ? cai.cai || cai.cai_number || null : null,
+    caiCode: cai ? cai.cai_number : null,
     rangoHasta: cai ? rango(cai).hasta : null,
     venceEl: cai ? vence(cai) : null,
   };
@@ -200,7 +202,6 @@ export async function reserveInvoiceNumber(
       .from("cai")
       .update({
         current_number: correlativo < desde ? correlativo : correlativo + 1,
-        current_correlative: correlativo < desde ? correlativo : correlativo + 1,
       })
       .eq("id", cai.id)
       .eq("tenant_id", tenantId)
@@ -215,7 +216,7 @@ export async function reserveInvoiceNumber(
       correlativo,
       base: base || `${ESTABLECIMIENTO}-${PUNTO_VENTA}-${TIPO_FACTURA}`,
       caiId: cai.id,
-      caiCode: cai.cai || cai.cai_number || null,
+      caiCode: cai.cai_number || null,
       rangoHasta: Number.isFinite(hasta) ? hasta : null,
       venceEl: vence(cai),
     };

@@ -30,14 +30,15 @@ export async function GET(
     const supabase = getSupabaseServer();
     const tenantId = await resolveTenant(companyId, tenantHint(request));
 
-    // La tabla `cai` tiene dos esquemas superpuestos: el legacy en ingles
-    // (cai, start_number, ... tenant_id) que usa la emision de facturas, y el
-    // esquema en espanol (cai_number, rango_inicial, ... company_id) con NOT NULL.
-    // Se leen ambos y se prioriza el que tenga valor.
+    // La tabla `cai` real (verificada contra Supabase) solo tiene:
+    // id, tenant_id, company_id, cai_number, start_number, end_number,
+    // current_number, issue_date, expiration_date, status, created_at, updated_at.
+    // El select anterior incluia `cai`, `rango_inicial`, `fecha_limite_emision`...
+    // que no existen, asi que esta ruta devolvia 500.
     const { data, error } = await supabase
       .from('cai')
       .select(
-        'id, cai, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status, rango_inicial, rango_final, current_correlative, fecha_asignacion, fecha_limite_emision, estado',
+        'id, tenant_id, company_id, cai_number, start_number, end_number, current_number, issue_date, expiration_date, status, created_at',
       )
       .eq('tenant_id', tenantId)
       .order('created_at', { ascending: false });
@@ -57,7 +58,6 @@ export async function GET(
 
     const cais = ((data || []) as Array<{
       id: string;
-      cai: string | null;
       cai_number: string | null;
       start_number: number | string | null;
       end_number: number | string | null;
@@ -65,26 +65,19 @@ export async function GET(
       issue_date: string | null;
       expiration_date: string | null;
       status: string | null;
-      rango_inicial: number | string | null;
-      rango_final: number | string | null;
-      current_correlative: number | string | null;
-      fecha_asignacion: string | null;
-      fecha_limite_emision: string | null;
-      estado: string | null;
     }>).map((c) => {
-      const rangeStart = num(c.start_number) || num(c.rango_inicial);
-      const rangeEnd = num(c.end_number) || num(c.rango_final);
-      const currentNumber = num(c.current_number) || num(c.current_correlative) || rangeStart;
-      const statusValue = firstNonEmpty(c.status, c.estado);
+      const rangeStart = num(c.start_number);
+      const rangeEnd = num(c.end_number);
+      const currentNumber = num(c.current_number) || rangeStart;
       return {
         id: c.id,
-        cai: firstNonEmpty(c.cai, c.cai_number),
+        cai: firstNonEmpty(c.cai_number),
         rangeStart,
         rangeEnd,
         currentNumber,
-        issueDate: firstNonEmpty(c.issue_date, c.fecha_asignacion) || null,
-        expiryDate: firstNonEmpty(c.expiration_date, c.fecha_limite_emision) || null,
-        isActive: statusValue ? statusValue === 'active' || statusValue === 'activo' : false,
+        issueDate: c.issue_date || null,
+        expiryDate: c.expiration_date || null,
+        isActive: String(c.status || '').toLowerCase() === 'active',
       };
     });
 
@@ -150,7 +143,7 @@ export async function POST(
       .from('cai')
       .select('id')
       .eq('tenant_id', tenantId)
-      .or(`cai.eq.${cai},cai_number.eq.${cai}`)
+      .eq('cai_number', cai)
       .limit(1)
       .maybeSingle();
     if (existing?.id) {
@@ -160,30 +153,17 @@ export async function POST(
       );
     }
 
-    const now = new Date().toISOString();
-    const today = now.slice(0, 10);
+    const today = new Date().toISOString().slice(0, 10);
     const activeWord = isActive ? 'active' : 'inactive';
-    const estadoWord = isActive ? 'activo' : 'inactivo';
-    const totalRecibos = rangeEnd - rangeStart + 1;
 
-    // Se escriben los dos esquemas de la tabla `cai`:
-    // - espanol: cai_number/company_id/rango_*/... (varias columnas son NOT NULL)
-    // - legacy ingles: cai/tenant_id/current_number/... (lo usa la emision de facturas)
+    // Solo columnas reales de `cai` (verificadas contra Supabase). El insert
+    // anterior escribia cai/rango_inicial/fecha_limite_emision/estado, que no
+    // existen en la tabla, y por eso crear un CAI devolvia 500.
     const { data, error } = await supabase
       .from('cai')
       .insert({
         cai_number: cai,
-        company_id: tenantId,
-        fecha_asignacion: today,
-        fecha_limite_emision: expiryDate,
-        rango_inicial: rangeStart,
-        rango_final: rangeEnd,
-        cantidad_recibos: totalRecibos,
-        recibos_utilizados: currentNumber - rangeStart,
-        recibos_disponibles: rangeEnd - currentNumber + 1,
-        estado: estadoWord,
-        current_correlative: currentNumber,
-        cai,
+        company_id: companyId,
         start_number: rangeStart,
         end_number: rangeEnd,
         current_number: currentNumber,
@@ -191,8 +171,6 @@ export async function POST(
         expiration_date: expiryDate,
         status: activeWord,
         tenant_id: tenantId,
-        created_at: now,
-        updated_at: now,
       })
       .select()
       .single();
@@ -205,7 +183,7 @@ export async function POST(
       success: true,
       data: {
         id: data.id,
-        cai: data.cai,
+        cai: data.cai_number,
         rangeStart: num(data.start_number),
         rangeEnd: num(data.end_number),
         currentNumber: num(data.current_number),

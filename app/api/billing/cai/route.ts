@@ -101,16 +101,17 @@ export async function GET(request: NextRequest) {
     const caiInfo = {
       cai: preview.caiCode,
       currentNumber: preview.correlativo,
-      finalNumber: Number.isFinite(Number(cai.rango_final)) && Number(cai.rango_final) > 0
-        ? Number(cai.rango_final)
-        : Number(cai.end_number) || preview.rangoHasta || 1000,
+      finalNumber:
+        Number.isFinite(Number(cai.end_number)) && Number(cai.end_number) > 0
+          ? Number(cai.end_number)
+          : preview.rangoHasta || 1000,
       issueDate: cai.issue_date,
       expirationDate: preview.venceEl ? preview.venceEl.toISOString() : null,
       daysRemaining: Math.max(0, diasRestantes),
       status: diasRestantes <= 0 ? 'expired' : diasRestantes <= 30 ? 'warning' : 'active',
       _debug: {
         invoiceCount: invoices?.length || 0,
-        startNumber: cai.rango_inicial ?? cai.start_number,
+        startNumber: cai.start_number,
         calculatedNumber: preview.correlativo
       }
     };
@@ -151,9 +152,10 @@ export async function POST(request: NextRequest) {
     const { data, error } = await (supabase as any)
       .from("cai")
       .insert({
-        cai,
+        cai_number: cai,
         start_number: startNumber,
         end_number: endNumber,
+        current_number: startNumber,
         issue_date: new Date().toISOString().split('T')[0],
         expiration_date: expirationDate,
         status: 'active',
