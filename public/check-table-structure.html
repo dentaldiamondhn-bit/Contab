@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Table Structure</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #F57C00; }
+        #result { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .test-result { margin: 10px 0; padding: 10px; border-left: 4px solid #007bff; background: #f8f9fa; }
+        .success-test { border-left-color: #28a745; }
+        .error-test { border-left-color: #dc3545; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Check Table Structure</h1>
+    
+    <div class="info">
+        <h3>🔍 ¿Por qué necesitamos verificar la estructura?</h3>
+        <p>La inserción falla porque los nombres de columna que usamos no coinciden con los nombres reales en la tabla.</p>
+        <p>Esta herramienta probará diferentes combinaciones de columnas para encontrar la correcta.</p>
+    </div>
+    
+    <button onclick="checkTableStructure()">🔍 VERIFICAR ESTRUCTURA EXACTA DE TABLA</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function checkTableStructure() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🔍 Analizando estructura de la tabla Tenant...';
+            
+            try {
+                const response = await fetch('/api/debug/table-structure', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    let html = `
+                        <div class="${result.success ? 'success' : 'error'}">
+                            <h2>${result.success ? '✅' : '❌'} ${result.message}</h2>
+                        </div>
+                    `;
+                    
+                    // Mostrar información básica
+                    if (result.results.actual_columns) {
+                        html += `
+                            <div class="success">
+                                <h3>📋 Columnas encontradas en la tabla:</h3>
+                                <pre>${result.results.actual_columns.join(', ')}</pre>
+                            </div>
+                        `;
+                    }
+                    
+                    if (result.results.sample_data) {
+                        html += `
+                            <div class="info">
+                                <h3>📊 Datos de ejemplo:</h3>
+                                <pre>${JSON.stringify(result.results.sample_data, null, 2)}</pre>
+                            </div>
+                        `;
+                    }
+                    
+                    // Mostrar resultados de pruebas
+                    if (result.results.column_tests) {
+                        html += '<h3>🧪 Pruebas de columnas:</h3>';
+                        
+                        Object.entries(result.results.column_tests).forEach(([testName, test]) => {
+                            const testClass = test.success ? 'success-test' : 'error-test';
+                            const icon = test.success ? '✅' : '❌';
+                            
+                            html += `
+                                <div class="test-result ${testClass}">
+                                    <h4>${icon} ${testName}</h4>
+                                    <p><strong>Columnas:</strong> ${test.columns.join(', ')}</p>
+                                    <p><strong>Estado:</strong> ${test.success ? 'Exitoso' : 'Fallido'}</p>
+                                    ${test.error ? `<p><strong>Error:</strong> ${test.error}</p>` : ''}
+                                    ${test.data ? `<p><strong>Datos:</strong> ${JSON.stringify(test.data)}</p>` : ''}
+                                </div>
+                            `;
+                        });
+                    }
+                    
+                    // Mostrar recomendación
+                    if (result.results.recommended_columns) {
+                        html += `
+                            <div class="success">
+                                <h3>🎯 COLUMNAS RECOMENDADAS:</h3>
+                                <pre>${result.results.recommended_columns.join(', ')}</pre>
+                                <p><strong>Test exitoso:</strong> ${result.results.success_test}</p>
+                                
+                                <h3>🔧 Próximos pasos:</h3>
+                                <ol>
+                                    <li>Actualizar el código de onboarding con estas columnas</li>
+                                    <li>Probar el onboarding nuevamente</li>
+                                    <li>Verificar que "casa vieja" aparezca en el dashboard</li>
+                                </ol>
+                                
+                                <button onclick="applyColumnFix(result.results.recommended_columns)" style="background: #4CAF50;">
+                                    🔧 APLICAR CORRECCIÓN AUTOMÁTICA
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        html += `
+                            <div class="error">
+                                <h3>❌ No se encontró una combinación válida</h3>
+                                <p>Es posible que la tabla tenga una estructura diferente o no exista.</p>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `<h3>📊 Resultados completos:</h3>
+                        <pre>${JSON.stringify(result.results, null, 2)}</pre>`;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ Error verificando estructura</h2>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        function applyColumnFix(columns) {
+            if (!columns) {
+                alert('No hay columnas recomendadas para aplicar');
+                return;
+            }
+            
+            // Crear una solicitud para aplicar la corrección automáticamente
+            fetch('/api/debug/apply-column-fix', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ columns })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✅ Corrección aplicada exitosamente. Ahora puedes probar el onboarding.');
+                    window.location.href = '/auth/login';
+                } else {
+                    alert('❌ Error aplicando corrección: ' + result.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ Error de conexión: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>

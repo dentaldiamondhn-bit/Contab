@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test Invoice Creation</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .form-group { margin: 15px 0; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input, textarea { width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; }
+        button { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; margin: 10px 5px; }
+        button:hover { background: #0056b3; }
+        .response { margin: 20px 0; padding: 15px; border-radius: 4px; }
+        .success { background: #d4edda; border: 1px solid #c3e6cb; color: #155724; }
+        .error { background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; }
+        .info { background: #d1ecf1; border: 1px solid #bee5eb; color: #0c5460; }
+        pre { background: #f8f9fa; padding: 10px; border-radius: 4px; overflow-x: auto; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 Test de Creación de Facturas</h1>
+        <p>Esta página prueba directamente el API de facturación para identificar problemas.</p>
+
+        <div class="form-group">
+            <label for="tenantId">Tenant ID:</label>
+            <input type="text" id="tenantId" value="DENTALWD" readonly>
+        </div>
+
+        <div class="form-group">
+            <label for="customerName">Nombre del Cliente:</label>
+            <input type="text" id="customerName" value="Cliente de Prueba">
+        </div>
+
+        <div class="form-group">
+            <label for="customerRTN">RTN del Cliente:</label>
+            <input type="text" id="customerRTN" value="08011999123456">
+        </div>
+
+        <div class="form-group">
+            <label for="itemDescription">Descripción del Item:</label>
+            <input type="text" id="itemDescription" value="Servicio de consulta">
+        </div>
+
+        <div class="form-group">
+            <label for="itemQuantity">Cantidad:</label>
+            <input type="number" id="itemQuantity" value="1">
+        </div>
+
+        <div class="form-group">
+            <label for="itemPrice">Precio Unitario:</label>
+            <input type="number" id="itemPrice" value="1000" step="0.01">
+        </div>
+
+        <button onclick="testInvoiceCreation()">🚀 Crear Factura de Prueba</button>
+        <button onclick="checkExistingInvoices()">📋 Ver Facturas Existentes</button>
+        <button onclick="clearResponse()">🗑️ Limpiar Respuesta</button>
+
+        <div id="response"></div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const responseDiv = document.getElementById('response');
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `response ${type}`;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            responseDiv.appendChild(logEntry);
+            responseDiv.scrollTop = responseDiv.scrollHeight;
+        }
+
+        function clearResponse() {
+            document.getElementById('response').innerHTML = '';
+        }
+
+        async function testInvoiceCreation() {
+            try {
+                log('🔄 Iniciando prueba de creación de factura...', 'info');
+
+                const tenantId = document.getElementById('tenantId').value;
+                const customerName = document.getElementById('customerName').value;
+                const customerRTN = document.getElementById('customerRTN').value;
+                const itemDescription = document.getElementById('itemDescription').value;
+                const itemQuantity = parseFloat(document.getElementById('itemQuantity').value);
+                const itemPrice = parseFloat(document.getElementById('itemPrice').value);
+
+                const itemTotal = itemQuantity * itemPrice;
+                const subtotal = itemTotal;
+                const tax = subtotal * 0.15;
+                const total = subtotal + tax;
+
+                const invoiceData = {
+                    tenantId: tenantId,
+                    invoiceType: 'CUSTOMER',
+                    customerName: customerName,
+                    customerRTN: customerRTN,
+                    customerEmail: 'test@example.com',
+                    customerAddress: 'Dirección de prueba',
+                    issueDate: new Date().toISOString().split('T')[0],
+                    dueDate: new Date().toISOString().split('T')[0],
+                    notes: 'Factura de prueba',
+                    subtotal: subtotal,
+                    tax: tax,
+                    total: total,
+                    items: [{
+                        description: itemDescription,
+                        quantity: itemQuantity,
+                        unitPrice: itemPrice,
+                        total: itemTotal
+                    }]
+                };
+
+                log('📦 Enviando datos al API...', 'info');
+                log(`<pre>Datos: ${JSON.stringify(invoiceData, null, 2)}</pre>`, 'info');
+
+                const response = await fetch('/api/admin/billing/invoices', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(invoiceData)
+                });
+
+                const responseData = await response.json();
+
+                if (response.ok) {
+                    log(`✅ Factura creada exitosamente! Status: ${response.status}`, 'success');
+                    log(`<pre>Respuesta: ${JSON.stringify(responseData, null, 2)}</pre>`, 'success');
+                    
+                    // Verificar si aparece en la lista
+                    setTimeout(() => {
+                        checkExistingInvoices();
+                    }, 1000);
+                } else {
+                    log(`❌ Error al crear factura. Status: ${response.status}`, 'error');
+                    log(`<pre>Error: ${JSON.stringify(responseData, null, 2)}</pre>`, 'error');
+                }
+
+            } catch (error) {
+                log(`💥 Error en la petición: ${error.message}`, 'error');
+                log(`<pre>Stack: ${error.stack}</pre>`, 'error');
+            }
+        }
+
+        async function checkExistingInvoices() {
+            try {
+                log('📋 Verificando facturas existentes...', 'info');
+
+                const tenantId = document.getElementById('tenantId').value;
+                const response = await fetch(`/api/admin/billing/invoices?tenantId=${tenantId}&type=CUSTOMER`);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const invoices = data.invoices || [];
+                    
+                    log(`📊 Se encontraron ${invoices.length} facturas`, 'info');
+                    
+                    if (invoices.length > 0) {
+                        const recentInvoices = invoices.slice(-3); // Últimas 3
+                        log('<strong>Facturas más recientes:</strong>', 'info');
+                        
+                        recentInvoices.forEach((invoice, index) => {
+                            log(`${index + 1}. ${invoice.invoiceNumber} - ${invoice.customerName} - ${invoice.total} HNL - ${new Date(invoice.createdAt).toLocaleString()}`, 'info');
+                        });
+                    } else {
+                        log('⚠️ No se encontraron facturas', 'error');
+                    }
+                } else {
+                    log(`❌ Error al obtener facturas. Status: ${response.status}`, 'error');
+                }
+
+            } catch (error) {
+                log(`💥 Error al verificar facturas: ${error.message}`, 'error');
+            }
+        }
+
+        // Auto-check existing invoices on load
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                checkExistingInvoices();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

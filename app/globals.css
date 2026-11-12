@@ -1,0 +1,80 @@
+/* Tailwind CSS directives */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Design tokens copiados del build desplegado en app.contabhn.com.
+ * El tema del producto es cian (no azul): primary/ring/foreground en
+ * 187 100% 42% y secondary/accent en verde 83 48% 51%.
+ */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 187 100% 42%;
+  --card: 0 0% 100%;
+  --card-foreground: 187 100% 42%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 187 100% 42%;
+  --primary: 187 100% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 83 48% 51%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+  --accent: 83 48% 51%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 187 20% 90%;
+  --input: 187 20% 90%;
+  --ring: 187 100% 42%;
+  --radius: 0.5rem;
+}
+
+.dark {
+  --background: 187 50% 8%;
+  --foreground: 0 0% 98%;
+  --card: 187 50% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 187 50% 8%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 187 100% 50%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 83 48% 51%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 187 30% 15%;
+  --muted-foreground: 187 20% 65%;
+  --accent: 83 48% 51%;
+  --accent-foreground: 0 0% 100%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 187 30% 20%;
+  --input: 187 30% 20%;
+  --ring: 187 100% 50%;
+}
+
+/*
+ * La familia tipográfica la inyecta next/font (Inter) desde app/layout.tsx.
+ * No se fija `font-family` aquí para no pisar la clase generada por next/font.
+ */
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground));
+  border-radius: 4px;
+}
+
+/* Focus ring */
+*:focus-visible {
+  outline: 2px solid hsl(var(--ring));
+  outline-offset: 2px;
+}

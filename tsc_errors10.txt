@@ -1,0 +1,403 @@
+app/api/_debug/plan-columns/route.ts(24,9): error TS2551: Property 'catch' does not exist on type 'PostgrestFilterBuilder<any, any, any, any, "exec_sql", null, "RPC", false>'. Did you mean 'match'?
+app/api/accounting/cash-flow-comparatives/route.ts(54,22): error TS2339: Property 'financiacion' does not exist on type '{ operation: any[]; investing: any[]; financing: any[]; }'.
+app/api/accounting/diat-upload/route.ts(148,3): error TS2739: Type 'PromiseLike<PostgrestSingleResponse<null> | { error: any; }>' is missing the following properties from type 'Promise<{ error: any; }>': catch, finally, [Symbol.toStringTag]
+app/api/accounting/export/route.ts(63,65): error TS2345: Argument of type 'TrialBalanceReport' is not assignable to parameter of type 'TrialBalancePDFData'.
+  Types of property 'accounts' are incompatible.
+    Type 'TrialBalanceAccount[]' is not assignable to type '{ code: string; name: string; totalDebits: number; totalCredits: number; balance: number; }[]'.
+      Property 'balance' is missing in type 'TrialBalanceAccount' but required in type '{ code: string; name: string; totalDebits: number; totalCredits: number; balance: number; }'.
+app/api/accounting/export/route.ts(77,23): error TS2323: Cannot redeclare exported variable 'POST'.
+app/api/accounting/export/route.ts(108,10): error TS2323: Cannot redeclare exported variable 'POST'.
+app/api/accounting/export/route.ts(108,10): error TS2484: Export declaration conflicts with exported declaration of 'POST'.
+app/api/accounting/opening-balances/auto/route.ts(34,29): error TS2589: Type instantiation is excessively deep and possibly infinite.
+app/api/accounting/opening-balances/auto/route.ts(34,52): error TS2345: Argument of type 'SupabaseClient<any, "public", "public", any, any>' is not assignable to parameter of type 'SupaClient'.
+  The types returned by 'from(...).select(...).in(...)' are incompatible between these types.
+    Type 'PostgrestFilterBuilder<any, any, any, GenericStringError[], any, unknown, "GET", false>' is missing the following properties from type 'Promise<{ data: unknown; error: unknown; }>': catch, finally, [Symbol.toStringTag]
+app/api/accounting/opening-balances/auto/route.ts(37,47): error TS2345: Argument of type 'SupabaseClient<any, "public", "public", any, any>' is not assignable to parameter of type 'SupaClient'.
+  The types returned by 'from(...).select(...).in(...)' are incompatible between these types.
+    Type 'PostgrestFilterBuilder<any, any, any, GenericStringError[], any, unknown, "GET", false>' is missing the following properties from type 'Promise<{ data: unknown; error: unknown; }>': catch, finally, [Symbol.toStringTag]
+app/api/accounting/period-variations/route.ts(24,7): error TS2345: Argument of type 'SupabaseClient<any, "public", "public", any, any>' is not assignable to parameter of type 'SupaClient'.
+  The types returned by 'from(...).select(...).in(...)' are incompatible between these types.
+    Type 'PostgrestFilterBuilder<any, any, any, GenericStringError[], any, unknown, "GET", false>' is missing the following properties from type 'Promise<{ data: unknown; error: unknown; }>': catch, finally, [Symbol.toStringTag]
+app/api/accounting/transactions/route.ts(189,35): error TS2304: Cannot find name 'db'.
+app/api/admin/billing/invoices/route.ts(286,24): error TS18047: 'insertedData' is possibly 'null'.
+app/api/admin/comprehensive-stats/route.ts(16,7): error TS2322: Type 'unknown' is not assignable to type 'string'.
+app/api/admin/tenants/compensations/route.ts(89,67): error TS2551: Property 'catch' does not exist on type 'PostgrestFilterBuilder<any, any, any, any, any, null, "RPC", false>'. Did you mean 'match'?
+app/api/admin/tenants/compensations/route.ts(137,18): error TS2339: Property 'max_users' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/compensations/route.ts(137,70): error TS2339: Property 'max_users' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/compensations/route.ts(138,18): error TS2339: Property 'max_storage' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/compensations/route.ts(138,74): error TS2339: Property 'max_storage' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/compensations/route.ts(139,18): error TS2339: Property 'max_transactions' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/compensations/route.ts(139,84): error TS2339: Property 'max_transactions' does not exist on type '{ code: any; price: any; }'.
+app/api/admin/tenants/route.ts(66,41): error TS2339: Property 'filter' does not exist on type '{ data: TenantData[]; error: PostgrestError; }'.
+app/api/admin/tenants/route.ts(75,41): error TS2339: Property 'filter' does not exist on type '{ data: TenantData[]; error: PostgrestError; }'.
+app/api/admin/tenants/route.ts(81,46): error TS2339: Property 'slice' does not exist on type '{ data: TenantData[]; error: PostgrestError; }'.
+app/api/admin/tenants/route.ts(150,32): error TS2339: Property 'length' does not exist on type '{ data: TenantData[]; error: PostgrestError; }'.
+app/api/admin/tenants/route.ts(151,42): error TS2339: Property 'length' does not exist on type '{ data: TenantData[]; error: PostgrestError; }'.
+app/api/auth/dev-login/route.ts(72,9): error TS2353: Object literal may only specify known properties, and 'lastLoginAt' does not exist in type '(Without<UserUpdateInput, UserUncheckedUpdateInput> & UserUncheckedUpdateInput) | (Without<...> & UserUpdateInput)'.
+app/api/auth/register/route.ts(62,9): error TS2353: Object literal may only specify known properties, and 'isVerified' does not exist in type '(Without<UserCreateInput, UserUncheckedCreateInput> & UserUncheckedCreateInput) | (Without<...> & UserCreateInput)'.
+app/api/billing/cai/[id]/route.ts(10,3): error TS2322: Type 'unknown' is not assignable to type 'string'.
+app/api/cai/route.ts(11,17): error TS2304: Cannot find name 'supabase'.
+app/api/companies/[id]/employees/route.ts(343,17): error TS2339: Property 'role' does not exist on type '{ firstName: string; lastName: string; identityNumber: string; salary: number; status: "active" | "inactive" | "terminated" | "suspended"; employeeId?: string; position?: string; department?: string; ... 22 more ...; workScheduleId?: string; }'.
+app/api/companies/[id]/employees/route.ts(511,11): error TS2339: Property 'role' does not exist on type '{ firstName?: string; lastName?: string; identityNumber?: string; employeeId?: string; position?: string; department?: string; salary?: number; startDate?: string; status?: "active" | "inactive" | "terminated" | "suspended"; ... 22 more ...; id?: string; }'.
+app/api/companies/[id]/employees/route.ts(511,51): error TS2339: Property 'role' does not exist on type '{ firstName?: string; lastName?: string; identityNumber?: string; employeeId?: string; position?: string; department?: string; salary?: number; startDate?: string; status?: "active" | "inactive" | "terminated" | "suspended"; ... 22 more ...; id?: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(108,44): error TS2339: Property 'error' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'error' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(108,66): error TS2339: Property 'status' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'status' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(162,48): error TS2339: Property 'error' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'error' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(162,74): error TS2339: Property 'status' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'status' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(219,48): error TS2339: Property 'error' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'error' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/hr/storage/route.ts(219,74): error TS2339: Property 'status' does not exist on type '{ ok: true; employeeId: string; } | { ok: false; status: number; error: string; }'.
+  Property 'status' does not exist on type '{ ok: true; employeeId: string; }'.
+app/api/companies/[id]/inventory/locations/import/route.ts(55,5): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'delim' does not exist in type 'ParseLocalConfig<Record<string, string>, LocalFile> & (ParseRemoteConfig<Record<string, string>> | (ParseConfig<...> & { ...; }) | (ParseWorkerConfig<...> & { ...; }))'.
+app/api/companies/[id]/inventory/locations/import/route.ts(58,15): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/locations/import/route.ts(58,45): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/locations/import/route.ts(58,68): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/locations/import/route.ts(62,26): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/locations/import/route.ts(66,26): error TS2339: Property 'data' does not exist on type 'void'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(50,5): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Object literal may only specify known properties, and 'delim' does not exist in type 'ParseLocalConfig<Record<string, string>, LocalFile> & (ParseRemoteConfig<Record<string, string>> | (ParseConfig<...> & { ...; }) | (ParseWorkerConfig<...> & { ...; }))'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(53,15): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(53,45): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(53,68): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(57,26): error TS2339: Property 'meta' does not exist on type 'void'.
+app/api/companies/[id]/inventory/warehouses/import/route.ts(61,26): error TS2339: Property 'data' does not exist on type 'void'.
+app/api/dashboard/stats/route.ts(31,7): error TS2559: Type '{ company_id?: string; }' has no properties in common with type 'TransactionWhereInput'.
+app/api/dashboard/stats/route.ts(38,7): error TS2559: Type '{ company_id?: string; }' has no properties in common with type 'AccountWhereInput'.
+app/api/debug/exact-columns/route.ts(19,17): error TS2339: Property 'columns_method1' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(34,17): error TS2339: Property 'columns_method2' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(57,13): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(66,17): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(71,17): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(83,19): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(97,13): error TS2339: Property 'correct_columns' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(98,13): error TS2339: Property 'column_mapping' does not exist on type '{}'.
+app/api/debug/exact-columns/route.ts(126,13): error TS2339: Property 'filtered_insert_object' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(22,17): error TS2339: Property 'actual_columns' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(23,17): error TS2339: Property 'sample_data' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(26,17): error TS2339: Property 'read_error' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(29,17): error TS2339: Property 'no_data' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(33,15): error TS2339: Property 'general_error' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(52,13): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(68,19): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(75,19): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(83,17): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(92,51): error TS2339: Property 'column_tests' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(92,92): error TS2339: Property 'success' does not exist on type 'unknown'.
+app/api/debug/table-structure/route.ts(96,15): error TS2339: Property 'recommended_columns' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(96,48): error TS2339: Property 'columns' does not exist on type 'unknown'.
+app/api/debug/table-structure/route.ts(97,15): error TS2339: Property 'success_test' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(99,15): error TS2339: Property 'recommended_columns' does not exist on type '{}'.
+app/api/debug/table-structure/route.ts(100,15): error TS2339: Property 'success_test' does not exist on type '{}'.
+app/api/documents/pdf/route.ts(107,32): error TS2554: Expected 4-5 arguments, but got 3.
+app/api/documents/pdf/route.ts(145,43): error TS2304: Cannot find name 'supabaseService'.
+app/api/documents/pdf/route.ts(148,33): error TS2339: Property 'id' does not exist on type 'string'.
+app/api/pdf-export/route.ts(49,48): error TS2345: Argument of type '{ period: { startDate: Date; endDate: Date; }; accounts: any[]; totalOpeningBalance: number; totalDebits: number; totalCredits: number; totalEndingBalance: number; totalTrialDebits: number; totalTrialCredits: number; isBalanced: boolean; periodStartDate: Date; periodEndDate: Date; }' is not assignable to parameter of type 'string'.
+app/api/pdf-export/route.ts(58,43): error TS2345: Argument of type 'any[]' is not assignable to parameter of type 'string'.
+app/api/pdf-export/route.ts(81,45): error TS2345: Argument of type '{ period: string; taxConfig: { rate: number; }; sales: { totalBase: number; totalTax: number; details: any[]; }; purchases: { totalBase: number; totalTax: number; details: any[]; }; summary: { totalTaxToPay: number; }; }' is not assignable to parameter of type 'string'.
+app/api/support/tickets/route.ts(65,37): error TS2304: Cannot find name 'email'.
+app/api/tenant/users/route-supabase.ts(52,9): error TS2740: Type '{ data: UserData[]; error: PostgrestError; }' is missing the following properties from type 'any[]': length, pop, push, concat, and 35 more.
+app/api/tenant/users/route-supabase.ts(141,27): error TS2554: Expected 2 arguments, but got 1.
+app/api/tenant/users/route-supabase.ts(168,27): error TS2339: Property 'id' does not exist on type '{ data: UserData; error: PostgrestError; }'.
+app/api/tenant/users/route-supabase.ts(175,27): error TS2339: Property 'id' does not exist on type '{ data: UserData; error: PostgrestError; }'.
+app/api/tenant/users/route-supabase.ts(249,9): error TS2561: Object literal may only specify known properties, but 'isActive' does not exist in type 'Partial<UserData>'. Did you mean to write 'is_active'?
+app/api/tenant/users/route-supabase.ts(296,9): error TS2561: Object literal may only specify known properties, but 'firstName' does not exist in type 'Partial<UserData>'. Did you mean to write 'first_name'?
+app/api/tenant/users/route.ts(38,26): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(46,12): error TS2739: Type '{ id: any; email: any; firstName: any; lastName: any; role: any; isActive: any; createdAt: any; lastLogin: any; }[]' is missing the following properties from type '{ data: UserData[]; error: PostgrestError; }': data, error
+app/api/tenant/users/route.ts(62,48): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(67,21): error TS2339: Property 'filter' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(72,63): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(76,21): error TS2339: Property 'filter' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(77,61): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(82,21): error TS2339: Property 'filter' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(83,63): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(90,22): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(92,22): error TS2339: Property 'length' does not exist on type '{ data: UserData[]; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(155,27): error TS2554: Expected 2 arguments, but got 1.
+app/api/tenant/users/route.ts(183,27): error TS2339: Property 'id' does not exist on type '{ data: UserData; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(191,27): error TS2339: Property 'id' does not exist on type '{ data: UserData; error: PostgrestError; }'.
+app/api/tenant/users/route.ts(265,9): error TS2561: Object literal may only specify known properties, but 'isActive' does not exist in type 'Partial<UserData>'. Did you mean to write 'is_active'?
+app/api/tenant/users/route.ts(312,9): error TS2561: Object literal may only specify known properties, but 'firstName' does not exist in type 'Partial<UserData>'. Did you mean to write 'first_name'?
+app/auth/login/page-simple.tsx(135,13): error TS2322: Type '{ appearance: { elements: { rootBox: string; card: string; form: string; socialButtonsBlockButton: string; formButtonPrimary: string; footerAction: string; footerActionLink: string; formFieldInput: string; ... 19 more ...; identityPreviewCardSecondaryText: string; }; }; redirectUrl: undefined; afterSignInUrl: undefi...' is not assignable to type 'IntrinsicAttributes & Without<WithClerkProp<SignInProps & FallbackProp>, "clerk">'.
+  Property 'redirectUrl' does not exist on type 'IntrinsicAttributes & Without<WithClerkProp<SignInProps & FallbackProp>, "clerk">'.
+app/auth/login/page-with-onboarding.tsx(135,13): error TS2322: Type '{ appearance: { elements: { rootBox: string; card: string; form: string; socialButtonsBlockButton: string; formButtonPrimary: string; footerAction: string; footerActionLink: string; formFieldInput: string; ... 19 more ...; identityPreviewCardSecondaryText: string; }; }; redirectUrl: undefined; afterSignInUrl: undefi...' is not assignable to type 'IntrinsicAttributes & Without<WithClerkProp<SignInProps & FallbackProp>, "clerk">'.
+  Property 'redirectUrl' does not exist on type 'IntrinsicAttributes & Without<WithClerkProp<SignInProps & FallbackProp>, "clerk">'.
+app/auth/register/[...rest]/page.tsx(92,13): error TS2322: Type '{ routing: "hash"; appearance: { elements: { rootBox: string; card: string; form: string; socialButtonsBlockButton: string; formButtonPrimary: string; footerAction: string; footerActionLink: string; ... 20 more ...; identityPreviewCardSecondaryText: string; }; }; signInUrl: string; fallbackRedirectUrl: string; redir...' is not assignable to type 'IntrinsicAttributes & Without<WithClerkProp<SignUpProps & FallbackProp>, "clerk">'.
+  Property 'redirectUrl' does not exist on type 'IntrinsicAttributes & Without<{ path?: never; routing?: "hash"; } & { forceRedirectUrl?: string; fallbackRedirectUrl?: string; signInUrl?: string; appearance?: Theme; ... 5 more ...; oidcPrompt?: string; } & ... 4 more ... & { ...; }, "clerk">'.
+app/auth/reset-password/page.tsx(85,52): error TS2339: Property 'email' does not exist on type 'never'.
+app/billing/generate-invoice/page.tsx(233,11): error TS2739: Type '{ id: string; description: string; quantity: number; unitPrice: number; total: number; }' is missing the following properties from type 'InvoiceItem': taxRate, taxAmount
+app/billing/subscriptions/page.tsx(473,45): error TS2339: Property 'items' does not exist on type 'Invoice'.
+app/billing/subscriptions/page.tsx(475,42): error TS2339: Property 'items' does not exist on type 'Invoice'.
+app/billing/subscriptions/page.tsx(475,74): error TS2339: Property 'items' does not exist on type 'Invoice'.
+app/companies/[id]/accounting/financial-statements/balance-general/page.tsx(155,34): error TS2345: Argument of type '{ activosCorrientes: BalanceItem[]; activosNoCorrientes: BalanceItem[]; pasivosCorrientes: BalanceItem[]; pasivosNoCorrientes: BalanceItem[]; ... 5 more ...; totalPatrimonio: number; }' is not assignable to parameter of type 'GroupedBalance'.
+  Type '{ activosCorrientes: BalanceItem[]; activosNoCorrientes: BalanceItem[]; pasivosCorrientes: BalanceItem[]; pasivosNoCorrientes: BalanceItem[]; ... 5 more ...; totalPatrimonio: number; }' is missing the following properties from type 'GroupedBalance': totalActivos, totalPasivos, totalPatrimonioPasivos, isBalanced
+app/companies/[id]/accounting/financial-statements/estado-resultados/page.tsx(375,13): error TS2322: Type '{ tenantId: string; startDate: string; endDate: string; currency: "HNL" | "USD"; mode: "prev-month" | "prev-year"; }' is not assignable to type 'IntrinsicAttributes'.
+  Property 'tenantId' does not exist on type 'IntrinsicAttributes'.
+app/companies/[id]/accounting/opening-balances/page.tsx(300,23): error TS2345: Argument of type '{ account_id: string; opening_balance: number; opening_balance_date: string; }' is not assignable to parameter of type '{ account_id: string; account_code: string; opening_balance: number; opening_balance_date: string; }'.
+  Property 'account_code' is missing in type '{ account_id: string; opening_balance: number; opening_balance_date: string; }' but required in type '{ account_id: string; account_code: string; opening_balance: number; opening_balance_date: string; }'.
+app/companies/[id]/accounting/page.tsx(423,41): error TS2769: No overload matches this call.
+  Overload 1 of 2, '(data: unknown[][], opts?: AOA2SheetOpts): WorkSheet', gave the following error.
+    Type 'readonly ["fecha", "tipo_comprobante", "numero_comprobante", "descripcion", "codigo_cuenta", "nombre_cuenta", "debe", "haber"] | readonly ["codigo_cuenta", "nombre_cuenta", "tipo_cuenta", "total_debe", "total_haber", "saldo"] | readonly [...] | readonly [...] | readonly [...] | readonly [...]' is not assignable to type 'unknown[]'.
+      The type 'readonly ["fecha", "tipo_comprobante", "numero_comprobante", "descripcion", "codigo_cuenta", "nombre_cuenta", "debe", "haber"]' is 'readonly' and cannot be assigned to the mutable type 'unknown[]'.
+  Overload 2 of 2, '(data: any[][], opts?: AOA2SheetOpts): WorkSheet', gave the following error.
+    Type 'readonly ["fecha", "tipo_comprobante", "numero_comprobante", "descripcion", "codigo_cuenta", "nombre_cuenta", "debe", "haber"] | readonly ["codigo_cuenta", "nombre_cuenta", "tipo_cuenta", "total_debe", "total_haber", "saldo"] | readonly [...] | readonly [...] | readonly [...] | readonly [...]' is not assignable to type 'any[]'.
+      The type 'readonly ["fecha", "tipo_comprobante", "numero_comprobante", "descripcion", "codigo_cuenta", "nombre_cuenta", "debe", "haber"]' is 'readonly' and cannot be assigned to the mutable type 'any[]'.
+app/companies/[id]/accounting/page.tsx(916,19): error TS2322: Type '(e: React.ChangeEvent<HTMLInputElement>) => Promise<void>' is not assignable to type '(this: GlobalEventHandlers, ev: Event) => any'.
+  Types of parameters 'e' and 'ev' are incompatible.
+    Type 'Event' is missing the following properties from type 'ChangeEvent<HTMLInputElement, Element>': nativeEvent, isDefaultPrevented, isPropagationStopped, persist
+app/companies/[id]/hr/attendance/page.tsx(141,15): error TS2322: Type '"fixed" | "hourly" | "hourly_200"' is not assignable to type '"hourly"'.
+  Type '"fixed"' is not assignable to type '"hourly"'.
+app/companies/[id]/hr/attendance/page.tsx(388,32): error TS2339: Property 'disabilityType' does not exist on type 'Attendance'.
+app/companies/[id]/hr/attendance/page.tsx(412,35): error TS2339: Property 'disabilityType' does not exist on type 'Attendance'.
+app/companies/[id]/hr/attendance/page.tsx(738,38): error TS2339: Property 'disabilityType' does not exist on type 'Attendance'.
+app/companies/[id]/hr/attendance/page.tsx(997,11): error TS2322: Type '"doble" | "triple" | "libre"' is not assignable to type '"doble" | "triple"'.
+  Type '"libre"' is not assignable to type '"doble" | "triple"'.
+app/companies/[id]/hr/attendance/page.tsx(1775,85): error TS2367: This comparison appears to be unintentional because the types '"suspended" | "present" | "absent" | "late" | "vacation" | "overtime" | "unpaid_leave" | "paid_leave" | "disability" | "holiday" | "free_day"' and '"sin_registro"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(1881,22): error TS2367: This comparison appears to be unintentional because the types '"hourly"' and '"fixed"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(2078,21): error TS2367: This comparison appears to be unintentional because the types '"hourly"' and '"fixed"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(2080,28): error TS2367: This comparison appears to be unintentional because the types '"hourly"' and '"hourly_200"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(2098,33): error TS2367: This comparison appears to be unintentional because the types '"hourly"' and '"fixed"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(2098,110): error TS2367: This comparison appears to be unintentional because the types '"hourly"' and '"hourly_200"' have no overlap.
+app/companies/[id]/hr/attendance/page.tsx(2591,30): error TS2304: Cannot find name 'Pencil'.
+app/companies/[id]/hr/departments/page.tsx(202,82): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(366,36): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(367,67): error TS2353: Object literal may only specify known properties, and 'department' does not exist in type 'SetStateAction<{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }>'.
+app/companies/[id]/hr/departments/page.tsx(382,65): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(382,108): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(570,52): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(570,127): error TS2353: Object literal may only specify known properties, and 'department' does not exist in type 'SetStateAction<{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }>'.
+app/companies/[id]/hr/departments/page.tsx(578,80): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(890,161): error TS2353: Object literal may only specify known properties, and 'department' does not exist in type 'SetStateAction<{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }>'.
+app/companies/[id]/hr/departments/page.tsx(951,60): error TS2339: Property 'department' does not exist on type '{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }'.
+app/companies/[id]/hr/departments/page.tsx(951,128): error TS2353: Object literal may only specify known properties, and 'department' does not exist in type 'SetStateAction<{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }>'.
+app/companies/[id]/hr/departments/page.tsx(993,179): error TS2353: Object literal may only specify known properties, and 'department' does not exist in type 'SetStateAction<{ name: string; description: string; minSalary: number; maxSalary: number; parentId: string; }>'.
+app/companies/[id]/hr/employees/page.tsx(1108,11): error TS2740: Type '{ vacationDays: number; status: "active"; usedVacationDays: number; firstName: string; lastName: string; identityNumber: string; photo: string; cv: string; position: string; department: string; ... 38 more ...; employeeId: string; }' is missing the following properties from type 'Employee': gender, freeDays, workScheduleId, workScheduleName, and 14 more.
+app/companies/[id]/hr/employees/page.tsx(1117,301): error TS2353: Object literal may only specify known properties, and 'workScheduleId' does not exist in type 'SetStateAction<{ firstName: string; lastName: string; identityNumber: string; photo: string; cv: string; position: string; department: string; salary: number; startDate: string; phone: string; email: string; address: string; ... 32 more ...; medicalRecord: { ...; }; }>'.
+app/companies/[id]/hr/employees/page.tsx(1169,31): error TS2345: Argument of type '{ status: string; terminationDate: string; terminationReason: string; terminationRequestedBy: string; terminationPerformedBy: string; rehireable: boolean; id: string; employeeId: string; ... 58 more ...; history: HistoryEntry[]; }' is not assignable to parameter of type 'Employee'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"active" | "inactive" | "terminated" | "suspended"'.
+app/companies/[id]/hr/employees/page.tsx(1184,31): error TS2345: Argument of type '{ status: string; reactivationDate: string; reactivationReason: string; reactivationRequestedBy: string; reactivationPerformedBy: string; id: string; employeeId: string; firstName: string; ... 58 more ...; history: HistoryEntry[]; }' is not assignable to parameter of type 'Employee'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"active" | "inactive" | "terminated" | "suspended"'.
+app/companies/[id]/hr/employees/page.tsx(1199,31): error TS2345: Argument of type '{ status: string; suspensionDate: string; suspensionReason: string; suspensionRequestedBy: string; suspensionPerformedBy: string; id: string; employeeId: string; firstName: string; lastName: string; ... 57 more ...; history: HistoryEntry[]; }' is not assignable to parameter of type 'Employee'.
+  Types of property 'status' are incompatible.
+    Type 'string' is not assignable to type '"active" | "inactive" | "terminated" | "suspended"'.
+app/companies/[id]/hr/employees/page.tsx(1365,47): error TS2345: Argument of type '{ id: string; employeeId: any; firstName: any; lastName: any; identityNumber: any; position: any; department: any; salary: number; startDate: any; status: "active"; phone: any; email: any; address: any; ... 28 more ...; workScheduleName: string; }' is not assignable to parameter of type 'Employee'.
+  Type '{ id: string; employeeId: any; firstName: any; lastName: any; identityNumber: any; position: any; department: any; salary: number; startDate: any; status: "active"; phone: any; email: any; address: any; ... 28 more ...; workScheduleName: string; }' is missing the following properties from type 'Employee': role, workPermitStatus, visaExpiry, docIdentity, and 21 more.
+app/companies/[id]/hr/employees/page.tsx(1972,71): error TS2322: Type '"supervisor" | "empleado" | "gerente"' is not assignable to type '"empleado"'.
+  Type '"supervisor"' is not assignable to type '"empleado"'.
+app/companies/[id]/hr/employees/page.tsx(2500,50): error TS2339: Property 'name' does not exist on type 'Employee'.
+app/companies/[id]/hr/employees/page.tsx(2507,75): error TS2339: Property 'name' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(676,17): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(676,45): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(788,16): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(789,16): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(930,99): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(1114,99): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(2519,81): error TS2339: Property 'employeeCode' does not exist on type 'Employee'.
+app/companies/[id]/hr/payroll/page.tsx(2679,89): error TS2339: Property 'employeeCode' does not exist on type '{ name: string; position: string; department: string; salary: number; periodSalary: number; igssEmployee: number; ihss: number; rap: number; totalDeductions: number; attendanceDeductionTotal: number; attendanceIncomeTotal: number; vacationDays: number; vacationPayAmount: number; netPay: number; }'.
+app/companies/[id]/hr/pip/page.tsx(212,17): error TS2345: Argument of type '{ employeeId: string; title: string; description: string; startDate: string; endDate: string; goals: undefined[]; }' is not assignable to parameter of type 'SetStateAction<{ employeeId: string; title: string; description: string; startDate: string; endDate: string; observations: string; commitments: string; goals: PipGoal[]; }>'.
+  Type '{ employeeId: string; title: string; description: string; startDate: string; endDate: string; goals: undefined[]; }' is missing the following properties from type '{ employeeId: string; title: string; description: string; startDate: string; endDate: string; observations: string; commitments: string; goals: PipGoal[]; }': observations, commitments
+app/companies/[id]/hr/vacations/page.tsx(128,3): error TS2741: Property 'carried' is missing in type '{ annual: number; monthly: number; month: number; year: number; }' but required in type 'UsageRecord'.
+app/companies/[id]/hr/vacations/page.tsx(133,13): error TS2741: Property 'carried' is missing in type '{ annual: number; monthly: number; month: number; year: number; }' but required in type 'UsageRecord'.
+app/companies/[id]/hr/vacations/page.tsx(200,13): error TS2741: Property 'carried' is missing in type '{ annual: any; monthly: any; month: any; year: any; }' but required in type 'UsageRecord'.
+app/companies/[id]/hr/vacations/page.tsx(395,15): error TS2741: Property 'carried' is missing in type '{ annual: number; monthly: number; month: number; year: number; }' but required in type 'UsageRecord'.
+app/companies/[id]/hr/vacations/page.tsx(433,11): error TS2741: Property 'carried' is missing in type '{ annual: number; monthly: number; month: number; year: number; }' but required in type 'UsageRecord'.
+app/companies/[id]/purchases/page.tsx(336,66): error TS2339: Property 'businessname' does not exist on type 'Supplier'.
+app/companies/[id]/purchases/page.tsx(515,66): error TS2339: Property 'businessname' does not exist on type 'Supplier'.
+app/components/ClerkErrorBoundary.tsx(25,5): error TS2741: Property 'retryCount' is missing in type '{ hasError: true; error: Error; }' but required in type 'State'.
+app/inventory/page.tsx(128,60): error TS2345: Argument of type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: string; isDiscount: false; precioTotal: string; nuevoStock: string; minstock: string; tags: undefined[]; expirationDate: string; }' is not assignable to parameter of type 'NewProductData | (() => NewProductData)'.
+  Property 'supplierId' is missing in type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: string; isDiscount: false; precioTotal: string; nuevoStock: string; minstock: string; tags: undefined[]; expirationDate: string; }' but required in type 'NewProductData'.
+app/inventory/page.tsx(804,19): error TS2345: Argument of type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: string; isDiscount: false; precioTotal: string; nuevoStock: string; minstock: string; tags: undefined[]; expirationDate: string; }' is not assignable to parameter of type 'SetStateAction<NewProductData>'.
+  Property 'supplierId' is missing in type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: string; isDiscount: false; precioTotal: string; nuevoStock: string; minstock: string; tags: undefined[]; expirationDate: string; }' but required in type 'NewProductData'.
+app/inventory/page.tsx(920,17): error TS2345: Argument of type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: any; isDiscount: any; precioTotal: string; nuevoStock: string; minstock: string; tags: string[]; expirationDate: string; }' is not assignable to parameter of type 'SetStateAction<NewProductData>'.
+  Property 'supplierId' is missing in type '{ tenantid: string; sku: string; name: string; description: string; category: string; unit: string; cost: string; price: string; discountPrice: any; isDiscount: any; precioTotal: string; nuevoStock: string; minstock: string; tags: string[]; expirationDate: string; }' but required in type 'NewProductData'.
+app/reports/cash-flow-comparatives/page.tsx(229,17): error TS2339: Property 'warning' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(328,26): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(331,29): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(341,77): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(342,68): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(352,60): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(356,60): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/cash-flow-comparatives/page.tsx(360,60): error TS2339: Property 'totals' does not exist on type 'CashFlowComparatives'.
+app/reports/ratios/page.tsx(208,12): error TS2304: Cannot find name 'Layer'.
+app/support/tickets/page.tsx(314,57): error TS2339: Property 'tenant_code' does not exist on type 'Ticket'.
+app/support/users/page.tsx(503,35): error TS2339: Property 'authId' does not exist on type 'User'.
+app/support/users/page.tsx(560,31): error TS2339: Property 'updatedAt' does not exist on type 'User'.
+app/support/users/page.tsx(560,57): error TS2339: Property 'updatedAt' does not exist on type 'User'.
+app/support/users/page.tsx(566,46): error TS2339: Property 'updatedAt' does not exist on type 'User'.
+app/tenant-admin/summary/page.tsx(47,3): error TS2305: Module '"lucide-react"' has no exported member 'Warning'.
+app/tenant-admin/users/debug-page.tsx(136,23): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+app/tenant-admin/users/debug-page.tsx(199,52): error TS2322: Type 'unknown' is not assignable to type 'ReactNode'.
+components/accounting/AccountingBooks.tsx(495,159): error TS2339: Property 'codigo_cuenta' does not exist on type 'TrialBalance'.
+components/accounting/ChartOfAccountsManager.tsx(730,251): error TS2322: Type '{ children: Element[]; value: "ASSET" | "LIABILITY" | "EQUITY" | "REVENUE" | "EXPENSE"; onValueChange: (v: string) => void; disabled: boolean; }' is not assignable to type 'IntrinsicAttributes & SelectProps'.
+  Property 'disabled' does not exist on type 'IntrinsicAttributes & SelectProps'.
+components/accounting/FinancialRatios.tsx(96,26): error TS2322: Type '{ className: string; }' is not assignable to type 'IntrinsicAttributes'.
+  Property 'className' does not exist on type 'IntrinsicAttributes'.
+components/accounting/FinancialRatios.tsx(241,37): error TS2322: Type '{ id: string; name: string; description: string; formula: string; value: number; unit: string; interpretation: string; category: string; }' is not assignable to type 'FinancialRatio'.
+  Types of property 'category' are incompatible.
+    Type 'string' is not assignable to type '"liquidity" | "profitability" | "solvency" | "efficiency" | "health"'.
+components/accounting/FinancialRatios.tsx(241,51): error TS2322: Type 'string' is not assignable to type '"liquidity" | "profitability" | "solvency" | "efficiency" | "health"'.
+components/accounting/YearOverYearComparisons.tsx(103,18): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(108,19): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(136,72): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(136,109): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(152,17): error TS2322: Type '"primary"' is not assignable to type '"link" | "secondary" | "destructive" | "default" | "outline" | "ghost"'.
+components/accounting/YearOverYearComparisons.tsx(182,37): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(182,67): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(202,37): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(202,67): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(226,17): error TS2322: Type '"primary"' is not assignable to type '"link" | "secondary" | "destructive" | "default" | "outline" | "ghost"'.
+components/accounting/YearOverYearComparisons.tsx(246,58): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(246,95): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(254,37): error TS2304: Cannot find name 'getMonthFromPeriod'.
+components/accounting/YearOverYearComparisons.tsx(254,98): error TS2304: Cannot find name 'getYearFromPeriod'.
+components/dashboard/BurnRateChart.tsx(23,3): error TS2305: Module '"@tremor/react"' has no exported member 'Title'.
+components/dashboard/BurnRateChart.tsx(24,3): error TS2305: Module '"@tremor/react"' has no exported member 'Text'.
+components/dashboard/BurnRateChart.tsx(25,3): error TS2305: Module '"@tremor/react"' has no exported member 'Bold'.
+components/dashboard/BurnRateChart.tsx(26,3): error TS2305: Module '"@tremor/react"' has no exported member 'Flex'.
+components/dashboard/TremorBurnRateChart.tsx(6,3): error TS2305: Module '"@tremor/react"' has no exported member 'Title'.
+components/dashboard/TremorBurnRateChart.tsx(7,3): error TS2305: Module '"@tremor/react"' has no exported member 'Text'.
+components/dashboard/TremorBurnRateChart.tsx(8,3): error TS2305: Module '"@tremor/react"' has no exported member 'Bold'.
+components/dashboard/TremorBurnRateChart.tsx(9,3): error TS2305: Module '"@tremor/react"' has no exported member 'Flex'.
+components/DETExportManager.tsx(61,9): error TS2304: Cannot find name 'getAvailablePeriods'.
+components/DETExportManager.tsx(62,9): error TS2304: Cannot find name 'getAvailablePeriods'.
+components/DETExportManager.tsx(63,32): error TS2304: Cannot find name 'getDETExportStatistics'.
+components/DETExportManager.tsx(86,27): error TS2304: Cannot find name 'getDETExportStatistics'.
+components/DETExportManager.tsx(96,28): error TS2304: Cannot find name 'generateDETFile'.
+components/DETExportManager.tsx(126,32): error TS2304: Cannot find name 'generateDETCSV'.
+components/financials/CashFlowComparative.tsx(412,30): error TS2339: Property 'runwayRemaining' does not exist on type 'CashProjections'.
+components/financials/CashFlowComparative.tsx(413,36): error TS2339: Property 'runwayRemaining' does not exist on type 'CashProjections'.
+components/support/SupportDashboard.tsx(1185,25): error TS2304: Cannot find name 'fetchTickets'.
+delete-tenant-script.ts(31,9): error TS2345: Argument of type 'PostgrestFilterBuilder<any, any, any, { id: any; }[], "companies", unknown, "GET", false>' is not assignable to parameter of type 'readonly any[]'.
+  Type 'PostgrestFilterBuilder<any, any, any, { id: any; }[], "companies", unknown, "GET", false>' is missing the following properties from type 'readonly any[]': length, concat, join, slice, and 25 more.
+lib/services/inventory-integration.ts(70,13): error TS2339: Property 'data' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(70,19): error TS2339: Property 'error' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(79,15): error TS2339: Property 'data' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(79,31): error TS2339: Property 'error' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(102,13): error TS2339: Property 'data' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(102,19): error TS2339: Property 'error' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(111,15): error TS2339: Property 'data' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(111,31): error TS2339: Property 'error' does not exist on type '{ name: string; id: string; tenantId: string; companyId: string; code: string; type: string; description: string; parentId: string; isActive: boolean; createdAt: Date; updatedAt: Date; }'.
+lib/services/inventory-integration.ts(114,17): error TS2872: This kind of expression is always truthy.
+lib/services/inventory-integration.ts(241,29): error TS2554: Expected 3-4 arguments, but got 2.
+lib/services/inventory-integration.ts(330,30): error TS2554: Expected 3-4 arguments, but got 2.
+lib/services/inventory-integration.ts(338,83): error TS2339: Property 'qty' does not exist on type '{ productId: string; productCode: string; productName: string; quantity: number; unitCost: number; totalCost: number; }'.
+lib/services/inventory-integration.ts(359,28): error TS2339: Property 'raw' does not exist on type 'PrismaClient<PrismaClientOptions, never, DefaultArgs>'.
+lib/services/inventory-kardex.ts(6,15): error TS2305: Module '"@/types/supabase"' has no exported member 'Database'.
+lib/services/pdf-documents.ts(108,10): error TS2686: 'React' refers to a UMD global, but the current file is a module. Consider adding an import instead.
+lib/services/pdf-export.ts(222,61): error TS2339: Property 'endingBalance' does not exist on type '{ code: string; name: string; totalDebits: number; totalCredits: number; balance: number; }'.
+lib/services/pdf-export.ts(227,72): error TS2339: Property 'totalDebits' does not exist on type 'TrialBalancePDFData'.
+lib/services/pdf-export.ts(228,72): error TS2339: Property 'totalCredits' does not exist on type 'TrialBalancePDFData'.
+lib/services/pdf-export.ts(229,72): error TS2339: Property 'totalEndingBalance' does not exist on type 'TrialBalancePDFData'.
+lib/services/pdf-export.ts(235,50): error TS2339: Property 'isBalanced' does not exist on type 'TrialBalancePDFData'.
+lib/services/period-closing-service.ts(35,4): error TS2355: A function whose declared type is neither 'undefined', 'void', nor 'any' must return a value.
+lib/services/period-closing-service.ts(48,9): error TS2353: Object literal may only specify known properties, and 'account' does not exist in type 'JournalEntryInclude<DefaultArgs>'.
+lib/services/period-closing-service.ts(66,22): error TS2365: Operator '+' cannot be applied to types 'bigint' and 'number'.
+lib/services/period-closing-service.ts(66,50): error TS2345: Argument of type 'bigint' is not assignable to parameter of type 'number'.
+lib/services/period-closing-service.ts(78,13): error TS2322: Type 'number' is not assignable to type 'bigint'.
+lib/services/period-closing-service.ts(78,31): error TS2345: Argument of type 'bigint' is not assignable to parameter of type 'number'.
+lib/services/period-closing-service.ts(249,16): error TS2304: Cannot find name 'periodClosingService'.
+lib/services/signature-watermark-service.ts(9,41): error TS2307: Cannot find module '@napi-rs/canvas' or its corresponding type declarations.
+lib/services/signature-watermark-service.ts(10,42): error TS2307: Cannot find module '@napi-rs/canvas' or its corresponding type declarations.
+lib/services/signature-watermark-service.ts(11,10): error TS2459: Module '"@/lib/services/pdf-document-builder"' declares 'PdfType' locally, but it is not exported.
+lib/services/signature-watermark-service.ts(132,111): error TS2353: Object literal may only specify known properties, and 'taxAmount' does not exist in type 'InvoicePdfItem'.
+lib/services/signature-watermark-service.ts(161,92): error TS2339: Property 'tenantId' does not exist on type 'string'.
+lib/services/signature-watermark-service.ts(243,19): error TS2339: Property 'error' does not exist on type '{ data: { publicUrl: string; }; }'.
+lib/services/transaction-service-enhanced.ts(57,24): error TS2339: Property 'tenantId' does not exist on type '{ date: Date; description: string; reference?: string; voucherType: string; voucherNumber: number; currency: string; entries: { accountId: string; amount: number; type: "DEBIT" | "CREDIT"; }[]; }'.
+lib/services/transaction-service-enhanced.ts(131,71): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+lib/services/transaction-service-enhanced.ts(132,53): error TS2339: Property 'errors' does not exist on type 'ZodError<unknown>'.
+lib/services/transaction-service-enhanced.ts(372,17): error TS2353: Object literal may only specify known properties, and 'functionalAmount' does not exist in type '(Without<TransactionUpdateInput, TransactionUncheckedUpdateInput> & TransactionUncheckedUpdateInput) | (Without<...> & TransactionUpdateInput)'.
+lib/services/year-end-closing.ts(73,9): error TS2353: Object literal may only specify known properties, and 'snapshot' does not exist in type 'YearEndResult'.
+lib/services/year-end-closing.ts(361,14): error TS2552: Cannot find name 'YearEndClosingSnapshot'. Did you mean 'YearEndClosingData'?
+lib/sqlite-direct.ts(24,22): error TS2709: Cannot use namespace 'Database' as a type.
+lib/sqlite-direct.ts(26,25): error TS2709: Cannot use namespace 'Database' as a type.
+lib/supabase-client-direct.ts(27,71): error TS1064: The return type of an async function or method must be the global Promise<T> type. Did you mean to write 'Promise<SupabaseClientDirect>'?
+lib/supabase-client-direct.ts(44,3): error TS2741: Property 'getJwtToken' is missing in type 'SupabaseClient<any, "public", "public", any, any>' but required in type 'SupabaseClientDirect'.
+lib/supabase-client-direct.ts(50,11): error TS2339: Property 'data' does not exist on type 'Promise<{ data: { session: Session; }; error: null; } | { data: { session: null; }; error: AuthError; } | { data: { session: null; }; error: null; }>'.
+lib/supabase-client-jwt.ts(79,26): error TS2339: Property 'session' does not exist on type 'User'.
+lib/supabase/client.ts(5,10): error TS2303: Circular definition of import alias 'createSupabaseClient'.
+lib/supabase/route.ts(2,10): error TS2305: Module '"@/lib/auth-server"' has no exported member 'getEnhancedAuth'.
+lib/supabase/standard-client.ts(1,31): error TS2305: Module '"@supabase/ssr"' has no exported member 'SupabaseClient'.
+lib/validations/validator.ts(20,17): error TS2323: Cannot redeclare exported variable 'validateRequest'.
+lib/validations/validator.ts(40,23): error TS2323: Cannot redeclare exported variable 'validateTransactionRequest'.
+lib/validations/validator.ts(49,23): error TS2323: Cannot redeclare exported variable 'validateJournalEntryRequest'.
+lib/validations/validator.ts(58,23): error TS2323: Cannot redeclare exported variable 'validateInvoiceRequest'.
+lib/validations/validator.ts(67,23): error TS2323: Cannot redeclare exported variable 'validateCAIRequest'.
+lib/validations/validator.ts(76,23): error TS2323: Cannot redeclare exported variable 'validateCAICurrentNumberRequest'.
+lib/validations/validator.ts(85,23): error TS2323: Cannot redeclare exported variable 'validateUserRequest'.
+lib/validations/validator.ts(94,23): error TS2323: Cannot redeclare exported variable 'validatePeriodClosingRequest'.
+lib/validations/validator.ts(101,3): error TS2323: Cannot redeclare exported variable 'validateRequest'.
+lib/validations/validator.ts(101,3): error TS2484: Export declaration conflicts with exported declaration of 'validateRequest'.
+lib/validations/validator.ts(102,3): error TS2323: Cannot redeclare exported variable 'validateTransactionRequest'.
+lib/validations/validator.ts(102,3): error TS2484: Export declaration conflicts with exported declaration of 'validateTransactionRequest'.
+lib/validations/validator.ts(103,3): error TS2323: Cannot redeclare exported variable 'validateJournalEntryRequest'.
+lib/validations/validator.ts(103,3): error TS2484: Export declaration conflicts with exported declaration of 'validateJournalEntryRequest'.
+lib/validations/validator.ts(104,3): error TS2323: Cannot redeclare exported variable 'validateInvoiceRequest'.
+lib/validations/validator.ts(104,3): error TS2484: Export declaration conflicts with exported declaration of 'validateInvoiceRequest'.
+lib/validations/validator.ts(105,3): error TS2323: Cannot redeclare exported variable 'validateCAIRequest'.
+lib/validations/validator.ts(105,3): error TS2484: Export declaration conflicts with exported declaration of 'validateCAIRequest'.
+lib/validations/validator.ts(106,3): error TS2323: Cannot redeclare exported variable 'validateCAICurrentNumberRequest'.
+lib/validations/validator.ts(106,3): error TS2484: Export declaration conflicts with exported declaration of 'validateCAICurrentNumberRequest'.
+lib/validations/validator.ts(107,3): error TS2323: Cannot redeclare exported variable 'validateUserRequest'.
+lib/validations/validator.ts(107,3): error TS2484: Export declaration conflicts with exported declaration of 'validateUserRequest'.
+lib/validations/validator.ts(108,3): error TS2323: Cannot redeclare exported variable 'validatePeriodClosingRequest'.
+lib/validations/validator.ts(108,3): error TS2484: Export declaration conflicts with exported declaration of 'validatePeriodClosingRequest'.
+lib/validations/zod-schemas.ts(8,14): error TS2323: Cannot redeclare exported variable 'createTransactionSchema'.
+lib/validations/zod-schemas.ts(17,27): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(28,24): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(33,14): error TS2323: Cannot redeclare exported variable 'createJournalEntrySchema'.
+lib/validations/zod-schemas.ts(37,22): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(38,30): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(45,14): error TS2323: Cannot redeclare exported variable 'createInvoiceSchema'.
+lib/validations/zod-schemas.ts(77,14): error TS2323: Cannot redeclare exported variable 'createCAISchema'.
+lib/validations/zod-schemas.ts(83,26): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(84,24): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(91,14): error TS2323: Cannot redeclare exported variable 'updateCAICurrentNumberSchema'.
+lib/validations/zod-schemas.ts(93,25): error TS2339: Property 'int' does not exist on type 'ZodBigInt'.
+lib/validations/zod-schemas.ts(97,14): error TS2323: Cannot redeclare exported variable 'createUserSchema'.
+lib/validations/zod-schemas.ts(107,14): error TS2323: Cannot redeclare exported variable 'periodClosingSchema'.
+lib/validations/zod-schemas.ts(110,23): error TS2339: Property 'gt' does not exist on type 'ZodDate'.
+lib/validations/zod-schemas.ts(141,10): error TS2323: Cannot redeclare exported variable 'createTransactionSchema'.
+lib/validations/zod-schemas.ts(141,10): error TS2484: Export declaration conflicts with exported declaration of 'createTransactionSchema'.
+lib/validations/zod-schemas.ts(141,35): error TS2323: Cannot redeclare exported variable 'createJournalEntrySchema'.
+lib/validations/zod-schemas.ts(141,35): error TS2484: Export declaration conflicts with exported declaration of 'createJournalEntrySchema'.
+lib/validations/zod-schemas.ts(141,61): error TS2323: Cannot redeclare exported variable 'createInvoiceSchema'.
+lib/validations/zod-schemas.ts(141,61): error TS2484: Export declaration conflicts with exported declaration of 'createInvoiceSchema'.
+lib/validations/zod-schemas.ts(141,82): error TS2323: Cannot redeclare exported variable 'createCAISchema'.
+lib/validations/zod-schemas.ts(141,82): error TS2484: Export declaration conflicts with exported declaration of 'createCAISchema'.
+lib/validations/zod-schemas.ts(141,99): error TS2323: Cannot redeclare exported variable 'updateCAICurrentNumberSchema'.
+lib/validations/zod-schemas.ts(141,99): error TS2484: Export declaration conflicts with exported declaration of 'updateCAICurrentNumberSchema'.
+lib/validations/zod-schemas.ts(141,129): error TS2323: Cannot redeclare exported variable 'createUserSchema'.
+lib/validations/zod-schemas.ts(141,129): error TS2484: Export declaration conflicts with exported declaration of 'createUserSchema'.
+lib/validations/zod-schemas.ts(141,147): error TS2323: Cannot redeclare exported variable 'periodClosingSchema'.
+lib/validations/zod-schemas.ts(141,147): error TS2484: Export declaration conflicts with exported declaration of 'periodClosingSchema'.
+lib/workspace.ts(65,67): error TS2304: Cannot find name 'EmpresaDeEspacio'.
+lib/workspace.ts(88,12): error TS2304: Cannot find name 'EmpresaDeEspacio'.
+lib/workspace.ts(90,25): error TS2304: Cannot find name 'EmpresaDeEspacio'.
+lib/workspace.ts(115,39): error TS2304: Cannot find name 'EmpresaDeEspacio'.
+lib/workspace.ts(115,58): error TS2304: Cannot find name 'RolEspacio'.
+lib/workspace.ts(120,42): error TS2304: Cannot find name 'EmpresaDeEspacio'.
+lib/workspace.ts(124,72): error TS2304: Cannot find name 'SedeDeEspacio'.
+lib/workspace.ts(164,12): error TS2304: Cannot find name 'ContextoEspacio'.
+lib/workspace.ts(228,33): error TS2304: Cannot find name 'ContextoEspacio'.
+prisma/app/actions/accounting.ts(32,7): error TS2353: Object literal may only specify known properties, and 'functionalAmount' does not exist in type '(Without<TransactionCreateInput, TransactionUncheckedCreateInput> & TransactionUncheckedCreateInput) | (Without<...> & TransactionCreateInput)'.
+scripts/check-super-admin-role.ts(28,9): error TS2561: Object literal may only specify known properties, but 'publicMetadata' does not exist in type '{ public_metadata?: Record<string, any>; unsafe_metadata?: Record<string, any>; first_name?: string; last_name?: string; }'. Did you mean to write 'public_metadata'?
+scripts/create-isolated-tenant-users.ts(93,7): error TS2322: Type '{ businessName: string; businessRTN: string; businessEmail: string; businessAddress: string; tenantCode: string; country: string; timezone: string; currency: string; isActive: true; }' is not assignable to type '(Without<TenantCreateInput, TenantUncheckedCreateInput> & TenantUncheckedCreateInput) | (Without<...> & TenantCreateInput)'.
+  Type '{ businessName: string; businessRTN: string; businessEmail: string; businessAddress: string; tenantCode: string; country: string; timezone: string; currency: string; isActive: true; }' is not assignable to type 'Without<TenantUncheckedCreateInput, TenantCreateInput> & TenantCreateInput'.
+    Property 'phoneNumber' is missing in type '{ businessName: string; businessRTN: string; businessEmail: string; businessAddress: string; tenantCode: string; country: string; timezone: string; currency: string; isActive: true; }' but required in type 'TenantCreateInput'.
+scripts/fix-admin-tenant.ts(26,7): error TS2561: Object literal may only specify known properties, but 'publicMetadata' does not exist in type '{ public_metadata?: Record<string, any>; unsafe_metadata?: Record<string, any>; first_name?: string; last_name?: string; }'. Did you mean to write 'public_metadata'?
+scripts/restore-admin-tenant.ts(26,7): error TS2561: Object literal may only specify known properties, but 'publicMetadata' does not exist in type '{ public_metadata?: Record<string, any>; unsafe_metadata?: Record<string, any>; first_name?: string; last_name?: string; }'. Did you mean to write 'public_metadata'?
+scripts/setup-system-config.ts(70,7): error TS2322: Type '{ cai: any; rangeStart: bigint; rangeEnd: bigint; currentNumber: bigint; expiryDate: Date; isActive: true; }' is not assignable to type '(Without<CAICreateInput, CAIUncheckedCreateInput> & CAIUncheckedCreateInput) | (Without<CAIUncheckedCreateInput, CAICreateInput> & CAICreateInput)'.
+  Type '{ cai: any; rangeStart: bigint; rangeEnd: bigint; currentNumber: bigint; expiryDate: Date; isActive: true; }' is not assignable to type 'Without<CAIUncheckedCreateInput, CAICreateInput> & CAICreateInput'.
+    Property 'issueDate' is missing in type '{ cai: any; rangeStart: bigint; rangeEnd: bigint; currentNumber: bigint; expiryDate: Date; isActive: true; }' but required in type 'CAICreateInput'.
+scripts/tenant-code-generator.ts(213,7): error TS2322: Type '{ isActive: boolean; businessName: string; tenantCode: string; }[]' is not assignable to type '{ code: string; businessName: string; isActive: boolean; }[]'.
+  Property 'code' is missing in type '{ isActive: boolean; businessName: string; tenantCode: string; }' but required in type '{ code: string; businessName: string; isActive: boolean; }'.
+scripts/update-clerk-metadata.ts(23,7): error TS2561: Object literal may only specify known properties, but 'publicMetadata' does not exist in type '{ public_metadata?: Record<string, any>; unsafe_metadata?: Record<string, any>; first_name?: string; last_name?: string; }'. Did you mean to write 'public_metadata'?
+scripts/update-user-roles.ts(27,44): error TS2561: Object literal may only specify known properties, but 'publicMetadata' does not exist in type '{ public_metadata?: Record<string, any>; unsafe_metadata?: Record<string, any>; first_name?: string; last_name?: string; }'. Did you mean to write 'public_metadata'?

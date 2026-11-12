@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Check Exact Columns</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #FF9800; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #F57C00; }
+        #result { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .column-test { margin: 5px 0; padding: 5px; }
+        .exists { color: #28a745; font-weight: bold; }
+        .not-exists { color: #dc3545; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Check Exact Columns</h1>
+    
+    <div class="info">
+        <h3>🔍 ¿Por qué necesitamos verificar columnas exactas?</h3>
+        <p>La tabla Tenant tiene una estructura mixta:</p>
+        <ul>
+            <li>Algunas columnas con guion bajo: <code>tenant_code</code> ✅</li>
+            <li>Otras columnas sin guion bajo: <code>businessname</code> ❌</li>
+            <li>Necesitamos saber EXACTAMENTE cuáles columnas existen</li>
+        </ul>
+    </div>
+    
+    <button onclick="checkExactColumns()">🔍 VERIFICAR COLUMNAS EXACTAS</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function checkExactColumns() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🔍 Analizando columnas exactas de la tabla Tenant...';
+            
+            try {
+                const response = await fetch('/api/debug/exact-columns', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    let html = `
+                        <div class="success">
+                            <h2>✅ ${result.message}</h2>
+                        </div>
+                    `;
+                    
+                    // Mostrar columnas que existen
+                    if (result.results.correct_columns) {
+                        html += `
+                            <div class="info">
+                                <h3>📋 Columnas que EXISTEN en la tabla:</h3>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;">
+                        `;
+                        
+                        result.results.correct_columns.forEach(column => {
+                            html += `
+                                <div class="column-test exists">
+                                    ✅ ${column}
+                                </div>
+                            `;
+                        });
+                        
+                        html += '</div></div>';
+                    }
+                    
+                    // Mostrar pruebas de columnas individuales
+                    if (result.results.column_tests) {
+                        html += `
+                            <div class="info">
+                                <h3>🧪 Pruebas individuales de columnas:</h3>
+                        `;
+                        
+                        Object.entries(result.results.column_tests).forEach(([column, test]) => {
+                            const statusClass = test.exists ? 'exists' : 'not-exists';
+                            const icon = test.exists ? '✅' : '❌';
+                            
+                            html += `
+                                <div class="column-test ${statusClass}">
+                                    ${icon} ${column}: ${test.exists ? 'EXISTS' : 'DOES NOT EXIST'}
+                                    ${test.error ? `<br><small>Error: ${test.error}</small>` : ''}
+                                </div>
+                            `;
+                        });
+                        
+                        html += '</div>';
+                    }
+                    
+                    // Mostrar objeto de inserción filtrado
+                    if (result.results.filtered_insert_object) {
+                        html += `
+                            <div class="success">
+                                <h3>📝 Objeto de inserción CORRECTO (solo columnas que existen):</h3>
+                                <pre>${JSON.stringify(result.results.filtered_insert_object, null, 2)}</pre>
+                                <p><strong>Columnas totales:</strong> ${Object.keys(result.results.filtered_insert_object).length}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Botón para aplicar corrección
+                    if (result.results.correct_columns && result.results.correct_columns.length > 0) {
+                        html += `
+                            <div class="warning">
+                                <h3>🔧 ¿Quieres aplicar esta corrección automáticamente?</h3>
+                                <p>Esto actualizará el código de onboarding para usar solo las columnas que existen.</p>
+                                <button onclick="applyExactCorrection(${JSON.stringify(result.results.correct_columns).replace(/"/g, '&quot;')})" style="background: #4CAF50;">
+                                    🔧 APLICAR CORRECCIÓN EXACTA
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `<h3>📊 Resultados completos:</h3>
+                        <pre>${JSON.stringify(result.results, null, 2)}</pre>`;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ Error verificando columnas exactas</h2>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        function applyExactCorrection(columns) {
+            if (!columns || columns.length === 0) {
+                alert('No hay columnas válidas para aplicar');
+                return;
+            }
+            
+            // Enviar las columnas correctas para aplicar la corrección
+            fetch('/api/debug/apply-exact-correction', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ columns })
+            })
+            .then(response => response.json())
+            .then(result => {
+                if (result.success) {
+                    alert('✅ Corrección exacta aplicada exitosamente. Ahora puedes probar el onboarding.');
+                    window.location.href = '/auth/login';
+                } else {
+                    alert('❌ Error aplicando corrección exacta: ' + result.error);
+                }
+            })
+            .catch(error => {
+                alert('❌ Error de conexión: ' + error.message);
+            });
+        }
+    </script>
+</body>
+</html>

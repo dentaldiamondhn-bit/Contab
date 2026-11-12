@@ -1,0 +1,37 @@
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead.
+
+  To migrate automatically, run:
+  npx @next/codemod@canary middleware-to-proxy .
+
+  Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+
+> Build error occurred
+Error: Turbopack build failed with 2 errors:
+./app/api/accounting/export/route.ts:257:13
+Error: Unexpected token `ident`. Expected ... , *,  (, [, :, , ?, =, an identifier, public, protected, private, readonly, <.
+  [90m255 |[0m       excelData = {
+  [90m256 |[0m       [90m// Datos para Excel[0m
+[31m[1m>[0m [90m257 |[0m       [36mconst[0m excelData = {
+  [90m    |[0m             [31m[1m^^^^^^^^^[0m
+  [90m258 |[0m         period,
+  [90m259 |[0m         taxConfig: { rate: taxReport.taxConfig.rate },
+  [90m260 |[0m         sales: {
+
+Parsing ecmascript source code failed
+
+
+./app/accounting/page.tsx:485:6
+Error: Unterminated regexp literal
+  [90m483 |[0m         </[33mCard[0m>
+  [90m484 |[0m       </div>
+[31m[1m>[0m [90m485 |[0m     </div>
+  [90m    |[0m      [31m[1m^^^^^[0m
+  [90m486 |[0m   );
+  [90m487 |[0m }
+  [90m488 |[0m
+
+Parsing ecmascript source code failed
+
+
+    at <unknown> (./app/api/accounting/export/route.ts:257:13)
+    at <unknown> (./app/accounting/page.tsx:485:6)

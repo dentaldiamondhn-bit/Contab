@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Final Insertion</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 15px 30px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; }
+        button:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 5px; margin: 10px 0; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Final Insertion</h1>
+    
+    <div class="info">
+        <h3>✅ CORRECCIÓN APLICADA MANUALMENTE</h3>
+        <p>Se han corregido las columnas en el código de onboarding para usar los nombres CORRECTOS:</p>
+        <ul>
+            <li><code>business_name</code> (con guion bajo) ✅</li>
+            <li><code>business_rtn</code> (con guion bajo) ✅</li>
+            <li><code>business_email</code> (con guion bajo) ✅</li>
+            <li><code>tenant_code</code> (con guion bajo) ✅</li>
+            <li>Todas las demás columnas con guiones bajos ✅</li>
+        </ul>
+    </div>
+    
+    <div class="warning">
+        <h3>🧪 ¿Qué prueba esta herramienta?</h3>
+        <p>Esta herramienta creará un tenant de prueba con las columnas CORRECTAS (con guiones bajos) para confirmar que el onboarding ahora funcionará.</p>
+        <p>Si esta prueba funciona, el onboarding real también funcionará.</p>
+    </div>
+    
+    <button onclick="testFinalInsertion()">🧪 PROBAR INSERCIÓN FINAL CORREGIDA</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testFinalInsertion() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🧪 Probando inserción final con columnas corregidas...';
+            
+            try {
+                const response = await fetch('/api/debug/test-final-insertion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h2>🎉 ${result.message}</h2>
+                            <p><strong>Tenant de prueba insertado exitosamente:</strong></p>
+                            <pre>${JSON.stringify(result.insertedTenant, null, 2)}</pre>
+                            <p><strong>Limpieza:</strong> ${result.cleanupSuccess ? '✅ Exitosa' : '❌ Falló'}</p>
+                        </div>
+                        
+                        <div class="step">
+                            <h3>🎯 ¡EL ONBOARDING ESTÁ LISTO!</h3>
+                            <p>La inserción funciona correctamente con las columnas corregidas.</p>
+                            <h3>🔄 Siguientes pasos inmediatos:</h3>
+                            <ol>
+                                <li><strong>Cierra sesión</strong> del usuario actual</li>
+                                <li><strong>Inicia sesión</strong> con azuna22@outlook.com</li>
+                                <li><strong>Completa onboarding</strong> con "casa vieja"</li>
+                                <li><strong>Verifica dashboard</strong> - Debería mostrar "casa vieja"</li>
+                            </ol>
+                            <button onclick="window.location.href='/auth/login'" style="background: #2196F3; font-size: 18px; padding: 15px 30px;">
+                                🔄 IR A LOGIN PARA COMPLETAR ONBOARDING
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ La inserción final todavía falla</h2>
+                            <p><strong>Error:</strong></p>
+                            <pre>${JSON.stringify(result.error, null, 2)}</pre>
+                            <p><strong>Datos de prueba:</strong></p>
+                            <pre>${JSON.stringify(result.testData, null, 2)}</pre>
+                            <p>Es posible que necesitemos investigar más a fondo el problema.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

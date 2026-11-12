@@ -1,0 +1,103 @@
+import { NextResponse } from 'next/server';
+import { currentUser } from '@clerk/nextjs/server';
+import { getSupabaseServer } from '@/lib/supabase/server-lazy';
+import { getAuthUser } from '@/lib/auth-middleware';
+
+export async function GET() {
+  try {
+    const authUser = await getAuthUser();
+
+    if (!authUser?.userId) {
+      return NextResponse.json({ error: 'No autenticado' }, { status: 401 });
+    }
+
+    const supabase = getSupabaseServer();
+
+    // El perfil extendido vive en `users` (snake_case: auth_id, first_name...).
+    // La tabla legacy `"User"` solo tiene id/email/name/tenantId/authid y se usa
+    // para resolver la identidad y la membresía en `user_company_access`.
+    let { data, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('auth_id', authUser.userId)
+      .single();
+
+    // PGRST116 = "no rows". Cualquier otro error (permisos, conexión) NO
+    // significa que el usuario no exista: intentar crearlo en ese caso
+    // enmascara el fallo real y puede duplicar filas.
+    if (error && error.code !== 'PGRST116') {
+      console.error('❌ Error leyendo perfil:', { code: error.code, message: error.message });
+      return NextResponse.json(
+        { error: 'Error leyendo perfil', detail: error.message },
+        { status: 500 }
+      );
+    }
+
+    if (error) {
+      // Usuario no existe en `users`, crear uno nuevo desde Clerk.
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return NextResponse.json(
+          { error: 'No se pudo cargar el usuario de Clerk' },
+          { status: 500 }
+        );
+      }
+      const primaryEmail = clerkUser.primaryEmailAddress?.emailAddress || authUser.email || '';
+
+      const { data: inserted, error: insertError } = await supabase
+        .from('users')
+        .insert({
+          auth_id: authUser.userId,
+          email: primaryEmail,
+          first_name: clerkUser.firstName || '',
+          last_name: clerkUser.lastName || '',
+          role: clerkUser.publicMetadata?.role || 'USER',
+          is_active: true,
+        })
+        .select()
+        .maybeSingle();
+
+      if (inserted) {
+        data = inserted;
+      } else if (insertError) {
+        console.error('❌ Error creando usuario:', { error: insertError.message });
+        return NextResponse.json(
+          { error: 'Error creando usuario', detail: insertError.message },
+          { status: 500 }
+        );
+      }
+    }
+
+    return NextResponse.json({
+      user: {
+        id: data?.id,
+        email: data?.email || '',
+        first_name: data?.first_name || '',
+        last_name: data?.last_name || '',
+        phone: data?.phone || '',
+        role: data?.role || 'USER',
+        company: data?.company || '',
+        department: data?.department || '',
+        timezone: data?.timezone || 'America/Tegucigalpa',
+        language: data?.language || 'es',
+        email_notifications: data?.email_notifications ?? true,
+        push_notifications: data?.push_notifications ?? false,
+        two_factor_enabled: data?.two_factor_enabled ?? false,
+        avatar_url: data?.avatar_url || '',
+        subscription_plan: data?.subscription_plan || 'BASIC',
+        api_access: data?.api_access ?? false,
+        is_active: data?.is_active ?? true,
+        email_verified: data?.email_verified ?? false,
+        last_sign_in_at: data?.last_sign_in_at || '',
+        created_at: data?.created_at || '',
+        updated_at: data?.updated_at || '',
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error en perfil usuario:', error);
+    return NextResponse.json(
+      { error: 'Error interno', detail: error?.message },
+      { status: 500 }
+    );
+  }
+}

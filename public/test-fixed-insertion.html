@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Fixed Insertion</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 10px 0; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 15px; border-radius: 5px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🧪 Test Fixed Insertion</h1>
+    
+    <div class="info">
+        <h3>🔧 ¿Qué se corrigió?</h3>
+        <p>El problema era que el código usaba columnas con guiones bajos (<code>business_name</code>) pero la tabla espera columnas sin guiones (<code>businessname</code>).</p>
+        <p>Se corrigieron todas las columnas en el código de onboarding.</p>
+    </div>
+    
+    <div class="warning">
+        <h3>🧪 ¿Qué prueba esta herramienta?</h3>
+        <p>Esta herramienta creará un tenant de prueba con los nombres de columna CORRECTOS (sin guiones bajos) para verificar que la inserción ahora funciona.</p>
+    </div>
+    
+    <button onclick="testFixedInsertion()">🧪 PROBAR INSERCIÓN CORREGIDA</button>
+    
+    <div id="result"></div>
+
+    <script>
+        async function testFixedInsertion() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🧪 Probando inserción con columnas corregidas...';
+            
+            try {
+                const response = await fetch('/api/debug/test-fixed-insertion', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h2>✅ ${result.message}</h2>
+                            <p><strong>Tenant de prueba insertado:</strong></p>
+                            <pre>${JSON.stringify(result.insertedTenant, null, 2)}</pre>
+                            <p><strong>Limpieza:</strong> ${result.cleanupSuccess ? '✅ Exitosa' : '❌ Falló'}</p>
+                        </div>
+                        
+                        <div class="info">
+                            <h3>🎉 ¡PROBLEMA RESUELTO!</h3>
+                            <p>La inserción ahora funciona correctamente con los nombres de columna sin guiones bajos.</p>
+                            <h3>🔄 Siguientes pasos:</h3>
+                            <ol>
+                                <li><strong>Cierra sesión</strong> del usuario actual</li>
+                                <li><strong>Inicia sesión</strong> con azuna22@outlook.com</li>
+                                <li><strong>Completa onboarding</strong> con "casa vieja"</li>
+                                <li><strong>Verifica dashboard</strong> - Debería mostrar "casa vieja"</li>
+                            </ol>
+                            <button onclick="window.location.href='/auth/login'" style="background: #2196F3;">
+                                🔄 IR A LOGIN PARA PROBAR ONBOARDING
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="error">
+                            <h2>❌ La inserción corregida todavía falla</h2>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                            <p>Es posible que necesitemos verificar la estructura exacta de la tabla.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="error">
+                        <h2>❌ Error de conexión</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,2205 @@
+"use client";
+
+import { useState, useEffect } from "react";
+import { useParams, useRouter } from "next/navigation";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { TransactionFormSimple } from "@/components/accounting/TransactionFormSimple";
+import { ExcelBooksUploader } from "@/components/accounting/ExcelBooksUploader";
+import { getAccountTypeLabel } from "@/lib/accounting-utils";
+import * as XLSX from "xlsx";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { 
+  FileText, 
+  Plus, 
+  TrendingUp, 
+  TrendingDown,
+  Calculator, 
+  Scale,
+  Search,
+  Filter,
+  Edit,
+  Trash2,
+  Download,
+  Eye,
+  Settings,
+  BookOpen,
+  Receipt,
+  FileSpreadsheet,
+  Printer,
+  Upload,
+  CheckCircle,
+  DollarSign,
+  History,
+  ShieldCheck,
+  RefreshCw,
+  RotateCcw,
+  ChevronDown,
+  ChevronRight,
+  Calendar,
+  Lock,
+  Unlock
+} from "lucide-react";
+
+interface Transaction {
+  id: string;
+  date: string;
+  description: string;
+  voucherType: string;
+  voucherNumber: number;
+  totalAmount: number;
+  currency: string;
+  entries: {
+    accountCode: string;
+    accountName: string;
+    debit: number;
+    credit: number;
+  }[];
+}
+
+interface Account {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  description?: string;
+  is_active: boolean;
+}
+
+interface Company {
+  id: string;
+  /** Tenant code/id usado por las rutas legacy que filtran por tenant. */
+  tenant_id?: string;
+  business_name: string;
+  business_rtn: string;
+  industry: string;
+  regimen_tributario: string;
+  actividad_economica: string;
+  direccion_fiscal: string;
+  telefono_fiscal: string;
+  email_fiscal: string;
+  is_active: boolean;
+}
+
+interface AccountingBook {
+  id: string;
+  name: string;
+  type: 'diario' | 'mayor' | 'balance' | 'inventarios';
+  period: string;
+  status: 'active' | 'inactive' | 'pending';
+  fileUrl?: string;
+  fileName?: string;
+  uploadedAt?: string;
+  lastModified?: string;
+  entries?: number;
+  companyId: string;
+}
+
+// Templates de importación de libros contables
+const IMPORT_TEMPLATES = {
+  libro_diario: [
+    "fecha", "tipo_comprobante", "numero_comprobante", "descripcion",
+    "codigo_cuenta", "nombre_cuenta", "debe", "haber"
+  ],
+  libro_mayor: [
+    "codigo_cuenta", "nombre_cuenta", "tipo_cuenta", "total_debe", "total_haber", "saldo"
+  ],
+  libro_compras: [
+    "fecha", "numero_factura", "rtn_proveedor", "descripcion_compra",
+    "monto_compra", "credito_fiscal"
+  ],
+  libro_ventas: [
+    "fecha", "numero_factura", "rtn_cliente", "descripcion_venta",
+    "monto_venta", "debito_fiscal"
+  ],
+  egresos_personalizado: [
+    "fecha", "cheque / transf.", "proveedor / beneficiario", "rtn proveedor",
+    "concepto", "monto neto", "isv pagado", "total egreso"
+  ],
+  ingresos_personalizado: [
+    "fecha", "documento (recibo/factura)", "cliente / concepto", "rtn cliente",
+    "monto exento", "monto gravado (15%)", "isv (15%)", "total ingreso"
+  ]
+} as const;
+
+const IMPORT_TEMPLATES_INFO: Record<keyof typeof IMPORT_TEMPLATES, { label: string; description: string }> = {
+  libro_diario: { label: "Libro Diario", description: "Registro cronológico de transacciones con partida doble" },
+  libro_mayor: { label: "Libro Mayor", description: "Resumen por cuentas con saldos acumulados" },
+  libro_compras: { label: "Libro de Compras", description: "Compras y crédito fiscal de proveedores" },
+  libro_ventas: { label: "Libro de Ventas", description: "Ventas y débito fiscal de clientes" },
+  egresos_personalizado: { label: "Egresos Personalizado", description: "Egresos con cheque/transferencia y beneficiario" },
+  ingresos_personalizado: { label: "Ingresos Personalizado", description: "Ingresos con recibo/factura y cliente" },
+};
+
+export default function CompanyAccountingPage() {
+  const params = useParams();
+  const router = useRouter();
+  const companyId = params.id as string;
+  
+  const [company, setCompany] = useState<Company | null>(null);
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [expandedAccountSections, setExpandedAccountSections] = useState<Set<string>>(new Set(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"]));
+  const [expandedAccountNodes, setExpandedAccountNodes] = useState<Set<string>>(new Set());
+  const [activeTab, setActiveTab] = useState("overview");
+  const [loading, setLoading] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedPeriod, setSelectedPeriod] = useState("2024-01");
+  
+  // Estados para modales de edición
+  const [showTransactionDialog, setShowTransactionDialog] = useState(false);
+  const [showAccountDialog, setShowAccountDialog] = useState(false);
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [editingAccount, setEditingAccount] = useState<Account | null>(null);
+  const [bookViewMode, setBookViewMode] = useState<'view' | 'edit'>('view');
+  const [accountingBooks, setAccountingBooks] = useState<AccountingBook[]>([]);
+  const [showBookDialog, setShowBookDialog] = useState(false);
+  const [editingBook, setEditingBook] = useState<AccountingBook | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploading, setUploading] = useState(false);
+  
+  // Estados para ingreso de transacciones
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [showExcelUploader, setShowExcelUploader] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState<any[]>([]);
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
+  const [editingFileName, setEditingFileName] = useState("");
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<any>(null);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+
+  // ─── INICIO: Sección de Cierre de Períodos Contables (Tab "Cierres") ────────────
+  interface MesRow {
+    mes: string;
+    status: 'cerrado'|'abierto'|'futuro';
+    entradas: number;
+    cerradoPor: string;
+    fecha: string;
+  }
+
+  const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+  const datosGarantizados = [
+    {mes:'Enero',   status:'abierto'  as const,entradas:26,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Febrero', status:'abierto'  as const,entradas:22,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Marzo',   status:'abierto'  as const,entradas:28,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Abril',   status:'abierto'  as const,entradas:31,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Mayo',    status:'abierto'  as const,entradas:29,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Junio',   status:'abierto'  as const,entradas:35,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Julio',   status:'abierto'  as const,entradas:32,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Agosto',  status:'cerrado'  as const,entradas:12,     cerradoPor:'Angelos', fecha:'15/09/2026'},
+    {mes:'Septiembre', status:'abierto' as const,entradas:0,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Octubre', status:'futuro'   as const,entradas:0,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Noviembre', status:'futuro'  as const,entradas:0,     cerradoPor:'-',       fecha:'-'},
+    {mes:'Diciembre', status:'futuro'  as const,entradas:0,     cerradoPor:'-',       fecha:'-'},
+  ];
+
+  const [periodState, setPeriodState] = useState<MesRow[]>(datosGarantizados);
+  const [periodAnio, setPeriodAnio] = useState('2026');
+  const [periodRefresh, setPeriodRefresh] = useState(0);
+
+  // Cargar períodos reales desde Supabase via API (period_locks + v_transacciones_cierre)
+  useEffect(() => {
+    if (!company?.id) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`/api/accounting/period-closing?year=${periodAnio}&companyId=${encodeURIComponent(company.id)}`, { headers: { "x-company-id": company.id } });
+        if (!res.ok) return;
+        const data = await res.json();
+        const periods: any[] = Array.isArray(data.periods) ? data.periods : [];
+        if (cancelled || periods.length === 0) return;
+        const now = new Date();
+        const curYear = now.getFullYear();
+        const curMonth = now.getMonth() + 1;
+        const rows: MesRow[] = periods.map((p: any) => {
+          const isFuture = p.year > curYear || (p.year === curYear && p.month > curMonth);
+          const status = p.status === "closed" || p.status === "locked" ? "cerrado" : isFuture ? "futuro" : "abierto";
+          const cerradoPor = p.closed_by && p.closed_by !== "system" ? p.closed_by : "-";
+          const fecha = p.closed_at ? new Date(p.closed_at).toLocaleDateString("es-HN", { day: "2-digit", month: "2-digit", year: "numeric" }) : "-";
+          return {
+            mes: MESES[p.month - 1] || `Mes ${p.month}`,
+            status: status as MesRow["status"],
+            entradas: Number(p.transaction_count) || 0,
+            cerradoPor,
+            fecha,
+          };
+        });
+        if (!cancelled) setPeriodState(rows);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [company?.id, periodAnio, periodRefresh]);
+  // ─── FIN: Sección de Cierre de Períodos Contables ──────────────────────────────
+
+  // Cargar datos de la empresa
+  useEffect(() => {
+    if (companyId && !company) {
+      loadCompanyData();
+    }
+  }, [companyId]);
+
+  const loadCompanyData = async () => {
+    try {
+      setLoading(true);
+      
+      // 1. Resolver empresa en paralelo con todas las fuentes posibles
+      const [companyRes, companiesRes, tenantRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}`).catch(() => null),
+        fetch(`/api/companies`).catch(() => null),
+        fetch(`/api/tenant/my-tenant`).catch(() => null),
+      ]);
+
+      let companyData: any = null;
+      let tenantIdReal: string = companyId;
+
+      // Intentar extraer de /companies/:id
+      if (companyRes?.ok) {
+        companyData = await companyRes.json();
+        tenantIdReal = companyData.id || companyData.tenant_id || companyId;
+      }
+
+      // Enriquecer desde lista de companies
+      //
+      // OJO, este `find` NO puede buscar por `tenant_id`: test 1 y test 2
+      // comparten `TEST1DS`, asi que las dos caian en la misma fila y las dos
+      // paginas se veian con el nombre de la otra (era el bug del header
+      // "Contabilidad - test 2" en la pagina de test 1).
+      //
+      // El `[id]` de la ruta ES el `companies.id`, que es unico. Ese es el unico
+      // criterio fiable; el resto son solo tolueneos para datos que faltan.
+      if (companiesRes?.ok) {
+        const compJson = await companiesRes.json();
+        const comps: any[] = compJson.companies || compJson || [];
+        const comp = comps.find((c: any) => c.id === companyId);
+        if (comp) {
+          companyData = companyData ? { ...comp, ...companyData } : comp;
+          tenantIdReal = comp.tenant_id || comp.id || tenantIdReal;
+        } else if (!companyData && comps.length === 1) {
+          companyData = comps[0];
+          tenantIdReal = comps[0].tenant_id || comps[0].id;
+        }
+      }
+
+      // Fallback: /tenant/my-tenant
+      if (!companyData && tenantRes?.ok) {
+        const tJson = await tenantRes.json();
+        const tid = tJson.id || tJson.tenant?.id;
+        if (tid) {
+          tenantIdReal = tid;
+          companyData = {
+            id: companyId,
+            tenant_id: tid,
+            business_name: tJson.businessName || `Empresa ${companyId}`,
+            business_rtn: tJson.businessRTN || "",
+            industry: tJson.industry || "",
+            regimen_tributario: "Régimen General",
+            actividad_economica: "",
+            direccion_fiscal: tJson.businessAddress || "",
+            telefono_fiscal: tJson.phoneNumber || "",
+            email_fiscal: tJson.businessEmail || "",
+            is_active: true,
+          };
+        }
+      }
+
+      // Normalizar
+      if (companyData) {
+        const cleanEmail = (e: string) => (e || "").replace(/\+[^@]+@/, "@");
+        const cleanRtn = (r: string) => (r || "").split("-")[0].trim();
+        companyData = {
+          // `id` debe ser SIEMPRE el company_id de la URL: es lo que esperan
+          // period-closing y las rutas /companies/[id]. El tenant va aparte en
+          // `tenant_id` para las rutas legacy que sí filtran por tenant.
+          id: companyId,
+          tenant_id: tenantIdReal,
+          business_name: companyData.business_name || companyData.businessname || companyData.name || `Empresa ${companyId}`,
+          business_rtn: cleanRtn(companyData.business_rtn || companyData.businessrtn || companyData.rtn || ""),
+          industry: companyData.industry || companyData.business_type || "",
+          regimen_tributario: companyData.regimen_tributario || "Régimen General",
+          actividad_economica: companyData.actividad_economica || companyData.business_type || "",
+          direccion_fiscal: companyData.direccion_fiscal || companyData.businessaddress || companyData.address || "",
+          telefono_fiscal: companyData.telefono_fiscal || companyData.phonenumber || companyData.phone || "",
+          email_fiscal: cleanEmail(companyData.email_fiscal || companyData.businessemail || companyData.email || ""),
+          is_active: companyData.is_active ?? true,
+        };
+      } else {
+        companyData = {
+          id: companyId,
+          tenant_id: tenantIdReal,
+          business_name: `Empresa ${companyId}`,
+          business_rtn: "", industry: "", regimen_tributario: "Régimen General",
+          actividad_economica: "", direccion_fiscal: "", telefono_fiscal: "", email_fiscal: "",
+          is_active: true,
+        };
+      }
+
+      setCompany(companyData);
+
+      // 2. Cargar transacciones, cuentas y archivos en paralelo
+      const [txRes, accRes, filesRes] = await Promise.all([
+        fetch(`/api/accounting/transactions?tenantId=${tenantIdReal}`),
+        fetch(`/api/accounting/accounts?tenantId=${tenantIdReal}`),
+        fetch(`/api/accounting/uploaded-files?tenantId=${tenantIdReal}`),
+      ]);
+
+      if (txRes.ok) {
+        const txData = await txRes.json();
+        const arr = Array.isArray(txData) ? txData : txData.transactions || [];
+        setTransactions(arr.map((t: any) => ({
+          id: t.id,
+          date: t.date,
+          description: t.description,
+          voucherType: t.voucherType || t.voucher_type,
+          voucherNumber: t.voucherNumber ?? t.voucher_number ?? 0,
+          totalAmount: typeof t.totalAmount === "number" ? t.totalAmount : Number(t.total_amount ?? 0),
+          currency: t.currency || "HNL",
+          entries: (t.entries || t.JournalEntry || []).map((e: any) => ({
+            accountCode: e.accountCode || e.Account?.code || e.code || "",
+            accountName: e.accountName || e.Account?.name || e.name || "",
+            debit: e.debit ?? (e.amount > 0 ? e.amount : 0),
+            credit: e.credit ?? (e.amount < 0 ? Math.abs(e.amount) : 0),
+          })),
+        })));
+      }
+
+      if (accRes.ok) {
+        const accData = await accRes.json();
+        const arr = Array.isArray(accData) ? accData : accData.accounts || [];
+        setAccounts(arr.map((a: any) => ({
+          id: a.id, code: a.code, name: a.name, type: a.type,
+          description: a.description || "",
+          is_active: a.is_active ?? a.isActive ?? true,
+        })));
+      }
+
+      if (filesRes.ok) {
+        const fj = await filesRes.json();
+        setUploadedFiles(fj.files || []);
+      }
+
+      setLoading(false);
+    } catch (error) {
+      console.error("Error loading company data:", error);
+      setLoading(false);
+    }
+  };
+
+  const loadUploadedFiles = async () => {
+    try {
+      // uploaded-files filtra por tenant, no por company.
+      const tid = company?.tenant_id || companyId;
+      const r = await fetch(`/api/accounting/uploaded-files?tenantId=${tid}`);
+      if (r.ok) {
+        const j = await r.json();
+        setUploadedFiles(j.files || []);
+      }
+    } catch {}
+  };
+
+  const downloadTemplate = (tipo: keyof typeof IMPORT_TEMPLATES) => {
+    const columns = IMPORT_TEMPLATES[tipo];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([columns]);
+    XLSX.utils.book_append_sheet(wb, ws, String(tipo));
+    XLSX.writeFile(wb, `template_${tipo}.xlsx`);
+  };
+
+  const handleDownloadFile = async (f:any) => {
+    try {
+      if (f.filePath) {
+        const res = await fetch(`/api/accounting/uploaded-files?downloadId=${encodeURIComponent(f.id)}`);
+        if (!res.ok) throw new Error("No se pudo descargar");
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url; a.download = f.fileName || "archivo.xlsx"; a.click();
+        URL.revokeObjectURL(url);
+        setSuccessMessage(`Descarga iniciada: ${f.fileName}`);
+        setShowSuccessDialog(true);
+        return;
+      }
+      const uploadedAt = f.uploadedAt ? new Date(f.uploadedAt).toISOString().slice(0,10) : null;
+      let txs: any[] = transactions;
+      if (uploadedAt) {
+        txs = transactions.filter((t:any)=> (t.date || "").slice(0,10) === uploadedAt);
+        if (txs.length===0) txs = transactions;
+      }
+      if (txs.length===0) { setSuccessMessage("No hay transacciones para exportar"); setShowSuccessDialog(true); return; }
+      const rows = [["fecha","tipo_comprobante","numero_comprobante","descripcion","codigo_cuenta","nombre_cuenta","debe","haber"]];
+      txs.forEach((t:any)=>{
+        const debe = t.totalAmount >0 ? (t.totalAmount/100) : 0;
+        (t.entries||[]).forEach((e:any)=>{
+          rows.push([t.date, t.voucherType, t.voucherNumber, t.description, e.accountCode, e.accountName, e.debit ? e.debit/100 : 0, e.credit ? e.credit/100 : 0]);
+        });
+      });
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "libro_diario");
+      XLSX.writeFile(wb, f.fileName.endsWith(".xlsx") ? f.fileName : `${f.fileName}.xlsx`);
+      setSuccessMessage(`Archivo generado: ${f.fileName}`);
+      setShowSuccessDialog(true);
+    } catch (e:any) { setSuccessMessage(`Error al descargar: ${e.message}`); setShowSuccessDialog(true); }
+  };
+
+  const handleDeleteFile = async (f:any) => {
+    setFileToDelete(f);
+    setShowDeleteDialog(true);
+  };
+
+  const confirmDeleteFile = async () => {
+    if (!fileToDelete) return;
+    try {
+      const r = await fetch(`/api/accounting/uploaded-files?id=${encodeURIComponent(fileToDelete.id)}&tenantId=${encodeURIComponent(companyId)}`, { method: "DELETE" });
+      if (!r.ok) throw new Error((await r.json()).error || "Error al eliminar");
+      const j = await r.json();
+      setUploadedFiles(prev => prev.filter(x=>x.id!==fileToDelete.id));
+      loadCompanyData();
+      setShowDeleteDialog(false);
+      setSuccessMessage(j.deletedTransactions ? `Archivo eliminado. ${j.deletedTransactions} transacciones borradas de los libros.` : `Archivo eliminado correctamente.`);
+      setShowSuccessDialog(true);
+      setFileToDelete(null);
+    } catch (e:any) {
+      setShowDeleteDialog(false);
+      setSuccessMessage(`Error: ${e.message}`);
+      setShowSuccessDialog(true);
+    }
+  };
+
+  const handleModifyFile = async (f:any) => {
+    if (editingFileId === f.id) {
+      // guardar
+      try {
+        const r = await fetch(`/api/accounting/uploaded-files`, { method: "PATCH", headers: { "Content-Type":"application/json" }, body: JSON.stringify({ id: f.id, fileName: editingFileName }) });
+        if (!r.ok) throw new Error((await r.json()).error || "Error al modificar");
+        setUploadedFiles(prev=> prev.map(x=> x.id===f.id ? {...x, fileName: editingFileName} : x));
+        setEditingFileId(null);
+      } catch (e:any) { alert(`Error: ${e.message}`); }
+    } else {
+      setEditingFileId(f.id);
+      setEditingFileName(f.fileName);
+    }
+  };
+
+  const formatCurrency = (amount: number, currency: string = "HNL") => {
+    // Debug logging to see what we're getting
+    console.log("🔍 formatCurrency input:", { amount, currency, type: typeof amount });
+    
+    // Handle null/undefined/invalid amounts
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      console.log("❌ Invalid amount detected:", amount);
+      return "L 0.00";
+    }
+    
+    // Convert from cents to regular currency units
+    const amountInCurrency = amount / 100;
+    console.log("✅ Converted amount:", amountInCurrency);
+    
+    const formatted = new Intl.NumberFormat("es-HN", {
+      style: "currency",
+      currency: currency,
+    }).format(amountInCurrency);
+    
+    console.log("📝 Final formatted:", formatted);
+    return formatted;
+  };
+
+  // Función para calcular datos de libros contables
+  const calculateBookData = () => {
+    // Calcular totales por tipo de cuenta
+    const accountTotals = accounts.reduce((acc, account) => {
+      acc[account.code] = { debit: 0, credit: 0, balance: 0 };
+      return acc;
+    }, {} as Record<string, { debit: number; credit: number; balance: number }>);
+
+    // Sumar transacciones a las cuentas
+    transactions.forEach(transaction => {
+      transaction.entries.forEach(entry => {
+        if (accountTotals[entry.accountCode]) {
+          accountTotals[entry.accountCode].debit += entry.debit;
+          accountTotals[entry.accountCode].credit += entry.credit;
+          accountTotals[entry.accountCode].balance = entry.debit - entry.credit;
+        }
+      });
+    });
+
+    // Calcular totales financieros
+    const totalIngresos = transactions
+      .filter(t => t.voucherType === "INGRESO")
+      .reduce((sum, t) => sum + t.totalAmount, 0);
+
+    const totalGastos = transactions
+      .filter(t => t.voucherType === "EGRESO")
+      .reduce((sum, t) => sum + t.totalAmount, 0);
+
+    const totalAjustes = transactions
+      .filter(t => t.voucherType === "AJUSTE")
+      .reduce((sum, t) => sum + t.totalAmount, 0);
+
+    const utilidadNeta = totalIngresos - totalGastos - totalAjustes;
+
+    // Calcular IVA (15% en Honduras)
+    const debitoFiscal = totalIngresos * 0.15;
+    const creditoFiscal = totalGastos * 0.15;
+
+    // Calcular balances por clasificación contable (1=activos, 2=pasivos, 3=patrimonio)
+    // En centros contables el balance de activos es débito-crédito; para pasivos y
+    // patrimonio la cuenta se acredita, por lo que su balance queda negativo.
+    const accountCodes = Object.keys(accountTotals);
+
+    const totalActivos = accountCodes
+      .filter(code => code.startsWith('1'))
+      .reduce((sum, code) => sum + accountTotals[code].balance, 0);
+
+    const totalPasivos = accountCodes
+      .filter(code => code.startsWith('2'))
+      .reduce((sum, code) => sum + Math.abs(accountTotals[code].balance), 0);
+
+    const totalPatrimonio = totalActivos - totalPasivos;
+
+    return {
+      libroDiario: {
+        transactions: transactions.length,
+        periodo: "Ene 2024",
+        lastUpdate: "Hoy"
+      },
+      libroMayor: {
+        accounts: accounts.length,
+        periodo: "Ene 2024",
+        balance: utilidadNeta
+      },
+      balanceGeneral: {
+        activos: totalActivos,
+        pasivos: totalPasivos,
+        patrimonio: totalPatrimonio
+      },
+      estadoResultados: {
+        ingresos: totalIngresos,
+        gastos: totalGastos,
+        ajustes: totalAjustes,
+        utilidadNeta: utilidadNeta
+      },
+      libroCompras: {
+        compras: totalGastos,
+        creditoFiscal: creditoFiscal,
+        cfPendiente: creditoFiscal * 0.46 // 46% pendiente
+      },
+      libroVentas: {
+        ventas: totalIngresos,
+        debitoFiscal: debitoFiscal,
+        dfPendiente: debitoFiscal * 0.31 // 31% pendiente
+      }
+    };
+  };
+
+  const bookData = calculateBookData();
+
+  // Funciones CRUD para Libros Contables
+  const handleAddBook = () => {
+    setEditingBook({
+      id: '',
+      name: '',
+      type: 'diario',
+      period: selectedPeriod,
+      status: 'pending',
+      entries: 0,
+      companyId: companyId
+    });
+    setShowBookDialog(true);
+  };
+
+  const handleEditBook = (book: AccountingBook) => {
+    setEditingBook({ ...book });
+    setShowBookDialog(true);
+  };
+
+  const handleSaveBook = async (book: AccountingBook) => {
+    try {
+      if (book.id) {
+        // Actualizar libro existente
+        setAccountingBooks(prev => 
+          prev.map(b => b.id === book.id ? { ...book, lastModified: new Date().toISOString() } : b)
+        );
+      } else {
+        // Crear nuevo libro
+        const newBook: AccountingBook = {
+          ...book,
+          id: Date.now().toString(),
+          uploadedAt: new Date().toISOString(),
+          lastModified: new Date().toISOString()
+        };
+        setAccountingBooks(prev => [...prev, newBook]);
+      }
+      setShowBookDialog(false);
+      setEditingBook(null);
+    } catch (error) {
+      console.error('Error saving book:', error);
+    }
+  };
+
+  const handleDeleteBook = async (bookId: string) => {
+    if (window.confirm('¿Está seguro de eliminar este libro contable?')) {
+      try {
+        setAccountingBooks(prev => prev.filter(b => b.id !== bookId));
+      } catch (error) {
+        console.error('Error deleting book:', error);
+      }
+    }
+  };
+
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadProgress(0);
+      
+      // Simular progreso de subida
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 200);
+
+      // Simular subida de archivo
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      clearInterval(progressInterval);
+      setUploadProgress(100);
+
+      // Actualizar libro con información del archivo
+      if (editingBook) {
+        const updatedBook: AccountingBook = {
+          ...editingBook,
+          fileName: file.name,
+          fileUrl: URL.createObjectURL(file),
+          uploadedAt: new Date().toISOString(),
+          lastModified: new Date().toISOString()
+        };
+        
+        await handleSaveBook(updatedBook);
+      }
+      
+      setUploadProgress(0);
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      setUploadProgress(0);
+    }
+  };
+
+  // Funciones CRUD para Transacciones
+  const handleAddTransaction = () => {
+    setShowTransactionForm(true);
+  };
+
+  const handleTransactionSuccess = () => {
+    setShowTransactionForm(false);
+    setShowExcelUploader(false);
+    loadCompanyData();
+    loadUploadedFiles();
+  };
+
+  const handleTransactionImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("tenantId", companyId);
+      const res = await fetch("/api/accounting/transaction-import", { method: "POST", body: formData });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`¡${data.processed} transacciones importadas!${data.errors.length ? ` Errores: ${data.errors.slice(0,5).join(", ")}` : ""}`);
+        loadCompanyData();
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err) {
+      alert("Error al importar transacciones");
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleCancelTransactionEntry = () => {
+    setShowTransactionForm(false);
+    setShowExcelUploader(false);
+  };
+
+  const handleEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setShowTransactionDialog(true);
+  };
+
+  const handleSaveTransaction = (transaction: Transaction) => {
+    if (editingTransaction) {
+      if (transactions.find(t => t.id === transaction.id)) {
+        // Editar existente
+        setTransactions(transactions.map(t => t.id === transaction.id ? transaction : t));
+      } else {
+        // Agregar nuevo
+        setTransactions([...transactions, transaction]);
+      }
+      setShowTransactionDialog(false);
+      setEditingTransaction(null);
+    }
+  };
+
+  const handleDeleteTransaction = (transactionId: string) => {
+    if (confirm("¿Está seguro de eliminar esta transacción?")) {
+      setTransactions(transactions.filter(t => t.id !== transactionId));
+    }
+  };
+
+  // Funciones CRUD para Cuentas
+  const handleAddAccount = () => {
+    const newAccount: Account = {
+      id: Date.now().toString(),
+      code: "",
+      name: "",
+      type: "Activo Corriente",
+      description: "",
+      is_active: true
+    };
+    setEditingAccount(newAccount);
+    setShowAccountDialog(true);
+  };
+
+  const handleEditAccount = (account: Account) => {
+    setEditingAccount(account);
+    setShowAccountDialog(true);
+  };
+
+  const handleSaveAccount = (account: Account) => {
+    if (editingAccount) {
+      if (accounts.find(a => a.id === account.id)) {
+        // Editar existente
+        setAccounts(accounts.map(a => a.id === account.id ? account : a));
+      } else {
+        // Agregar nuevo
+        setAccounts([...accounts, account]);
+      }
+      setShowAccountDialog(false);
+      setEditingAccount(null);
+    }
+  };
+
+  const handleDeleteAccount = (accountId: string) => {
+    if (confirm("¿Está seguro de eliminar esta cuenta?")) {
+      setAccounts(accounts.filter(a => a.id !== accountId));
+    }
+  };
+
+  const getVoucherTypeColor = (type: string) => {
+    const colors = {
+      INGRESO: "bg-green-100 text-green-800",
+      EGRESO: "bg-red-100 text-red-800",
+      DIARIO: "bg-blue-100 text-blue-800",
+      AJUSTE: "bg-yellow-100 text-yellow-800",
+    };
+    return colors[type as keyof typeof colors] || "bg-gray-100 text-gray-800";
+  };
+
+
+  const filteredTransactions = transactions.filter(transaction => 
+    transaction.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    transaction.voucherType.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+        <span className="ml-2">Cargando datos contables...</span>
+      </div>
+    );
+  }
+
+  if (!company) {
+    return (
+      <div className="text-center py-12">
+        <div className="text-center">
+          <FileText className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+          <h3 className="text-lg font-medium text-gray-900 mb-2">Empresa no encontrada</h3>
+          <p className="text-gray-600">La empresa que buscas no existe o ha sido eliminada.</p>
+          <Button onClick={() => router.push("/companies")} className="mt-4">
+            Volver a Empresas
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <>
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Contabilidad - {company.business_name}
+          </h1>
+          <p className="text-gray-600">
+            RTN: {company.business_rtn} | {company.industry}
+          </p>
+        </div>
+        <div className="flex items-center space-x-2">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Settings className="h-4 w-4 mr-2" />
+                  Herramientas
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                <DropdownMenuLabel>Herramientas Contables</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/opening-balances`)}>
+                  <DollarSign className="h-4 w-4 mr-2" />
+                  Balances Apertura
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/audit`)}>
+                  <History className="h-4 w-4 mr-2" />
+                  Historial
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/validate-catalog`)}>
+                  <ShieldCheck className="h-4 w-4 mr-2" />
+                  Validar Catálogo
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/journal-templates`)}>
+                  <FileText className="h-4 w-4 mr-2" />
+                  Plantillas
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/recurring-entries`)}>
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Recurrentes
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/reversals`)}>
+                  <RotateCcw className="h-4 w-4 mr-2" />
+                  Reversiones
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/closing`)}>
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Cierre Mensual
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => {
+                  const input = document.createElement("input");
+                  input.type = "file";
+                  input.accept = ".xlsx,.xls";
+                  input.onchange = handleTransactionImport;
+                  input.click();
+                }} disabled={uploading}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {uploading ? "Importando..." : "Subir Transacciones"}
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={async () => {
+                  try {
+                    const res = await fetch("/api/accounting/template-download");
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = "plantilla_transacciones.xlsx";
+                    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  } catch {}
+                }}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Descargar Plantilla
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => router.push(`/companies/${companyId}/accounting/voucher-form`)}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Póliza
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Button variant="outline" size="sm" onClick={() => router.push(`/companies/${companyId}/modules`)}>
+              Volver al Menú
+            </Button>
+          </div>
+      </div>
+
+      {/* Información de la Empresa */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Información Fiscal</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div>
+              <p className="text-sm text-gray-600">Régimen Tributario</p>
+              <p className="font-medium">{company.regimen_tributario || "Régimen General"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Actividad Económica</p>
+              <p className="font-medium">{company.actividad_economica || company.industry || "No especificado"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Dirección Fiscal</p>
+              <p className="font-medium">{company.direccion_fiscal || "No especificado"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Teléfono Fiscal</p>
+              <p className="font-medium">{company.telefono_fiscal || "No especificado"}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-600">Email Fiscal</p>
+              <p className="font-medium">{company.email_fiscal || "No especificado"}</p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Tabs de Contabilidad */}
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <TabsList className="grid w-full grid-cols-6">
+          <TabsTrigger value="overview" className="flex items-center space-x-2">
+            <Calculator className="h-4 w-4" />
+            <span>Resumen</span>
+          </TabsTrigger>
+          <TabsTrigger value="templates" className="flex items-center space-x-2">
+            <FileSpreadsheet className="h-4 w-4" />
+            <span>Plantillas</span>
+          </TabsTrigger>
+          <TabsTrigger value="transactions" className="flex items-center space-x-2">
+            <FileText className="h-4 w-4" />
+            <span>Transacciones</span>
+          </TabsTrigger>
+          <TabsTrigger value="accounts" className="flex items-center space-x-2">
+            <Scale className="h-4 w-4" />
+            <span>Cuentas</span>
+          </TabsTrigger>
+                    <TabsTrigger value="reports" className="flex items-center space-x-2">
+            <TrendingUp className="h-4 w-4" />
+            <span>Reportes</span>
+          </TabsTrigger>
+          <TabsTrigger value="cierres" className="flex items-center space-x-2">
+            <Lock className="h-4 w-4" />
+            <span>Cierres</span>
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Tab Resumen */}
+        <TabsContent value="overview" className="space-y-6">
+          {/* Acceso principal a sub-módulos de Contabilidad */}
+          <Card className="bg-gradient-to-r from-cyan-50 to-blue-50 border-cyan-200">
+            <CardHeader className="text-center">
+              <BookOpen className="h-12 w-12 text-cyan-600 mx-auto mb-2" />
+              <CardTitle className="text-lg text-cyan-800">Módulos de Contabilidad</CardTitle>
+              <CardDescription className="text-cyan-600">
+                Registro contable, estados financieros y libros legales
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/books`)}
+                  className="bg-green-600 hover:bg-green-700 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <BookOpen className="h-6 w-6" />
+                  <span>📒 Registro Contable</span>
+                  <span className="text-xs opacity-80">Partidas, libros y pólizas</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/financial-statements`)}
+                  className="bg-cyan-600 hover:bg-cyan-700 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <FileText className="h-6 w-6" />
+                  <span>📑 Estados Financieros</span>
+                  <span className="text-xs opacity-80">Balance, resultados, flujo</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/books`)}
+                  className="bg-orange-600 hover:bg-orange-700 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <Scale className="h-6 w-6" />
+                  <span>🧾 Libros Legales</span>
+                  <span className="text-xs opacity-80">Compras, ventas, retenciones</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/opening-balances`)}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <Calculator className="h-6 w-6" />
+                  <span>📋 Balance de Apertura</span>
+                  <span className="text-xs opacity-80">Saldos iniciales por cuenta</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/recurring-entries`)}
+                  className="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <RefreshCw className="h-6 w-6" />
+                  <span>🔁 Recurrentes</span>
+                  <span className="text-xs opacity-80">Asientos periódicos automáticos</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/reversals`)}
+                  className="bg-red-500 hover:bg-red-600 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <RotateCcw className="h-6 w-6" />
+                  <span>🔄 Reversiones</span>
+                  <span className="text-xs opacity-80">Revertir pólizas registradas</span>
+                </Button>
+                <Button 
+                  onClick={() => router.push(`/companies/${companyId}/accounting/closing`)}
+                  className="bg-gray-800 hover:bg-gray-900 text-white font-semibold py-10 flex flex-col items-center gap-3"
+                >
+                  <Calendar className="h-6 w-6" />
+                  <span>📅 Cierre Mensual</span>
+                  <span className="text-xs opacity-80">Cerrar y abrir períodos</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Contenedor: Conteo por cada libro (DB) */}
+          <Card className="border-blue-200">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-blue-600" />
+                Conteo por Libro — Base de Datos
+              </CardTitle>
+              <CardDescription>
+                Transacciones reales agrupadas por libro contable (tenant: {companyId})
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=diario`)} className="rounded-lg border p-4 text-center bg-slate-50 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Libro Diario</p>
+                  <p className="text-2xl font-bold">{transactions.length}</p>
+                  <p className="text-xs text-muted-foreground">pólizas • clic para ver</p>
+                </div>
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=ingresos`)} className="rounded-lg border p-4 text-center bg-green-50 cursor-pointer hover:shadow-md hover:border-green-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Ingresos</p>
+                  <p className="text-2xl font-bold text-green-700">{transactions.filter(t=>t.voucherType==="INGRESO").length}</p>
+                  <p className="text-xs text-muted-foreground">INGRESO • ver</p>
+                </div>
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=egresos`)} className="rounded-lg border p-4 text-center bg-red-50 cursor-pointer hover:shadow-md hover:border-red-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Egresos</p>
+                  <p className="text-2xl font-bold text-red-700">{transactions.filter(t=>t.voucherType==="EGRESO").length}</p>
+                  <p className="text-xs text-muted-foreground">EGRESO • ver</p>
+                </div>
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=mayor`)} className="rounded-lg border p-4 text-center bg-blue-50 cursor-pointer hover:shadow-md hover:border-blue-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Libro Mayor</p>
+                  <p className="text-2xl font-bold text-blue-700">{accounts.length}</p>
+                  <p className="text-xs text-muted-foreground">cuentas • ver</p>
+                </div>
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=egresos`)} className="rounded-lg border p-4 text-center bg-purple-50 cursor-pointer hover:shadow-md hover:border-purple-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Compras</p>
+                  <p className="text-2xl font-bold text-purple-700">{transactions.filter(t=>t.voucherType==="EGRESO").length}</p>
+                  <p className="text-xs text-muted-foreground">crédito fiscal • ver</p>
+                </div>
+                <div onClick={()=>router.push(`/companies/${companyId}/accounting/books?tab=ingresos`)} className="rounded-lg border p-4 text-center bg-amber-50 cursor-pointer hover:shadow-md hover:border-amber-300 transition-all">
+                  <p className="text-xs text-muted-foreground uppercase">Ventas</p>
+                  <p className="text-2xl font-bold text-amber-700">{transactions.filter(t=>t.voucherType==="INGRESO").length}</p>
+                  <p className="text-xs text-muted-foreground">débito fiscal • ver</p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between text-xs text-muted-foreground">
+                <span>Total transacciones DB: {transactions.length} • Total cuentas DB: {accounts.length}</span>
+                <Badge variant="outline">{transactions.length>0 ? "Sincronizado" : "Sin datos"}</Badge>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Opciones de Transacciones */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={handleAddTransaction}>
+              <CardHeader className="text-center">
+                <Plus className="h-12 w-12 text-blue-600 mx-auto mb-4" />
+                <CardTitle>Ingreso Manual</CardTitle>
+                <CardDescription>
+                  Ingrese transacciones una por una con partida doble automática
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-center">
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Transacción
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer" onClick={() => setShowExcelUploader(true)}>
+              <CardHeader className="text-center">
+                <Upload className="h-12 w-12 text-green-600 mx-auto mb-4" />
+                <CardTitle>Subir desde Excel</CardTitle>
+                <CardDescription>
+                  Importe transacciones completas desde archivos Excel
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="flex justify-center">
+                <Button variant="outline">
+                  <Upload className="h-4 w-4 mr-2" />
+                  Subir Archivo
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Formulario de transacción (si está activo) */}
+          {showTransactionForm && (
+            <div className="mt-6">
+              <TransactionFormSimple
+                tenantId={companyId}
+                onSuccess={handleTransactionSuccess}
+                onCancel={handleCancelTransactionEntry}
+              />
+            </div>
+          )}
+
+          {/* Upload de Excel (si está activo) */}
+          {showExcelUploader && (
+            <div className="mt-6">
+              <ExcelBooksUploader
+                tenantId={companyId}
+                onSuccess={handleTransactionSuccess}
+              />
+            </div>
+          )}
+
+          {/* Historial de archivos subidos */}
+          <Card className="mt-6">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5" />
+                Archivos subidos
+              </CardTitle>
+              <CardDescription>
+                Historial de archivos Excel subidos con fecha y hora
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {uploadedFiles.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-6">No hay archivos subidos aún</p>
+              ) : (
+                <div>
+                  <table className="w-full text-sm table-fixed">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left p-2 w-[32%]">Nombre del archivo</th>
+                        <th className="text-left p-2 w-[22%]">Fecha y hora</th>
+                        <th className="text-right p-2 w-[12%]">Tamaño</th>
+                        <th className="text-right p-2 w-[14%]">Estado</th>
+                        <th className="text-center p-2 w-[20%]">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadedFiles.map((f:any)=> (
+                        <tr key={f.id} className="border-b hover:bg-muted/50">
+                          <td className="p-2 font-medium min-w-[320px]">
+                            {editingFileId===f.id ? (
+                              <Input value={editingFileName} onChange={e=>setEditingFileName(e.target.value)} className="h-8" />
+                            ) : (
+                              <span className="flex items-center gap-2"><FileSpreadsheet className="h-4 w-4 text-green-600 shrink-0" />{f.fileName}</span>
+                            )}
+                          </td>
+                          <td className="p-2 whitespace-nowrap">{f.uploadedAt ? new Date(f.uploadedAt).toLocaleString('es-HN') : '-'}</td>
+                          <td className="p-2 text-right whitespace-nowrap">{f.fileSize ? `${(f.fileSize/1024).toFixed(1)} KB` : (f.metadata?.totalRows ? `${f.metadata.totalRows} filas` : '-')}</td>
+                          <td className="p-2 text-right">
+                            <div className="group relative inline-block">
+                              <Badge variant={f.status==='processed'?'default':'secondary'} className={f.metadata?.errors?.length ? "cursor-help" : ""}>{f.status || 'procesado'}</Badge>
+                              {f.metadata?.errors?.length > 0 ? (
+                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50 w-72">
+                                  <div className="bg-gray-900 text-white text-xs rounded-md p-3 shadow-lg">
+                                    <p className="font-semibold mb-1">Errores ({f.metadata.errors.length}):</p>
+                                    <ul className="list-disc list-inside space-y-1">
+                                      {f.metadata.errors.slice(0,4).map((e:string,i:number)=>(<li key={i} className="truncate">{e}</li>))}
+                                    </ul>
+                                    {f.metadata.processed !== undefined && (
+                                      <p className="mt-2 text-gray-300">Procesadas {f.metadata.processed} de {f.metadata.totalRows} filas</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="absolute right-0 bottom-full mb-2 hidden group-hover:block z-50">
+                                  <div className="bg-gray-900 text-white text-xs rounded-md px-3 py-2 shadow-lg whitespace-nowrap">
+                                    Sin errores — {f.metadata?.processed ?? '-'} de {f.metadata?.totalRows ?? '-'} filas procesadas correctamente
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <div className="flex justify-center items-center gap-1">
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={()=>handleDownloadFile(f)} title="Descargar"><Download className="h-4 w-4" /></Button>
+                              <Button variant="outline" size="icon" className="h-8 w-8" onClick={()=>handleModifyFile(f)} title={editingFileId===f.id ? "Guardar" : "Modificar"}>{editingFileId===f.id ? <CheckCircle className="h-4 w-4" /> : <Edit className="h-4 w-4" />}</Button>
+                              <Button variant="outline" size="icon" className="h-8 w-8 text-red-600 hover:text-red-700" onClick={()=>handleDeleteFile(f)} title="Eliminar"><Trash2 className="h-4 w-4" /></Button>
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Plantillas - Templates descargables para Importar Libros Contables */}
+        <TabsContent value="templates" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                Plantillas de Importación
+              </CardTitle>
+              <CardDescription>
+                Descarga los templates Excel con el formato exacto requerido para importar libros contables
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {(Object.keys(IMPORT_TEMPLATES) as (keyof typeof IMPORT_TEMPLATES)[]).map(tipo => (
+                  <div key={tipo} className="rounded-lg border p-4 flex flex-col items-center text-center gap-3 hover:shadow-md hover:border-green-300 transition-all">
+                    <FileSpreadsheet className="h-10 w-10 text-green-600" />
+                    <div className="min-h-[3rem] space-y-1">
+                      <p className="font-semibold">{IMPORT_TEMPLATES_INFO[tipo].label}</p>
+                      <p className="text-xs text-muted-foreground">{IMPORT_TEMPLATES_INFO[tipo].description}</p>
+                    </div>
+                    <Button variant="outline" size="sm" onClick={() => downloadTemplate(tipo)}>
+                      <Download className="h-4 w-4 mr-2" />
+                      Descargar Plantilla
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Cierres - Cierre de Períodos Contables */}
+        <TabsContent value="cierres" className="space-y-6">
+          <Card className="border-l-4 border-l-purple-500">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Lock className="h-5 w-5 text-purple-600" />
+                Cierre de Períodos Contables
+              </CardTitle>
+              <CardDescription>
+                Tabla de períodos con datos de Supabase (period_locks + v_transacciones_cierre)
+              </CardDescription>
+              <div className="flex items-center gap-2 mt-2">
+                <select
+                  value={periodAnio}
+                  onChange={e => setPeriodAnio(e.target.value)}
+                  className="border rounded-md px-3 py-1.5 text-sm bg-white"
+                >
+                  {[2024, 2025, 2026, 2027].map(y => (
+                    <option key={y} value={y}>{y}</option>
+                  ))}
+                </select>
+                <Button variant="outline" size="sm" onClick={() => setPeriodRefresh(r => r + 1)}>
+                  <RefreshCw className="h-4 w-4" /> Refrescar
+                </Button>
+              </div>
+            </CardHeader>
+
+            {/* Tabla de períodos */}
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead className="bg-gray-50 border-b">
+                  <tr>
+                    <th className="text-left py-3 px-4 font-semibold">Mes</th>
+                    <th className="text-left py-3 px-4 font-semibold">Estado</th>
+                    <th className="text-left py-3 px-4 font-semibold">Número de transacciones</th>
+                    <th className="text-left py-3 px-4 font-semibold">Quién lo cerró</th>
+                    <th className="text-left py-3 px-4 font-semibold">Fecha de cierre</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {periodState.map((m, i) => (
+                    <tr key={i} className={`hover:bg-gray-50 ${m.status === 'abierto' ? 'bg-blue-50' : ''}`}>
+                      <td className="py-3 px-4 font-medium">{m.mes}</td>
+                      <td className="py-3 px-4">
+                        {m.status === 'cerrado' ? (
+                          <Badge className="bg-green-600 gap-1">
+                            <Lock className="h-3 w-3" /> Cerrado
+                          </Badge>
+                        ) : m.status === 'abierto' ? (
+                          <Badge className="bg-blue-600 gap-1">
+                            <Unlock className="h-3 w-3" /> Abierto
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline">Futuro</Badge>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">{m.entradas}</td>
+                      <td className="py-3 px-4 text-sm">{m.cerradoPor}</td>
+                      <td className="py-3 px-4">{m.fecha}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Acciones de cierre */}
+            <Card className="mt-6 p-6 bg-purple-50 border border-purple-200">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Calendar className="h-5 w-5" />
+                  Interfaz de Cierre de Períodos - {periodAnio}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center p-3 bg-white rounded-lg">
+                    <p className="text-2xl font-bold text-purple-600">{periodState.filter(m => m.status === 'cerrado').length}</p>
+                    <p className="text-xs text-gray-600">Meses Cerrados</p>
+                  </div>
+                  <div className="text-center p-3 bg-white rounded-lg">
+                    <p className="text-2xl font-bold text-blue-600">{periodState.reduce((total, m) => total + m.entradas, 0)}</p>
+                    <p className="text-xs text-gray-600">Total de Entradas</p>
+                  </div>
+                  <div className="text-center p-3 bg-white rounded-lg">
+                    <p className="text-2xl font-bold text-purple-600">{periodState.length}</p>
+                    <p className="text-xs text-gray-600">Meses Consultados</p>
+                  </div>
+                  <div className="text-center p-3 bg-white rounded-lg">
+                    <p className="text-2xl font-bold text-orange-600">100%</p>
+                    <p className="text-xs text-gray-600">Integración Completa</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Transacciones */}
+        <TabsContent value="transactions" className="space-y-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <FileText className="h-16 w-16 text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">Gestión de Transacciones</h3>
+              <p className="text-gray-600 text-center mb-6">
+                Las opciones para crear y subir transacciones han sido movidas a la pestaña de Resumen para mejor organización.
+              </p>
+              <Button onClick={() => setActiveTab("overview")} variant="outline">
+                Ir a Resumen
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Cuentas */}
+        <TabsContent value="accounts" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div className="flex items-center space-x-2">
+                  <CardTitle>Catálogo de Cuentas</CardTitle>
+                  <Badge variant="outline">{accounts.length} cuentas</Badge>
+                </div>
+                <Button onClick={handleAddAccount}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Nueva Cuenta
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                {accounts.length === 0 ? (
+                  <div className="text-center py-8">
+                    <Scale className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                    <h3 className="text-lg font-medium text-gray-900 mb-2">No hay cuentas configuradas</h3>
+                    <p className="text-gray-600">
+                      No se encontraron cuentas para esta empresa
+                    </p>
+                    <Button onClick={handleAddAccount}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Crear Primera Cuenta
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {(["ASSET", "LIABILITY", "EQUITY", "REVENUE", "EXPENSE"] as const).map(type => {
+                      const typeAccounts = accounts.filter(a => a.type === type);
+                      if (typeAccounts.length === 0) return null;
+                      const sectionOpen = expandedAccountSections.has(type);
+                      const typeLabels: Record<string, { label: string; color: string }> = {
+                        ASSET: { label: "Activo", color: "bg-blue-100 text-blue-800" },
+                        LIABILITY: { label: "Pasivo", color: "bg-red-100 text-red-800" },
+                        EQUITY: { label: "Patrimonio", color: "bg-purple-100 text-purple-800" },
+                        REVENUE: { label: "Ingresos", color: "bg-green-100 text-green-800" },
+                        EXPENSE: { label: "Gastos", color: "bg-orange-100 text-orange-800" },
+                      };
+                      const t = typeLabels[type];
+                      return (
+                        <div key={type} className="border rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => setExpandedAccountSections(prev => { const n = new Set(prev); if (n.has(type)) n.delete(type); else n.add(type); return n; })}
+                            className="w-full flex items-center justify-between p-3 hover:bg-gray-50 transition-colors"
+                          >
+                            <div className="flex items-center space-x-3">
+                              {sectionOpen ? <ChevronDown className="h-5 w-5 text-gray-500" /> : <ChevronRight className="h-5 w-5 text-gray-500" />}
+                              <Badge className={t.color}>{t.label}</Badge>
+                              <span className="text-sm text-gray-600">{typeAccounts.length} {typeAccounts.length === 1 ? 'cuenta' : 'cuentas'}</span>
+                            </div>
+                          </button>
+                          {sectionOpen && (
+                            <div className="border-t">
+                              {typeAccounts.map((account) => (
+                                <div key={account.id} className="flex items-center justify-between p-3 hover:bg-gray-50 border-b last:border-b-0" style={{ paddingLeft: '24px' }}>
+                                  <div className="flex items-center space-x-3">
+                                    <span className="font-mono text-sm text-gray-500">{account.code}</span>
+                                    <span className="font-medium">{account.name}</span>
+                                  </div>
+                                  <div className="flex space-x-2">
+                                    <Button variant="ghost" size="sm" onClick={() => handleEditAccount(account)}>
+                                      <Edit className="h-4 w-4" />
+                                    </Button>
+                                    <Button variant="ghost" size="sm" className="text-red-500" onClick={() => handleDeleteAccount(account.id)}>
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Libros Contables */}
+        <TabsContent value="books" className="space-y-6">
+          <div className="flex justify-between items-center">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900">Libros Contables</h2>
+              <p className="text-gray-600">Gestiona los libros obligatorios según el Código de Comercio de Honduras</p>
+            </div>
+            <Button onClick={handleAddBook}>
+              <Plus className="h-4 w-4 mr-2" />
+              Nuevo Libro
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {/* Libro Diario */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Receipt className="h-5 w-5 text-blue-600" />
+                    <span>Libro Diario</span>
+                  </CardTitle>
+                  <Badge className="bg-blue-100 text-blue-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Registro cronológico de todas las transacciones
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Transacciones:</span>
+                    <span className="font-medium">{bookData.libroDiario.transactions}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Período:</span>
+                    <span className="font-medium">{bookData.libroDiario.periodo}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Última actualización:</span>
+                    <span className="font-medium">{bookData.libroDiario.lastUpdate}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleEditBook({
+                      id: 'diario',
+                      name: 'Libro Diario',
+                      type: 'diario',
+                      period: selectedPeriod,
+                      status: 'active',
+                      entries: bookData.libroDiario.transactions,
+                      companyId: companyId
+                    })}>
+                      <Edit className="h-4 w-4 mr-1" />
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => handleDeleteBook('diario')}>
+                      <Trash2 className="h-4 w-4 mr-1" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Libro Mayor */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileSpreadsheet className="h-5 w-5 text-green-600" />
+                    <span>Libro Mayor</span>
+                  </CardTitle>
+                  <Badge className="bg-green-100 text-green-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Resumen por cuentas con saldos acumulados
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Cuentas:</span>
+                    <span className="font-medium">{bookData.libroMayor.accounts}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Período:</span>
+                    <span className="font-medium">{bookData.libroMayor.periodo}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Balance:</span>
+                    <span className="font-medium text-green-600">{formatCurrency(bookData.libroMayor.balance)}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Balance General */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <Scale className="h-5 w-5 text-purple-600" />
+                    <span>Balance General</span>
+                  </CardTitle>
+                  <Badge className="bg-purple-100 text-purple-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Estado financiero de situación patrimonial
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Activos:</span>
+                    <span className="font-medium">{formatCurrency(bookData.balanceGeneral.activos)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Pasivos:</span>
+                    <span className="font-medium">{formatCurrency(bookData.balanceGeneral.pasivos)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Patrimonio:</span>
+                    <span className="font-medium">{formatCurrency(bookData.balanceGeneral.patrimonio)}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Estado de Resultados */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <TrendingUp className="h-5 w-5 text-orange-600" />
+                    <span>Estado de Resultados</span>
+                  </CardTitle>
+                  <Badge className="bg-orange-100 text-orange-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Resumen de ingresos, gastos y utilidad
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Ingresos:</span>
+                    <span className="font-medium text-green-600">{formatCurrency(bookData.estadoResultados.ingresos)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Gastos:</span>
+                    <span className="font-medium text-red-600">{formatCurrency(bookData.estadoResultados.gastos)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Utilidad Neta:</span>
+                    <span className="font-medium text-green-600">{formatCurrency(bookData.estadoResultados.utilidadNeta)}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Libro de Compras */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5 text-red-600" />
+                    <span>Libro de Compras</span>
+                  </CardTitle>
+                  <Badge className="bg-red-100 text-red-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Registro de compras y crédito fiscal
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Compras:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroCompras.compras)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Crédito Fiscal:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroCompras.creditoFiscal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">CF Pendiente:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroCompras.cfPendiente)}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Libro de Ventas */}
+            <Card className="hover:shadow-lg transition-shadow cursor-pointer">
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center space-x-2">
+                    <FileText className="h-5 w-5 text-blue-600" />
+                    <span>Libro de Ventas</span>
+                  </CardTitle>
+                  <Badge className="bg-blue-100 text-blue-800">Activo</Badge>
+                </div>
+                <CardDescription>
+                  Registro de ventas y débito fiscal
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Ventas:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroVentas.ventas)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">Débito Fiscal:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroVentas.debitoFiscal)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">DF Pendiente:</span>
+                    <span className="font-medium">{formatCurrency(bookData.libroVentas.dfPendiente)}</span>
+                  </div>
+                  <div className="flex space-x-2 pt-3">
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                    <Button variant="outline" size="sm" className="flex-1">
+                      <Download className="h-4 w-4 mr-1" />
+                      PDF
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Acciones Globales */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Acciones de Libros Contables</CardTitle>
+              <CardDescription>
+                Operaciones masivas para todos los libros
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <Button className="flex items-center space-x-2">
+                  <Printer className="h-4 w-4" />
+                  <span>Imprimir Todos los Libros</span>
+                </Button>
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Download className="h-4 w-4" />
+                  <span>Exportar Todo (ZIP)</span>
+                </Button>
+                <Button variant="outline" className="flex items-center space-x-2">
+                  <Settings className="h-4 w-4" />
+                  <span>Configurar Períodos</span>
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab Reportes */}
+        <TabsContent value="reports" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <CardTitle>Reportes Financieros</CardTitle>
+                <div className="flex space-x-2">
+                  <Button>
+                    <Download className="h-4 w-4" />
+                    Exportar Balance General
+                  </Button>
+                  <Button>
+                    <Download className="h-4 w-4" />
+                    Exportar Estado de Resultados
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-8">
+                <TrendingUp className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">Reportes Financieros</h3>
+                <p className="text-gray-600 mb-4">
+                  Los reportes financieros estarán disponibles próximamente
+                </p>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Button className="h-20 flex-col space-y-2">
+                    <Scale className="h-6 w-6" />
+                    <span>Balance General</span>
+                  </Button>
+                  <Button className="h-20 flex-col space-y-2">
+                    <TrendingUp className="h-6 w-6" />
+                    <span>Estado de Resultados</span>
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+      </Tabs>
+    </div>
+
+    {/* Modal para Editar Transacción */}
+    {showTransactionDialog && editingTransaction && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingTransaction?.id && !!transactions.find(t => t.id === editingTransaction?.id) 
+              ? "Editar Transacción" 
+              : "Nueva Transacción"}
+          </h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Fecha</Label>
+                <Input
+                  type="date"
+                  value={editingTransaction?.date || ''}
+                  onChange={(e) => editingTransaction && setEditingTransaction({...editingTransaction, date: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Tipo de Comprobante</Label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={editingTransaction?.voucherType || ''}
+                  onChange={(e) => editingTransaction && setEditingTransaction({...editingTransaction, voucherType: e.target.value})}
+                >
+                  <option value="INGRESO">Ingreso</option>
+                  <option value="EGRESO">Egreso</option>
+                  <option value="DIARIO">Diario</option>
+                  <option value="AJUSTE">Ajuste</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <Input
+                value={editingTransaction?.description || ''}
+                onChange={(e) => editingTransaction && setEditingTransaction({...editingTransaction, description: e.target.value})}
+                placeholder="Descripción de la transacción"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Número de Comprobante</Label>
+                <Input
+                  type="number"
+                  value={editingTransaction?.voucherNumber || 0}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingTransaction && setEditingTransaction({...editingTransaction, voucherNumber: parseInt(e.target.value) || 0})}
+                />
+              </div>
+              <div>
+                <Label>Monto Total</Label>
+                <Input
+                  type="number"
+                  value={editingTransaction?.totalAmount || 0}
+                  onChange={(e: React.ChangeEvent<HTMLInputElement>) => editingTransaction && setEditingTransaction({...editingTransaction, totalAmount: parseFloat(e.target.value) || 0})}
+                />
+              </div>
+            </div>
+            
+            <div className="border-t pt-4">
+              <h4 className="font-medium mb-2">Detalles de Partida Doble</h4>
+              {editingTransaction?.entries?.map((entry, index) => (
+                <div key={index} className="border rounded p-3 mb-2">
+                  <div className="grid grid-cols-2 gap-2 mb-2">
+                    <div>
+                      <Label>Cuenta</Label>
+                      <select
+                        className="w-full p-1 border rounded text-sm"
+                        value={entry.accountCode}
+                        onChange={(e) => {
+                          if (!editingTransaction) return;
+                          const account = accounts.find(a => a.code === e.target.value);
+                          const newEntries = [...editingTransaction.entries];
+                          newEntries[index] = {
+                            ...entry,
+                            accountCode: e.target.value,
+                            accountName: account?.name || ""
+                          };
+                          setEditingTransaction({...editingTransaction, entries: newEntries});
+                        }}
+                      >
+                        <option value="">Seleccionar cuenta</option>
+                        {accounts.map(account => (
+                          <option key={account.id} value={account.code}>
+                            {account.code} - {account.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <Label>Descripción</Label>
+                      <Input
+                        value={entry.accountName}
+                        readOnly
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label>Débito</Label>
+                      <Input
+                        type="number"
+                        value={entry.debit}
+                        onChange={(e) => {
+                          if (!editingTransaction) return;
+                          const newEntries = [...editingTransaction.entries];
+                          newEntries[index] = {...entry, debit: parseFloat(e.target.value)};
+                          setEditingTransaction({...editingTransaction, entries: newEntries});
+                        }}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <Label>Crédito</Label>
+                      <Input
+                        type="number"
+                        value={entry.credit}
+                        onChange={(e) => {
+                          if (!editingTransaction) return;
+                          const newEntries = [...editingTransaction.entries];
+                          newEntries[index] = {...entry, credit: parseFloat(e.target.value)};
+                          setEditingTransaction({...editingTransaction, entries: newEntries});
+                        }}
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={() => setShowTransactionDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => editingTransaction && handleSaveTransaction(editingTransaction)}>
+              Guardar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal para Editar Cuenta */}
+    {showAccountDialog && editingAccount && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingAccount?.id && accounts.find(a => a.id === editingAccount?.id) 
+              ? "Editar Cuenta" 
+              : "Nueva Cuenta"}
+          </h3>
+          <div className="space-y-4">
+            <div>
+              <Label>Código de Cuenta</Label>
+              <Input
+                value={editingAccount?.code || ''}
+                onChange={(e) => editingAccount && setEditingAccount({...editingAccount, code: e.target.value})}
+                placeholder="Ej: 1101"
+              />
+            </div>
+            <div>
+              <Label>Nombre de Cuenta</Label>
+              <Input
+                value={editingAccount?.name || ''}
+                onChange={(e) => editingAccount && setEditingAccount({...editingAccount, name: e.target.value})}
+                placeholder="Ej: Caja"
+              />
+            </div>
+            <div>
+              <Label>Tipo de Cuenta</Label>
+              <select
+                className="w-full p-2 border rounded"
+                value={editingAccount?.type || 'Activo Corriente'}
+                onChange={(e) => editingAccount && setEditingAccount({...editingAccount, type: e.target.value})}
+              >
+                <option value="Activo Corriente">Activo Corriente</option>
+                <option value="Activo No Corriente">Activo No Corriente</option>
+                <option value="Pasivo Corriente">Pasivo Corriente</option>
+                <option value="Pasivo No Corriente">Pasivo No Corriente</option>
+                <option value="Patrimonio">Patrimonio</option>
+                <option value="Ingreso">Ingreso</option>
+                <option value="Gasto">Gasto</option>
+              </select>
+            </div>
+            <div>
+              <Label>Descripción</Label>
+              <Input
+                value={editingAccount?.description || ''}
+                onChange={(e) => editingAccount && setEditingAccount({...editingAccount, description: e.target.value})}
+                placeholder="Descripción opcional"
+              />
+            </div>
+          </div>
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={() => setShowAccountDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => editingAccount && handleSaveAccount(editingAccount)}>
+              Guardar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+    {/* Modal para Gestionar Libro Contable */}
+    {showBookDialog && editingBook && (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+          <h3 className="text-lg font-semibold mb-4">
+            {editingBook?.id && accountingBooks.find(b => b.id === editingBook?.id) 
+              ? "Editar Libro Contable" 
+              : "Nuevo Libro Contable"}
+          </h3>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Nombre del Libro</Label>
+                <Input
+                  value={editingBook?.name || ''}
+                  onChange={(e) => editingBook && setEditingBook({...editingBook, name: e.target.value})}
+                  placeholder="Ej: Libro Diario Enero 2024"
+                />
+              </div>
+              <div>
+                <Label>Tipo de Libro</Label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={editingBook?.type || 'diario'}
+                  onChange={(e) => editingBook && setEditingBook({...editingBook, type: e.target.value as any})}
+                >
+                  <option value="diario">Libro Diario</option>
+                  <option value="mayor">Libro Mayor</option>
+                  <option value="balance">Balance General</option>
+                  <option value="inventarios">Libro de Inventarios y Balances</option>
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Período</Label>
+                <Input
+                  type="month"
+                  value={editingBook?.period || ''}
+                  onChange={(e) => editingBook && setEditingBook({...editingBook, period: e.target.value})}
+                />
+              </div>
+              <div>
+                <Label>Estado</Label>
+                <select
+                  className="w-full p-2 border rounded"
+                  value={editingBook?.status || 'pending'}
+                  onChange={(e) => editingBook && setEditingBook({...editingBook, status: e.target.value as any})}
+                >
+                  <option value="pending">Pendiente</option>
+                  <option value="active">Activo</option>
+                  <option value="inactive">Inactivo</option>
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <Label>Archivo del Libro</Label>
+              <div className="space-y-2">
+                {editingBook.fileName ? (
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded">
+                    <div className="flex items-center space-x-2">
+                      <FileText className="h-4 w-4 text-gray-600" />
+                      <span className="text-sm">{editingBook.fileName}</span>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      <Eye className="h-4 w-4 mr-1" />
+                      Ver
+                    </Button>
+                  </div>
+                ) : (
+                  <div>
+                    <Input
+                      type="file"
+                      accept=".pdf,.xlsx,.xls,.csv"
+                      onChange={handleFileUpload}
+                      className="mb-2"
+                    />
+                    {uploadProgress > 0 && (
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${uploadProgress}%` }}
+                        ></div>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {editingBook.entries !== undefined && (
+              <div>
+                <Label>Entradas Registradas</Label>
+                <div className="p-3 bg-gray-50 rounded">
+                  <span className="text-2xl font-bold">{editingBook.entries}</span>
+                  <p className="text-sm text-gray-600">entradas en el libro</p>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end space-x-2 mt-6">
+            <Button variant="outline" onClick={() => setShowBookDialog(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={() => editingBook && handleSaveBook(editingBook)}>
+              Guardar
+            </Button>
+          </div>
+        </div>
+      </div>
+    )}
+
+      {/* Popup Confirmar Eliminar - estilo proyecto */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-red-600" />
+              ¿Eliminar archivo?
+            </DialogTitle>
+            <DialogDescription>
+              {fileToDelete ? `¿Eliminar "${fileToDelete.fileName}"? Se borrarán también las transacciones de los libros correspondientes. Esta acción no se puede deshacer.` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>Cancelar</Button>
+            <Button onClick={confirmDeleteFile} className="bg-red-600 hover:bg-red-700">Eliminar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Popup Éxito/Error - estilo proyecto */}
+      <Dialog open={showSuccessDialog} onOpenChange={setShowSuccessDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <CheckCircle className="h-5 w-5 text-green-600" />
+              {successMessage.includes("Error") ? "Error" : "Operación exitosa"}
+            </DialogTitle>
+            <DialogDescription>{successMessage}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button onClick={() => setShowSuccessDialog(false)} className="bg-green-600 hover:bg-green-700">Entendido</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}

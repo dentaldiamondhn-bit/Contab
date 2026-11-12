@@ -1,0 +1,339 @@
+"use client";
+
+import { Button } from "@/components/ui/button";
+import { Bell, Settings, LogOut, User, ChevronDown, AlertCircle, XCircle, Shield, Eye, Building2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { useTenant } from "@/lib/contexts/TenantContext";
+import { useWorkspace } from "@/lib/contexts/WorkspaceContext";
+import { useUser } from "@clerk/nextjs";
+import Link from "next/link";
+import { useState, useEffect } from "react";
+import { useClerk } from "@clerk/nextjs";
+
+interface TenantHeaderProps {
+  tenants: Array<{
+    id: string;
+    businessName: string;
+    businessRTN?: string;
+    industry?: string;
+    subscriptionType?: string;
+    isActive?: boolean;
+  }>;
+}
+
+export function TenantHeader({ tenants }: TenantHeaderProps) {
+  const { currentTenant, tenants: contextTenants, isSuperAdmin, isImpersonating, exitImpersonation, companies, currentCompany, setCompany } = useTenant();
+  // El unico autoritativo para cambiar de empresa (cookie + header + validacion).
+  const { cambiarEmpresa } = useWorkspace();
+  const { user } = useUser();
+  const { signOut } = useClerk();
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
+  
+  // Use tenants from context, fallback to props if needed
+  const availableTenants = contextTenants.length > 0 ? contextTenants : tenants;
+
+  // Obtener iniciales del nombre del usuario
+  const getUserInitials = () => {
+    if (!user) return "U";
+    if (user.firstName && user.lastName) {
+      return `${user.firstName[0]}${user.lastName[0]}`.toUpperCase();
+    }
+    if (user.firstName) {
+      return user.firstName[0].toUpperCase();
+    }
+    return "U";
+  };
+
+  // Obtener nombre completo del usuario
+  const getFullName = () => {
+    if (!user) return "Usuario";
+    if (user.firstName && user.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    if (user.firstName) {
+      return user.firstName;
+    }
+    return "Usuario";
+  };
+
+  const executeLogout = async () => {
+    try {
+      // 1. Ejecutar el cierre de sesión de Clerk
+      await signOut();
+
+      // 2. Limpiar datos de persistencia local del tenant
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('selected_tenant');
+        localStorage.removeItem('tenant_id');
+        document.cookie = "impersonated_tenant_id=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC;";
+      }
+
+      // 3. Redirigir manualmente para asegurar que el estado se limpie por completo
+      window.location.href = '/auth/login';
+    } catch (error) {
+      console.error("Error al cerrar sesión:", error);
+      window.location.href = '/auth/login'; // Redirección forzada si falla el SDK
+    }
+  };
+
+  return (
+    <>
+      {/* Banner de Estado para Super Admin */}
+      {mounted && isSuperAdmin && (
+        <div className={`w-full py-1.5 px-4 text-center text-[10px] font-black tracking-[0.2em] uppercase flex items-center justify-center gap-2 shadow-inner transition-colors duration-500 shrink-0 ${
+          isImpersonating ? "bg-amber-500 text-white" : "bg-cyan-50 text-cyan-700"
+        }`}>
+          {isImpersonating ? (
+            <>
+              <Eye className="h-3 w-3" />
+              <span>Modo Vista de Cliente: {currentTenant?.businessName || 'Empresa seleccionada'}</span>
+              <button 
+                onClick={exitImpersonation}
+                className="absolute right-2 sm:right-4 bg-white/20 hover:bg-white/30 transition-colors px-2 py-0.5 rounded flex items-center gap-1 normal-case tracking-normal font-bold"
+                title="Salir de vista de cliente"
+              >
+                <span className="hidden sm:inline">Cerrar Vista</span>
+                <XCircle className="h-3 w-3" />
+              </button>
+            </>
+          ) : (
+            <>
+              <Shield className="h-3 w-3" />
+              <span>Panel de Control Global: Modo Sistema</span>
+            </>
+          )}
+        </div>
+      )}
+
+      <header className="bg-cyan-700 border-b border-cyan-800 shrink-0 w-full">
+      <div className="px-4 sm:px-6 lg:px-8">
+        <div className="flex h-16 items-center justify-between">
+          {/* Logo */}
+          <div className="flex items-center gap-3">
+            <div className="bg-cyan-50 rounded-lg p-1.5 shadow-sm border border-cyan-200">
+              <img src="/logo.png" alt="Diamond Accounting" className="h-7 w-7 object-contain" />
+            </div>
+            <span className="font-semibold text-lg text-white">Diamond Accounting</span>
+          </div>
+
+{/* Info del Tenant/Empresa Actual */}
+            <div className="flex items-center gap-4">
+              {currentTenant && (
+                <div className="hidden md:flex items-center gap-3 px-3 py-2 bg-cyan-600/50 rounded-lg">
+                  <div className="text-sm">
+                    {companies.length > 1 && currentCompany ? (
+                      <>
+                        <div className="font-medium text-white">{currentCompany.name}</div>
+                        <div className="text-xs text-cyan-200">{currentTenant.businessName} · RTN: {currentCompany.rtn || currentTenant.businessRTN}</div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-medium text-white">{currentTenant.businessName}</div>
+                        {currentTenant.businessRTN && (
+                          <div className="text-xs text-cyan-200">RTN: {currentTenant.businessRTN}</div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                  {(currentTenant as any).subscriptionType && (
+                    <Badge variant="secondary" className="text-xs bg-cyan-600 text-cyan-100 border-cyan-500">
+                      {(currentTenant as any).subscriptionType}
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {/* Selector de Empresa (si hay >1 empresa en el tenant) */}
+              {companies.length > 1 && currentCompany && (
+                <div className="hidden md:block">
+                  <label htmlFor="company-selector" className="sr-only">Cambiar empresa</label>
+                  <select
+                    id="company-selector"
+                    value={currentCompany.id}
+                    onChange={(e) => {
+                      const found = companies.find(c => c.id === e.target.value);
+                      if (found) {
+                        // `cambiarEmpresa` es la UNICA via: escribe la cookie
+                        // `active_company_id`, sube la generacion, aborta lo que
+                        // esta en vuelo, recarga `/api/workspace` validado contra
+                        // `user_company_access` y navega.
+                        //
+                        // Antes este selector solo hacia `setCompany(found)`, que
+                        // solo cambia estado local + localStorage. La cookie se
+                        // quedaba en la empresa anterior, asi que `x-company-id`
+                        // no cambiaba y el servidor seguia filtrando por la
+                        // empresa anterior: se veian sus datos creyendo estar en
+                        // la nueva. Ademas `?companyId=` en la URL de la pagina
+                        // no filtra nada, porque las rutas API construyen su
+                        // propia URL y no heredan los query de la pagina.
+                        // `setCompany` se mantiene solo para que el nombre/RTN que
+                        // muestra esta cabecera (y los `currentCompany?.id` que leen
+                        // dashboard y tenant-admin) no queden en la empresa vieja.
+                        void cambiarEmpresa(found.id);
+                        setCompany(found);
+                      }
+                    }}
+                    className="h-9 px-3 py-1.5 bg-cyan-600/50 border-cyan-500/50 text-white text-sm rounded-lg focus:outline-none focus:ring-2 focus:ring-cyan-400 appearance-none pr-8 bg-[url('data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2216%22 height=%2216%22 viewBox=%220 0 24 24%22 fill=%22none%22 stroke=%22white%22 stroke-width=%222%22 stroke-linecap=%22round%22 stroke-linejoin=%22round%22%3E%3Cpath d=%22m6 9 6 6 6-6%22/%3E%3C/svg%3E')] bg-right-2 bg-no-repeat"
+                  >
+                    {companies.map((c) => (
+                      <option key={c.id} value={c.id}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+            {/* Acciones del Usuario */}
+            <div className="flex items-center gap-2">
+              {mounted && isImpersonating && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={exitImpersonation}
+                  className="hidden sm:flex items-center gap-2 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 hover:text-amber-800 font-bold rounded-full px-4 h-9 shadow-sm animate-in fade-in slide-in-from-right-4 duration-300"
+                >
+                  <XCircle className="h-4 w-4" />
+                  <span className="text-xs">Salir de Vista Cliente</span>
+                </Button>
+              )}
+
+              <Button variant="ghost" size="sm" className="text-white hover:bg-cyan-600 hover:text-white">
+                <Bell className="h-4 w-4" />
+                <span className="sr-only">Notificaciones</span>
+              </Button>
+              
+              {/* Menú Desplegable del Usuario */}
+              <div className="relative">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setUserMenuOpen(!userMenuOpen)}
+                  className="flex items-center gap-2 px-3 py-2 hover:bg-cyan-600 hover:text-white rounded-lg text-white"
+                >
+                  <div className="h-8 w-8 bg-cyan-500 rounded-full flex items-center justify-center">
+                    <span className="text-white text-sm font-medium">{getUserInitials()}</span>
+                  </div>
+                  <div className="hidden md:block text-left">
+                    <div className="text-sm font-medium">{mounted ? getFullName() : '...'}</div>
+                    <div className="text-xs text-cyan-200">{mounted ? ((user?.publicMetadata?.role as string) || 'Usuario') : '...'}</div>
+                  </div>
+                  <ChevronDown className="h-4 w-4 text-cyan-200" />
+                </Button>
+
+                {/* Menú Desplegable */}
+                {userMenuOpen && (
+                  <div className="absolute right-0 mt-4 w-72 bg-white rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.15)] border border-gray-100 py-2 z-50 transform origin-top-right transition-all animate-in fade-in zoom-in-95 duration-200 overflow-hidden">
+                    {/* Encabezado del Menú */}
+                    <div className="px-6 py-5 bg-gradient-to-br from-cyan-50/50 to-white border-b border-gray-100">
+                      <div className="flex items-center gap-4">
+                        <div className="h-12 w-12 bg-gradient-to-tr from-cyan-600 to-cyan-500 rounded-full flex items-center justify-center text-white text-lg font-bold shadow-lg shadow-cyan-200 ring-2 ring-white">
+                          {getUserInitials()}
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <p className="text-base font-bold text-gray-900 truncate">{getFullName()}</p>
+                          <p className="text-xs text-gray-500 truncate font-medium">{user?.primaryEmailAddress?.emailAddress}</p>
+                        </div>
+                      </div>
+                      <div className="mt-4 flex items-center gap-2">
+                        <Badge variant="secondary" className="text-[10px] font-bold bg-cyan-100/50 text-cyan-700 border-none px-2 py-0">
+                          {(user?.publicMetadata?.subscription_plan as string)?.toUpperCase() || 'BASIC PLAN'}
+                        </Badge>
+                        <Badge variant="outline" className="text-[10px] font-bold text-emerald-600 border-emerald-100 bg-emerald-50/30 px-2 py-0 uppercase">
+                          {isImpersonating ? 'VISTA CLIENTE' : (isSuperAdmin ? 'SISTEMA' : ((user?.publicMetadata?.role as string) || 'USUARIO'))}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    {/* Opciones del Menú */}
+                    <div className="p-2 space-y-1">
+                      <Link href="/account/profile" className="block group">
+                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-cyan-50/50 hover:text-cyan-600 rounded-xl transition-all duration-200">
+                          <User className="h-5 w-5 mr-3 text-gray-400 group-hover:text-cyan-500" />
+                          Mi Perfil
+                        </div>
+                      </Link>
+                      
+                      <Link href="/account/profile" className="block group">
+                        <div className="flex items-center px-4 py-3 text-sm font-medium text-gray-700 hover:bg-cyan-50/50 hover:text-cyan-600 rounded-xl transition-all duration-200">
+                          <Settings className="h-5 w-5 mr-3 text-gray-400 group-hover:text-cyan-500" />
+                          Configuración
+                        </div>
+                      </Link>
+
+                      <div className="h-px bg-gray-100 my-2 mx-4" />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowLogoutModal(true);
+                          setUserMenuOpen(false);
+                        }}
+                        className="flex items-center w-full px-4 py-3 text-sm font-bold text-red-600 hover:bg-red-50 rounded-xl transition-all duration-200 group"
+                      >
+                        <LogOut className="h-5 w-5 mr-3 text-red-400 group-hover:text-red-600" />
+                        Cerrar Sesión
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cerrar menú al hacer clic fuera */}
+                {userMenuOpen && (
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setUserMenuOpen(false)}
+                  />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      </header>
+
+      {/* Modal de Confirmación de Cierre de Sesión Estilizado */}
+      {showLogoutModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/70 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden transform animate-in zoom-in-95 duration-200 relative z-[101]">
+            <div className="p-8 text-center">
+              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-red-50 mb-6">
+                <AlertCircle className="h-10 w-10 text-red-600" />
+              </div>
+              <h3 className="text-xl font-bold text-gray-900 mb-2">
+                ¿Cerrar sesión?
+              </h3>
+              <p className="text-sm text-gray-500 mb-8">
+                ¿Estás seguro de que deseas salir del sistema? Tendrás que volver a ingresar tus credenciales para acceder a tus empresas.
+              </p>
+              <div className="flex flex-col gap-3">
+                <Button
+                  variant="destructive"
+                  type="button"
+                  size="lg"
+                  onClick={executeLogout}
+                  className="w-full rounded-2xl h-12 font-bold shadow-lg shadow-red-200"
+                >
+                  Cerrar Sesión
+                </Button>
+                <Button
+                  variant="ghost"
+                  type="button"
+                  size="lg"
+                  onClick={() => setShowLogoutModal(false)}
+                  className="w-full rounded-2xl h-12 font-medium text-gray-600 hover:bg-gray-50"
+                >
+                  Cancelar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

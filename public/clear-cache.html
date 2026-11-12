@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Limpiar Cache y Datos Locales</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        button { padding: 10px 20px; background: #ff9800; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; }
+        button:hover { background: #f57c00; }
+        .danger { background: #f44336; }
+        .danger:hover { background: #d32f2f; }
+        #result { margin-top: 20px; padding: 10px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .warning { background: #fff3cd; color: #856404; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #ffeaa7; }
+        .success { background: #d4edda; color: #155724; padding: 15px; border-radius: 5px; margin: 10px 0; border: 1px solid #c3e6cb; }
+        .step { margin: 15px 0; padding: 10px; background: #f8f9fa; border-left: 4px solid #007bff; }
+    </style>
+</head>
+<body>
+    <h1>🧹 Limpiar Cache y Datos Locales</h1>
+    
+    <div class="warning">
+        <h3>⚠️ ¿Por qué sigues viendo "Angel Ring"?</h3>
+        <p>Los datos pueden estar cacheados en:</p>
+        <ul>
+            <li>🍪 Cookies del navegador</li>
+            <li>💾 LocalStorage del navegador</li>
+            <li>📱 SessionStorage del navegador</li>
+            <li>🔄 Cache de la aplicación</li>
+            <li>👤 Contexto de React guardado</li>
+        </ul>
+    </div>
+    
+    <div class="step">
+        <h3>🔄 Pasos para limpieza completa:</h3>
+        <ol>
+            <li><strong>Limpiar datos locales</strong> - Botón abajo</li>
+            <li><strong>Cerrar sesión</strong> - Logout completo</li>
+            <li><strong>Limpiar cache del navegador</strong> - Ctrl+Shift+Del</li>
+            <li><strong>Cerrar y reabrir navegador</strong> - Fresh start</li>
+            <li><strong>Iniciar sesión limpia</strong> - Con azuna22@outlook.com</li>
+        </ol>
+    </div>
+    
+    <button onclick="clearAllData()">🧹 LIMPIAR TODOS LOS DATOS LOCALES</button>
+    <button class="danger" onclick="forceReload()">🔄 FORZAR RECARGA COMPLETA</button>
+    
+    <div id="result"></div>
+
+    <script>
+        function clearAllData() {
+            const resultDiv = document.getElementById('result');
+            const cleared = [];
+            
+            try {
+                // 1. Limpiar localStorage
+                const localStorageKeys = Object.keys(localStorage);
+                localStorageKeys.forEach(key => {
+                    const value = localStorage.getItem(key);
+                    if (key.includes('tenant') || key.includes('user') || key.includes('auth')) {
+                        localStorage.removeItem(key);
+                        cleared.push({ type: 'localStorage', key, value: value.substring(0, 50) + '...' });
+                    }
+                });
+                
+                // 2. Limpiar sessionStorage
+                const sessionStorageKeys = Object.keys(sessionStorage);
+                sessionStorageKeys.forEach(key => {
+                    const value = sessionStorage.getItem(key);
+                    if (key.includes('tenant') || key.includes('user') || key.includes('auth')) {
+                        sessionStorage.removeItem(key);
+                        cleared.push({ type: 'sessionStorage', key, value: value.substring(0, 50) + '...' });
+                    }
+                });
+                
+                // 3. Limpiar cookies relacionadas
+                document.cookie.split(';').forEach(cookie => {
+                    const cookieName = cookie.split('=')[0].trim();
+                    if (cookieName.includes('tenant') || cookieName.includes('user') || cookieName.includes('auth')) {
+                        document.cookie = `${cookieName}=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;`;
+                        cleared.push({ type: 'cookie', key: cookieName });
+                    }
+                });
+                
+                // 4. Limpiar cache de la aplicación si existe
+                if ('caches' in window) {
+                    caches.keys().then(cacheNames => {
+                        cacheNames.forEach(cacheName => {
+                            caches.delete(cacheName);
+                            cleared.push({ type: 'cache', key: cacheName });
+                        });
+                    });
+                }
+                
+                resultDiv.innerHTML = `
+                    <div class="success">
+                        <h2>✅ Limpieza completada</h2>
+                        <p>Se eliminaron ${cleared.length} elementos de datos locales</p>
+                        <h3>Elementos eliminados:</h3>
+                        <pre>${JSON.stringify(cleared, null, 2)}</pre>
+                        <p><strong>Ahora cierra sesión y vuelve a iniciar</strong></p>
+                    </div>
+                `;
+                
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="warning">
+                        <h2>⚠️ Error en la limpieza</h2>
+                        <pre>${error.message}</pre>
+                    </div>
+                `;
+            }
+        }
+        
+        function forceReload() {
+            if (confirm('¿Forzar recarga completa? Esto cerrará todas las sesiones y limpiará la cache.')) {
+                // Limpiar todo antes de recargar
+                clearAllData();
+                
+                // Forzar recarga completa sin cache
+                setTimeout(() => {
+                    window.location.href = '/auth/login?force=' + Date.now();
+                }, 1000);
+            }
+        }
+        
+        // Mostrar datos actuales al cargar
+        window.addEventListener('load', () => {
+            const currentData = {
+                localStorage: {},
+                sessionStorage: {},
+                cookies: []
+            };
+            
+            // localStorage
+            Object.keys(localStorage).forEach(key => {
+                currentData.localStorage[key] = localStorage.getItem(key);
+            });
+            
+            // sessionStorage
+            Object.keys(sessionStorage).forEach(key => {
+                currentData.sessionStorage[key] = sessionStorage.getItem(key);
+            });
+            
+            // cookies
+            document.cookie.split(';').forEach(cookie => {
+                const [name, value] = cookie.split('=');
+                currentData.cookies.push({ name: name.trim(), value: value?.substring(0, 50) });
+            });
+            
+            console.log('Datos actuales:', currentData);
+        });
+    </script>
+</body>
+</html>

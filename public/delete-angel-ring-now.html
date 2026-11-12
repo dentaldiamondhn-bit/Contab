@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Delete Angel Ring NOW</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .danger { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #dc3545; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffeaa7; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #c3e6cb; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+        button { padding: 15px 30px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; width: 100%; }
+        button:hover { background: #d32f2f; }
+        button.success { background: #4CAF50; }
+        button.success:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; }
+        .log-analysis { background: #e3f2fd; padding: 15px; border-radius: 5px; margin: 15px 0; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ DELETE ANGEL RING NOW</h1>
+        
+        <div class="log-analysis">
+            <h3>🔍 LOG ANALYSIS:</h3>
+            <p><strong>Problem identified:</strong></p>
+            <ul>
+                <li>📡 API says: <code>hasTenant: false, needsOnboarding: true</code></li>
+                <li>🔄 TenantContext loads: <code>Angel Ring</code> from database</li>
+                <li>⚠️ Onboarding fails: <code>Error creando tenant</code></li>
+                <li>🏠 Dashboard shows: <code>Angel Ring</code> (cached data)</li>
+            </ul>
+            <p><strong>Conclusion:</strong> Angel Ring still exists in database and is being loaded by TenantContext.</p>
+        </div>
+        
+        <div class="danger">
+            <h2>⚠️ CRITICAL ISSUE</h2>
+            <p><strong>Angel Ring MUST be deleted immediately</strong> because:</p>
+            <ul>
+                <li>🗄️ It exists in the database (despite API saying hasTenant: false)</li>
+                <li>🔄 TenantContext is loading it automatically</li>
+                <li>📝 Onboarding cannot create new tenant while Angel Ring exists</li>
+                <li>🎯 Dashboard shows cached Angel Ring data</li>
+            </ul>
+        </div>
+        
+        <div class="warning">
+            <h3>🔧 IMMEDIATE SOLUTION:</h3>
+            <p>This tool will <strong>FORCE DELETE</strong> Angel Ring from the database.</p>
+            <ul>
+                <li>🗑️ Delete tenant with ID: <code>cmofey73w000087izrdfvtlve</code></li>
+                <li>👥 Delete associated users</li>
+                <li>🏢 Delete associated companies</li>
+                <li>✅ Verify complete deletion</li>
+            </ul>
+        </div>
+        
+        <button onclick="deleteAngelRingNow()">🗑️ DELETE ANGEL RING IMMEDIATELY</button>
+        
+        <div id="result"></div>
+        
+        <div class="step">
+            <h3>🔄 AFTER DELETION - FRESH START:</h3>
+            <ol>
+                <li><strong>✅ Angel Ring deleted</strong> - Database clean</li>
+                <li><strong>🧹 Clear browser cache</strong> - Ctrl+F5</li>
+                <li><strong>🚪 Close session</strong> - Complete logout</li>
+                <li><strong>🔑 Login fresh</strong> - azuna22@outlook.com</li>
+                <li><strong>📝 Complete onboarding</strong> - "casa vieja"</li>
+                <li><strong>🏠 Verify dashboard</strong> - Should show "casa vieja"</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        async function deleteAngelRingNow() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!confirm('⚠️ CRITICAL: Are you sure you want to DELETE Angel Ring immediately?')) {
+                return;
+            }
+            
+            if (!confirm('🚨 FINAL WARNING: This will permanently delete Angel Ring and all associated data. Continue?')) {
+                return;
+            }
+            
+            resultDiv.innerHTML = '🗑️ DELETING Angel Ring from database...';
+            
+            try {
+                // Direct API call to delete Angel Ring
+                const response = await fetch('/api/debug/simple-clear-angel-ring', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok && result.success) {
+                    resultDiv.innerHTML = `
+                        <div class="success">
+                            <h2>✅ ${result.message}</h2>
+                            <p><strong>Found:</strong> ${result.found}</p>
+                            <p><strong>Deleted:</strong> ${result.deleted}</p>
+                            <p><strong>Remaining:</strong> ${result.remaining}</p>
+                        </div>
+                        
+                        ${result.deletedTenants && result.deletedTenants.length > 0 ? `
+                            <div class="warning">
+                                <h3>🗑️ Deleted Tenants:</h3>
+                                <pre>${JSON.stringify(result.deletedTenants, null, 2)}</pre>
+                            </div>
+                        ` : ''}
+                        
+                        <div class="step">
+                            <h3>🎉 SUCCESS! Angel Ring has been deleted.</h3>
+                            <h4>🔄 IMMEDIATE NEXT STEPS:</h4>
+                            <ol>
+                                <li><strong>Ctrl+F5</strong> - Clear browser cache NOW</li>
+                                <li><strong>Close browser tab</strong> - Complete refresh</li>
+                                <li><strong>Open new tab</strong> - Fresh session</li>
+                                <li><strong>Login</strong> - azuna22@outlook.com</li>
+                                <li><strong>Complete onboarding</strong> - "casa vieja"</li>
+                                <li><strong>Check dashboard</strong> - Should show "casa vieja"</li>
+                            </ol>
+                            <button onclick="window.location.href='/auth/login'" class="success">
+                                🔄 GO TO LOGIN FOR FRESH START
+                            </button>
+                        </div>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="danger">
+                            <h2>❌ DELETION FAILED</h2>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="danger">
+                        <h2>❌ CONNECTION ERROR</h2>
+                        <pre>${error.message}</pre>
+                        <p>Possible causes:</p>
+                        <ul>
+                            <li>Server not running</li>
+                            <li>API endpoint not working</li>
+                            <li>Network issues</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

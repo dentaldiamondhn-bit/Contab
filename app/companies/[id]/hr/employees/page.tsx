@@ -1,0 +1,2967 @@
+﻿'use client';
+
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState, useMemo } from 'react';
+import ArchivoPrivado from '@/components/hr/ArchivoPrivado';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import {
+  ArrowLeft,
+  UserPlus,
+  Trash2,
+  Edit,
+  CheckCircle,
+  XCircle,
+  Search,
+  Upload,
+  Download,
+  Filter,
+  X,
+  Save,
+  Plus,
+  FileText,
+  Eye,
+  FileSpreadsheet,
+  MoreHorizontal,
+  Clock,
+  CalendarOff
+} from 'lucide-react';
+import { exportToExcel } from '@/lib/services/excel';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+
+interface Employee {
+  id: string;
+  employeeId: string;
+  firstName: string;
+  lastName: string;
+  identityNumber: string;
+  photo: string;
+  cv: string;
+  position: string;
+  department: string;
+  salary: number;
+  startDate: string;
+  status: 'active' | 'inactive' | 'terminated' | 'suspended';
+  phone: string;
+  email: string;
+  address: string;
+  civilStatus: 'soltero' | 'casado' | 'divorciado' | 'viudo' | 'uniÃ³n libre';
+  gender: 'M' | 'F' | '';
+  freeDays: number[];
+  vacationDays: number;
+  usedVacationDays: number;
+  // Contrato y trabajo
+  contractType: 'indefinido' | 'determinado' | 'por obra' | 'prueba' | 'temporada';
+  supervisor: string;
+  reportsTo: string | null;
+  role: 'gerente' | 'supervisor' | 'empleado';
+  workScheduleId: string | null;
+  workScheduleName: string;
+  schedule: 'completa' | 'media' | 'personalizada';
+  scheduleHours: string;
+  scheduleEntry: string;
+  scheduleExit: string;
+  modality: 'presencial' | 'remoto' | 'hÃ­brido';
+  // AcadÃ©mico
+  educationLevel: 'basico' | 'medio' | 'universitario' | 'tecnico' | 'maestria' | 'doctorado';
+  university: string;
+  degree: string;
+  graduationYear: string;
+  // Habilidades
+  languages: string;
+  certifications: string;
+  driverLicense: boolean;
+  otherSkills: string;
+  // Seguridad Social
+  socialSecurityNumber: string;
+  pensionFund: string;
+  laborRiskInsurer: string;
+  // Permisos
+  workPermitStatus: string;
+  visaExpiry: string;
+  // Documentos
+  docIdentity: string;
+  docAddressProof: string;
+  docContract: string;
+  docNDA: string;
+  docEducationCerts: string;
+  docPreviousJobs: string;
+  docMedicalCert: string;
+  // Documentos de RRHH
+  hrDocuments: HRDocument[];
+  // Ficha mÃ©dica
+  medicalRecord: MedicalRecord;
+  // TerminaciÃ³n
+  terminationDate: string;
+  terminationReason: string;
+  terminationRequestedBy: string;
+  terminationPerformedBy: string;
+  rehireable: boolean;
+  // ReactivaciÃ³n
+  reactivationDate: string;
+  reactivationReason: string;
+  reactivationRequestedBy: string;
+  reactivationPerformedBy: string;
+  // SuspensiÃ³n
+  suspensionDate: string;
+  suspensionReason: string;
+  suspensionRequestedBy: string;
+  suspensionPerformedBy: string;
+  // Historial
+  history: HistoryEntry[];
+}
+
+interface HistoryEntry {
+  id: string;
+  action: string;
+  description: string;
+  changes: string[];
+  performedBy: string;
+  date: string;
+}
+
+interface MedicalRecord {
+  bloodType: string;
+  allergies: string;
+  chronicDiseases: string;
+  currentMedications: string;
+  emergencyContact: string;
+  emergencyPhone: string;
+  insuranceProvider: string;
+  insuranceNumber: string;
+  lastCheckup: string;
+  disabilities: string;
+  height: string;
+  weight: string;
+  notes: string;
+}
+
+interface HRDocument {
+  id: string;
+  name: string;
+  type: string;
+  date: string;
+  file: string;
+  observations: string;
+  uploadedBy: string;
+  uploadedAt: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  description: string;
+  manager: string;
+}
+
+interface Position {
+  id: string;
+  name: string;
+  department: string;
+  description: string;
+  minSalary: number;
+  maxSalary: number;
+}
+
+function ModalTabs({ emp, isEditing, updateField, showUploadMessage, departments, positions, employees }: { emp: any; isEditing: boolean; updateField: (field: string, value: any) => void; showUploadMessage: (msg: string) => void; departments: any[]; positions: any[]; employees: any[] }) {
+  const [activeTab, setActiveTab] = useState('personal');
+
+  // Lo que se guarda en la BD es el PATH, no la URL: los buckets son privados y
+  // la ruta devuelve una firma de 1 hora. `employees.photo` se lee dias despues.
+  const uploadToStorage = async (file: File, type: string, empId: string): Promise<{ path: string; signedUrl: string | null } | null> => {
+    try {
+      const cid = window.location.pathname.split('/companies/')[1]?.split('/')[0] || '';
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', cid);
+      formData.append('employeeId', empId);
+      formData.append('type', type);
+      const res = await fetch(`/api/companies/${cid}/hr/storage`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      return await res.json();
+    } catch (e) {
+      console.error('Upload error:', e);
+      return null;
+    }
+  };
+  const tabs = [
+    { id: 'personal', label: 'Personal' },
+    { id: 'trabajo', label: 'Trabajo' },
+    { id: 'academico', label: 'AcadÃ©mico' },
+    { id: 'habilidades', label: 'Habilidades' },
+    { id: 'medico', label: 'Ficha MÃ©dica' },
+    { id: 'documentos', label: 'Documentos' },
+    { id: 'rrhh', label: 'Doc. RRHH' },
+    { id: 'historial', label: 'Historial' }
+  ];
+
+  const addHRDocument = () => {
+    const newDoc: HRDocument = {
+      id: `hrdoc-${Date.now()}`,
+      name: '',
+      type: 'amonestacion',
+      date: new Date().toISOString().split('T')[0],
+      file: '',
+      observations: '',
+      uploadedBy: 'Usuario Actual',
+      uploadedAt: new Date().toISOString()
+    };
+    updateField('hrDocuments', [...(emp.hrDocuments || []), newDoc]);
+  };
+
+  const updateHRDoc = (index: number, field: string, value: any) => {
+    const updated = [...emp.hrDocuments];
+    updated[index] = { ...updated[index], [field]: value };
+    updateField('hrDocuments', updated);
+  };
+
+  const removeHRDoc = (index: number) => {
+    updateField('hrDocuments', emp.hrDocuments.filter((_: any, i: number) => i !== index));
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-HN', { style: 'currency', currency: 'HNL', minimumFractionDigits: 2 }).format(amount);
+  };
+
+  return (
+    <>
+      {/* Tab Navigation */}
+      <div className="border-b px-6 flex gap-1 overflow-x-auto flex-shrink-0">
+        {tabs.map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id)}
+            className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+              activeTab === tab.id
+                ? 'border-blue-500 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab Content */}
+      <div className="p-6 overflow-y-auto flex-1">
+        {/* Personal Tab */}
+        {activeTab === 'personal' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Identidad:</label><input type="text" value={emp.identityNumber || ''} onChange={(e) => updateField('identityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Estado Civil:</label><select value={emp.civilStatus || ''} onChange={(e) => updateField('civilStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="soltero">Soltero</option><option value="casado">Casado</option><option value="divorciado">Divorciado</option><option value="viudo">Viudo</option><option value="uniÃ³n libre">UniÃ³n Libre</option></select></div>
+                <div><label className="text-gray-500">GÃ©nero:</label><select value={emp.gender || ''} onChange={(e) => updateField('gender', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No especificado</option><option value="M">Masculino</option><option value="F">Femenino</option></select></div>
+                <div><label className="text-gray-500">TelÃ©fono:</label><input type="text" value={emp.phone || ''} onChange={(e) => updateField('phone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Email:</label><input type="email" value={emp.email || ''} onChange={(e) => updateField('email', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2"><label className="text-gray-500">DirecciÃ³n:</label><input type="text" value={emp.address || ''} onChange={(e) => updateField('address', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">No. Seguridad Social:</label><input type="text" value={emp.socialSecurityNumber || ''} onChange={(e) => updateField('socialSecurityNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Fondo de Pensiones:</label><input type="text" value={emp.pensionFund || ''} onChange={(e) => updateField('pensionFund', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Aseg. Riesgos:</label><input type="text" value={emp.laborRiskInsurer || ''} onChange={(e) => updateField('laborRiskInsurer', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Identidad:</span><p className="font-medium">{emp.identityNumber || '-'}</p></div>
+                <div><span className="text-gray-500">Estado Civil:</span><p className="font-medium capitalize">{emp.civilStatus || '-'}</p></div>
+                <div><span className="text-gray-500">GÃ©nero:</span><p className="font-medium">{emp.gender === 'M' ? 'Masculino' : emp.gender === 'F' ? 'Femenino' : '-'}</p></div>
+                <div><span className="text-gray-500">TelÃ©fono:</span><p className="font-medium">{emp.phone || '-'}</p></div>
+                <div><span className="text-gray-500">Email:</span><p className="font-medium">{emp.email || '-'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">DirecciÃ³n:</span><p className="font-medium">{emp.address || '-'}</p></div>
+                <div><span className="text-gray-500">No. Seguridad Social:</span><p className="font-medium">{emp.socialSecurityNumber || '-'}</p></div>
+                <div><span className="text-gray-500">Fondo de Pensiones:</span><p className="font-medium">{emp.pensionFund || '-'}</p></div>
+                <div><span className="text-gray-500">Aseg. Riesgos:</span><p className="font-medium">{emp.laborRiskInsurer || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Trabajo Tab */}
+        {activeTab === 'trabajo' && (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 text-sm">
+            <div><span className="text-gray-500">No. Empleado:</span><p className="font-mono font-bold text-blue-600">{emp.employeeId}</p></div>
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Departamento:</label><select value={emp.department || ''} onChange={(e) => { updateField('department', e.target.value); updateField('position', ''); }} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin departamento</option>{departments.map((dept) => (<option key={dept.id} value={dept.name}>{dept.name}</option>))}</select></div>
+                <div><label className="text-gray-500">Cargo:</label><select value={emp.position || ''} onChange={(e) => updateField('position', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin cargo</option>{positions.filter(p => { if (!emp.department) return true; const deptNorm = emp.department.trim().toLowerCase(); const posDept = (p.department || '').trim().toLowerCase(); return deptNorm === posDept; }).map((pos) => (<option key={pos.id} value={pos.name}>{pos.name}</option>))}</select></div>
+                <div><label className="text-gray-500">Contrato:</label><select value={emp.contractType || ''} onChange={(e) => updateField('contractType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="indefinido">Indefinido</option><option value="determinado">Determinado</option><option value="por obra">Por Obra</option><option value="prueba">Prueba</option><option value="temporada">Temporada</option></select></div>
+                <div><label className="text-gray-500">Jefe Directo:</label><select value={emp.reportsTo || ''} onChange={(e) => updateField('reportsTo', e.target.value || null)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Sin jefe directo</option>{employees.filter(e => e.status === 'active' && e.id !== emp.id && (!emp.department || e.department === emp.department)).sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`)).map(e => (<option key={e.id} value={e.id}>{e.firstName} {e.lastName} â€” {e.position || 'Sin puesto'}</option>))}</select></div>
+                <div><label className="text-gray-500">Rol Asistencia:</label><select value={emp.role || 'empleado'} onChange={(e) => updateField('role', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="empleado">Empleado</option><option value="supervisor">Supervisor</option><option value="gerente">Gerente</option></select></div>
+                <div><label className="text-gray-500">Salario:</label><input type="number" value={emp.salary || 0} onChange={(e) => updateField('salary', parseFloat(e.target.value) || 0)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Fecha Ingreso:</label><input type="date" value={emp.startDate || ''} onChange={(e) => updateField('startDate', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Jornada:</label><select value={emp.schedule || ''} onChange={(e) => updateField('schedule', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="completa">Completa</option><option value="media">Media</option><option value="personalizada">Personalizada</option></select></div>
+                <div><label className="text-gray-500">Hora Entrada:</label><input type="time" value={emp.scheduleEntry || ''} onChange={(e) => updateField('scheduleEntry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Hora Salida:</label><input type="time" value={emp.scheduleExit || ''} onChange={(e) => updateField('scheduleExit', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">Modalidad:</label><select value={emp.modality || ''} onChange={(e) => updateField('modality', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="presencial">Presencial</option><option value="remoto">Remoto</option><option value="hÃ­brido">HÃ­brido</option></select></div>
+                <div><label className="text-gray-500">Estatus Legal:</label><select value={emp.workPermitStatus || ''} onChange={(e) => updateField('workPermitStatus', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">No aplica</option><option value="nacional">Nacional</option><option value="residencia_permanente">Residencia Permanente</option><option value="residencia_temporal">Residencia Temporal</option><option value="permiso_trabajo">Permiso de Trabajo</option></select></div>
+                <div><label className="text-gray-500">Vigencia Visa:</label><input type="date" value={emp.visaExpiry || ''} onChange={(e) => updateField('visaExpiry', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2 md:col-span-3">
+                  <label className="text-gray-500">DÃ­as Libres:</label>
+                  <div className="flex gap-1 mt-1">
+                    {[
+                      { value: 0, label: 'Dom' },
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'MiÃ©' },
+                      { value: 4, label: 'Jue' },
+                      { value: 5, label: 'Vie' },
+                      { value: 6, label: 'SÃ¡b' },
+                    ].map(day => {
+                      const freeDays = emp.freeDays || [];
+                      const isSelected = freeDays.includes(day.value);
+                      return (
+                        <button
+                          key={day.value}
+                          type="button"
+                          onClick={() => {
+                            const newFreeDays = isSelected
+                              ? freeDays.filter((d: number) => d !== day.value)
+                              : [...freeDays, day.value];
+                            updateField('freeDays', newFreeDays);
+                          }}
+                          className={`w-12 h-8 rounded text-xs font-bold border transition-colors ${
+                            isSelected
+                              ? 'bg-teal-100 text-teal-700 border-teal-300'
+                              : 'bg-white border-gray-200 hover:border-gray-400 text-gray-600'
+                          }`}
+                        >
+                          {day.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Departamento:</span><p className="font-medium">{emp.department || '-'}</p></div>
+                <div><span className="text-gray-500">Cargo:</span><p className="font-medium">{emp.position || '-'}</p></div>
+                <div><span className="text-gray-500">Tipo de Contrato:</span><p className="font-medium capitalize">{emp.contractType || '-'}</p></div>
+                <div><span className="text-gray-500">Jefe Directo:</span><p className="font-medium">{emp.reportsTo ? (employees.find(e => e.id === emp.reportsTo) ? `${employees.find(e => e.id === emp.reportsTo)!.firstName} ${employees.find(e => e.id === emp.reportsTo)!.lastName}` : emp.supervisor || '-') : (emp.supervisor || '-')}</p></div>
+                <div><span className="text-gray-500">Rol Asistencia:</span><p className="font-medium capitalize">{emp.role === 'gerente' ? 'Gerente' : emp.role === 'supervisor' ? 'Supervisor' : 'Empleado'}</p></div>
+                <div><span className="text-gray-500">Salario:</span><p className="font-medium">{formatCurrency(emp.salary)}</p></div>
+                <div><span className="text-gray-500">Fecha de Ingreso:</span><p className="font-medium">{emp.startDate || '-'}</p></div>
+                {emp.workScheduleName ? (
+                  <>
+                    <div><span className="text-gray-500">Horario:</span><p className="font-medium text-cyan-600">{emp.workScheduleName}</p></div>
+                    <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Jornada:</span><p className="font-medium capitalize">{emp.schedule || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Entrada:</span><p className="font-medium">{emp.scheduleEntry || '-'}</p></div>
+                    <div><span className="text-gray-500">Hora Salida:</span><p className="font-medium">{emp.scheduleExit || '-'}</p></div>
+                  </>
+                )}
+                <div><span className="text-gray-500">Modalidad:</span><p className="font-medium capitalize">{emp.modality || '-'}</p></div>
+                <div><span className="text-gray-500">Estatus Legal:</span><p className="font-medium">{emp.workPermitStatus || 'No aplica'}</p></div>
+                <div><span className="text-gray-500">Vigencia Visa:</span><p className="font-medium">{emp.visaExpiry || '-'}</p></div>
+                <div className="col-span-2 md:col-span-3">
+                  <span className="text-gray-500">DÃ­as Libres:</span>
+                  <div className="flex gap-1 mt-1">
+                    {[
+                      { value: 0, label: 'Dom' },
+                      { value: 1, label: 'Lun' },
+                      { value: 2, label: 'Mar' },
+                      { value: 3, label: 'MiÃ©' },
+                      { value: 4, label: 'Jue' },
+                      { value: 5, label: 'Vie' },
+                      { value: 6, label: 'SÃ¡b' },
+                    ].map(day => {
+                      const freeDays = emp.freeDays || [];
+                      const isSelected = freeDays.includes(day.value);
+                      return (
+                        <span
+                          key={day.value}
+                          className={`w-12 h-8 rounded text-xs font-bold border flex items-center justify-center ${
+                            isSelected
+                              ? 'bg-teal-100 text-teal-700 border-teal-300'
+                              : 'bg-gray-50 border-gray-200 text-gray-400'
+                          }`}
+                        >
+                          {day.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+            <div><span className="text-gray-500">AntigÃ¼edad:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} aÃ±os</p></div>
+            <div><span className="text-gray-500">Vacaciones:</span><p className="font-medium">{Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) < 1 ? 0 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 1 ? 10 : Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) === 2 ? 12 : Math.min(20, 14 + Math.max(0, Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000)) - 3))} dÃ­as</p></div>
+          </div>
+        )}
+
+        {/* AcadÃ©mico Tab */}
+        {activeTab === 'academico' && (
+          <div className="grid grid-cols-2 md:grid-cols-2 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div><label className="text-gray-500">Nivel:</label><select value={emp.educationLevel || ''} onChange={(e) => updateField('educationLevel', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="basico">BÃ¡sico</option><option value="medio">Medio</option><option value="tecnico">TÃ©cnico</option><option value="universitario">Universitario</option><option value="maestria">MaestrÃ­a</option><option value="doctorado">Doctorado</option></select></div>
+                <div><label className="text-gray-500">InstituciÃ³n:</label><input type="text" value={emp.university || ''} onChange={(e) => updateField('university', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">TÃ­tulo:</label><input type="text" value={emp.degree || ''} onChange={(e) => updateField('degree', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div><label className="text-gray-500">AÃ±o GraduaciÃ³n:</label><input type="text" value={emp.graduationYear || ''} onChange={(e) => updateField('graduationYear', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div><span className="text-gray-500">Nivel:</span><p className="font-medium capitalize">{emp.educationLevel || '-'}</p></div>
+                <div><span className="text-gray-500">InstituciÃ³n:</span><p className="font-medium">{emp.university || '-'}</p></div>
+                <div><span className="text-gray-500">TÃ­tulo:</span><p className="font-medium">{emp.degree || '-'}</p></div>
+                <div><span className="text-gray-500">AÃ±o GraduaciÃ³n:</span><p className="font-medium">{emp.graduationYear || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Habilidades Tab */}
+        {activeTab === 'habilidades' && (
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            {isEditing ? (
+              <>
+                <div className="col-span-2"><label className="text-gray-500">Idiomas:</label><input type="text" value={emp.languages || ''} onChange={(e) => updateField('languages', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="col-span-2"><label className="text-gray-500">Certificaciones:</label><input type="text" value={emp.certifications || ''} onChange={(e) => updateField('certifications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                <div className="flex items-center gap-2"><label className="text-gray-500">Licencia Conducir:</label><input type="checkbox" checked={emp.driverLicense || false} onChange={(e) => updateField('driverLicense', e.target.checked)} className="h-4 w-4" /></div>
+                <div className="col-span-2"><label className="text-gray-500">Otras Habilidades:</label><input type="text" value={emp.otherSkills || ''} onChange={(e) => updateField('otherSkills', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+              </>
+            ) : (
+              <>
+                <div className="col-span-2"><span className="text-gray-500">Idiomas:</span><p className="font-medium">{emp.languages || '-'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">Certificaciones:</span><p className="font-medium">{emp.certifications || '-'}</p></div>
+                <div><span className="text-gray-500">Licencia Conducir:</span><p className="font-medium">{emp.driverLicense ? 'SÃ­' : 'No'}</p></div>
+                <div className="col-span-2"><span className="text-gray-500">Otras Habilidades:</span><p className="font-medium">{emp.otherSkills || '-'}</p></div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Ficha MÃ©dica Tab */}
+        {activeTab === 'medico' && (() => {
+          const med = emp.medicalRecord || {};
+          const updateMed = (field: string, value: any) => {
+            updateField('medicalRecord', { ...med, [field]: value });
+          };
+          return (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+              {isEditing ? (
+                <>
+                  <div><label className="text-gray-500">Tipo de Sangre:</label><select value={med.bloodType || ''} onChange={(e) => updateMed('bloodType', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded"><option value="">Seleccionar</option><option value="A+">A+</option><option value="A-">A-</option><option value="B+">B+</option><option value="B-">B-</option><option value="AB+">AB+</option><option value="AB-">AB-</option><option value="O+">O+</option><option value="O-">O-</option></select></div>
+                  <div><label className="text-gray-500">Altura (cm):</label><input type="text" value={med.height || ''} onChange={(e) => updateMed('height', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 175" /></div>
+                  <div><label className="text-gray-500">Peso (kg):</label><input type="text" value={med.weight || ''} onChange={(e) => updateMed('weight', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: 70" /></div>
+                  <div><label className="text-gray-500">Ãšltimo Examen MÃ©dico:</label><input type="date" value={med.lastCheckup || ''} onChange={(e) => updateMed('lastCheckup', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" /></div>
+                </>
+              ) : (
+                <>
+                  <div><span className="text-gray-500">Tipo de Sangre:</span><p className="font-medium">{med.bloodType || '-'}</p></div>
+                  <div><span className="text-gray-500">Altura:</span><p className="font-medium">{med.height ? `${med.height} cm` : '-'}</p></div>
+                  <div><span className="text-gray-500">Peso:</span><p className="font-medium">{med.weight ? `${med.weight} kg` : '-'}</p></div>
+                  <div><span className="text-gray-500">Ãšltimo Examen MÃ©dico:</span><p className="font-medium">{med.lastCheckup || '-'}</p></div>
+                </>
+              )}
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Condiciones de Salud</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Alergias:</label><textarea value={med.allergies || ''} onChange={(e) => updateMed('allergies', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° las alergias conocidas..." /></div>
+                    <div><label className="text-gray-500">Enfermedades CrÃ³nicas:</label><textarea value={med.chronicDiseases || ''} onChange={(e) => updateMed('chronicDiseases', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° las enfermedades crÃ³nicas..." /></div>
+                    <div><label className="text-gray-500">Medicamentos Actuales:</label><textarea value={med.currentMedications || ''} onChange={(e) => updateMed('currentMedications', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° los medicamentos que toma..." /></div>
+                    <div><label className="text-gray-500">Discapacidades:</label><textarea value={med.disabilities || ''} onChange={(e) => updateMed('disabilities', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" rows={2} placeholder="æè¿° discapacidades si aplica..." /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Alergias:</span><p className="font-medium">{med.allergies || 'Ninguna conocida'}</p></div>
+                    <div><span className="text-gray-500">Enfermedades CrÃ³nicas:</span><p className="font-medium">{med.chronicDiseases || 'Ninguna'}</p></div>
+                    <div><span className="text-gray-500">Medicamentos Actuales:</span><p className="font-medium">{med.currentMedications || 'Ninguno'}</p></div>
+                    <div><span className="text-gray-500">Discapacidades:</span><p className="font-medium">{med.disabilities || 'Ninguna'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Contacto de Emergencia</h4>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Nombre:</label><input type="text" value={med.emergencyContact || ''} onChange={(e) => updateMed('emergencyContact', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Nombre del contacto" /></div>
+                    <div><label className="text-gray-500">TelÃ©fono:</label><input type="text" value={med.emergencyPhone || ''} onChange={(e) => updateMed('emergencyPhone', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="9999-8888" /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Nombre:</span><p className="font-medium">{med.emergencyContact || '-'}</p></div>
+                    <div><span className="text-gray-500">TelÃ©fono:</span><p className="font-medium">{med.emergencyPhone || '-'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <h4 className="font-medium text-gray-700 mb-3">Seguro MÃ©dico</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                {isEditing ? (
+                  <>
+                    <div><label className="text-gray-500">Proveedor de Seguro:</label><input type="text" value={med.insuranceProvider || ''} onChange={(e) => updateMed('insuranceProvider', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="Ej: IHSS, Sanitas" /></div>
+                    <div><label className="text-gray-500">No. PÃ³liza:</label><input type="text" value={med.insuranceNumber || ''} onChange={(e) => updateMed('insuranceNumber', e.target.value)} className="w-full mt-1 px-2 py-1 border rounded" placeholder="NÃºmero de pÃ³liza" /></div>
+                  </>
+                ) : (
+                  <>
+                    <div><span className="text-gray-500">Proveedor de Seguro:</span><p className="font-medium">{med.insuranceProvider || '-'}</p></div>
+                    <div><span className="text-gray-500">No. PÃ³liza:</span><p className="font-medium">{med.insuranceNumber || '-'}</p></div>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {isEditing && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-700 mb-3">Notas MÃ©dicas</h4>
+                <textarea value={med.notes || ''} onChange={(e) => updateMed('notes', e.target.value)} className="w-full px-2 py-1 border rounded text-sm" rows={3} placeholder="Notas adicionales del expediente mÃ©dico..." />
+              </div>
+            )}
+            {!isEditing && med.notes && (
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-gray-700 mb-3">Notas MÃ©dicas</h4>
+                <p className="text-sm">{med.notes}</p>
+              </div>
+            )}
+          </div>
+          );
+        })()}
+
+        {/* Documentos Tab */}
+        {activeTab === 'documentos' && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { label: 'CV', field: 'cv', value: emp.cv },
+              { label: 'Identidad', field: 'docIdentity', value: emp.docIdentity },
+              { label: 'Comprobante Domicilio', field: 'docAddressProof', value: emp.docAddressProof },
+              { label: 'Contrato', field: 'docContract', value: emp.docContract },
+              { label: 'NDA', field: 'docNDA', value: emp.docNDA },
+              { label: 'Cert. Estudios', field: 'docEducationCerts', value: emp.docEducationCerts },
+              { label: 'Cert. Empleos', field: 'docPreviousJobs', value: emp.docPreviousJobs },
+              { label: 'Cert. MÃ©dico', field: 'docMedicalCert', value: emp.docMedicalCert }
+            ].map((doc, i) => (
+              <div key={i} className={`p-3 rounded-lg text-sm ${doc.value ? 'bg-green-50 border border-green-200' : 'bg-gray-50 border border-gray-200'}`}>
+                <span className={`text-xs ${doc.value ? 'text-green-600' : 'text-gray-400'}`}>{doc.label}</span>
+                <p className={`font-medium ${doc.value ? 'text-green-800' : 'text-gray-400'}`}>
+                  {doc.value ? 'Cargado' : 'Sin archivo'}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  {doc.value && (
+                    <ArchivoPrivado
+                      valor={doc.value}
+                      bucket="employee-documents"
+                      className="text-blue-500 hover:text-blue-700 flex items-center gap-1 text-xs"
+                    >
+                      <Eye className="h-3 w-3" />
+                      Ver
+                    </ArchivoPrivado>
+                  )}
+                  {isEditing && doc.value && (
+                    <button onClick={() => updateField(doc.field, '')} className="text-xs text-red-500">Eliminar</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* RRHH Documents Tab */}
+        {activeTab === 'rrhh' && (
+          <div>
+            <div className="flex justify-between items-center mb-4">
+              <p className="text-sm text-gray-500">{(emp.hrDocuments || []).length} documento{(emp.hrDocuments || []).length !== 1 ? 's' : ''}</p>
+              <Button size="sm" onClick={addHRDocument}>
+                <Plus className="h-4 w-4 mr-1" />
+                Agregar Documento
+              </Button>
+            </div>
+            
+            {(emp.hrDocuments || []).length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay documentos de RRHH</p>
+                <p className="text-sm">Haz clic en "Agregar Documento" para comenzar</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {(emp.hrDocuments || []).map((doc: HRDocument, index: number) => (
+                  <div key={doc.id} className="border rounded-lg p-4">
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+                      <div>
+                        <label className="text-xs text-gray-500">Tipo</label>
+                        <select
+                          value={doc.type}
+                          onChange={(e) => updateHRDoc(index, 'type', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        >
+                          <option value="amonestacion">AmonestaciÃ³n</option>
+                          <option value="autorizacion_vacaciones">AutorizaciÃ³n Vacaciones</option>
+                          <option value="contrato">Contrato</option>
+                          <option value="acuerdo_confidencialidad">Acuerdo Confidencialidad</option>
+                          <option value="permiso">Permiso</option>
+                          <option value="constancia">Constancia</option>
+                          <option value="referencia_laboral">Referencia Laboral</option>
+                          <option value="otro">Otro</option>
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Nombre</label>
+                        <input
+                          type="text"
+                          value={doc.name}
+                          onChange={(e) => updateHRDoc(index, 'name', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                          placeholder="Nombre del documento"
+                        />
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-500">Fecha</label>
+                        <input
+                          type="date"
+                          value={doc.date}
+                          onChange={(e) => updateHRDoc(index, 'date', e.target.value)}
+                          className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        />
+                      </div>
+                      <div className="flex items-end gap-2">
+                        {doc.file ? (
+                          <div className="flex items-center gap-1 text-sm">
+                            <CheckCircle className="h-4 w-4 text-green-600" />
+                            <span className="text-green-600">Archivo</span>
+                            <ArchivoPrivado
+                              valor={doc.file}
+                              bucket="employee-documents"
+                              className="text-blue-500 hover:text-blue-700 text-xs ml-1"
+                            >
+                              Ver
+                            </ArchivoPrivado>
+                            <button onClick={() => updateHRDoc(index, 'file', '')} className="text-red-500 text-xs ml-1">Quitar</button>
+                          </div>
+                        ) : (
+                          <label className="cursor-pointer">
+                            <div className="px-3 py-1 border border-dashed border-gray-300 rounded text-xs text-gray-600 hover:border-blue-400">
+                              <Upload className="h-3 w-3 inline mr-1" />
+                              Subir
+                            </div>
+                            <input
+                              type="file"
+                              accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const fileName = file.name.replace(/\.[^/.]+$/, '');
+                                  const empId = emp.employeeId || emp.id || 'unknown';
+                                  const result = await uploadToStorage(file, 'hr-document', empId);
+                                  if (result) {
+                                    const updated = [...emp.hrDocuments];
+                                    updated[index] = { ...updated[index], name: fileName, file: result.path };
+                                    updateField('hrDocuments', updated);
+                                    showUploadMessage(`"${file.name}" subido correctamente`);
+                                  }
+                                }
+                              }}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                        <Button size="sm" variant="ghost" className="text-red-500" onClick={() => removeHRDoc(index)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="mt-2">
+                      <label className="text-xs text-gray-500">Observaciones</label>
+                      <input
+                        type="text"
+                        value={doc.observations}
+                        onChange={(e) => updateHRDoc(index, 'observations', e.target.value)}
+                        className="w-full mt-1 px-2 py-1 border rounded text-sm"
+                        placeholder="Notas adicionales..."
+                      />
+                    </div>
+                    <div className="mt-2 flex items-center gap-4 text-xs text-gray-400">
+                      <span>Subido por: <span className="text-gray-600">{doc.uploadedBy || 'Desconocido'}</span></span>
+                      <span>{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleString('es-HN') : ''}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        {activeTab === 'historial' && (
+          <div>
+            {(!emp.history || emp.history.length === 0) ? (
+              <div className="text-center py-8 text-gray-500">
+                <FileText className="h-12 w-12 mx-auto mb-3 text-gray-300" />
+                <p>No hay registros de cambios</p>
+                <p className="text-sm">Las acciones realizadas sobre este empleado se registrarÃ¡n aquÃ­</p>
+              </div>
+            ) : (
+              <div className="space-y-0">
+                {emp.history.map((entry: HistoryEntry, index: number) => {
+                  const actionColors: Record<string, { bg: string; text: string; icon: string }> = {
+                    creation: { bg: 'bg-green-50', text: 'text-green-700', icon: 'bg-green-500' },
+                    update: { bg: 'bg-blue-50', text: 'text-blue-700', icon: 'bg-blue-500' },
+                    deactivation: { bg: 'bg-red-50', text: 'text-red-700', icon: 'bg-red-500' },
+                    reactivation: { bg: 'bg-green-50', text: 'text-green-700', icon: 'bg-green-500' },
+                    suspension: { bg: 'bg-amber-50', text: 'text-amber-700', icon: 'bg-amber-500' }
+                  };
+                  const actionLabels: Record<string, string> = {
+                    creation: 'CreaciÃ³n',
+                    update: 'ActualizaciÃ³n',
+                    deactivation: 'DesactivaciÃ³n',
+                    reactivation: 'ReactivaciÃ³n',
+                    suspension: 'SuspensiÃ³n'
+                  };
+                  const colors = actionColors[entry.action] || actionColors.update;
+                  return (
+                    <div key={entry.id} className="flex gap-4 pb-4 relative">
+                      {index < emp.history.length - 1 && (
+                        <div className="absolute left-[11px] top-6 bottom-0 w-0.5 bg-gray-200" />
+                      )}
+                      <div className={`w-6 h-6 rounded-full ${colors.icon} flex-shrink-0 flex items-center justify-center z-10`}>
+                        <div className="w-2 h-2 bg-white rounded-full" />
+                      </div>
+                      <div className={`flex-1 rounded-lg p-3 ${colors.bg}`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className={`text-xs font-bold uppercase ${colors.text}`}>
+                              {actionLabels[entry.action] || entry.action}
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {entry.date ? new Date(entry.date).toLocaleString('es-HN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-700 mt-1">{entry.description}</p>
+                        {entry.changes && entry.changes.length > 0 && (
+                          <div className="mt-2 space-y-1">
+                            {entry.changes.map((change: string, ci: number) => (
+                              <div key={ci} className="text-xs text-gray-600 bg-white/60 rounded px-2 py-1">
+                                {change}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                        {entry.performedBy && (
+                          <p className="text-xs text-gray-400 mt-1">Por: {entry.performedBy}</p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default function EmployeesPage() {
+  const params = useParams();
+  const router = useRouter();
+  const companyId = params.id as string;
+  
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [positions, setPositions] = useState<Position[]>([]);
+  const [showAddEmployee, setShowAddEmployee] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterPosition, setFilterPosition] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterContract, setFilterContract] = useState('');
+  const [sortBy, setSortBy] = useState('');
+  const [searchResults, setSearchResults] = useState<Employee[] | null>(null);
+  const [searchTotal, setSearchTotal] = useState(0);
+  const [searchDepartments, setSearchDepartments] = useState<string[]>([]);
+  const [searchPositions, setSearchPositions] = useState<string[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(10);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [uploadMessage, setUploadMessage] = useState('');
+  const [uploadPreview, setUploadPreview] = useState<any[]>([]);
+  const [uploadTotalRows, setUploadTotalRows] = useState(0);
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivatingEmployee, setDeactivatingEmployee] = useState<Employee | null>(null);
+  const [deactivateForm, setDeactivateForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: '',
+    rehireable: true
+  });
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
+  const [reactivatingEmployee, setReactivatingEmployee] = useState<Employee | null>(null);
+  const [reactivateForm, setReactivateForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: ''
+  });
+  const [showSuspendModal, setShowSuspendModal] = useState(false);
+  const [suspendingEmployee, setSuspendingEmployee] = useState<Employee | null>(null);
+  const [suspendForm, setSuspendForm] = useState({
+    reason: '',
+    requestedBy: '',
+    performedBy: ''
+  });
+  const [newEmployee, setNewEmployee] = useState({
+    firstName: '',
+    lastName: '',
+    identityNumber: '',
+    photo: '',
+    cv: '',
+    position: '',
+    department: '',
+    salary: 0,
+    startDate: '',
+    phone: '',
+    email: '',
+    address: '',
+    civilStatus: 'soltero' as const,
+    vacationDays: 15,
+    contractType: 'indefinido' as const,
+    supervisor: '',
+    reportsTo: null,
+    role: 'empleado' as const,
+    schedule: 'completa' as const,
+    scheduleHours: '08:00 - 17:00',
+    scheduleEntry: '08:00',
+    scheduleExit: '17:00',
+    modality: 'presencial' as const,
+    educationLevel: 'universitario' as const,
+    university: '',
+    degree: '',
+    graduationYear: '',
+    languages: '',
+    certifications: '',
+    driverLicense: false,
+    otherSkills: '',
+    socialSecurityNumber: '',
+    pensionFund: '',
+    laborRiskInsurer: '',
+    workPermitStatus: '',
+    visaExpiry: '',
+    docIdentity: '',
+    docAddressProof: '',
+    docContract: '',
+    docNDA: '',
+    docEducationCerts: '',
+    docPreviousJobs: '',
+    docMedicalCert: '',
+    hrDocuments: [],
+    medicalRecord: {
+      bloodType: '',
+      allergies: '',
+      chronicDiseases: '',
+      currentMedications: '',
+      emergencyContact: '',
+      emergencyPhone: '',
+      insuranceProvider: '',
+      insuranceNumber: '',
+      lastCheckup: '',
+      disabilities: '',
+      height: '',
+      weight: '',
+      notes: ''
+    }
+  });
+
+  useEffect(() => {
+    loadData();
+  }, [companyId]);
+
+  // Server-side search when filters change
+  useEffect(() => {
+    const hasFilters = searchTerm || filterDepartment || filterPosition || filterStatus || filterContract;
+    if (!hasFilters) {
+      setSearchResults(null);
+      return;
+    }
+    const timer = setTimeout(() => searchEmployees(), 300);
+    return () => clearTimeout(timer);
+  }, [searchTerm, filterDepartment, filterPosition, filterStatus, filterContract, companyId]);
+
+  const searchEmployees = async () => {
+    setSearchLoading(true);
+    try {
+      const p = new URLSearchParams();
+      if (searchTerm) p.set('q', searchTerm);
+      if (filterDepartment) p.set('department', filterDepartment);
+      if (filterPosition) p.set('position', filterPosition);
+      if (filterStatus) p.set('status', filterStatus);
+      if (filterContract) p.set('contractType', filterContract);
+      p.set('sortBy', sortBy === 'az' ? 'last_name' : sortBy === 'za' ? 'last_name' : sortBy === 'asc' || sortBy === 'desc' ? 'base_salary' : sortBy === 'newest' || sortBy === 'oldest' ? 'hire_date' : 'last_name');
+      p.set('sortDir', (sortBy === 'za' || sortBy === 'desc' || sortBy === 'oldest') ? 'desc' : 'asc');
+      p.set('limit', '200');
+
+      const res = await fetch(`/api/companies/${companyId}/hr/employees/search?${p.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        const mapped = data.employees.map((e: any) => ({
+          id: e.id, employeeId: e.employee_id, firstName: e.first_name, lastName: e.last_name,
+          identityNumber: e.id_number, position: e.position, department: e.department,
+          salary: parseFloat(e.base_salary) || 0, startDate: e.hire_date, status: e.status,
+          phone: e.phone, email: e.email, address: e.address, photo: e.photo || '',
+          cv: e.cv || '', civilStatus: e.civil_status, contractType: e.contract_type,
+          supervisor: e.supervisor, reportsTo: e.reportsTo || null, role: e.role || 'empleado', schedule: e.schedule, modality: e.modality,
+          educationLevel: e.education_level, university: e.university, degree: e.degree,
+          graduationYear: e.graduation_year, languages: e.languages, certifications: e.certifications,
+          driverLicense: e.driver_license, otherSkills: e.other_skills,
+          socialSecurityNumber: e.social_security_number, pensionFund: e.pension_fund,
+          laborRiskInsurer: e.labor_risk_insurer, workPermitStatus: e.work_permit_status,
+          visaExpiry: e.visa_expiry, scheduleEntry: e.schedule_entry, scheduleExit: e.schedule_exit,
+          scheduleHours: e.schedule_hours, freeDays: e.free_days || [],
+          gender: e.gender, vacationDays: e.vacation_days || 0,
+          workScheduleId: e.work_schedule_id || null, workScheduleName: e.work_schedule_name || '',
+          docIdentity: e.doc_identity || '', docAddressProof: e.doc_address_proof || '',
+          docContract: e.doc_contract || '', docNDA: e.doc_nda || '',
+          docEducationCerts: e.doc_education_certs || '', docPreviousJobs: e.doc_previous_jobs || '',
+          docMedicalCert: e.doc_medical_cert || '',
+          hrDocuments: e.hr_documents || [], medicalRecord: e.medical_record || {},
+          usedVacationDays: e.used_vacation_days || 0,
+          terminationDate: e.termination_date, terminationReason: e.termination_reason,
+          terminationRequestedBy: e.termination_requested_by, terminationPerformedBy: e.termination_performed_by,
+          rehireable: e.rehireable, history: e.history || [],
+        }));
+        setSearchResults(mapped);
+        setSearchTotal(data.total);
+        if (data.filters) {
+          setSearchDepartments(data.filters.departments || []);
+          setSearchPositions(data.filters.positions || []);
+        }
+      }
+    } catch (e) {
+      console.error('Search error:', e);
+    }
+    setSearchLoading(false);
+  };
+
+  const loadData = async () => {
+    try {
+      const [deptRes, posRes, empRes] = await Promise.all([
+        fetch(`/api/companies/${companyId}/hr/departments`),
+        fetch(`/api/companies/${companyId}/hr/positions`),
+        fetch(`/api/companies/${companyId}/employees`),
+      ]);
+      if (deptRes.ok) {
+        const depts = await deptRes.json();
+        setDepartments(depts.map((d: any) => ({ id: d.id, name: d.name, description: d.description, manager: d.manager, createdAt: d.created_at, parentId: d.parent_id })));
+      }
+      if (posRes.ok) {
+        const pos = await posRes.json();
+        setPositions(pos.map((p: any) => ({ id: p.id, name: p.name, department: p.department, description: p.description, minSalary: p.min_salary, maxSalary: p.max_salary, parentId: p.parent_id })));
+      }
+      if (empRes.ok) {
+        const data = await empRes.json();
+        setEmployees(data);
+      }
+    } catch (err) {
+      console.error('Error loading data:', err);
+    } finally {
+      setPageLoading(false);
+    }
+  };
+
+  const saveEmployees = async (data: Employee[]) => {
+    setEmployees(data);
+  };
+
+  const saveEmployeeToAPI = async (emp: Employee) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emp)
+      });
+      if (res.ok) {
+        const created = await res.json();
+        if (created?.id) {
+          setEmployees(prev => [{ ...emp, id: created.id }, ...prev]);
+        }
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error('Error saving employee:', error);
+      return false;
+    }
+  };
+
+  const updateEmployeeToAPI = async (emp: Employee) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(emp)
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setEmployees(prev => prev.map(e => e.id === emp.id ? { ...e, ...emp } : e));
+        showUploadMessage('Empleado actualizado correctamente');
+      } else {
+        console.error('Update error:', data);
+        showUploadMessage(`Error: ${data.error || 'No se pudo guardar'}`);
+      }
+    } catch (error) {
+      console.error('Error updating employee:', error);
+      showUploadMessage('Error de conexiÃ³n al guardar');
+    }
+  };
+
+  const deleteEmployeeFromAPI = async (employeeId: string) => {
+    try {
+      const res = await fetch(`/api/companies/${companyId}/employees?employeeId=${employeeId}`, {
+        method: 'DELETE'
+      });
+      if (res.ok) {
+        setEmployees(prev => prev.filter(e => e.id !== employeeId));
+      }
+    } catch (error) {
+      console.error('Error deleting employee:', error);
+    }
+  };
+
+  const uploadFileToStorage = async (file: File, type: string, empId: string): Promise<{ path: string; signedUrl: string | null } | null> => {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('tenantId', companyId);
+      formData.append('employeeId', empId);
+      formData.append('type', type);
+      const res = await fetch(`/api/companies/${companyId}/hr/storage`, { method: 'POST', body: formData });
+      if (!res.ok) throw new Error('Upload failed');
+      return await res.json();
+    } catch (e) {
+      console.error('Upload error:', e);
+      return null;
+    }
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5000000) { alert('La foto no debe superar 5MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee({ ...newEmployee, photo: URL.createObjectURL(file) });
+      const result = await uploadFileToStorage(file, 'photo', tempId);
+      if (result) setNewEmployee(prev => ({ ...prev, photo: result.path }));
+    }
+  };
+
+  const handleCVUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2000000) { alert('El CV no debe superar 2MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee({ ...newEmployee, cv: URL.createObjectURL(file) });
+      const result = await uploadFileToStorage(file, 'document', tempId);
+      if (result) setNewEmployee(prev => ({ ...prev, cv: result.path }));
+    }
+  };
+
+  const showUploadMessage = (message: string) => {
+    setUploadMessage(message);
+    setTimeout(() => setUploadMessage(''), 3000);
+  };
+
+  const handleDocUpload = async (e: React.ChangeEvent<HTMLInputElement>, field: string) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 5000000) { alert('El archivo no debe superar 5MB'); return; }
+      const tempId = `temp-${Date.now()}`;
+      setNewEmployee(prev => ({ ...prev, [field]: URL.createObjectURL(file) }));
+      showUploadMessage(`"${file.name}" subiendo...`);
+      const result = await uploadFileToStorage(file, 'document', tempId);
+      if (result) {
+        setNewEmployee(prev => ({ ...prev, [field]: result.path }));
+        showUploadMessage(`"${file.name}" subido correctamente`);
+      }
+    }
+  };
+
+  const generateEmployeeId = () => {
+    const empCount = employees.length + 1;
+    const prefix = companyId.substring(0, 4).toUpperCase();
+    const number = String(empCount).padStart(4, '0');
+    return `${prefix}-${number}`;
+  };
+
+  const addEmployee = async () => {
+    const emp: Employee = {
+      id: `emp-${Date.now()}`,
+      employeeId: generateEmployeeId(),
+      ...newEmployee,
+      vacationDays: calculateVacationDays(newEmployee.startDate),
+      status: 'active',
+      usedVacationDays: 0
+    };
+    await saveEmployeeToAPI(emp);
+    setNewEmployee({ firstName: '', lastName: '', identityNumber: '', photo: '', cv: '', position: '', department: '', salary: 0, startDate: '', phone: '', email: '', address: '', civilStatus: 'soltero', vacationDays: 0, contractType: 'indefinido', supervisor: '', reportsTo: null, role: 'empleado', workScheduleId: null, workScheduleName: '', schedule: 'completa',     scheduleHours: '08:00 - 17:00', scheduleEntry: '08:00', scheduleExit: '17:00', modality: 'presencial', educationLevel: 'universitario', university: '', degree: '', graduationYear: '', languages: '', certifications: '', driverLicense: false, otherSkills: '', socialSecurityNumber: '', pensionFund: '', laborRiskInsurer: '', workPermitStatus: '', visaExpiry: '', docIdentity: '', docAddressProof: '', docContract: '', docNDA: '', docEducationCerts: '', docPreviousJobs: '', docMedicalCert: '', hrDocuments: [], medicalRecord: { bloodType: '', allergies: '', chronicDiseases: '', currentMedications: '', emergencyContact: '', emergencyPhone: '', insuranceProvider: '', insuranceNumber: '', lastCheckup: '', disabilities: '', height: '', weight: '', notes: '' } });
+    setShowAddEmployee(false);
+  };
+
+  const removeEmployee = async (id: string) => {
+    if (confirm('Â¿Eliminar este empleado?')) {
+      await deleteEmployeeFromAPI(id);
+    }
+  };
+
+  const updateEmployee = async () => {
+    if (!editingEmployee) return;
+    await updateEmployeeToAPI(editingEmployee);
+    setSelectedEmployee(editingEmployee);
+    setEditingEmployee(null);
+  };
+
+  const toggleEmployeeStatus = async (id: string) => {
+    const emp = employees.find(e => e.id === id);
+    if (emp) {
+      if (emp.status === 'active') {
+        setDeactivatingEmployee(emp);
+        setDeactivateForm({ reason: '', requestedBy: '', performedBy: '', rehireable: true });
+        setShowDeactivateModal(true);
+      } else {
+        setReactivatingEmployee(emp);
+        setReactivateForm({ reason: '', requestedBy: '', performedBy: '' });
+        setShowReactivateModal(true);
+      }
+    }
+  };
+
+  const openSuspendModal = (id: string) => {
+    const emp = employees.find(e => e.id === id);
+    if (emp) {
+      setSuspendingEmployee(emp);
+      setSuspendForm({ reason: '', requestedBy: '', performedBy: '' });
+      setShowSuspendModal(true);
+    }
+  };
+
+  const confirmDeactivation = async () => {
+    if (!deactivatingEmployee) return;
+    const updatedEmp = {
+      ...deactivatingEmployee,
+      status: 'terminated',
+      terminationDate: new Date().toISOString().split('T')[0],
+      terminationReason: deactivateForm.reason,
+      terminationRequestedBy: deactivateForm.requestedBy,
+      terminationPerformedBy: deactivateForm.performedBy,
+      rehireable: deactivateForm.rehireable
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowDeactivateModal(false);
+    setDeactivatingEmployee(null);
+  };
+
+  const confirmReactivation = async () => {
+    if (!reactivatingEmployee) return;
+    const updatedEmp = {
+      ...reactivatingEmployee,
+      status: 'active',
+      reactivationDate: new Date().toISOString().split('T')[0],
+      reactivationReason: reactivateForm.reason,
+      reactivationRequestedBy: reactivateForm.requestedBy,
+      reactivationPerformedBy: reactivateForm.performedBy
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowReactivateModal(false);
+    setReactivatingEmployee(null);
+  };
+
+  const confirmSuspension = async () => {
+    if (!suspendingEmployee) return;
+    const updatedEmp = {
+      ...suspendingEmployee,
+      status: 'suspended',
+      suspensionDate: new Date().toISOString().split('T')[0],
+      suspensionReason: suspendForm.reason,
+      suspensionRequestedBy: suspendForm.requestedBy,
+      suspensionPerformedBy: suspendForm.performedBy
+    };
+    await updateEmployeeToAPI(updatedEmp);
+    setShowSuspendModal(false);
+    setSuspendingEmployee(null);
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('es-HN', {
+      style: 'currency',
+      currency: 'HNL',
+      minimumFractionDigits: 2
+    }).format(amount);
+  };
+
+  const calculateVacationDays = (startDate: string): number => {
+    if (!startDate) return 15;
+    const start = new Date(startDate);
+    const now = new Date();
+    const yearsDiff = now.getFullYear() - start.getFullYear();
+    const monthsDiff = now.getMonth() - start.getMonth();
+    const totalYears = yearsDiff + (monthsDiff < 0 ? -1 : 0);
+    
+    if (totalYears < 1) return 0;
+    if (totalYears === 1) return 10;
+    if (totalYears === 2) return 12;
+    if (totalYears === 3) return 14;
+    // 4+ aÃ±os: 14 + 1 por cada aÃ±o adicional, mÃ¡ximo 20
+    return Math.min(20, 14 + (totalYears - 3));
+  };
+
+  // Use server-side search results when filters are active, otherwise client-side filter
+  const filteredEmployees = useMemo(() => {
+    const baseEmployees = searchResults !== null ? searchResults : employees;
+    if (searchResults !== null) return baseEmployees;
+    return employees.filter(emp => {
+      const matchesSearch = searchTerm === '' || 
+        (`${emp.firstName || ''} ${emp.lastName || ''}`).toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.position || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.department || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.identityNumber || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (emp.employeeId || '').toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesDept = filterDepartment === '' || emp.department === filterDepartment;
+      const matchesPos = filterPosition === '' || emp.position === filterPosition;
+      const matchesStatus = filterStatus === '' || emp.status === filterStatus;
+      const matchesContract = filterContract === '' || emp.contractType === filterContract;
+      
+      return matchesSearch && matchesDept && matchesPos && matchesStatus && matchesContract;
+    });
+  }, [employees, searchResults, searchTerm, filterDepartment, filterPosition, filterStatus, filterContract]);
+
+  const sortedEmployees = useMemo(() => [...filteredEmployees].sort((a, b) => {
+    switch (sortBy) {
+      case 'az':
+        return (`${a.firstName} ${a.lastName}`).localeCompare(`${b.firstName} ${b.lastName}`);
+      case 'za':
+        return (`${b.firstName} ${b.lastName}`).localeCompare(`${a.firstName} ${a.lastName}`);
+      case 'asc':
+        return a.salary - b.salary;
+      case 'desc':
+        return b.salary - a.salary;
+      case 'newest':
+        return new Date(b.startDate || 0).getTime() - new Date(a.startDate || 0).getTime();
+      case 'oldest':
+        return new Date(a.startDate || 0).getTime() - new Date(b.startDate || 0).getTime();
+      default:
+        return 0;
+    }
+  }), [filteredEmployees, sortBy]);
+
+  const totalPages = Math.ceil(sortedEmployees.length / itemsPerPage);
+  const paginatedEmployees = useMemo(() => sortedEmployees.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage), [sortedEmployees, currentPage, itemsPerPage]);
+
+  const handleSearchChange = (value: string) => {
+    setSearchTerm(value);
+    setCurrentPage(1);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const text = e.target?.result as string;
+      const lines = text.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        alert('El archivo debe tener al menos un encabezado y una fila de datos');
+        return;
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      const allRows: any[] = [];
+
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim());
+        const row: any = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index] || '';
+        });
+        if (row.nombre || row.firstname || row.name || row.apellido || row.lastname) {
+          allRows.push(row);
+        }
+      }
+
+      setUploadTotalRows(allRows.length);
+      setUploadPreview(allRows);
+    };
+    reader.readAsText(file);
+  };
+
+  const confirmUpload = () => {
+    const newEmployees = uploadPreview.map(row => ({
+      id: `emp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      employeeId: row.employeeid || row.codigo || row.code || '',
+      firstName: row.firstname || row.nombre || row.name || '',
+      lastName: row.lastname || row.apellido || row.apellidos || '',
+      identityNumber: row.identitynumber || row.identidad || row.dni || row.id_number || '',
+      position: row.position || row.cargo || row.puesto || '',
+      department: row.department || row.departamento || row.depto || '',
+      salary: parseFloat(row.salary || row.salario || '0') || 0,
+      startDate: row.startdate || row.fecha_ingreso || row.fecha || row.hire_date || '',
+      status: 'active' as const,
+      phone: row.phone || row.telefono || row.tel || '',
+      email: row.email || row.correo || '',
+      address: row.address || row.direccion || '',
+      civilStatus: row.civilstatus || row.estado_civil || 'soltero',
+      gender: (row.gender || row.sexo || '') as 'M' | 'F' | '',
+      contractType: (row.contracttype || row.tipo_contrato || 'indefinido') as any,
+      supervisor: row.supervisor || row.jefe_texto || '',
+      reportsTo: null as string | null,
+      schedule: (row.schedule || row.jornada || 'completa') as any,
+      scheduleEntry: row.scheduleentry || row.hora_entrada || '08:00',
+      scheduleExit: row.scheduleexit || row.hora_salida || '17:00',
+      scheduleHours: '',
+      modality: (row.modality || row.modalidad || 'presencial') as any,
+      educationLevel: (row.educationlevel || row.nivel_educacion || 'universitario') as any,
+      university: row.university || row.universidad || '',
+      degree: row.degree || row.carrera || row.titulo || '',
+      graduationYear: row.graduationyear || row.anio_graduacion || '',
+      languages: row.languages || row.idiomas || '',
+      certifications: row.certifications || row.certificaciones || '',
+      driverLicense: row.driverlicense?.toLowerCase() === 'si' || row.licencia?.toLowerCase() === 'si' || false,
+      otherSkills: row.otherskills || row.otras_habilidades || '',
+      socialSecurityNumber: row.socialsecuritynumber || row.no_igss || row.igss || '',
+      pensionFund: row.pensionfund || row.afp || row.fondo_pension || '',
+      laborRiskInsurer: row.laborriskinsurer || row.aseguradora || '',
+      photo: '',
+      cv: '',
+      hrDocuments: [],
+      vacationDays: calculateVacationDays(row.startdate || row.fecha_ingreso || row.fecha || ''),
+      usedVacationDays: 0,
+      freeDays: [],
+      workScheduleId: null,
+      workScheduleName: '',
+    })).filter(emp => emp.firstName && emp.lastName);
+
+    if (newEmployees.length === 0) {
+      alert('No se encontraron empleados vÃ¡lidos. Verifica que las columnas "nombre" y "apellido" existan.');
+      return;
+    }
+
+    (async () => {
+      let created = 0;
+      for (const emp of newEmployees) {
+        try {
+          const res = await saveEmployeeToAPI(emp);
+          if (res) created++;
+        } catch {}
+      }
+      setUploadPreview([]);
+      setShowUpload(false);
+      await loadData();
+      alert(`${created} de ${newEmployees.length} empleados importados correctamente`);
+    })();
+  };
+
+  const downloadTemplate = () => {
+    const headers = [
+      'employeeid', 'nombre', 'apellido', 'identidad', 'sexo',
+      'departamento', 'cargo', 'salario', 'fecha_ingreso', 'tipo_contrato',
+      'telefono', 'email', 'direccion', 'estado_civil',
+      'jornada', 'hora_entrada', 'hora_salida', 'modalidad',
+      'nivel_educacion', 'universidad', 'carrera', 'anio_graduacion',
+      'idiomas', 'certificaciones', 'otras_habilidades', 'licencia',
+      'no_igss', 'afp', 'aseguradora',
+      'supervisor'
+    ];
+    const example = [
+      'EMP001', 'Juan', 'PÃ©rez', '0801-1990-12345', 'M',
+      'Ventas', 'Vendedor', '8000', '2024-01-15', 'indefinido',
+      '9999-8888', 'juan@email.com', 'Col. Palmira, Tegucigalpa', 'soltero',
+      'completa', '08:00', '17:00', 'presencial',
+      'universitario', 'UNAH', 'AdministraciÃ³n de Empresas', '2018',
+      'EspaÃ±ol, InglÃ©s', 'Scrum Master', 'Microsoft Office', 'si',
+      '123456789', 'ConfÃ­a', 'Seguros AtlÃ¡ntida',
+      'MarÃ­a GarcÃ­a'
+    ];
+    const csv = headers.join(',') + '\n' + example.join(',');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'template_empleados_completo.csv';
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  const exportEmployees = () => {
+    const data = filteredEmployees.map(emp => ({
+      'CÃ³digo': emp.employeeId,
+      'Nombre': `${emp.firstName} ${emp.lastName}`,
+      'Identidad': emp.identityNumber,
+      'Estado': emp.status,
+      'Cargo': emp.position,
+      'Departamento': emp.department,
+      'Salario': emp.salary,
+      'Fecha Ingreso': emp.startDate,
+      'TelÃ©fono': emp.phone,
+      'Email': emp.email,
+      'DirecciÃ³n': emp.address,
+      'Estado Civil': emp.civilStatus,
+      'Tipo Contrato': emp.contractType,
+      'Supervisor': emp.supervisor,
+      'Horario': emp.schedule,
+      'Modalidad': emp.modality,
+      'Nivel EducaciÃ³n': emp.educationLevel,
+      'Universidad': emp.university,
+      'Carrera': emp.degree,
+      'IGSS': emp.socialSecurityNumber,
+      'AFP': emp.pensionFund,
+      'Aseguradora Riesgo': emp.laborRiskInsurer,
+      'No. Empleado': emp.identityNumber,
+    }));
+    exportToExcel(data, `empleados_${new Date().toISOString().slice(0, 10)}`);
+  };
+
+  if (pageLoading) {
+    return (
+      <div className="container mx-auto p-6 space-y-6">
+        <div className="h-8 bg-gray-200 rounded w-64 animate-pulse" />
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[1,2,3,4].map(i => <div key={i} className="h-24 bg-gray-200 rounded animate-pulse" />)}
+        </div>
+        <div className="h-10 bg-gray-200 rounded w-full animate-pulse" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1,2,3,4,5,6].map(i => <div key={i} className="h-48 bg-gray-200 rounded animate-pulse" />)}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Upload Notification */}
+      {uploadMessage && (
+        <div className="fixed top-4 right-4 z-[9999]">
+          <div className="bg-green-500 text-white px-6 py-4 rounded-lg shadow-2xl flex items-center gap-3 border-2 border-green-300" style={{ animation: 'slideIn 0.3s ease-out' }}>
+            <div className="bg-white/20 rounded-full p-1">
+              <CheckCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="font-semibold text-sm">{uploadMessage}</p>
+            </div>
+          </div>
+          <style>{`
+            @keyframes slideIn {
+              from { transform: translateX(100%); opacity: 0; }
+              to { transform: translateX(0); opacity: 1; }
+            }
+          `}</style>
+        </div>
+      )}
+
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-bold">GestiÃ³n de Empleados</h1>
+          <p className="text-gray-500">{employees.length} empleados registrados</p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => router.push(`/companies/${companyId}/hr`)}>
+            <ArrowLeft className="h-4 w-4 mr-2" />
+            Volver
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <MoreHorizontal className="h-4 w-4 mr-2" />
+                Acciones
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={downloadTemplate}>
+                <Download className="h-4 w-4 mr-2" />
+                Descargar Template
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={exportEmployees}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                Exportar Excel
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setShowUpload(true)}>
+                <Upload className="h-4 w-4 mr-2" />
+                Subir Archivo
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Button onClick={() => setShowAddEmployee(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Agregar Empleado
+          </Button>
+        </div>
+      </div>
+
+      {/* Upload Modal */}
+      {showUpload && (
+        <Card className="border-2 border-blue-200">
+          <CardHeader>
+            <CardTitle>Importar Empleados desde Archivo CSV</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-blue-50 p-4 rounded-lg max-h-64 overflow-y-auto">
+              <h4 className="font-medium text-blue-800 mb-2">Columnas del CSV (todas opcionales excepto nombre y apellido):</h4>
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-1 text-xs text-blue-700">
+                <div><strong>employeeid</strong>: CÃ³digo</div>
+                <div><strong>nombre</strong>: Nombre *</div>
+                <div><strong>apellido</strong>: Apellido *</div>
+                <div><strong>identidad</strong>: No. Identidad</div>
+                <div><strong>sexo</strong>: M o F</div>
+                <div><strong>departamento</strong>: Departamento</div>
+                <div><strong>cargo</strong>: Puesto</div>
+                <div><strong>salario</strong>: Salario mensual</div>
+                <div><strong>fecha_ingreso</strong>: YYYY-MM-DD</div>
+                <div><strong>tipo_contrato</strong>: indefinido/determinado/prueba</div>
+                <div><strong>telefono</strong>: TelÃ©fono</div>
+                <div><strong>email</strong>: Correo</div>
+                <div><strong>direccion</strong>: DirecciÃ³n</div>
+                <div><strong>estado_civil</strong>: soltero/casado/divorciado/viudo</div>
+                <div><strong>jornada</strong>: completa/media/personalizada</div>
+                <div><strong>hora_entrada</strong>: 08:00</div>
+                <div><strong>hora_salida</strong>: 17:00</div>
+                <div><strong>modalidad</strong>: presencial/remoto/hÃ­brido</div>
+                <div><strong>nivel_educacion</strong>: basico/medio/universitario/tecnico</div>
+                <div><strong>universidad</strong>: Universidad</div>
+                <div><strong>carrera</strong>: TÃ­tulo/Carrera</div>
+                <div><strong>anio_graduacion</strong>: AÃ±o</div>
+                <div><strong>idiomas</strong>: Idiomas</div>
+                <div><strong>certificaciones</strong>: Certificaciones</div>
+                <div><strong>otras_habilidades</strong>: Skills</div>
+                <div><strong>licencia</strong>: si/no</div>
+                <div><strong>no_igss</strong>: No. IGSS</div>
+                <div><strong>afp</strong>: Fondo pensiÃ³n</div>
+                <div><strong>aseguradora</strong>: Aseg. riesgo</div>
+                <div><strong>supervisor</strong>: Nombre jefe directo</div>
+              </div>
+            </div>
+            
+            <div className="flex gap-2">
+              <input
+                type="file"
+                accept=".csv,.txt"
+                onChange={handleFileUpload}
+                className="flex-1 px-3 py-2 border rounded-md"
+              />
+              <Button variant="outline" onClick={() => { setShowUpload(false); setUploadPreview([]); }}>
+                Cancelar
+              </Button>
+            </div>
+
+            {uploadPreview.length > 0 && (
+              <div>
+                <h4 className="font-medium mb-2">
+                  Vista previa ({uploadTotalRows} empleados en total{uploadTotalRows > 10 ? `, mostrando primeros 10` : ''}):
+                </h4>
+                <div className="overflow-x-auto border rounded-lg max-h-64 overflow-y-auto">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-gray-50">
+                      <tr>
+                        <th className="text-left py-2 px-2">Nombre</th>
+                        <th className="text-left py-2 px-2">Apellido</th>
+                        <th className="text-left py-2 px-2">Identidad</th>
+                        <th className="text-left py-2 px-2">Depto</th>
+                        <th className="text-left py-2 px-2">Cargo</th>
+                        <th className="text-right py-2 px-2">Salario</th>
+                        <th className="text-left py-2 px-2">Ingreso</th>
+                        <th className="text-left py-2 px-2">TelÃ©fono</th>
+                        <th className="text-left py-2 px-2">Email</th>
+                        <th className="text-left py-2 px-2">Contrato</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {uploadPreview.slice(0, 10).map((row, index) => (
+                        <tr key={index} className="border-t hover:bg-gray-50">
+                          <td className="py-1 px-2">{row.firstname || row.nombre || row.name || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.lastname || row.apellido || row.apellidos || 'â€”'}</td>
+                          <td className="py-1 px-2 text-xs">{row.identitynumber || row.identidad || row.dni || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.department || row.departamento || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.position || row.cargo || 'â€”'}</td>
+                          <td className="py-1 px-2 text-right">{row.salary || row.salario || '0'}</td>
+                          <td className="py-1 px-2">{row.startdate || row.fecha_ingreso || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.phone || row.telefono || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.email || row.correo || 'â€”'}</td>
+                          <td className="py-1 px-2">{row.contracttype || row.tipo_contrato || 'indefinido'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <div className="flex gap-2 mt-4">
+                  <Button onClick={confirmUpload}>
+                    Confirmar ImportaciÃ³n ({uploadPreview.length} empleados)
+                  </Button>
+                  <Button variant="outline" onClick={() => setUploadPreview([])}>
+                    Cancelar
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Search */}
+      <Card>
+        <CardContent className="pt-6 space-y-4">
+          <div className="flex gap-4">
+              <div className="relative flex-1">
+              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Buscar por nombre, identidad, No. empleado..."
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                className="w-full pl-10 pr-4 py-2 border rounded-md"
+              />
+              {searchLoading && <div className="absolute right-3 top-3 animate-spin h-4 w-4 border-2 border-blue-500 border-t-transparent rounded-full" />}
+            </div>
+            <Button variant="outline" onClick={() => setShowFilters(!showFilters)}>
+              <Filter className="h-4 w-4 mr-2" />
+              Filtros {(filterDepartment || filterPosition || filterStatus || filterContract) ? '(activos)' : ''}
+            </Button>
+            {(filterDepartment || filterPosition || filterStatus || filterContract) && (
+                <Button variant="ghost" size="sm" onClick={() => { setFilterDepartment(''); setFilterPosition(''); setFilterStatus(''); setFilterContract(''); setSortBy(''); setCurrentPage(1); }}>
+                <X className="h-4 w-4 mr-1" />
+                Limpiar
+              </Button>
+            )}
+          </div>
+          
+          {showFilters && (
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pt-2 border-t">
+              <div>
+                <label className="text-xs font-medium text-gray-600">Departamento</label>
+                <select
+                  value={filterDepartment}
+                  onChange={(e) => { setFilterDepartment(e.target.value); setCurrentPage(1); }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Cargo</label>
+                <select
+                  value={filterPosition}
+                  onChange={(e) => { setFilterPosition(e.target.value); setCurrentPage(1); }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  {positions
+                    .filter(p => !filterDepartment || p.department === filterDepartment)
+                    .map((pos) => (
+                      <option key={pos.id} value={pos.name}>{pos.name}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Estado</label>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => { setFilterStatus(e.target.value); setCurrentPage(1); }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="active">Activos</option>
+                  <option value="inactive">Inactivos</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Tipo de contrato</label>
+                <select
+                  value={filterContract}
+                  onChange={(e) => { setFilterContract(e.target.value); setCurrentPage(1); }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Todos</option>
+                  <option value="indefinido">Indefinido</option>
+                  <option value="determinado">Determinado</option>
+                  <option value="por obra">Por Obra</option>
+                  <option value="prueba">Prueba</option>
+                  <option value="temporada">Temporada</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-gray-600">Ordenar por</label>
+                <select
+                  value={sortBy}
+                  onChange={(e) => { setSortBy(e.target.value); setCurrentPage(1); }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md text-sm"
+                >
+                  <option value="">Predeterminado</option>
+                  <option value="az">Nombre A â†’ Z</option>
+                  <option value="za">Nombre Z â†’ A</option>
+                  <option value="asc">Salario ascendente</option>
+                  <option value="desc">Salario descendente</option>
+                  <option value="newest">MÃ¡s reciente primero</option>
+                  <option value="oldest">MÃ¡s antiguo primero</option>
+                </select>
+              </div>
+            </div>
+          )}
+          
+          <div className="text-sm text-gray-500">
+            {sortedEmployees.length} empleado{sortedEmployees.length !== 1 ? 's' : ''} encontrado{sortedEmployees.length !== 1 ? 's' : ''}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Add Employee Form */}
+      {showAddEmployee && (
+        <Card className="border-2 border-dashed">
+          <CardHeader>
+            <CardTitle>Nuevo Empleado</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-gray-50 p-3 rounded-lg">
+              <label className="text-sm font-medium text-gray-600">No. Empleado (generado automÃ¡ticamente)</label>
+              <div className="text-lg font-bold text-blue-600">{generateEmployeeId()}</div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="text-sm font-medium">Nombres *</label>
+                <input
+                  type="text"
+                  value={newEmployee.firstName}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, firstName: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: Juan Carlos"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Apellidos *</label>
+                <input
+                  type="text"
+                  value={newEmployee.lastName}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, lastName: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: PÃ©rez LÃ³pez"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">No. Identidad *</label>
+                <input
+                  type="text"
+                  value={newEmployee.identityNumber}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, identityNumber: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: 0801-1990-12345"
+                  required
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Foto del empleado</label>
+                <div className="mt-1 flex items-center gap-4">
+                  {newEmployee.photo ? (
+                    <div className="relative">
+                      <ArchivoPrivado
+                        valor={newEmployee.photo}
+                        bucket="employee-photos"
+                        modo="img"
+                        alt="Preview"
+                        className="w-20 h-20 object-cover rounded-full border-2 border-gray-200"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setNewEmployee({ ...newEmployee, photo: '' })}
+                        className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full p-1"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <div className="w-20 h-20 rounded-full border-2 border-dashed border-gray-300 flex items-center justify-center hover:border-blue-400">
+                        <UserPlus className="h-8 w-8 text-gray-400" />
+                      </div>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <div className="text-xs text-gray-500">
+                    <p>Formato: JPG, PNG</p>
+                    <p>TamaÃ±o mÃ¡ximo: 500KB</p>
+                  </div>
+                </div>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Estado Civil *</label>
+                <select
+                  value={newEmployee.civilStatus}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, civilStatus: e.target.value as any })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                >
+                  <option value="soltero">Soltero/a</option>
+                  <option value="casado">Casado/a</option>
+                  <option value="divorciado">Divorciado/a</option>
+                  <option value="viudo">Viudo/a</option>
+                  <option value="uniÃ³n libre">UniÃ³n Libre</option>
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Departamento *</label>
+                <select
+                  value={newEmployee.department}
+                  onChange={(e) => {
+                    const deptName = e.target.value;
+                    const dept = departments.find(d => d.name === deptName);
+                    setNewEmployee({ ...newEmployee, department: deptName, position: '', supervisor: dept?.manager || '' });
+                  }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                >
+                  <option value="">Seleccionar departamento...</option>
+                  {departments.map((dept) => (
+                    <option key={dept.id} value={dept.name}>{dept.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-sm font-medium">Cargo *</label>
+                <select
+                  value={newEmployee.position}
+                  onChange={(e) => {
+                    const posName = e.target.value;
+                    const pos = positions.find(p => p.name === posName && p.department === newEmployee.department);
+                    setNewEmployee({ 
+                      ...newEmployee, 
+                      position: posName,
+                      salary: pos ? pos.minSalary || pos.maxSalary || 0 : newEmployee.salary
+                    });
+                  }}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                >
+                  <option value="">Seleccionar puesto...</option>
+                  {positions
+                    .filter(p => !newEmployee.department || p.department === newEmployee.department)
+                    .map((pos) => {
+                      const takenBy = employees.find(e => e.position === pos.name && e.status === 'active' && e.department === pos.department);
+                      const isTaken = !!takenBy;
+                      return (
+                        <option key={pos.id} value={pos.name} disabled={isTaken}>
+                          {pos.name} {isTaken ? `(Ocupado - ${takenBy.firstName} ${takenBy.lastName})` : pos.minSalary > 0 || pos.maxSalary > 0 ? `(${pos.minSalary > 0 ? formatCurrency(pos.minSalary) : '?'} - ${pos.maxSalary > 0 ? formatCurrency(pos.maxSalary) : '?'})` : ''}
+                        </option>
+                      );
+                    })}
+                </select>
+                {newEmployee.department && positions.filter(p => p.department === newEmployee.department).length === 0 && (
+                  <p className="text-xs text-orange-500 mt-1">No hay puestos para este departamento</p>
+                )}
+              </div>
+              <div>
+                <label className="text-sm font-medium">Salario mensual (L.) *</label>
+                <input
+                  type="number"
+                  value={newEmployee.salary}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, salary: parseFloat(e.target.value) || 0 })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Fecha de ingreso *</label>
+                <input
+                  type="date"
+                  value={newEmployee.startDate}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, startDate: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">DÃ­as de vacaciones</label>
+                <div className="w-full mt-1 px-3 py-2 border rounded-md bg-gray-50 text-gray-600">
+                  Se calcula automÃ¡ticamente por antigÃ¼edad
+                </div>
+              </div>
+              <div className="md:col-span-3">
+                <label className="text-sm font-medium">DirecciÃ³n exacta</label>
+                <input
+                  type="text"
+                  value={newEmployee.address}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, address: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="Ej: Col. Kennedy, Calle 12, Casa #456"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">TelÃ©fono</label>
+                <input
+                  type="text"
+                  value={newEmployee.phone}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, phone: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="9999-8888"
+                />
+              </div>
+              <div>
+                <label className="text-sm font-medium">Email</label>
+                <input
+                  type="email"
+                  value={newEmployee.email}
+                  onChange={(e) => setNewEmployee({ ...newEmployee, email: e.target.value })}
+                  className="w-full mt-1 px-3 py-2 border rounded-md"
+                  placeholder="correo@ejemplo.com"
+                />
+              </div>
+            </div>
+
+            {/* Contrato y Trabajo */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Contrato y Trabajo</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Tipo de contrato *</label>
+                  <select
+                    value={newEmployee.contractType}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, contractType: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="indefinido">Indefinido</option>
+                    <option value="determinado">Determinado</option>
+                    <option value="por obra">Por Obra</option>
+                    <option value="prueba">PerÃ­odo de Prueba</option>
+                    <option value="temporada">Temporada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Jefe Directo</label>
+                  <select
+                    value={newEmployee.reportsTo || ''}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, reportsTo: e.target.value || null })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="">Sin jefe directo (raÃ­z)</option>
+                    {employees
+                      .filter(e => e.status === 'active' && e.id !== editingEmployee?.id)
+                      .sort((a, b) => `${a.lastName} ${a.firstName}`.localeCompare(`${b.lastName} ${b.firstName}`))
+                      .map(e => (
+                        <option key={e.id} value={e.id}>
+                          {e.firstName} {e.lastName} â€” {e.position || 'Sin puesto'}{e.department ? ` (${e.department})` : ''}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Rol de Asistencia</label>
+                  <select
+                    value={newEmployee.role}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, role: e.target.value as 'gerente' | 'supervisor' | 'empleado' })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="empleado">Empleado</option>
+                    <option value="supervisor">Supervisor</option>
+                    <option value="gerente">Gerente</option>
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">Gerente ve todo, Supervisor ve su equipo, Empleado solo ficha</p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Jornada *</label>
+                  <select
+                    value={newEmployee.schedule}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, schedule: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="completa">Tiempo Completo</option>
+                    <option value="media">Medio Tiempo</option>
+                    <option value="personalizada">Personalizada</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Hora Entrada</label>
+                  <input
+                    type="time"
+                    value={newEmployee.scheduleEntry || '08:00'}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleEntry: e.target.value, scheduleHours: `${e.target.value} - ${newEmployee.scheduleExit || '17:00'}` })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Hora Salida</label>
+                  <input
+                    type="time"
+                    value={newEmployee.scheduleExit || '17:00'}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, scheduleExit: e.target.value, scheduleHours: `${newEmployee.scheduleEntry || '08:00'} - ${e.target.value}` })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Modalidad *</label>
+                  <select
+                    value={newEmployee.modality}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, modality: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="presencial">Presencial</option>
+                    <option value="remoto">Remoto</option>
+                    <option value="hÃ­brido">HÃ­brido</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Nivel AcadÃ©mico */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Nivel AcadÃ©mico</h3>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Nivel de escolaridad</label>
+                  <select
+                    value={newEmployee.educationLevel}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, educationLevel: e.target.value as any })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="basico">BÃ¡sico</option>
+                    <option value="medio">Medio</option>
+                    <option value="tecnico">TÃ©cnico</option>
+                    <option value="universitario">Universitario</option>
+                    <option value="maestria">MaestrÃ­a</option>
+                    <option value="doctorado">Doctorado</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">InstituciÃ³n de egreso</label>
+                  <input
+                    type="text"
+                    value={newEmployee.university}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, university: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Universidad Nacional"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">TÃ­tulo / Carrera</label>
+                  <input
+                    type="text"
+                    value={newEmployee.degree}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, degree: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Ingeniero en Sistemas"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">AÃ±o de graduaciÃ³n</label>
+                  <input
+                    type="text"
+                    value={newEmployee.graduationYear}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, graduationYear: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: 2020"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Habilidades */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Habilidades y Competencias</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Idiomas</label>
+                  <input
+                    type="text"
+                    value={newEmployee.languages}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, languages: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: EspaÃ±ol (nativo), InglÃ©s (avanzado)"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Certificaciones profesionales</label>
+                  <input
+                    type="text"
+                    value={newEmployee.certifications}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, certifications: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: PMP, CPA, Scrum Master"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Otras habilidades</label>
+                  <input
+                    type="text"
+                    value={newEmployee.otherSkills}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, otherSkills: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: Manejo de Excel, Trabajo en equipo"
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="text-sm font-medium">Licencia de conducir</label>
+                  <input
+                    type="checkbox"
+                    checked={newEmployee.driverLicense}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, driverLicense: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Seguridad Social */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Seguridad Social y Legal</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm font-medium">No. Seguridad Social (IHSS)</label>
+                  <input
+                    type="text"
+                    value={newEmployee.socialSecurityNumber}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, socialSecurityNumber: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="NÃºmero de afiliaciÃ³n"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Fondo de pensiones</label>
+                  <input
+                    type="text"
+                    value={newEmployee.pensionFund}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, pensionFund: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: RAP, AHPRONAFI"
+                  />
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Aseguradora de riesgos laborales</label>
+                  <input
+                    type="text"
+                    value={newEmployee.laborRiskInsurer}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, laborRiskInsurer: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                    placeholder="Ej: ARL ConfederaciÃ³n"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Permisos y Visas */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Permisos y Visas (Empleados Extranjeros)</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium">Estatus legal de trabajo</label>
+                  <select
+                    value={newEmployee.workPermitStatus}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, workPermitStatus: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  >
+                    <option value="">No aplica</option>
+                    <option value="nacional">Nacional</option>
+                    <option value="residencia_permanente">Residencia Permanente</option>
+                    <option value="residencia_temporal">Residencia Temporal</option>
+                    <option value="permiso_trabajo">Permiso de Trabajo</option>
+                    <option value="asilo">Asilo PolÃ­tico</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm font-medium">Vigencia de visa</label>
+                  <input
+                    type="date"
+                    value={newEmployee.visaExpiry}
+                    onChange={(e) => setNewEmployee({ ...newEmployee, visaExpiry: e.target.value })}
+                    className="w-full mt-1 px-3 py-2 border rounded-md"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* CV */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Curriculum Vitae</h3>
+              <div>
+                <label className="text-sm font-medium">Archivo CV (PDF)</label>
+                <div className="mt-1 flex items-center gap-4">
+                  {newEmployee.cv ? (
+                    <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                      <CheckCircle className="h-5 w-5 text-green-500" />
+                      <span className="text-sm text-green-700">CV cargado</span>
+                      <button
+                        type="button"
+                        onClick={() => setNewEmployee({ ...newEmployee, cv: '' })}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="cursor-pointer">
+                      <div className="px-4 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                        <Upload className="h-5 w-5 text-gray-400" />
+                        <span className="text-sm text-gray-600">Seleccionar archivo PDF</span>
+                      </div>
+                      <input
+                        type="file"
+                        accept=".pdf"
+                        onChange={handleCVUpload}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  <span className="text-xs text-gray-500">MÃ¡ximo 2MB</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Documentos Adjuntos */}
+            <div className="border-t pt-4">
+              <h3 className="font-medium text-gray-700 mb-3">Documentos Adjuntos</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Copia de documento de identidad */}
+                <div>
+                  <label className="text-sm font-medium">Copia de documento de identidad</label>
+                  <div className="mt-1">
+                    {newEmployee.docIdentity ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docIdentity: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docIdentity')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Comprobante de domicilio */}
+                <div>
+                  <label className="text-sm font-medium">Comprobante de domicilio</label>
+                  <div className="mt-1">
+                    {newEmployee.docAddressProof ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docAddressProof: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docAddressProof')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contrato de trabajo firmado */}
+                <div>
+                  <label className="text-sm font-medium">Contrato de trabajo firmado</label>
+                  <div className="mt-1">
+                    {newEmployee.docContract ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docContract: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docContract')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Acuerdo de confidencialidad/NDA */}
+                <div>
+                  <label className="text-sm font-medium">Acuerdo de confidencialidad / NDA</label>
+                  <div className="mt-1">
+                    {newEmployee.docNDA ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docNDA: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docNDA')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados de estudios */}
+                <div>
+                  <label className="text-sm font-medium">Certificados de estudios</label>
+                  <div className="mt-1">
+                    {newEmployee.docEducationCerts ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docEducationCerts: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docEducationCerts')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados de empleos anteriores */}
+                <div>
+                  <label className="text-sm font-medium">Certificados de empleos anteriores</label>
+                  <div className="mt-1">
+                    {newEmployee.docPreviousJobs ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docPreviousJobs: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docPreviousJobs')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+
+                {/* Certificados mÃ©dicos ocupacionales */}
+                <div>
+                  <label className="text-sm font-medium">Certificados mÃ©dicos ocupacionales de ingreso</label>
+                  <div className="mt-1">
+                    {newEmployee.docMedicalCert ? (
+                      <div className="flex items-center gap-2 bg-green-50 px-3 py-2 rounded-lg">
+                        <CheckCircle className="h-4 w-4 text-green-500" />
+                        <span className="text-sm text-green-700">Documento cargado</span>
+                        <button
+                          type="button"
+                          onClick={() => setNewEmployee({ ...newEmployee, docMedicalCert: '' })}
+                          className="text-red-500 hover:text-red-700"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="cursor-pointer">
+                        <div className="px-3 py-2 border-2 border-dashed border-gray-300 rounded-lg hover:border-blue-400 flex items-center gap-2">
+                          <Upload className="h-4 w-4 text-gray-400" />
+                          <span className="text-xs text-gray-600">Subir archivo</span>
+                        </div>
+                        <input
+                          type="file"
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          onChange={(e) => handleDocUpload(e, 'docMedicalCert')}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button onClick={addEmployee}>Guardar</Button>
+              <Button variant="outline" onClick={() => setShowAddEmployee(false)}>Cancelar</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Employees List */}
+      {sortedEmployees.length === 0 ? (
+        <Card>
+          <CardContent className="p-8 text-center">
+            <p className="text-gray-500">No hay empleados registrados</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+        <div className="space-y-3">
+          {paginatedEmployees.map((emp) => (
+            <Card key={emp.id}>
+              <CardContent className="p-4">
+                <div className="flex justify-between items-start">
+                  <div className="flex items-start gap-4">
+                    {emp.photo ? (
+                      <ArchivoPrivado 
+                        valor={emp.photo}
+                        bucket="employee-photos"
+                        modo="img"
+                        alt={`${emp.firstName} ${emp.lastName}`}
+                        className="w-16 h-16 object-cover rounded-full border-2 border-gray-200"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 rounded-full bg-gray-100 border-2 border-gray-200 flex items-center justify-center">
+                        <span className="text-xl font-medium text-gray-400">
+                          {(emp.firstName || emp.name || '').charAt(0)}{(emp.lastName || '').charAt(0)}
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-0.5 rounded">{emp.employeeId}</span>
+                        <h3 className="font-medium">{emp.firstName || emp.name} {emp.lastName || ''}</h3>
+                        <Badge variant={emp.status === 'active' ? 'default' : emp.status === 'terminated' ? 'destructive' : emp.status === 'suspended' ? 'outline' : 'secondary'}>
+                          {emp.status === 'active' ? 'Activo' : emp.status === 'terminated' ? 'Terminado' : emp.status === 'suspended' ? 'Suspendido' : 'Inactivo'}
+                        </Badge>
+                      </div>
+                      <p className="text-sm text-gray-500">{emp.position} â€¢ {emp.department}</p>
+                      <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-600">
+                        {emp.identityNumber && <span>Identidad: {emp.identityNumber}</span>}
+                        <span>Salario: {formatCurrency(emp.salary)}</span>
+                        <span>Ingreso: {emp.startDate || '-'}</span>
+                        {emp.phone && <span>Tel: {emp.phone}</span>}
+                        {emp.email && <span>Email: {emp.email}</span>}
+                        {emp.address && <span>DirecciÃ³n: {emp.address}</span>}
+                        {emp.civilStatus && <span>Estado civil: {emp.civilStatus}</span>}
+                        <span>AntigÃ¼edad: {Math.floor((new Date().getTime() - new Date(emp.startDate || '').getTime()) / (365.25 * 24 * 60 * 60 * 1000))} aÃ±os</span>
+                        <span>Vacaciones: {calculateVacationDays(emp.startDate)} dÃ­as</span>
+                        {emp.workScheduleName && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-cyan-500" />
+                            Horario: {emp.workScheduleName}
+                          </span>
+                        )}
+                        {(emp.scheduleEntry || emp.scheduleExit) && (
+                          <span className="flex items-center gap-1">
+                            <Clock className="h-3 w-3 text-blue-500" />
+                            {emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}
+                          </span>
+                        )}
+                        {emp.freeDays && emp.freeDays.length > 0 && (
+                          <span className="flex items-center gap-1">
+                            <CalendarOff className="h-3 w-3 text-teal-500" />
+                            {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','MiÃ©','Jue','Vie','SÃ¡b'][d]).join(', ')}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setSelectedEmployee(emp)}
+                    >
+                      Ver
+                    </Button>
+                    {emp.status === 'active' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Desactivar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                          onClick={() => openSuspendModal(emp.id)}
+                        >
+                          Suspender
+                        </Button>
+                      </>
+                    )}
+                    {emp.status === 'suspended' && (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-green-600 border-green-300 hover:bg-green-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Reactivar
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 border-red-300 hover:bg-red-50"
+                          onClick={() => toggleEmployeeStatus(emp.id)}
+                        >
+                          Desactivar
+                        </Button>
+                      </>
+                    )}
+                    {(emp.status === 'terminated' || emp.status === 'inactive') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-green-600 border-green-300 hover:bg-green-50"
+                        onClick={() => toggleEmployeeStatus(emp.id)}
+                      >
+                        Reactivar
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => removeEmployee(emp.id)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+        {totalPages > 1 && (
+          <div className="flex items-center justify-between pt-4 border-t">
+            <div className="flex items-center gap-2 text-sm text-gray-600">
+              <span>Mostrar</span>
+              <select
+                value={itemsPerPage}
+                onChange={(e) => { setItemsPerPage(Number(e.target.value)); setCurrentPage(1); }}
+                className="border rounded px-2 py-1 text-sm"
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+              </select>
+              <span>por pÃ¡gina</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(1)}
+              >
+                Â«
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(currentPage - 1)}
+              >
+                â€¹
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                  if (idx > 0 && typeof arr[idx - 1] === 'number' && (page as number) - (arr[idx - 1] as number) > 1) {
+                    acc.push('...');
+                  }
+                  acc.push(page);
+                  return acc;
+                }, [])
+                .map((page, idx) => (
+                  typeof page === 'number' ? (
+                    <Button
+                      key={idx}
+                      size="sm"
+                      variant={currentPage === page ? 'default' : 'outline'}
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  ) : (
+                    <span key={idx} className="px-2 text-gray-400">...</span>
+                  )
+                ))}
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(currentPage + 1)}
+              >
+                â€º
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(totalPages)}
+              >
+                Â»
+              </Button>
+            </div>
+            <div className="text-sm text-gray-500">
+              PÃ¡gina {currentPage} de {totalPages} ({sortedEmployees.length} registros)
+            </div>
+          </div>
+        )}
+        </>
+      )}
+      {/* Deactivation Modal */}
+      {showDeactivateModal && deactivatingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-red-600">Desactivar Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {deactivatingEmployee.firstName} {deactivatingEmployee.lastName} ({deactivatingEmployee.employeeId})
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de desactivaciÃ³n *</label>
+                <textarea
+                  value={deactivateForm.reason}
+                  onChange={(e) => setDeactivateForm({ ...deactivateForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  rows={3}
+                  placeholder="Describa la razÃ³n de la desactivaciÃ³n..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={deactivateForm.requestedBy}
+                    onChange={(e) => setDeactivateForm({ ...deactivateForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Realizado por *</label>
+                  <input
+                    type="text"
+                    value={deactivateForm.performedBy}
+                    onChange={(e) => setDeactivateForm({ ...deactivateForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Nombre de quien realiza"
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <input
+                  type="checkbox"
+                  id="rehireable"
+                  checked={deactivateForm.rehireable}
+                  onChange={(e) => setDeactivateForm({ ...deactivateForm, rehireable: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 rounded"
+                />
+                <label htmlFor="rehireable" className="text-sm font-medium text-gray-700">El empleado es recontratable</label>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowDeactivateModal(false); setDeactivatingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={confirmDeactivation}
+                disabled={!deactivateForm.reason || !deactivateForm.requestedBy || !deactivateForm.performedBy}
+              >
+                Desactivar Empleado
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Reactivation Modal */}
+      {showReactivateModal && reactivatingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-green-600">Reactivar Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {reactivatingEmployee.firstName} {reactivatingEmployee.lastName} ({reactivatingEmployee.employeeId})
+              </p>
+              {reactivatingEmployee.terminationReason && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Ãšltima razÃ³n de salida: {reactivatingEmployee.terminationReason}
+                </p>
+              )}
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-green-700">
+                  Fecha de reactivaciÃ³n: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de reactivaciÃ³n *</label>
+                <textarea
+                  value={reactivateForm.reason}
+                  onChange={(e) => setReactivateForm({ ...reactivateForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                  rows={3}
+                  placeholder="Describa la razÃ³n de la reactivaciÃ³n..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={reactivateForm.requestedBy}
+                    onChange={(e) => setReactivateForm({ ...reactivateForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Reactivado por *</label>
+                  <input
+                    type="text"
+                    value={reactivateForm.performedBy}
+                    onChange={(e) => setReactivateForm({ ...reactivateForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                    placeholder="Nombre de quien reactiva"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowReactivateModal(false); setReactivatingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="default"
+                className="bg-green-600 hover:bg-green-700 text-white"
+                onClick={confirmReactivation}
+                disabled={!reactivateForm.reason || !reactivateForm.requestedBy || !reactivateForm.performedBy}
+              >
+                Reactivar Empleado
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Suspension Modal */}
+      {showSuspendModal && suspendingEmployee && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-lg w-full">
+            <div className="border-b px-6 py-4">
+              <h2 className="text-lg font-bold text-amber-600">Suspender Empleado</h2>
+              <p className="text-sm text-gray-500 mt-1">
+                {suspendingEmployee.firstName} {suspendingEmployee.lastName} ({suspendingEmployee.employeeId})
+              </p>
+            </div>
+            <div className="p-6 space-y-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <p className="text-sm text-amber-700">
+                  Fecha de suspensiÃ³n: <strong>{new Date().toLocaleDateString('es-HN')}</strong>
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  El empleado serÃ¡ marcado como suspendido hasta nueva decisiÃ³n.
+                </p>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">RazÃ³n de suspensiÃ³n *</label>
+                <textarea
+                  value={suspendForm.reason}
+                  onChange={(e) => setSuspendForm({ ...suspendForm, reason: e.target.value })}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                  rows={3}
+                  placeholder="Describa la razÃ³n de la suspensiÃ³n..."
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Solicitado por *</label>
+                  <input
+                    type="text"
+                    value={suspendForm.requestedBy}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, requestedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Nombre de quien solicita"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Realizado por *</label>
+                  <input
+                    type="text"
+                    value={suspendForm.performedBy}
+                    onChange={(e) => setSuspendForm({ ...suspendForm, performedBy: e.target.value })}
+                    className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-amber-500 focus:border-amber-500"
+                    placeholder="Nombre de quien realiza"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="border-t px-6 py-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => { setShowSuspendModal(false); setSuspendingEmployee(null); }}>
+                Cancelar
+              </Button>
+              <Button
+                variant="default"
+                className="bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={confirmSuspension}
+                disabled={!suspendForm.reason || !suspendForm.requestedBy || !suspendForm.performedBy}
+              >
+                Suspender Empleado
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Employee Detail Modal */}
+      {(selectedEmployee || editingEmployee) && (() => {
+        const emp = editingEmployee || selectedEmployee!;
+        const isEditing = !!editingEmployee;
+        const updateField = (field: string, value: any) => {
+          setEditingEmployee({ ...emp, [field]: value });
+        };
+        return (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-5xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="border-b px-6 py-4 flex justify-between items-center flex-shrink-0">
+              <div className="flex items-center gap-4">
+                {emp.photo ? (
+                  <ArchivoPrivado valor={emp.photo} bucket="employee-photos" modo="img" alt="" className="w-14 h-14 rounded-full object-cover" />
+                ) : (
+                  <div className="w-14 h-14 rounded-full bg-gray-100 flex items-center justify-center">
+                    <span className="text-xl font-bold text-gray-400">
+                      {(emp.firstName || '').charAt(0)}{(emp.lastName || '').charAt(0)}
+                    </span>
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-lg font-bold">{emp.firstName} {emp.lastName}</h2>
+                  <p className="text-sm text-gray-500">{emp.employeeId} â€¢ {emp.position} â€¢ {emp.department}</p>
+                  <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
+                    {emp.workScheduleName && (
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3 text-cyan-500" />{emp.workScheduleName}</span>
+                    )}
+                    {(emp.scheduleEntry || emp.scheduleExit) && !emp.workScheduleName && (
+                      <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{emp.scheduleEntry || '?'} - {emp.scheduleExit || '?'}</span>
+                    )}
+                    {emp.freeDays && emp.freeDays.length > 0 && (
+                      <span className="flex items-center gap-1"><CalendarOff className="h-3 w-3" />Libre: {emp.freeDays.map((d: number) => ['Dom','Lun','Mar','MiÃ©','Jue','Vie','SÃ¡b'][d]).join(', ')}</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                {isEditing ? (
+                  <>
+                    <Button onClick={updateEmployee}><Save className="h-4 w-4 mr-2" />Guardar</Button>
+                    <Button variant="outline" onClick={() => setEditingEmployee(null)}>Cancelar</Button>
+                  </>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => { setEditingEmployee({ ...emp }); setSelectedEmployee(null); }}>
+                      <Edit className="h-4 w-4 mr-2" />Editar
+                    </Button>
+                    <Button variant="ghost" onClick={() => setSelectedEmployee(null)}>
+                      <X className="h-5 w-5" />
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <ModalTabs emp={emp} isEditing={isEditing} updateField={updateField} showUploadMessage={showUploadMessage} departments={departments} positions={positions} employees={employees} />
+          </div>
+        </div>
+        );
+      })()}
+    </div>
+  );
+}

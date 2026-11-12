@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Eliminar Tenant Angel Ring</title>
+</head>
+<body>
+    <h1>🗑️ Eliminar Tenant "Angel Ring"</h1>
+    <button onclick="deleteTenant()">Eliminar Tenant</button>
+    <div id="result"></div>
+
+    <script>
+        async function deleteTenant() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '🔄 Procesando...';
+            
+            try {
+                const response = await fetch('/api/admin/delete-tenant', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        tenantId: 'cmofey73w000087izrdfvtlve'
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    resultDiv.innerHTML = `
+                        <h2>✅ Éxito</h2>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h2>❌ Error</h2>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h2>❌ Error de conexión</h2>
+                    <pre>${error.message}</pre>
+                `;
+            }
+        }
+    </script>
+</body>
+</html>

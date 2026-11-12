@@ -1,0 +1,167 @@
+# Cómo Ejecutar la Migración SQL en Windows
+
+> **Actualizado:** 28 de Septiembre de 2026
+
+> ⚠️ **VÍA RECOMENDADA — SQL Editor de Supabase.** No hay acceso DDL directo: la conexión directa a `db.<ref>.supabase.co:5432` falla con `getaddrinfo ENOTFOUND`. Las migraciones DDL **se aplican vía SQL Editor de Supabase**, no con `prisma migrate` ni `psql` contra el host directo.
+>
+> ℹ️ **`DATABASE_URL` sí está** en `.env.local` (línea 10). La credencial existe y es correcta; lo que falla es el **DNS**: solo resuelve el host de la API, no `db.<ref>.supabase.co` ni los `*.pooler.supabase.com`. No deduzcas de un `pg.connect()` fallido que falta la contraseña. Tampoco hay `SUPABASE_ACCESS_TOKEN` (Management API), ni CLI de supabase con sesión, ni ninguna función `exec_sql` en la BD: **el asistente no puede aplicar DDL, hay que hacerlo a mano aquí**.
+>
+> 💡 **El SQL Editor envuelve el script en una transacción.** Si algo falla a mitad, se revierte entero: no quedan columnas a medias ni hay que limpiar. Pero **lee los `RAISE NOTICE` del final** antes de cerrar la pestaña, que es donde la migración informa cuántas filas quedaron sin atribuir y de qué tenants.
+>
+> 🔍 **Para comprobar si una migración quedó aplicada sin abrir la BD:** `node scripts/verificar-aislamiento.mjs` — solo lectura, va por PostgREST, y da `TODO OK` cuando la 023 está en su sitio.
+
+## Estado de las migraciones
+
+| Migración | Estado | Qué hizo |
+|---|---|---|
+| `022_invoice_number_unique_per_tenant.sql` | ✅ aplicada | `UNIQUE("tenantId","invoiceNumber")` por tenant, no global |
+| `023_company_level_isolation.sql` | ✅ aplicada 28 Sept 2026 | Añade `company_id` a las tablas que no lo tenían, normaliza los códigos de tenant a `text`, rellena las filas huérfanas con la empresa más antigua del tenant, y pone un trigger `BEFORE INSERT` para que las filas nuevas hereden `company_id` |
+| `024_roles_context_and_locations.sql` | ✅ aplicada 28 Sept 2026 | Crea `company_location` (la sede) y `user_company_access` (la membresía usuario↔empresa), y hace el backfill desde `User.tenantid`. `relationship='owner'` si el tenant tiene 1 empresa, `'accountant'` si tiene N: es la traducción directa de los dos flujos del onboarding |
+| `024b_sedes_y_bodegas.sql` | ✅ aplicada 28 Sept 2026 | Opcional. Crea la sede `PRINCIPAL` por empresa y enlaza `warehouse.location_id`. Solo enlaza si la empresa tiene **una** sede, porque con dos no hay forma de saber a cuál va cada bodega |
+| `025_company_id_restantes.sql` | ✅ aplicada 28 Sept 2026 | `company_id` en todo lo que tuviera `tenant_id`, descubierto con `information_schema`. Subió de 54 a 98 tablas. Salta las vistas por `pg_class.relkind`, con aviso |
+| `026_location_id_transacciones.sql` | ✅ aplicada 28 Sept 2026 | `location_id` en las transaccionales, con trigger `trg_fill_location` que hereda la sede por defecto. Solo en tablas que ya tenían `company_id` |
+
+> ⚠️ **Pendiente: la 027.** 42 relaciones sin `company_id` son **vistas**, y son
+> justamente los libros contables (`libro_ventas`, `libro_mayor`, `balance_general`,
+> `balanza_comprobacion`, `estado_resultados`). Una vista no admite `ADD COLUMN`, así
+> que la 025 las saltó. Se leen de tablas ya aisladas pero **no filtran por
+> `company_id`**: un reporte puede seguir mostrando datos de varias empresas.
+> **Bloquea la vista consolidada del Empresario.**
+
+> ⚠️ **Pendiente de decidir:**
+> - Quedan **8 cuentas** sin `company_id`, de tenants que no existen en `companies`.
+> - **`Empresa 1` (tenant `'1'`) no tiene membresía**: ningún usuario tiene ese
+>   `tenantid`, así que es inalcanzable desde la UI. Darle dueño o borrarla.
+> - **51 tablas** sin `company_id` (las que no tenían `tenant_id`):
+>   `AccountReceivable`, `BookClosing`, `Reconciliation`, `payment_vouchers`,
+>   `asset_*`, `itr_produccion`, `budget_lines`…
+
+> 🔍 **Comprobar:**
+> ```bash
+> node scripts/verificar-aislamiento.mjs   # company_id y cruce entre empresas
+> node scripts/verificar-contexto.mjs       # sedes, membresía, location_id
+> ```
+
+> **Node portable del proyecto:** `C:\Users\denta\OneDrive\Documentos\Default Project\Node\node-v24.19.0-win-x64`. Para scripts usa `& "ruta\node.exe" script.js`. `pnpm.ps1` está bloqueado en Windows; usar `pnpm.cmd`.
+
+## Opción 1: Aplicar SQL desde Supabase (RECOMENDADO)
+
+1. Ir a: https://app.supabase.com
+2. Seleccionar tu proyecto
+3. Ir a **"SQL Editor"** en el menú lateral
+4. Crear **"New query"**
+5. Copiar y pegar el contenido del script a ejecutar (ej. `scripts/migrations/008_consolidate_inventory_schema.sql`). Las consolidaciones vigentes son `007_consolidate_invoice_schema.sql` (facturación) y `008_consolidate_inventory_schema.sql` (inventario), ambas aplicadas el 16 Sept 2026.
+6. Click en **"Run"**
+7. Verificar el resultado en la misma consola
+
+Las migraciones persistentes viven en dos lugares:
+- `prisma/migrations/*.sql` (migraciones de schema vía Prisma)
+- `scripts/migrations/*.sql` (scripts ad-hoc de Supabase/RLS)
+
+## Opción 2: CI/CD con Prisma Migrate (Enterprise-Ready)
+
+### Nuevos scripts de migración (18 Sept 2026)
+
+El proyecto ahora tiene scripts separados para Staging y Production:
+
+```bash
+# Crear una nueva migración:
+prisma migrate add <nombre-migracion>
+
+# Aplicar en Staging primero:
+npm run prisma:migrate:deploy:staging
+
+# Si staging es exitoso, aplicar en Production:
+npm run prisma:migrate:deploy:production
+
+# O ejecutar ambos secuencialmente:
+npm run prisma:deploy
+```
+
+### Flujo CI/CD recomendado
+
+1. Desarrollador crea migración: `prisma migrate add <nombre>`
+2. Commitea archivos de migración (`prisma/migrations/`)
+3. CI ejecuta `prisma:migrate:deploy:staging` primero
+4. Si staging pasa, CI ejecuta `prisma:migrate:deploy:production`
+5. Si staging falla, se detiene el pipeline
+
+### Variables de entorno requeridas
+
+```
+# Staging
+DATABASE_URL_STAGING=postgresql://...
+
+# Production  
+DATABASE_URL=postgresql://...
+```
+
+## Opción 3: Usar Prisma para generar el cliente (no aplica DDL a Supabase)
+
+Con Node portable + `pnpm.cmd`:
+
+```bash
+pnpm.cmd prisma generate
+```
+
+(Nota: usa `pnpm.cmd` — el `pnpm.ps1` está bloqueado por política de ejecución en Windows.)
+
+`npx prisma db pull`, `db execute`, `migrate dev` y `migrate deploy` requieren conexión directa y fallan contra Supabase con `getaddrinfo ENOTFOUND`. Úsalos solo contra una instancia local si existe, o aplica el SQL manualmente (Opción 1).
+
+## Opción 4: Usar un Cliente PostgreSQL GUI (solo si hay conexión disponible)
+
+1. **Descargar DBeaver** (gratis): https://dbeaver.io/download/
+2. Conectar a tu base de datos PostgreSQL **con una cadena que tenga acceso** (no el host directo `db.<ref>.supabase.co`, que da ENOTFOUND)
+3. Abrir el archivo: `scripts/migrations/008_consolidate_inventory_schema.sql`
+4. Ejecutar el script (F5 o botón "Execute")
+
+En la práctica, para este proyecto se prefiere la **Opción 1 (SQL Editor de Supabase)**.
+
+---
+
+## Solución Alternativa: Migración Manual
+
+Si las migraciones anteriores fallaron, primero limpiar:
+
+```sql
+-- Ejecutar esto primero en el SQL Editor de Supabase
+DROP VIEW IF EXISTS invoice_item_view;
+DROP VIEW IF EXISTS InvoiceSummary;
+
+-- Luego ejecutar el script 007/008 según corresponda
+```
+
+---
+
+## Verificación
+
+Después de ejecutar, verificar que las columnas existen (también desde el SQL Editor):
+
+```sql
+SELECT column_name, data_type 
+FROM information_schema.columns 
+WHERE table_name = 'Invoice' 
+ORDER BY ordinal_position;
+```
+
+Deberías ver: `invoiceType`, `dueDate`, `customerEmail`, etc.
+
+Para verificar la consolidación de inventario:
+
+```sql
+SELECT column_name, data_type
+FROM information_schema.columns
+WHERE table_name = 'product'
+ORDER BY ordinal_position;
+```
+
+Para verificar que las tablas legacy fueron eliminadas:
+
+```sql
+SELECT table_name FROM information_schema.tables
+WHERE table_schema = 'public'
+  AND table_name IN ('invoice','invoiceitem','invoices','invoice_items','Product','products','InventoryMovement','InventoryTransaction');
+-- Debe devolver 0 filas (legacy eliminadas en 007/008)
+```
+
+> **Nota:** si la ruta a verificar es una API protegida, un `curl`/`Invoke-WebRequest` sin sesión devolverá **404** (middleware `auth.protect()`), aunque la columna exista. Verifica la tabla desde SQL Editor, o la API desde el navegador con sesión iniciada.

@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Comprehensive Angel Ring Cleanup</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 20px; background: #f5f5f5; }
+        .container { max-width: 1000px; margin: 0 auto; background: white; padding: 30px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        .danger { background: #f8d7da; color: #721c24; padding: 20px; border-radius: 5px; margin: 20px 0; border: 2px solid #dc3545; }
+        .warning { background: #fff3cd; color: #856404; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #ffeaa7; }
+        .success { background: #d4edda; color: #155724; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #c3e6cb; }
+        .info { background: #d1ecf1; color: #0c5460; padding: 20px; border-radius: 5px; margin: 20px 0; border: 1px solid #bee5eb; }
+        .step { margin: 20px 0; padding: 15px; background: #f8f9fa; border-left: 5px solid #007bff; }
+        button { padding: 15px 30px; background: #f44336; color: white; border: none; border-radius: 5px; cursor: pointer; margin: 10px 0; font-size: 16px; width: 100%; }
+        button:hover { background: #d32f2f; }
+        button.success { background: #4CAF50; }
+        button.success:hover { background: #45a049; }
+        #result { margin-top: 20px; padding: 15px; background: #f5f5f5; border-radius: 5px; }
+        pre { background: #333; color: #fff; padding: 10px; border-radius: 5px; overflow-x: auto; max-height: 300px; overflow-y: auto; }
+        .cleanup-item { margin: 10px 0; padding: 10px; background: #e8f5e8; border-radius: 5px; }
+        .error-item { margin: 10px 0; padding: 10px; background: #ffeaea; border-radius: 5px; }
+        h1 { color: #d32f2f; text-align: center; margin-bottom: 30px; }
+        h2 { color: #333; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 15px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🗑️ COMPREHENSIVE Angel Ring Cleanup</h1>
+        
+        <div class="danger">
+            <h2>⚠️ COMPLETE ELIMINATION</h2>
+            <p><strong>This tool will delete ALL Angel Ring data across your entire project:</strong></p>
+            <div class="grid-3">
+                <div>
+                    <h3>🗄️ Database</h3>
+                    <ul>
+                        <li>Tenants</li>
+                        <li>Users</li>
+                        <li>Companies</li>
+                        <li>Transactions</li>
+                        <li>Accounts</li>
+                        <li>Invoices</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>🔄 Context Data</h3>
+                    <ul>
+                        <li>TenantContext cache</li>
+                        <li>React state</li>
+                        <li>Application state</li>
+                    </ul>
+                </div>
+                <div>
+                    <h3>🍪 Browser Storage</h3>
+                    <ul>
+                        <li>localStorage</li>
+                        <li>sessionStorage</li>
+                        <li>Cookies</li>
+                        <li>Application cache</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+        
+        <div class="info">
+            <h3>🎯 Target Data:</h3>
+            <ul>
+                <li><strong>Tenant Name:</strong> "Angel Ring"</li>
+                <li><strong>Email:</strong> "scalix@contab.com"</li>
+                <li><strong>Tenant ID:</strong> "cmofey73w000087izrdfvtlve"</li>
+                <li><strong>Any references:</strong> All hardcoded mentions</li>
+            </ul>
+        </div>
+        
+        <button onclick="comprehensiveCleanup()">🗑️ DELETE ALL ANGEL RING DATA</button>
+        
+        <div id="result"></div>
+        
+        <div class="step">
+            <h3>🔄 AFTER CLEANUP - COMPLETE FRESH START:</h3>
+            <ol>
+                <li><strong>✅ Database cleaned</strong> - All Angel Ring records deleted</li>
+                <li><strong>🧹 Browser cache cleared</strong> - Use provided cleanup script</li>
+                <li><strong>🚪 Close all browser windows</strong> - Complete session reset</li>
+                <li><strong>🔑 Fresh login</strong> - azuna22@outlook.com</li>
+                <li><strong>📝 Complete onboarding</strong> - "casa vieja"</li>
+                <li><strong>🏠 Verify dashboard</strong> - Should show "casa vieja"</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        async function comprehensiveCleanup() {
+            const resultDiv = document.getElementById('result');
+            
+            if (!confirm('⚠️ CRITICAL: This will delete ALL Angel Ring data from your entire project. Continue?')) {
+                return;
+            }
+            
+            if (!confirm('🚨 FINAL WARNING: This action is IRREVERSIBLE and will delete all Angel Ring records, users, companies, and related data. Are you absolutely sure?')) {
+                return;
+            }
+            
+            resultDiv.innerHTML = '🗑️ Performing COMPREHENSIVE Angel Ring cleanup...';
+            
+            try {
+                const response = await fetch('/api/admin/comprehensive-angel-ring-cleanup', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    let html = `
+                        <div class="${result.success ? 'success' : 'warning'}">
+                            <h2>${result.success ? '✅' : '⚠️'} ${result.message}</h2>
+                        </div>
+                    `;
+                    
+                    // Database cleanup results
+                    if (result.results.database) {
+                        html += '<h2>🗄️ Database Cleanup Results:</h2>';
+                        
+                        if (result.results.database.tenants) {
+                            const tenants = result.results.database.tenants;
+                            html += `
+                                <div class="cleanup-item">
+                                    <h3>🏢 Tenants:</h3>
+                                    <p>Found: ${tenants.found}, Deleted: ${tenants.deleted}</p>
+                                    ${tenants.deletedIds ? `<p>Deleted IDs: ${tenants.deletedIds.join(', ')}</p>` : ''}
+                                </div>
+                            `;
+                        }
+                        
+                        if (result.results.database.users) {
+                            const users = result.results.database.users;
+                            html += `
+                                <div class="cleanup-item">
+                                    <h3>👥 Users:</h3>
+                                    <p>Found: ${users.found}, Deleted: ${users.deleted}</p>
+                                </div>
+                            `;
+                        }
+                    }
+                    
+                    // Verification results
+                    if (result.results.verification) {
+                        const verification = result.results.verification;
+                        html += `
+                            <h2>🔍 Verification Results:</h2>
+                            <div class="${verification.totalRemaining === 0 ? 'success' : 'warning'}">
+                                <p><strong>Tenants remaining:</strong> ${verification.tenants}</p>
+                                <p><strong>Users remaining:</strong> ${verification.users}</p>
+                                <p><strong>Companies remaining:</strong> ${verification.companies}</p>
+                                <p><strong>Email references remaining:</strong> ${verification.emails}</p>
+                                <p><strong>Total remaining:</strong> ${verification.totalRemaining}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Errors
+                    if (result.results.summary && result.results.summary.errors.length > 0) {
+                        html += '<h2>❌ Errors Encountered:</h2>';
+                        result.results.summary.errors.forEach(error => {
+                            html += `<div class="error-item"><p>${error}</p></div>`;
+                        });
+                    }
+                    
+                    // Client cleanup instructions
+                    if (result.results.clientCleanup) {
+                        html += `
+                            <h2>🧹 Client-Side Cleanup Required:</h2>
+                            <div class="step">
+                                <h3>Browser Storage Cleanup:</h3>
+                                <p>Run this script in your browser console:</p>
+                                <pre>// Clear Angel Ring data from browser storage
+localStorage.removeItem('selected_tenant');
+localStorage.removeItem('tenant_data');
+localStorage.removeItem('current_tenant');
+sessionStorage.removeItem('tenant_session');
+sessionStorage.removeItem('user_session');
+document.cookie = 'tenant_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+document.cookie = 'current_tenant=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+console.log('✅ Angel Ring browser data cleared');</pre>
+                                <button onclick="executeClientCleanup()" class="success" style="width: auto; margin-top: 10px;">
+                                    🧹 EXECUTE CLIENT CLEANUP
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
+                    // Next steps
+                    if (result.nextSteps) {
+                        html += `
+                            <h2>🔄 Next Steps:</h2>
+                            <div class="step">
+                                <ol>
+                                    ${result.nextSteps.map(step => `<li>${step}</li>`).join('')}
+                                </ol>
+                                <button onclick="window.location.href='/auth/login'" class="success" style="width: auto; margin-top: 10px;">
+                                    🔄 GO TO LOGIN FOR FRESH START
+                                </button>
+                            </div>
+                        `;
+                    }
+                    
+                    // Summary
+                    if (result.results.summary) {
+                        html += `
+                            <h2>📊 Cleanup Summary:</h2>
+                            <div class="info">
+                                <p><strong>Total records deleted:</strong> ${result.results.summary.totalDeleted}</p>
+                                <p><strong>Errors encountered:</strong> ${result.results.summary.errors.length}</p>
+                                <p><strong>Overall status:</strong> ${result.success ? '✅ SUCCESS' : '⚠️ PARTIAL SUCCESS'}</p>
+                            </div>
+                        `;
+                    }
+                    
+                    html += `<h2>📊 Complete Results:</h2>
+                        <pre>${JSON.stringify(result, null, 2)}</pre>`;
+                    
+                    resultDiv.innerHTML = html;
+                } else {
+                    resultDiv.innerHTML = `
+                        <div class="danger">
+                            <h2>❌ Comprehensive Cleanup Failed</h2>
+                            <p><strong>Status:</strong> ${response.status}</p>
+                            <pre>${JSON.stringify(result, null, 2)}</pre>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <div class="danger">
+                        <h2>❌ Connection Error</h2>
+                        <pre>${error.message}</pre>
+                        <p>Possible causes:</p>
+                        <ul>
+                            <li>Server not running</li>
+                            <li>API endpoint not working</li>
+                            <li>Network connectivity issues</li>
+                        </ul>
+                    </div>
+                `;
+            }
+        }
+        
+        function executeClientCleanup() {
+            try {
+                // Clear localStorage
+                localStorage.removeItem('selected_tenant');
+                localStorage.removeItem('tenant_data');
+                localStorage.removeItem('current_tenant');
+                
+                // Clear sessionStorage
+                sessionStorage.removeItem('tenant_session');
+                sessionStorage.removeItem('user_session');
+                
+                // Clear cookies
+                document.cookie = 'tenant_id=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                document.cookie = 'current_tenant=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
+                
+                alert('✅ Client-side Angel Ring data cleared successfully!');
+                
+                // Force page refresh
+                window.location.reload();
+            } catch (error) {
+                alert('❌ Error clearing client data: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>

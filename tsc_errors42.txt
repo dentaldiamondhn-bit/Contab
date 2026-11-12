@@ -1,0 +1,43 @@
+lib/services/transaction-service-enhanced.ts(140,3): error TS1128: Declaration or statement expected.
+lib/services/transaction-service-enhanced.ts(145,3): error TS1128: Declaration or statement expected.
+lib/services/transaction-service-enhanced.ts(145,10): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(145,55): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(191,3): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(191,10): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(197,4): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(198,21): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(199,19): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(200,22): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(201,18): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(202,19): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(263,3): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(263,10): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(267,4): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(268,20): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(269,18): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(270,22): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(271,6): error TS1005: ';' expected.
+lib/services/transaction-service-enhanced.ts(332,3): error TS1128: Declaration or statement expected.
+lib/services/transaction-service-enhanced.ts(332,10): error TS1434: Unexpected keyword or identifier.
+lib/services/transaction-service-enhanced.ts(333,14): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(334,12): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(335,19): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(336,4): error TS1005: ';' expected.
+lib/services/transaction-service-enhanced.ts(337,26): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(345,7): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(347,9): error TS1005: ':' expected.
+lib/services/transaction-service-enhanced.ts(349,13): error TS1005: ':' expected.
+lib/services/transaction-service-enhanced.ts(352,9): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(354,13): error TS1005: ':' expected.
+lib/services/transaction-service-enhanced.ts(354,29): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(356,12): error TS1359: Identifier expected. 'const' is a reserved word that cannot be used here.
+lib/services/transaction-service-enhanced.ts(356,18): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(356,30): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(356,33): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(417,7): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(417,14): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(417,131): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(419,14): error TS1005: ':' expected.
+lib/services/transaction-service-enhanced.ts(422,8): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(423,7): error TS1005: ',' expected.
+lib/services/transaction-service-enhanced.ts(428,1): error TS1128: Declaration or statement expected.
