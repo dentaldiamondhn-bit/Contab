@@ -285,39 +285,23 @@ export async function PUT(
           taxes,
         },
       };
-      const existing = await supabase
-        .from('system_config')
-        .select('id')
-        .eq('tenant_id', tenantId)
-        .eq('key', 'invoice_settings')
-        .maybeSingle();
-
-      const payload = {
-        value: JSON.stringify(merged),
-        updated_at: new Date().toISOString(),
-      };
-      let settingsError: { message: string } | null = null;
-      if (existing.data?.id) {
-        const res = await supabase.from('system_config').update(payload).eq('id', existing.data.id);
-        settingsError = res.error;
-      } else {
-        const res = await supabase.from('system_config').insert({
+      // `system_config` existe con unicidad (tenant_id, key). El upsert evita
+      // la carrera entre dos guardados simultaneos del mismo tenant.
+      const { error: settingsError } = await supabase.from('system_config').upsert(
+        {
+          tenant_id: tenantId,
           key: 'invoice_settings',
           value: JSON.stringify(merged),
           description: 'Configuraci\u00f3n de la factura (impresi\u00f3n e impuestos)',
           is_active: true,
-          tenant_id: tenantId,
-          created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
-        });
-        settingsError = res.error;
-      }
+        },
+        { onConflict: 'tenant_id,key' },
+      );
 
       if (settingsError) {
-        // `system_config` no existe en el esquema real. Se avisa en vez de
-        // afirmar que se guardo algo que no se persistio.
         console.warn('[billing/config] No se pudieron guardar los ajustes:', settingsError.message);
-        messages.push('No se pudieron guardar los ajustes de impresion/impuestos');
+        messages.push('No se pudieron guardar los ajustes de impresi\u00f3n/impuestos');
       } else {
         messages.push('Ajustes guardados');
       }
