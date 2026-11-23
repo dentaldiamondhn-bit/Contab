@@ -35,19 +35,29 @@ function esPantallaCompleta(pathname: string): boolean {
 }
 
 function tieneShellPropio(pathname: string): boolean {
-  if (
-    SECCIONES_CON_SHELL_PROPIO.some(
-      (base) => pathname === base || pathname.startsWith(`${base}/`)
-    )
-  ) {
-    return true;
+  // Primero: comprobar si coincide exactamente con alguna sección o es hija DIRECTA
+  // (no nieta). /companies es la página de LISTA; /companies/[id] es DETALLE.
+  for (const base of SECCIONES_CON_SHELL_PROPIO) {
+    if (pathname === base) return true;
+    // Hija directa: /admin/panel, /dashboard/support, /companies (lista) NO tiene hijas directas con shell
+    if (pathname.startsWith(`${base}/`) && !pathname.slice(base.length + 1).includes('/')) {
+      // Excepción: /companies/[id] NO es hija directa de /companies (es una ruta dinámica distinta)
+      if (base === '/companies') continue;
+      return true;
+    }
   }
+
+  // `/companies/[id]` usa su propio layout con AppShell (igual que /dashboard y /companies).
   // `/companies/[id]/security` y `/companies/[id]/tax-integration` tienen
   // layout propio de pantalla completa (sidebar de módulos / main a altura fija).
-  // También se incluye /companies/[id] porque usa su propio layout con TenantHeader + RoleBasedSidebar.
-  return /^\/companies\/[^/]+\/(security|tax-integration)(\/|$)/.test(pathname) ||
-         /^\/companies\/[^/]+$/.test(pathname) ||
-         /^\/companies\/[^/]+\//.test(pathname);
+  // TODAS las demás rutas bajo /companies/[id]/* (accounting, billing, inventory, etc.)
+  // HEREDAN el layout del padre (/companies/[id]/layout.tsx con AppShell),
+  // así que NO deben recibir shell de AppFrame.
+  return (
+    /^\/companies\/[^/]+$/.test(pathname) ||                         // /companies/[id] exacto
+    /^\/companies\/[^/]+\/(security|tax-integration)(\/|$)/.test(pathname) ||
+    /^\/companies\/[^/]+\//.test(pathname)                          // CUALQUIER hijo de /companies/[id]/*
+  );
 }
 
 export function AppFrame({ children }: { children: ReactNode }) {

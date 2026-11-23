@@ -8,7 +8,7 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false },
   // Conectar como superusuario para evitar restricciones
   user: 'postgres',
-  password: process.env.POSTGRES_PASSWORD || '7KC3eRuTM123',
+  password: process.env.POSTGRES_PASSWORD,
   database: 'postgres'
 });
 

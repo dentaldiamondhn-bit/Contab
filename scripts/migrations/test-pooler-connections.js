@@ -1,5 +1,7 @@
 const { Client } = require('pg');
-const pw = '7KC3eRuTM123';
+const { getDatabasePassword } = require('../load-env.cjs');
+
+const pw = getDatabasePassword();
 const host = 'aws-0-us-east-1.pooler.supabase.com';
 const project = 'kudsqsbxbmviesiaesct';
 

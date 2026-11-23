@@ -165,7 +165,7 @@ export function transformPurchase(p: any): any {
 export async function fetchPurchases(supabase: SupabaseClient, empresa: EmpresaCompra, filters: PurchaseFilters) {
   let query = supabase
     .from('Purchase')
-    .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
+    .select('*')
     .eq('company_id', empresa.companyId)
     .order('invoice_date', { ascending: false });
 
@@ -480,7 +480,7 @@ export async function updatePurchase(supabase: SupabaseClient, empresa: EmpresaC
 
   const { data, error } = await supabase
     .from('Purchase')
-    .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
+    .select('*, items:PurchaseItem(*)')
     .eq('id', id)
     .eq('company_id', empresa.companyId)
     .single();
@@ -575,7 +575,7 @@ export async function recomputePurchase(
 
   const { data: updated } = await supabase
     .from('Purchase')
-    .select('*, Supplier:supplier_id(id, name, rtn, commercial_name, phone, email), items:PurchaseItem(*)')
+    .select('*, items:PurchaseItem(*)')
     .eq('id', purchaseId)
     .eq('company_id', empresa.companyId)
     .single();

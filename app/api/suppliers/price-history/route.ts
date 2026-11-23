@@ -55,6 +55,10 @@ export async function GET(request: Request) {
 
     if (error) {
       console.error('Error fetching price history:', error);
+      // If table not found in schema cache, return empty list instead of 500
+      if (error.message?.includes('Could not find the table')) {
+        return NextResponse.json([]);
+      }
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

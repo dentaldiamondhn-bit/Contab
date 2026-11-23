@@ -32,17 +32,17 @@ async function sesionActual() {
   }
 
   const metadata = {
-    ...((sessionClaims?.metadata as Record<string, unknown>) || {}),
+    ...((sessionClaims?.metadata) || {}),
     ...(clerkUser?.publicMetadata || {}),
     ...(clerkUser?.unsafeMetadata || {}),
-    ...((clerkUser?.privateMetadata as Record<string, unknown>) || {}),
+    ...(clerkUser?.privateMetadata || {}),
   };
 
   const role = String(metadata.role || '').toUpperCase();
   const email =
     clerkUser?.emailAddresses?.[0]?.emailAddress ||
     clerkUser?.primaryEmailAddress?.emailAddress ||
-    String((sessionClaims as { email?: string } | null)?.email || '');
+    String((sessionClaims?.email) || '');
 
   const superAdmins = (process.env.NEXT_PUBLIC_SUPER_ADMIN_EMAILS || '')
     .split(',')

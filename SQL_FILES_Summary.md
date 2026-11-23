@@ -67,6 +67,9 @@ Todas las migraciones Supabase están aplicadas y las 223 pruebas automatizadas 
 | `062_desexponer_tablas_nuevas_data_api.sql` | Cierra tablas al `anon`/`authenticated` - solo `service_role` ve datos completos | ✅ Aplicado | 8 Oct 2026 |
 | `063_desexponer_tablas_modulo_compras.sql` | Cierra módulo compras al Data API - solo vistas controladas | ✅ Aplicado | 8 Oct 2026 |
 | `064_supplier_payment_journal_entry.sql` | `SupplierPayment` siempre crea asiento contable obligatorio (CxP o Banco) | ✅ Aplicado | 8 Oct 2026 |
+| `app/api/inventory/packages/route.ts` | API route with GET/POST/PATCH/DELETE for package management | ✅ Implementado | 17 Nov 2026 |
+| `components/inventory/PackagesList.tsx` | Componente para mostrar lista de paquetes en tabla | ✅ Implementado | 17 Nov 2026 |
+| `components/inventory/PackageForm.tsx` | Modal form para crear/editar paquetes | ✅ Implementado | 17 Nov 2026 |
 | `065_conciliacion_bancaria_pagos.sql` | `POST/DELETE /api/payments/conciliation` - marcar/desmarcar pagos vs banco | ✅ Aplicado | 8 Oct 2026 |
 | `066_supplier_cai.sql` | Columnas `cai`, `cai_expiration_date`, `cai_range_from/to`, `withholding_type` en Supplier + aviso (no bloqueo) al registrar compra | ✅ Aplicado | 8 Oct 2026 |
 | `067_invoice_number_unique_per_company.sql` | `UNIQUE (invoice_number, company_id)` - facturas únicas por empresa | ✅ Aplicado | 8 Oct 2026 |

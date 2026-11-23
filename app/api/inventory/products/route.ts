@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { contextoDeEmpresa } from "@/lib/tenant-resolver";
+import { exigirEmpresa } from "@/lib/purchase-db";
 import { filtroEmpresaOCompany } from "@/lib/company-scope";
 import { getSupabaseServer } from '@/lib/supabase/server-lazy';
 
@@ -22,20 +23,41 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const withStockOnly = searchParams.get("withStock") === "true";
     const productType = searchParams.get("productType");
-    const empresa = await contextoDeEmpresa(request);
-    if (!empresa.tenantId) {
-      return NextResponse.json(
-        { error: "Falta el tenant de la empresa" },
-        { status: 400 }
-      );
+    
+    // Usar companyId de la query string si viene (para compatibilidad con /companies/[id]/inventory)
+    // Resolver el tenant correctamente usando contextoDeEmpresa
+    const companyIdFromQuery = searchParams.get("companyId");
+    let empresa;
+    if (companyIdFromQuery) {
+      // Modo empresa por query string: resolver tenant desde companyId
+      empresa = exigirEmpresa(await contextoDeEmpresa(request, { companyIdDeRuta: companyIdFromQuery }));
+    } else {
+      // Modo normal: usar contexto de Clerk
+      empresa = await contextoDeEmpresa(request);
+      if (!empresa.tenantId) {
+        return NextResponse.json(
+          { error: "Falta el tenant de la empresa" },
+          { status: 400 }
+        );
+      }
     }
 
     let query = getSupabaseServer()
       .from("product")
-      .select('*')
-      .eq("tenant_id", empresa.tenantId)
-      .match(filtroEmpresaOCompany(empresa))
-      .eq("is_active", true);
+      .select('*');
+
+    // Si venimos del query string companyId, filtramos por company_id directamente
+    if (companyIdFromQuery) {
+      query = query.eq("company_id", companyIdFromQuery);
+    } else {
+      // Modo normal: filtrar por tenant_id y company scope
+      query = query.eq("tenant_id", empresa.tenantId);
+      if (empresa.companyId) {
+        query = query.eq("company_id", empresa.companyId);
+      }
+    }
+
+    query = query.eq("is_active", true);
 
 
     if (withStockOnly) {

@@ -1,7 +1,10 @@
 const { Client } = require('pg');
 
 // Conexión directa a PostgreSQL
-const databaseUrl = 'postgresql://postgres:7KC3eRuTM123@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+const { requireDatabaseUrl } = require('./load-env.cjs');
+
+// La cadena de conexión vive en .env; nunca en el repositorio.
+const databaseUrl = requireDatabaseUrl();
 
 async function createCustomTaxesFinalSolution() {
   const client = new Client({

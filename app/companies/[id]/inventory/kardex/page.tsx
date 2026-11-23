@@ -75,7 +75,7 @@ export default function KardexPage() {
 
   const loadProducts = async () => {
     try {
-      const res = await fetch('/api/inventory/products');
+      const res = await fetch(`/api/inventory/products?companyId=${companyId}`);
       if (res.ok) {
         const data = await res.json();
         setProducts(data);
@@ -88,7 +88,7 @@ export default function KardexPage() {
   const loadKardex = async () => {
     try {
       setLoading(true);
-      let url = `/api/inventory/movements?productId=${selectedProduct}`;
+      let url = `/api/inventory/movements?productId=${selectedProduct}&companyId=${companyId}`;
       if (startDate) url += `&startDate=${startDate}`;
       if (endDate) url += `&endDate=${endDate}`;
 

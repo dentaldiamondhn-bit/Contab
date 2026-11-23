@@ -1,7 +1,10 @@
 const { createClient } = require('@supabase/supabase-js');
 
 // Usar la URL directa de la base de datos sin autenticación
-const databaseUrl = 'postgresql://postgres:7KC3eRuTM123@aws-0-us-east-1.pooler.supabase.com:6543/postgres';
+const { requireDatabaseUrl } = require('./load-env.cjs');
+
+// La cadena de conexión vive en .env; nunca en el repositorio.
+const databaseUrl = requireDatabaseUrl();
 
 const { Client } = require('pg');
 

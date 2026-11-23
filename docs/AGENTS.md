@@ -1,4 +1,4 @@
-﻿<!-- BEGIN:nextjs-agent-rules -->
+<!-- BEGIN:nextjs-agent-rules -->
 
 # This is NOT the Next.js you know
 
@@ -83,3 +83,22 @@ prisma generate
 - â³ Reemplazar favicon.ico con logo archivo
 
 **Progreso Calculado:** 90% - Los fixes crÃ­ticos y de base de datos estÃ¡n completados, pending los Ãºltimos detalles de testing y configuraciÃ³n.
+
+---
+
+## Progreso de la SesiÃ³n Actual (17 de noviembre de 2026)
+
+### Estado General: 92% Completo
+
+**Fixes Aplicados en esta SesiÃ³n:**
+- âœ… **CSS duplicado entre `/dashboard` y `/companies/[id]`**: Eliminado layout duplicado `/app/companies/[id]/layout.tsx`; corregido `tieneShellPropio()` en `components/AppFrame.tsx` para que todas las rutas bajo `/companies/[id]/*` compartan el `AppShell` nico (TenantHeader + WorkspaceBar + RoleBasedSidebar). Ahora `/companies/c1-test1` tiene exactamente el mismo tema, header, sidebar y padding que `/dashboard`.
+- âœ… **Error 500 en `/api/tenants-api`**: Eliminados casts de TypeScript inválidos (`as Record<string, unknown>`, `as { email?: string }`) de `app/api/tenants-api/route.js` que causaban parsing error `Expected ',', got 'as'` y 500 en `/api/tenants-api`, `/api/workspace` y `/api/user/profile`.
+- âœ… **Error 500 en `GET /api/inventory/products` (MigraciÃ³n 041)**: Renombrada tabla `Product` → `product`, renombradas columnas camelCase (`tenantId`→`tenant_id`, `currentStock`→`current_stock`, `companyId`→`company_id`) y aÃ±adidas columnas faltantes (`is_active`, `unit_cost`, `sale_price`, `unit_price`, `current_cost`, `min_stock`, `max_stock`, `tax_rate`, `type`, `unit`, `product_type`, `valuation_method`, `warehouse_id`, `image_url`, `stock_quantity`, `created_at`, `updated_at`, `deleted_at`). Tabla con 0 filas, renombrados seguros.
+- âœ… **INSERT roto en `product` por trigger camelCase (MigraciÃ³n 042)**: Eliminado trigger `set_company_id_from_tenantid()` que referenciaba `new."tenantId"` (error `42703 record "new" has no field "tenantId"`); quedado solo trigger snake `trg_set_company_id` que usa `new.tenant_id` y rellena `company_id` vÃ­a `oldest_company_of_tenant()`.
+
+**Pending:**
+- âš ï¸ Permisos de schema pÃºblico (re-aplicables tras reinicio Supabase)
+- â³ Testing final de APIs: /api/admin/plans-public, /api/workspace
+- â³ Reemplazar favicon.ico con logo archivo
+
+**Progreso Calculado:** 92% - Se resolvieron el CSS duplicado, el parsing error de tenants-api y las dos migraciones crÃ­ticas del inventario.

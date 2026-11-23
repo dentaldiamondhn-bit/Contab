@@ -547,6 +547,9 @@ PERIOD_LOCKS.sql
 - **Fix `/api/companies`** — `process.env.SUPABASE_URL` (inexistente) fue corregido a `process.env.NEXT_PUBLIC_SUPABASE_URL` (GET y PUT).
 - **Build** — `pnpm build` EXIT=0 ("Compiled successfully"); errores TS preexistentes que no bloquean: `.next/types/validator.ts`, `app/billing/generate-invoice/page.tsx`, `app/billing/subscriptions/page.tsx`, `lib/billing/invoice-generator.ts`.
 - **Consolidación de esquemas** — Migraciones 007 (facturación: `Invoice`/`InvoiceItem`) y 008 (inventario: `product`/`inventory_movement`) aplicadas el 16 Sept 2026; las tablas/vistas legacy fueron eliminadas. Prisma realineado y build en verde.
+- **Migración 041 (17 Nov 2026)** — Renombró tabla `Product` → `product`, renombró columnas camelCase a snake_case y añadió columnas faltantes (`is_active`, `unit_cost`, `sale_price`, `unit_price`, `current_cost`, `min_stock`, `max_stock`, `tax_rate`, `type`, `unit`, `product_type`, `valuation_method`, `warehouse_id`, `image_url`, `stock_quantity`, `created_at`, `updated_at`, `deleted_at`). La tabla `Product` aún existía en producción y causaba `PGRST205` al consultar `product` desde `GET /api/inventory/products`.
+- **Migración 042 (17 Nov 2026)** — Eliminó trigger camelCase `set_company_id_from_tenantid()` de `product` (referenciaba `new."tenantId"` y rompía `INSERT`) y dejó solo el trigger snake `trg_set_company_id` que usa `new.tenant_id` y rellena `company_id` vía `oldest_company_of_tenant()`.
+- **Fix `/api/tenants-api`** — Eliminados casts de TypeScript inválidos (`as Record<string, unknown>`, `as { email?: string }`) del archivo `.js` que causaban error de parsing `Expected ',', got 'as'` y devolvían 500 en `/api/tenants-api`, `/api/workspace` y `/api/user/profile`.
 - **Infraestructura** — Next.js 16.3.5 (Turbopack), `output: 'standalone'`. Las tablas se crean desde el SQL Editor de Supabase (sin acceso DDL directo).
 
 ---

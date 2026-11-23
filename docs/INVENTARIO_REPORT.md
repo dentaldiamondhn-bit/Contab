@@ -1,4 +1,4 @@
-﻿# Reporte de Estado y Plan de Ejecución: Inventario
+# Reporte de Estado y Plan de Ejecución: Inventario
 
 ## 1. Estado Actual del Código
 
@@ -6,20 +6,20 @@
 
 | Sub-Área | Estado | UI Pages | API Routes | DB Tables | Almacenamiento |
 |---|---|---|---|---|---|
-| **Gestión de Productos** | Completo | 1 página (1537+ líneas) | 1 ruta | 1 tabla (`product`) | Supabase |
+| **Gestión de Productos** | Completo | 2 páginas | 2 rutas | 1 tabla (`product`) | Supabase |
 | **Control de Stock** | Completo | En página | 1 ruta | 2 tablas | Supabase |
 | **Movimientos de Inventario** | Completo | En página | 1 ruta | 2 tablas | Supabase |
-| **Alertas de Stock** | Parcial | En página | 1 ruta | — | Cálculos en código |
+| **Alertas de Stock** | Funcional | Página dedicada `/companies/[id]/inventory/alertas` con API que lee `companyId` de la query string | 1 ruta (`/api/inventory/alerts`) | — | Cálculos en código |
 | **Reportes de Inventario** | Completo | 1 componente | 1 ruta | — | Supabase |
 | **Dashboard de Inventario** | Completo (28 Sept 2026) | 1 página + 1 componente | 1 ruta | — | Supabase |
 | **Ubicación (física) de Producto** | Completo (28 Sept 2026) | En página + kardex + dashboard | 1 ruta | Columna `location` en `product` | Supabase |
-| **Categorías y Paquetes** | Parcial | En página | 0 rutas | — | Supabase |
+| **Categorías y Paquetes** | Completo | Páginas completas + API routes dedicadas | 3 rutas dedicadas (`/api/inventory/packages`) | — | Supabase |
 | **Importación Masiva** | Completo | En página | — | — | Excel/CSV |
 | **Almacenes** | Completo (Etapa 2) | 1 tab + componente | 2 rutas | 1 tabla (`warehouse`) | Supabase |
 | **Traslados/Logística** | Completo (Etapa 2) | 1 tab + componente | 2 rutas | 2 tablas (`inventory_transfer` + `_item`) | Supabase |
-| **Tracking por Lote** | No Iniciado | 0 | 0 | 0 | — |
-| **Inventario Físico** | No Iniciado | 0 | 0 | 0 | — |
-| **Valoración FIFO/Promedio** | No Iniciado | 0 | 0 | — | Columna existe sin lógica |
+| **Tracking por Lote** | No Iniciado | 0 | 0 | Campo `batch_id` existe sin UI | — |
+| **Inventario Físico** | Parcial | 0 | 1 ruta (`/api/inventory/adjustments`) | Campos en `inventory_adjustment_item` | Supabase |
+| **Valoración FIFO/Promedio** | Parcial | 0 | 0 | Campo `valuation_method` en `product` | Supabase |
 
 ### 1.2 Métricas de Madurez
 
@@ -44,17 +44,25 @@
 | Archivo | Propósito |
 |---|---|
 | `app/inventory/page.tsx` | Página completa (1537+ líneas): CRUD de productos, movimientos, categorías, paquetes, promociones, importación CSV/Excel, gestión de descuentos, vinculación con proveedores, multi-vista (tarjetas/tabla/lista), validación, filtro de stock |
+| `app/companies/[id]/inventory/page.tsx` | Página de inventario por empresa |
+| `app/companies/[id]/inventory/dashboard/page.tsx` | Dashboard de inventario por empresa |
+| `app/companies/[id]/inventory/kardex/page.tsx` | Kardex por empresa |
+| `app/companies/[id]/inventory/layout.tsx` | Layout con sub-nav (Productos / Dashboard / Kardex) |
 | `components/inventory/InventoryManager.tsx` | Gestor: CRUD productos, movimientos (IN/OUT), estado de stock, valoración, integración contable |
-| `app/api/inventory/products/route.ts` | API CRUD de productos |
+| `app/api/inventory/products/route.ts` | API CRUD de productos (GET/PATCH/POST) |
 | `lib/purchase-db.ts` | Upsert best-effort de producto (stock/costo) desde Compras |
 
 #### Tablas de Base de Datos
 
-- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, location, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id
+- `product` (canónico, snake_case) — id, code, name, description, unit, unit_price, current_cost, tax_rate, is_service, is_active, current_stock, stock_quantity, min_stock, max_stock, category, product_type, valuation_method, expiration_date, location, tags, is_discount, discount_price, promotion_start_date, promotion_end_date, created_by, supplier_id, tenant_id, company_id
 
-> Las tablas legacy `Product` (PascalCase) y `products` (plural) y la **vista** `Products` fueron eliminadas en la migración 008 (16 Sept 2026). Backups: `_backup_product_008`, `_backup_products_008`.
+> **Migración 041 (17 Nov 2026)** — La tabla `Product` (PascalCase) seguía existiendo en producción y respondía `PGRST205` cuando el código consultaba `product` (minúsculas). La migración renombró `Product` → `product`, renombró columnas camelCase (`tenantId`→`tenant_id`, `currentStock`→`current_stock`, `companyId`→`company_id`) y añadió columnas faltantes (`is_active`, `unit_cost`, `sale_price`, `unit_price`, `current_cost`, `min_stock`, `max_stock`, `tax_rate`, `type`, `unit`, `product_type`, `valuation_method`, `warehouse_id`, `image_url`, `stock_quantity`, `created_at`, `updated_at`, `deleted_at`). La tabla tenía **0 filas**, por lo que los `RENAME` fueron seguros.
 
-> **Esquema consolidado** ✅ — `product` es la única tabla de productos desde la migración 008 (16 Sept 2026).
+> **Migración 042 (17 Nov 2026)** — El trigger `set_company_id_from_tenantid()` (camelCase) referenciaba `new."tenantId"` en `product`, haciendo fallar cualquier `INSERT` (error `42703 record "new" has no field "tenantId"`). La migración eliminó el trigger camel de `product` y dejó solo el trigger snake `trg_set_company_id` que usa `new.tenant_id` y rellena `company_id` vía `oldest_company_of_tenant()`.
+
+> **Nota:** Las tablas legacy `Product` (PascalCase) y `products` (plural) y la **vista** `Products` fueron eliminadas en la migración 008 (16 Sept 2026), pero `Product` reapareció en producción hasta la migración 041. Backups: `_backup_product_008`, `_backup_products_008`.
+
+> **Esquema consolidado** ✅ — `product` es la única tabla de productos desde la migración 041 (17 Nov 2026).
 
 #### Lo que Falta
 
@@ -141,23 +149,27 @@
 
 | # | Problema | Impacto | Prioridad |
 |---|---|---|---|
-| 1 | ~~Dual schema de productos~~ | Resuelto: esquema único `product` (migración 008, 16 Sept 2026) | — |
+| 1 | ~~Dual schema de productos~~ | Resuelto: esquema único `product` (migración 008, 16 Sept 2026) y renombrado `Product`→`product` (migración 041, 17 Nov 2026) | — |
 | 2 | ~~Sin multi-almacén funcional~~ | Resuelto: almacenes, stock por almacén y traslados con logística (Etapa 2, 17 Sept 2026) | — |
-| 3 | Sin valoración FIFO/promedio | Costos de inventario inexactos | Alta |
-| 4 | Sin inventario físico | Sin control real de stock | Alta |
-| 5 | Sin tracking por lotes | Sin trazabilidad | Media |
+| 3 | ~~Trigger `tenantId` roto en `product`~~ | Resuelto: migración 042 eliminó trigger camelCase, quedó trigger snake `trg_set_company_id` (17 Nov 2026) | — |
+| 3 | Categorías y paquetes incompletos en `/companies/[id]/inventory` | La página por empresa tiene `<select>` estático sin CRUD real | Media |
+| 4 | Sin valoración FIFO/promedio | Costos de inventario inexactos | Alta |
+| 5 | Sin inventario físico dedicado | Solo existe como parte de ajustes (`inventory_adjustment_item`) | Alta |
+| 6 | Sin tracking por lote dedicado | Campo `batch_id` existe en `InventoryMovementInput` pero sin UI ni lógica de negocio | Media |
 
 ---
 
 ## 4. Matriz del Plan por Etapas
 
-### Etapa 1: Consolidación de Esquema — ✅ Completada (16 Sept 2026)
+### Etapa 1: Consolidación de Esquema — ✅ Completada (17 Nov 2026)
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
 | 1.1 | Consolidar esquemas de producto en uno solo | Migraciones SQL | ✅ Esquema único `product` |
-| 1.2 | Migrar datos entre esquemas | Script de migración | ✅ Datos migrados (backups `_backup_*_008`) |
-| 1.3 | Actualizar API y UI para esquema único | `inventory/page.tsx`, API routes | ✅ Código actualizado |
+| 1.2 | Renombrar `Product` → `product` en producción | Migración 041 | ✅ Tabla renombrada y columnas camel→snake |
+| 1.3 | Corregir trigger camelCase en `product` | Migración 042 | ✅ Trigger snake `trg_set_company_id` activo |
+| 1.4 | Migrar datos entre esquemas | Script de migración | ✅ Datos migrados (backups `_backup_*_008`) |
+| 1.5 | Actualizar API y UI para esquema único | `inventory/page.tsx`, API routes | ✅ Código actualizado |
 
 ### Etapa 2: Multi-Almacén — ✅ Completada (17 Sept 2026)
 
@@ -175,13 +187,13 @@
 | 3.2 | Implementar valoración promedio ponderado | `lib/services/inventory-valuation.ts` | Cálculo promedio |
 | 3.3 | Reporte de valoración por método | `app/reports/inventory-valuation/page.tsx` | Reporte |
 
-### Etapa 4: Inventario Físico y Lotes
+### Etapa 4: Inventario Físico y Lotes — ⚠️ Parcial
 
 | # | Tarea | Archivos | Entregable |
 |---|---|---|---|
-| 4.1 | Conteo de inventario físico | `components/inventory/PhysicalCount.tsx` | Formulario de conteo |
-| 4.2 | Ajustes por differencias | `lib/services/stock-adjustment.ts` | Ajustes automáticos |
-| 4.3 | Tracking por lote/serie | `lib/services/batch-tracking.ts` | Trazabilidad |
+| 4.1 | Conteo de inventario físico | `inventory_adjustment_item.physical_count` existe, pero no hay UI dedicada | Campo en ajustes, sin formulario de conteo |
+| 4.2 | Ajustes por diferencias | `lib/services/inventory-kardex.ts` documenta AJUSTE (conteo físico, devolución, pérdida) | Lógica en ajustes, sin UI dedicada |
+| 4.3 | Tracking por lote/serie | Campo `batch_id` en `InventoryMovementInput` y `inventory_movement` | Campo existe, sin UI ni lógica de negocio |
 
 ### Etapa 5: QA
 
@@ -196,7 +208,7 @@
 
 | Etapa | Tareas | Complejidad | Estimación |
 |---|---|---|---|
-| Etapa 1: Consolidación | 3 tareas | Alta | ✅ Completada (16 Sept 2026) |
+| Etapa 1: Consolidación | 5 tareas | Alta | ✅ Completada (17 Nov 2026) |
 | Etapa 2: Multi-Almacén | 3 tareas | Alta | ✅ Completada (17 Sept 2026) |
 | Etapa 3: Valoración | 3 tareas | Alta | 3-4 semanas |
 | Etapa 4: Físico/Lotes | 3 tareas | Media | 2-3 semanas |

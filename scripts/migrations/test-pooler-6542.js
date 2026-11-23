@@ -1,6 +1,8 @@
 const { Client } = require('pg');
 const project = 'kudsqsbxbmviesiaesct';
-const pw = '7KC3eRuTM123';
+const { getDatabasePassword } = require('../load-env.cjs');
+
+const pw = getDatabasePassword();
 
 // 6542 with the correct pooler subdomain user
 const user = `postgres.${project}.anon_user`;

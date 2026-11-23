@@ -1,7 +1,8 @@
 const { Pool } = require('pg');
+const { requireDatabaseUrl } = require('./load-env.cjs');
 
 const pool = new Pool({
-  connectionString: 'postgresql://postgres:7KC3eRuTM123@db.kudsqsbxbmviesiaesct.supabase.co:5432/postgres'
+  connectionString: requireDatabaseUrl()
 });
 
 async function findEmployeeTables() {

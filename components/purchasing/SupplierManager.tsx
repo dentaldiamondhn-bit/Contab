@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -83,6 +83,9 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
     address: "",
     creditLimit: 0
   });
+  
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = 3;
 
   const supabase = createSupabaseClient();
 
@@ -184,6 +187,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
       });
       setEditingSupplier(null);
       setShowSupplierForm(false);
+      setCurrentStep(1);
       loadSuppliers();
     } catch (error: any) {
       console.error("Error saving supplier:", error);
@@ -469,7 +473,10 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
 
       {/* Botón de Nuevo Proveedor */}
       <div className="flex justify-center">
-        <Button onClick={() => setShowSupplierForm(true)}>
+        <Button onClick={() => {
+          setCurrentStep(1);
+          setShowSupplierForm(true);
+        }}>
           <Plus className="h-4 w-4 mr-2" />
           Nuevo Proveedor
         </Button>
@@ -561,6 +568,7 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
                                 creditLimit: supplier.creditLimit / 100
                               });
                               setShowSupplierForm(true);
+                              setCurrentStep(1);
                             }}
                           >
                             Editar
@@ -695,71 +703,126 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
             <CardDescription>
               {editingSupplier ? 'Modifique los datos del proveedor' : 'Ingrese los datos del nuevo proveedor'}
             </CardDescription>
+            {/* Step indicator */}
+            {!editingSupplier && (
+              <div className="flex items-center justify-between mb-4">
+                {[1, 2, 3].map((step) => (
+                  <Fragment key={step}>
+                    <div className={`flex items-center ${step < totalSteps ? 'flex-1' : ''}`}>
+                      <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
+                        step < currentStep ? 'bg-green-600 text-white' :
+                        step === currentStep ? 'bg-cyan-600 text-white' :
+                        'bg-gray-200 text-gray-600'
+                      }`}>
+                        {step < currentStep ? (
+                          <CheckCircle className="h-5 w-5" />
+                        ) : (
+                          step
+                        )}
+                      </div>
+                      {step < totalSteps && (
+                        <div className={`h-1 mx-2 flex-1 ${step < currentStep ? 'bg-green-600' : 'bg-gray-200'}`} />
+                      )}
+                    </div>
+                    <span className={`text-xs font-medium mt-1 ${
+                      step === currentStep ? 'text-cyan-600' : 'text-gray-500'
+                    }`}>
+                      {step === 1 && 'Datos Básicos'}
+                      {step === 2 && 'Contacto'}
+                      {step === 3 && 'Crédito'}
+                    </span>
+                  </Fragment>
+                ))}
+              </div>
+            )}
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="rtn">RTN *</Label>
-                <Input
-                  id="rtn"
-                  value={supplierForm.rtn}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, rtn: e.target.value })}
-                  placeholder="0801-XXXX-XXXXXX"
-                  required
-                />
+            {/* Step 1: Datos Básicos */}
+            {currentStep === 1 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="rtn">RTN *</Label>
+                    <Input
+                      id="rtn"
+                      value={supplierForm.rtn}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, rtn: e.target.value })}
+                      placeholder="0801-XXXX-XXXXXX"
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Nombre del Proveedor *</Label>
+                    <Input
+                      id="name"
+                      value={supplierForm.name}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
+                      placeholder="Nombre completo del proveedor"
+                      required
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="name">Nombre del Proveedor *</Label>
-                <Input
-                  id="name"
-                  value={supplierForm.name}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, name: e.target.value })}
-                  placeholder="Nombre completo del proveedor"
-                  required
-                />
+            )}
+            
+            {/* Step 2: Contacto */}
+            {currentStep === 2 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="email">Email</Label>
+                    <Input
+                      id="email"
+                      type="email"
+                      value={supplierForm.email}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
+                      placeholder="correo@proveedor.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone">Teléfono</Label>
+                    <Input
+                      id="phone"
+                      value={supplierForm.phone}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
+                      placeholder="+504 XXXX XXXX"
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="address">Dirección</Label>
+                    <Input
+                      id="address"
+                      value={supplierForm.address}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
+                      placeholder="Dirección completa"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={supplierForm.email}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, email: e.target.value })}
-                  placeholder="correo@proveedor.com"
-                />
+            )}
+            
+            {/* Step 3: Crédito */}
+            {currentStep === 3 && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2 md:col-span-2">
+                    <Label htmlFor="creditLimit">Límite de Crédito (L.)</Label>
+                    <Input
+                      id="creditLimit"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={supplierForm.creditLimit}
+                      onChange={(e) => setSupplierForm({ ...supplierForm, creditLimit: parseFloat(e.target.value) || 0 })}
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Teléfono</Label>
-                <Input
-                  id="phone"
-                  value={supplierForm.phone}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, phone: e.target.value })}
-                  placeholder="+504 XXXX XXXX"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="address">Dirección</Label>
-                <Input
-                  id="address"
-                  value={supplierForm.address}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, address: e.target.value })}
-                  placeholder="Dirección completa"
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <Label htmlFor="creditLimit">Límite de Crédito (L.)</Label>
-                <Input
-                  id="creditLimit"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  value={supplierForm.creditLimit}
-                  onChange={(e) => setSupplierForm({ ...supplierForm, creditLimit: parseFloat(e.target.value) || 0 })}
-                  placeholder="0.00"
-                />
-              </div>
-            </div>
-            <div className="flex justify-end space-x-3 pt-4 border-t">
+            )}
+            
+            {/* Navigation Buttons */}
+            <div className="flex justify-between pt-4 border-t">
               <Button
                 variant="outline"
                 onClick={() => {
@@ -773,13 +836,39 @@ export default function SupplierManager({ tenantId }: SupplierManagerProps) {
                     address: "",
                     creditLimit: 0
                   });
+                  setCurrentStep(1);
                 }}
               >
                 Cancelar
               </Button>
-              <Button onClick={saveSupplier}>
-                {editingSupplier ? 'Actualizar' : 'Guardar'}
-              </Button>
+              <div className="flex space-x-3 ml-auto">
+                {currentStep > 1 && (
+                  <Button
+                    variant="outline"
+                    onClick={() => setCurrentStep(currentStep - 1)}
+                  >
+                    Anterior
+                  </Button>
+                )}
+                {currentStep < totalSteps && !editingSupplier ? (
+                  <Button
+                    onClick={() => {
+                      // Validate required fields for current step
+                      if (currentStep === 1 && (!supplierForm.rtn || !supplierForm.name)) {
+                        alert("Por favor complete el RTN y Nombre del proveedor");
+                        return;
+                      }
+                      setCurrentStep(currentStep + 1);
+                    }}
+                  >
+                    Siguiente
+                  </Button>
+                ) : (
+                  <Button onClick={saveSupplier}>
+                    {editingSupplier ? 'Actualizar' : 'Crear Proveedor'}
+                  </Button>
+                )}
+              </div>
             </div>
           </CardContent>
         </Card>

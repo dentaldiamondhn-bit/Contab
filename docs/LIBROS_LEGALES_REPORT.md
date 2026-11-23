@@ -1,4 +1,4 @@
-﻿# Reporte de Estado y Plan de Ejecución: Libros Legales
+# Reporte de Estado y Plan de Ejecución: Libros Legales
 
 > **Nota:** Este módulo ha sido combinado con "Registros Contables" y "Estados Financieros" en un solo módulo "Contabilidad". Ver `MASTER_REPORT.md` para el estado unificado.
 
@@ -425,7 +425,7 @@ El identificador compuesto para operaciones empresariales sigue el contrato:
 - El filtro **AND** se aplica cuando ambos ids están provistos: `WHERE tenantId = X AND company_id = Y`
 - Cuando solo provee `tenantId` (sin company_id): resultado abarca todas las empresas del tenant (comportamiento legacy)
 - Cuando solo provee `company_id` (sin tenantId): búsqueda entre todas las empresas (no recomendado, requiere validación adicional)
-- El campo `company_id` en tablas de la migración 012 (`Invoice`, `Transaction`, `JournalEntry`, `Account`, `InvoiceItem`, `InvoicePayment`, `InvoiceNote`, `User`, `BankAccount`, `Product`, `SalesConfig`) permite el filtrado empresa-scope
+- El campo `company_id` en tablas de la migración 012 (`Invoice`, `Transaction`, `JournalEntry`, `Account`, `InvoiceItem`, `InvoicePayment`, `InvoiceNote`, `User`, `BankAccount`, `product`, `SalesConfig`) permite el filtrado empresa-scope
 
 ### Regla de filtro AND cuándo el id se provee
 

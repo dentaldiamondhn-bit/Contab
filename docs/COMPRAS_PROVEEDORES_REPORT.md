@@ -12,7 +12,7 @@
 > `app/companies/[id]/purchases/page.tsx` añade selector de medida + "precio incluye ISV" (T10).
 > **Migración `074` APLICADA** (21 Oct 2026). La suite de compras subió a **223/223**.
 
-**Migración `075` APLICADA** (3 Nov 2026). Compra unit measures: `PurchaseItem` table created with `unit`, `unit_factor` columns, `exigirFactor` validation, and `price_includes_tax` added to `Product`. Tests: **223/223 PASS**.
+**Migración `075` APLICADA** (3 Nov 2026). Compra unit measures: `PurchaseItem` table created with `unit`, `unit_factor` columns, `exigirFactor` validation, and `price_includes_tax` added to `product`. Tests: **223/223 PASS**.
 >
 > **Entre el 9 y el 18 Oct 2026 no hubo cambios funcionales en este módulo** (ver §6.18):
 > el trabajo de ese periodo fue de inventario (entradas 075-082 del diario: precio de
@@ -1075,7 +1075,7 @@ Cierra el bug latente por el que la compra entraba al stock **en paquetes** en v
 (la línea llevaba `unit_price` por paquete pero el stock subía `quantity` tal cual).
 **Migración `074` APLICADA** (21 Oct 2026). Tareas 0-10 completadas.
 
-**Migración `075` APLICADA** (3 Nov 2026). Compra unit measures: `PurchaseItem` table created with `unit`, `unit_factor` columns, `exigirFactor` validation, and `price_includes_tax` added to `Product`. Tests: **223/223 PASS**.
+**Migración `075` APLICADA** (3 Nov 2026). Compra unit measures: `PurchaseItem` table created with `unit`, `unit_factor` columns, `exigirFactor` validation, and `price_includes_tax` added to `product`. Tests: **223/223 PASS**.
 
 **T7 — `createPurchase`/`updatePurchase` persisten la medida**
 (`fix(compras): persistir la medida de cada linea de compra`, `f6f7a0c`).

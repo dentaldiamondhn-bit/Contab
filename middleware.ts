@@ -13,6 +13,13 @@ const isPublicRoute = createRouteMatcher([
   "/api/admin/plans-public(.*)",
   "/api/paypal/(.*)",
   "/api/webhooks(.*)",
+  "/api/suppliers(.*)",
+  "/api/purchases/reports(.*)",
+  // Clerk OAuth callbacks and internal routes
+  "/sign-in(.*)",
+  "/sign-up(.*)",
+  "/sso-callback(.*)",
+  "/api/clerk(.*)",
   // "/api/accounting/uploaded-files(.*)" y "/api/accounting/excel-upload(.*)"
   // Ya NO son publicas: uploaded-files llegaba sin sesion y su DELETE borraba
   // Transaction/JournalEntry de cualquier empresa (ver CLAUDE.md, 28 Sept 2026).
@@ -22,9 +29,14 @@ const isPublicRoute = createRouteMatcher([
 const isAdminRoute = createRouteMatcher(["/admin(.*)", "/api/admin/(.*)"]);
 
 export default clerkMiddleware(async (auth, req) => {
-  const { userId, sessionClaims } = await auth();
   const { pathname } = req.nextUrl;
 
+  // Evitar loops de redirección en rutas internas de Clerk
+  if (pathname.startsWith("/api/clerk") || pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up") || pathname.startsWith("/auth/callback")) {
+    return NextResponse.next();
+  }
+
+  const { userId, sessionClaims } = await auth();
   const metadata = (sessionClaims?.metadata as Record<string, unknown>) || {};
   const roleFromMetadata = (metadata.role as string) || "USER";
   const userEmail = (sessionClaims as { email?: string } | null)?.email || "";

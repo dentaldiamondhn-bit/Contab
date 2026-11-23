@@ -7,7 +7,9 @@ const configs = [
   { host: 'kudsqsbxbmviesiaesct.supabase.co', port: 5432, user: 'postgres.kudsqsbxbmviesiaesct.service_role', desc: 'kudsqsbx...:5432 svc' },
 ];
 
-const pw = '7KC3eRuTM123';
+const { getDatabasePassword } = require('../load-env.cjs');
+
+const pw = getDatabasePassword();
 
 async function test(label, cfg) {
   const c = new Client({ host: cfg.host, port: cfg.port, user: cfg.user, password: pw, database: 'postgres', connectionTimeoutMillis: 5000 });

@@ -1,13 +1,8 @@
 // Script para crear la tabla Plan en Supabase (ejecutar una vez)
 const { Client } = require('pg');
+const { databaseConfig } = require('../load-env.cjs');
 
-const client = new Client({
-  host: 'aws-0-us-east-1.pooler.supabase.com',
-  port: 6543,
-  user: 'postgres',
-  password: '7KC3eRuTM123',
-  database: 'postgres',
-});
+const client = new Client(databaseConfig());
 
 const sql = `
 -- Crear tabla Plan si no existe

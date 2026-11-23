@@ -8,7 +8,7 @@ import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resol
  * calculaban sobre el mismo listado sin empresa: con el `TENANT_ID = '1'` fijo
  * beneath, los totales de compras de una empresa incluian las de otra.
  */
-export async function GET(request: Request) {
+export const GET = async (request: Request) => {
   try {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
@@ -39,7 +39,7 @@ export async function GET(request: Request) {
     console.error('Error generating report:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+};
 
 function generateSummaryReport(purchases: any[]) {
   const total = purchases.reduce((sum, p) => sum + (p.total || 0), 0);

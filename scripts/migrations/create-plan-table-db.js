@@ -1,12 +1,7 @@
 const { Client } = require('pg');
+const { databaseConfig } = require('../load-env.cjs');
 
-const client = new Client({
-  host: 'db.kudsqsbxbmviesiaesct.supabase.co',
-  port: 5432,
-  user: 'postgres',
-  password: '7KC3eRuTM123',
-  database: 'postgres',
-});
+const client = new Client(databaseConfig());
 
 const sql = `
 -- Crear tabla Plan si no existe
