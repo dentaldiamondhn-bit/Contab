@@ -6,22 +6,12 @@ import { contextoDeEmpresa, respuestaDeErrorDeEmpresa } from '@/lib/tenant-resol
 const SUPPLIER_COLUMNS = [
   'rtn',
   'name',
-  'commercial_name',
   'email',
   'phone',
-  'mobile',
   'address',
-  'city',
-  'country',
-  'supplier_type',
-  'category',
-  'payment_terms',
-  'payment_method',
-  'bank_name',
-  'bank_account',
-  'account_type',
+  'credit_limit',
+  'current_balance',
   'is_active',
-  'is_preferred',
 ];
 
 /**
@@ -38,22 +28,30 @@ const SUPPLIER_COLUMNS = [
  */
 function buildInsert(body: any, empresa: { tenantId: string; companyId: string }) {
   const row: any = {
-    tenant_id: empresa.tenantId,
-    company_id: empresa.companyId,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString(),
+    id: crypto.randomUUID(),
+    companyId: empresa.companyId,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
   };
 
-  for (const col of SUPPLIER_COLUMNS) {
-    if (body[col] !== undefined) row[col] = body[col];
-  }
+  // Map body fields to database columns (using camelCase as confirmed in schema cache)
+  const fieldMap: Record<string, string> = {
+    rtn: 'rtn',
+    name: 'name',
+    email: 'email',
+    phone: 'phone',
+    address: 'address',
+  };
 
-  if (row.is_active === undefined) row.is_active = true;
+  for (const [bodyField, dbColumn] of Object.entries(fieldMap)) {
+    if (body[bodyField] !== undefined) row[dbColumn] = body[bodyField];
+  }
 
   return row;
 }
 
-export async function GET(request: Request) {
+export const GET = async (request: Request) => {
+  console.log('[SUPPLIERS GET] Request received:', request.url);
   try {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
@@ -62,14 +60,14 @@ export async function GET(request: Request) {
     let query = getSupabaseServer()
       .from('Supplier')
       .select('*')
-      .eq('company_id', empresa.companyId);
+      .eq('companyId', empresa.companyId);
 
     if (search) {
       const term = search.toLowerCase();
       query = query.or(`name.ilike.%${term}%,rtn.ilike.%${term}%,commercial_name.ilike.%${term}%`);
     }
 
-    const { data, error } = await query.order('created_at', { ascending: false });
+    const { data, error } = await query.order('createdAt', { ascending: false });
 
     if (error) {
       console.error('Error fetching suppliers:', error);
@@ -83,9 +81,9 @@ export async function GET(request: Request) {
     console.error('Error fetching suppliers:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+};
 
-export async function POST(request: Request) {
+export const POST = async (request: Request) => {
   try {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
@@ -108,9 +106,9 @@ export async function POST(request: Request) {
     console.error('Error creating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+};
 
-export async function PATCH(request: Request) {
+export const PATCH = async (request: Request) => {
   try {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const body = await request.json();
@@ -128,23 +126,33 @@ export async function PATCH(request: Request) {
       .from('Supplier')
       .select('id')
       .eq('id', id)
-      .eq('company_id', empresa.companyId)
+      .eq('companyId', empresa.companyId)
       .maybeSingle();
     if (!actual) {
       return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 404 });
     }
 
-    const updates: any = {};
-    for (const col of SUPPLIER_COLUMNS) {
-      if (body[col] !== undefined) updates[col] = body[col];
+    const fieldMap: Record<string, string> = {
+      creditLimit: 'creditLimit',
+      currentBalance: 'currentBalance',
+      isActive: 'isActive',
+      rtn: 'rtn',
+      name: 'name',
+      email: 'email',
+      phone: 'phone',
+      address: 'address',
+    };
+
+    const updates: any = { updatedAt: new Date().toISOString() };
+    for (const [bodyField, dbColumn] of Object.entries(fieldMap)) {
+      if (body[bodyField] !== undefined) updates[dbColumn] = body[bodyField];
     }
-    updates.updated_at = new Date().toISOString();
 
     const { data, error } = await supabase
       .from('Supplier')
       .update(updates)
       .eq('id', id)
-      .eq('company_id', empresa.companyId)
+      .eq('companyId', empresa.companyId)
       .select()
       .single();
 
@@ -160,9 +168,9 @@ export async function PATCH(request: Request) {
     console.error('Error updating supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+};
 
-export async function DELETE(request: Request) {
+export const DELETE = async (request: Request) => {
   try {
     const empresa = exigirEmpresa(await contextoDeEmpresa(request));
     const { searchParams } = new URL(request.url);
@@ -178,7 +186,7 @@ export async function DELETE(request: Request) {
       .from('Supplier')
       .select('id')
       .eq('id', id)
-      .eq('company_id', empresa.companyId)
+      .eq('companyId', empresa.companyId)
       .maybeSingle();
     if (!actual) {
       return NextResponse.json({ error: 'Proveedor no encontrado' }, { status: 404 });
@@ -188,7 +196,7 @@ export async function DELETE(request: Request) {
       .from('Supplier')
       .delete()
       .eq('id', id)
-      .eq('company_id', empresa.companyId);
+      .eq('companyId', empresa.companyId);
 
     if (error) {
       console.error('Error deleting supplier:', error);
@@ -207,4 +215,4 @@ export async function DELETE(request: Request) {
     console.error('Error deleting supplier:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
-}
+};

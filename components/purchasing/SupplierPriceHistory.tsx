@@ -48,6 +48,7 @@ interface PriceHistoryItem {
 interface SupplierPriceHistoryProps {
   supplierId: string;
   readOnly?: boolean;
+  companyId?: string;
 }
 
 // NOTA: este componente NO lleva `companyId` ni `tenantId`.
@@ -66,7 +67,7 @@ interface SupplierPriceHistoryProps {
 // O sea: el parametro no hacia falta para aislar y ademas era misleading.
 // Las rutas de compras/proveedores tampoco lo necesitan, porque la empresa la
 // saca del contexto validado (`exigirEmpresa(await contextoDeEmpresa(request))`).
-export default function SupplierPriceHistory({ supplierId, readOnly = false }: SupplierPriceHistoryProps) {
+export default function SupplierPriceHistory({ supplierId, readOnly = false, companyId }: SupplierPriceHistoryProps) {
   const [items, setItems] = useState<PriceHistoryItem[]>([]);
   const [productItems, setProductItems] = useState<{ id: string; name: string; code?: string }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,7 +94,9 @@ export default function SupplierPriceHistory({ supplierId, readOnly = false }: S
   const loadPriceHistory = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/api/suppliers/price-history?supplierId=${supplierId}`);
+      const qs = new URLSearchParams({ supplierId });
+      if (companyId) qs.set('companyId', companyId);
+      const res = await fetch(`/api/suppliers/price-history?${qs.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setItems(Array.isArray(data) ? data : []);
@@ -103,13 +106,15 @@ export default function SupplierPriceHistory({ supplierId, readOnly = false }: S
     } finally {
       setLoading(false);
     }
-  }, [supplierId]);
+  }, [supplierId, companyId]);
 
   const loadProducts = async () => {
     try {
       // Sin `?companyId`: la ruta toma la empresa del contexto validado y descarta
     // ese parametro a proposito.
-    const res = await fetch(`/api/inventory/products?limit=200`);
+    const qs = new URLSearchParams({ limit: '200' });
+      if (companyId) qs.set('companyId', companyId);
+    const res = await fetch(`/api/inventory/products?${qs.toString()}`);
       if (res.ok) {
         const data = await res.json();
         const list = Array.isArray(data) ? data : [];

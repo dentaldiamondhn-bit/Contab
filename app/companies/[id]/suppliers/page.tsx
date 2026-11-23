@@ -21,21 +21,16 @@ interface Supplier {
   id: string;
   rtn: string;
   name: string;
-  commercial_name?: string;
   email?: string;
   phone?: string;
-  mobile?: string;
   address?: string;
-  city?: string;
-  supplier_type: string;
-  category?: string;
-  payment_terms: number;
-  payment_method: string;
-  is_active: boolean;
-  is_preferred: boolean;
-  tenant_id: string;
-  company_id: string;
-  created_at: string;
+  creditLimit: number;
+  currentBalance: number;
+  isActive: boolean;
+  tenantId?: string;
+  companyId?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface Purchase {
@@ -73,22 +68,11 @@ export default function SuppliersPage() {
   const [formData, setFormData] = useState({
     rtn: '',
     name: '',
-    commercial_name: '',
     email: '',
     phone: '',
-    mobile: '',
     address: '',
-    city: '',
-    country: 'Honduras',
-    supplier_type: 'merchandise',
-    category: '',
-    payment_terms: '30',
-    payment_method: 'transfer',
-    bank_name: '',
-    bank_account: '',
-    account_type: 'checking',
-    is_active: true,
-    is_preferred: false,
+    creditLimit: 0,
+    isActive: true,
   });
 
   // Validar RTN de Honduras
@@ -153,6 +137,28 @@ export default function SuppliersPage() {
       console.error('Frontend: Error loading suppliers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const toggleSupplierActive = async (supplier: Supplier) => {
+    try {
+      const res = await fetch('/api/suppliers', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: supplier.id, isActive: !supplier.isActive }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error('Error toggling supplier active:', err);
+        alert('No se pudo cambiar el estado del proveedor');
+        return;
+      }
+      const updated = await res.json();
+      setSuppliers(prev => prev.map(s => s.id === updated.id ? { ...s, isActive: updated.is_active ?? updated.isActive } : s));
+      setFilteredSuppliers(prev => prev.map(s => s.id === updated.id ? { ...s, isActive: updated.is_active ?? updated.isActive } : s));
+    } catch (error) {
+      console.error('Error toggling supplier active:', error);
+      alert('Error al cambiar el estado');
     }
   };
 
@@ -295,7 +301,7 @@ export default function SuppliersPage() {
       };
       console.log('Frontend: Creating supplier:', supplierData);
       
-      const res = await fetch('/api/suppliers', {
+      const res = await fetch(`/api/suppliers?companyId=${companyId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(supplierData),
@@ -329,7 +335,7 @@ export default function SuppliersPage() {
     setRtnError('');
 
     try {
-      const res = await fetch('/api/suppliers', {
+      const res = await fetch(`/api/suppliers?companyId=${companyId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -357,7 +363,7 @@ export default function SuppliersPage() {
     if (!selectedSupplier) return;
 
     try {
-      const res = await fetch(`/api/suppliers?id=${selectedSupplier.id}`, {
+      const res = await fetch(`/api/suppliers?id=${selectedSupplier.id}&companyId=${companyId}`, {
         method: 'DELETE',
       });
 
@@ -378,22 +384,11 @@ export default function SuppliersPage() {
     setFormData({
       rtn: supplier.rtn,
       name: supplier.name,
-      commercial_name: supplier.commercial_name || '',
       email: supplier.email || '',
       phone: supplier.phone || '',
-      mobile: supplier.mobile || '',
       address: supplier.address || '',
-      city: supplier.city || '',
-      country: 'Honduras',
-      supplier_type: supplier.supplier_type,
-      category: supplier.category || '',
-      payment_terms: supplier.payment_terms.toString(),
-      payment_method: supplier.payment_method,
-      bank_name: '',
-      bank_account: '',
-      account_type: 'checking',
-      is_active: supplier.is_active,
-      is_preferred: supplier.is_preferred,
+      creditLimit: supplier.creditLimit || 0,
+      isActive: supplier.isActive,
     });
     setRtnError('');
     setShowEditModal(true);
@@ -409,42 +404,13 @@ export default function SuppliersPage() {
     setFormData({
       rtn: '',
       name: '',
-      commercial_name: '',
       email: '',
       phone: '',
-      mobile: '',
       address: '',
-      city: '',
-      country: 'Honduras',
-      supplier_type: 'merchandise',
-      category: '',
-      payment_terms: '30',
-      payment_method: 'transfer',
-      bank_name: '',
-      bank_account: '',
-      account_type: 'checking',
-      is_active: true,
-      is_preferred: false,
+      creditLimit: 0,
+      isActive: true,
     });
     setRtnError('');
-  };
-
-  const getSupplierTypeLabel = (type: string) => {
-    const labels: Record<string, string> = {
-      merchandise: 'Mercadería',
-      services: 'Servicios',
-      creditors: 'Acreedores',
-    };
-    return labels[type] || type;
-  };
-
-  const getSupplierTypeColor = (type: string) => {
-    const colors: Record<string, string> = {
-      merchandise: 'bg-cyan-100 text-cyan-800',
-      services: 'bg-green-100 text-green-800',
-      creditors: 'bg-purple-100 text-purple-800',
-    };
-    return colors[type] || 'bg-gray-100 text-gray-800';
   };
 
   return (
@@ -519,7 +485,7 @@ export default function SuppliersPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Total Proveedores</CardTitle>
@@ -530,31 +496,21 @@ export default function SuppliersPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">De Mercadería</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Activos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {suppliers.filter(s => s.supplier_type === 'merchandise').length}
+              {suppliers.filter(s => s.isActive).length}
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">De Servicios</CardTitle>
+            <CardTitle className="text-sm font-medium text-gray-600">Inactivos</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {suppliers.filter(s => s.supplier_type === 'services').length}
-            </div>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Preferidos</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">
-              {suppliers.filter(s => s.is_preferred).length}
+              {suppliers.filter(s => !s.isActive).length}
             </div>
           </CardContent>
         </Card>
@@ -590,7 +546,6 @@ export default function SuppliersPage() {
                   <tr className="border-b">
                     <th className="text-left py-3 px-4">RTN</th>
                     <th className="text-left py-3 px-4">Nombre</th>
-                    <th className="text-left py-3 px-4">Tipo</th>
                     <th className="text-left py-3 px-4">Contacto</th>
                     <th className="text-center py-3 px-4">Estado</th>
                     <th className="text-center py-3 px-4">Acciones</th>
@@ -604,14 +559,6 @@ export default function SuppliersPage() {
                       </td>
                       <td className="py-3 px-4">
                         <div className="font-medium">{supplier.name}</div>
-                        {supplier.commercial_name && (
-                          <div className="text-sm text-gray-500">{supplier.commercial_name}</div>
-                        )}
-                      </td>
-                      <td className="py-3 px-4">
-                        <Badge className={getSupplierTypeColor(supplier.supplier_type)}>
-                          {getSupplierTypeLabel(supplier.supplier_type)}
-                        </Badge>
                       </td>
                       <td className="py-3 px-4">
                         <div className="text-sm">
@@ -620,11 +567,16 @@ export default function SuppliersPage() {
                         </div>
                       </td>
                       <td className="py-3 px-4 text-center">
-                        {supplier.is_active ? (
-                          <Badge className="bg-green-100 text-green-800">Activo</Badge>
-                        ) : (
-                          <Badge className="bg-gray-100 text-gray-800">Inactivo</Badge>
-                        )}
+                        <button
+                          onClick={() => toggleSupplierActive(supplier)}
+                          className={`px-2 py-1 rounded text-xs font-medium cursor-pointer transition-colors ${
+                            supplier.isActive
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200'
+                              : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                          }`}
+                        >
+                          {supplier.isActive ? 'Activo' : 'Inactivo'}
+                        </button>
                       </td>
                       <td className="py-3 px-4 text-center">
                         <div className="flex gap-2 justify-center">
@@ -674,238 +626,93 @@ export default function SuppliersPage() {
             </DialogTitle>
           </DialogHeader>
 
-          <Tabs defaultValue="general" className="w-full">
-            <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="general">General</TabsTrigger>
-              <TabsTrigger value="contact">Contacto</TabsTrigger>
-              <TabsTrigger value="payment">Pagos</TabsTrigger>
-            </TabsList>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>RTN *</Label>
+              <Input
+                value={formData.rtn}
+                onChange={(e) => {
+                  const formatted = formatRTN(e.target.value);
+                  setFormData({ ...formData, rtn: formatted });
+                  if (rtnError) setRtnError('');
+                }}
+                placeholder="0801-1990-123456-7"
+                maxLength={19}
+              />
+              {rtnError && (
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>{rtnError}</AlertDescription>
+                </Alert>
+              )}
+            </div>
 
-            <TabsContent value="general" className="space-y-4">
+            <div className="space-y-2">
+              <Label>Nombre o Razón Social *</Label>
+              <Input
+                value={formData.name}
+                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                placeholder="Nombre del proveedor"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Email</Label>
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="proveedor@email.com"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Teléfono</Label>
+              <Input
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="2222-3333"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Dirección</Label>
+              <Input
+                value={formData.address}
+                onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                placeholder="Dirección completa"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>RTN *</Label>
+                <Label>Límite de Crédito (L.)</Label>
                 <Input
-                  value={formData.rtn}
-                  onChange={(e) => {
-                    const formatted = formatRTN(e.target.value);
-                    setFormData({ ...formData, rtn: formatted });
-                    if (rtnError) setRtnError('');
-                  }}
-                  placeholder="0801-1990-123456-7"
-                  maxLength={19}
-                />
-                {rtnError && (
-                  <Alert variant="destructive">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertDescription>{rtnError}</AlertDescription>
-                  </Alert>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label>Nombre o Razón Social *</Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="Nombre del proveedor"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label>Nombre Comercial</Label>
-                <Input
-                  value={formData.commercial_name}
-                  onChange={(e) => setFormData({ ...formData, commercial_name: e.target.value })}
-                  placeholder="Nombre comercial (opcional)"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Proveedor</Label>
-                  <Select
-                    value={formData.supplier_type}
-                    onValueChange={(value) => setFormData({ ...formData, supplier_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="merchandise">Mercadería (Inventario)</SelectItem>
-                      <SelectItem value="services">Servicios</SelectItem>
-                      <SelectItem value="creditors">Acreedores Diversos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Categoría</Label>
-                  <Input
-                    value={formData.category}
-                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                    placeholder="Ej: Alquiler, Luz, Teléfono"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-4">
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_active"
-                    checked={formData.is_active}
-                    onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  />
-                  <Label htmlFor="is_active">Activo</Label>
-                </div>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    id="is_preferred"
-                    checked={formData.is_preferred}
-                    onChange={(e) => setFormData({ ...formData, is_preferred: e.target.checked })}
-                  />
-                  <Label htmlFor="is_preferred">Proveedor Preferido</Label>
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="contact" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Teléfono</Label>
-                  <Input
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    placeholder="2222-3333"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Celular</Label>
-                  <Input
-                    value={formData.mobile}
-                    onChange={(e) => setFormData({ ...formData, mobile: e.target.value })}
-                    placeholder="8888-9999"
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Email</Label>
-                <Input
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  placeholder="proveedor@email.com"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={formData.creditLimit}
+                  onChange={(e) => setFormData({ ...formData, creditLimit: parseFloat(e.target.value) || 0 })}
+                  placeholder="0.00"
                 />
               </div>
-
               <div className="space-y-2">
-                <Label>Dirección</Label>
-                <Input
-                  value={formData.address}
-                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-                  placeholder="Dirección completa"
-                />
+                <Label>Estado</Label>
+                <Select
+                  value={formData.isActive ? 'true' : 'false'}
+                  onValueChange={(value) => setFormData({ ...formData, isActive: value === 'true' })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">Activo</SelectItem>
+                    <SelectItem value="false">Inactivo</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Ciudad</Label>
-                  <Input
-                    value={formData.city}
-                    onChange={(e) => setFormData({ ...formData, city: e.target.value })}
-                    placeholder="Tegucigalpa"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>País</Label>
-                  <Input
-                    value={formData.country}
-                    onChange={(e) => setFormData({ ...formData, country: e.target.value })}
-                    placeholder="Honduras"
-                  />
-                </div>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="payment" className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Términos de Pago (Días)</Label>
-                  <Select
-                    value={formData.payment_terms}
-                    onValueChange={(value) => setFormData({ ...formData, payment_terms: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="0">Contado</SelectItem>
-                      <SelectItem value="15">15 días</SelectItem>
-                      <SelectItem value="30">30 días</SelectItem>
-                      <SelectItem value="45">45 días</SelectItem>
-                      <SelectItem value="60">60 días</SelectItem>
-                      <SelectItem value="90">90 días</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label>Método de Pago Preferido</Label>
-                  <Select
-                    value={formData.payment_method}
-                    onValueChange={(value) => setFormData({ ...formData, payment_method: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="cash">Efectivo</SelectItem>
-                      <SelectItem value="transfer">Transferencia</SelectItem>
-                      <SelectItem value="check">Cheque</SelectItem>
-                      <SelectItem value="card">Tarjeta</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Banco</Label>
-                <Input
-                  value={formData.bank_name}
-                  onChange={(e) => setFormData({ ...formData, bank_name: e.target.value })}
-                  placeholder="Nombre del banco"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label>Cuenta Bancaria</Label>
-                  <Input
-                    value={formData.bank_account}
-                    onChange={(e) => setFormData({ ...formData, bank_account: e.target.value })}
-                    placeholder="Número de cuenta"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Tipo de Cuenta</Label>
-                  <Select
-                    value={formData.account_type}
-                    onValueChange={(value) => setFormData({ ...formData, account_type: value })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="checking">Corriente</SelectItem>
-                      <SelectItem value="savings">Ahorros</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </TabsContent>
-          </Tabs>
+            </div>
+          </div>
 
           <DialogFooter>
             <Button
@@ -939,21 +746,9 @@ export default function SuppliersPage() {
                   <div className="font-mono text-lg">{formatRTN(selectedSupplier.rtn)}</div>
                 </div>
                 <div>
-                  <Label className="text-gray-500">Tipo</Label>
-                  <div>
-                    <Badge className={getSupplierTypeColor(selectedSupplier.supplier_type)}>
-                      {getSupplierTypeLabel(selectedSupplier.supplier_type)}
-                    </Badge>
-                  </div>
+                  <Label className="text-gray-500">Nombre</Label>
+                  <div className="text-lg font-medium">{selectedSupplier.name}</div>
                 </div>
-              </div>
-
-              <div>
-                <Label className="text-gray-500">Nombre</Label>
-                <div className="text-lg font-medium">{selectedSupplier.name}</div>
-                {selectedSupplier.commercial_name && (
-                  <div className="text-gray-600">{selectedSupplier.commercial_name}</div>
-                )}
               </div>
 
               <div className="grid grid-cols-2 gap-4">
@@ -972,7 +767,7 @@ export default function SuppliersPage() {
                 {selectedSupplier.address && (
                   <div className="flex items-center gap-2 col-span-2">
                     <MapPin className="w-4 h-4 text-gray-400" />
-                    <span>{selectedSupplier.address}, {selectedSupplier.city}</span>
+                    <span>{selectedSupplier.address}</span>
                   </div>
                 )}
               </div>
@@ -1022,7 +817,7 @@ export default function SuppliersPage() {
               <div className="pt-4 border-t">
                 {/* Ya no se le pasa `tenantId`: la empresa la resuelve el contexto en
                     el servidor, y el nombre viejo hacia creer que hacia falta. */}
-                <SupplierPriceHistory supplierId={selectedSupplier.id} />
+                <SupplierPriceHistory supplierId={selectedSupplier.id} companyId={companyId} />
               </div>
             </div>
           )}

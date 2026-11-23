@@ -191,6 +191,15 @@ export function WorkspaceProvider({ children }: { children: ReactNode }) {
         // Solo avanza cuando la carga termino bien: si falla, la key no cambia y
         // el arbol no se remonta con datos a medias.
         setActiveCompanyId(data.activeCompanyId ?? null);
+        // Sync cookies so middleware sets x-company-id/x-location-id for API requests
+        if (data.activeCompanyId) {
+          ponerCookie(COOKIE_EMPRESA, data.activeCompanyId);
+        }
+        if (data.activeLocationId) {
+          ponerCookie(COOKIE_SEDE, data.activeLocationId);
+        } else {
+          ponerCookie(COOKIE_SEDE, "");
+        }
         setEmpresa(data.empresas?.find((e: EmpresaActiva) => e.id === data.activeCompanyId) ?? null);
         setSedes(Array.isArray(data.locations) ? data.locations : []);
         setSede(data.locations?.find((l: SedeActiva) => l.id === data.activeLocationId) ?? null);
